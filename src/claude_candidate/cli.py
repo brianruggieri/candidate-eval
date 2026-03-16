@@ -430,5 +430,28 @@ def resume_ingest(resume_path: str, output: str | None) -> None:
     click.echo(f"\nProfile written to {out_path}")
 
 
+# === Server commands ===
+
+@main.group()
+def server() -> None:
+    """Manage the local backend server."""
+    pass
+
+
+@server.command("start")
+@click.option("--host", default="127.0.0.1", help="Host to bind the server to")
+@click.option("--port", default=7429, help="Port to listen on")
+@click.option("--data-dir", type=click.Path(), default=None,
+              help="Data directory for profiles and assessments DB")
+def server_start(host: str, port: int, data_dir: str | None) -> None:
+    """Start the local REST API server."""
+    import uvicorn
+    from claude_candidate.server import create_app
+    data_path = Path(data_dir) if data_dir else Path.home() / ".claude-candidate"
+    app = create_app(data_dir=data_path)
+    click.echo(f"Starting claude-candidate server on {host}:{port}")
+    uvicorn.run(app, host=host, port=port)
+
+
 if __name__ == "__main__":
     main()
