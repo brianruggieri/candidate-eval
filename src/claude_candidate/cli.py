@@ -8,8 +8,6 @@ that runs the full v0.1 proof-of-concept flow.
 from __future__ import annotations
 
 import json
-import sys
-from datetime import datetime
 from pathlib import Path
 
 import click
@@ -48,7 +46,7 @@ def assess(
 ) -> None:
     """Run a quick match assessment against a job posting."""
     from claude_candidate.schemas.candidate_profile import CandidateProfile
-    from claude_candidate.schemas.job_requirements import QuickRequirement, RequirementPriority
+    from claude_candidate.schemas.job_requirements import QuickRequirement
     from claude_candidate.schemas.resume_profile import ResumeProfile
     from claude_candidate.merger import merge_profiles, merge_candidate_only
     from claude_candidate.quick_match import QuickMatchEngine
@@ -172,10 +170,7 @@ def _extract_basic_requirements(text: str) -> list:
 def _print_assessment_card(assessment) -> None:
     """Print a formatted assessment card to the terminal."""
     try:
-        from rich.console import Console
-        from rich.panel import Panel
-        from rich.table import Table
-        from rich.text import Text
+        import rich  # noqa: F401
         _print_rich_card(assessment)
     except ImportError:
         _print_plain_card(assessment)
@@ -186,7 +181,6 @@ def _print_rich_card(assessment) -> None:
     from rich.console import Console
     from rich.panel import Panel
     from rich.table import Table
-    from rich.text import Text
 
     console = Console()
 
@@ -264,7 +258,8 @@ def _print_rich_card(assessment) -> None:
 
 def _print_plain_card(assessment) -> None:
     """Fallback plain text output."""
-    bar = lambda score: "█" * int(score * 20) + "░" * (20 - int(score * 20))
+    def bar(score):
+        return "█" * int(score * 20) + "░" * (20 - int(score * 20))
 
     print(f"\n{'='*50}")
     print(f"  {assessment.company_name}")

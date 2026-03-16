@@ -114,7 +114,7 @@ class TestAssessmentCRUD:
             data = {**SAMPLE_ASSESSMENT, "assessment_id": f"assess-{i:03d}"}
             run(store.save_assessment(data))
 
-        all_results = run(store.list_assessments())
+        run(store.list_assessments())
         paged = run(store.list_assessments(limit=50, offset=2))
         assert len(paged) == 3
 
