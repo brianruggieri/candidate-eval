@@ -1,0 +1,5 @@
+{"parentUuid":null,"isSidechain":false,"type":"progress","data":{"type":"hook_progress","hookEvent":"SessionStart","hookName":"SessionStart:startup","command":"claude"},"parentToolUseID":null,"toolUseID":"toolu_start_004","timestamp":"2026-03-15T11:00:00.000Z","uuid":"uuid-004-a","userType":"external","cwd":"/home/user/project","sessionId":"fake-session-004","version":"2.1.76","gitBranch":"main"}
+{"parentUuid":"uuid-004-a","isSidechain":false,"type":"user","message":{"role":"user","content":[{"type":"text","text":"Help me write a Python script."}]},"timestamp":"2026-03-15T11:00:05.000Z","uuid":"uuid-004-b","userType":"external","cwd":"/home/user/project","sessionId":"fake-session-004","version":"2.1.76","gitBranch":"main"}
+{invalid json here
+
+{"parentUuid":"uuid-004-b","isSidechain":false,"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Sure, here's
