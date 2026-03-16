@@ -308,14 +308,62 @@
 		}
 	}
 
-	// Run auto-extract after a short delay to allow dynamic content to render
-	setTimeout(autoExtract, 1500);
+	/**
+	 * Expand LinkedIn's "Show more" / "...more" buttons to reveal full job description.
+	 * Returns a promise that resolves after expansion (or timeout).
+	 */
+	function expandLinkedInMore() {
+		return new Promise((resolve) => {
+			const moreButtons = document.querySelectorAll(
+				'button[aria-label*="more"], button[aria-label*="Show more"], ' +
+				'.jobs-description__footer-button, .show-more-less-html__button, ' +
+				'[class*="show-more"], a[class*="more"]'
+			);
+			let clicked = false;
+			for (const btn of moreButtons) {
+				const text = (btn.textContent || '').trim().toLowerCase();
+				if (text.includes('more') || text === '…more' || text === '... more') {
+					btn.click();
+					clicked = true;
+				}
+			}
+			// Also try clicking any "more" links inside the job description area
+			const descArea = document.querySelector(
+				'.jobs-description, [class*="job-description"], [class*="jobs-box"]'
+			);
+			if (descArea) {
+				const moreLinks = descArea.querySelectorAll('button, a');
+				for (const link of moreLinks) {
+					const text = (link.textContent || '').trim().toLowerCase();
+					if (text.includes('more') && text.length < 20) {
+						link.click();
+						clicked = true;
+					}
+				}
+			}
+			// Wait for content to expand
+			setTimeout(resolve, clicked ? 500 : 0);
+		});
+	}
+
+	// Run auto-extract after expanding "more" buttons
+	setTimeout(async () => {
+		if (detectBoard() === 'linkedin') {
+			await expandLinkedInMore();
+		}
+		autoExtract();
+	}, 1500);
 
 	// ─── Message Listener ─────────────────────────────────────────────────────
 
 	chrome.runtime.onMessage.addListener(function (request, _sender, sendResponse) {
 		if (request.action === 'extractJobPosting') {
+			(async () => {
 			try {
+				// Expand "more" buttons before extracting
+				if (detectBoard() === 'linkedin') {
+					await expandLinkedInMore();
+				}
 				const posting = extractPosting();
 				if (posting && (posting.title || posting.description)) {
 					// Store with timestamp
@@ -328,6 +376,7 @@
 			} catch (err) {
 				sendResponse({ success: false, error: err.message || 'Extraction failed' });
 			}
+			})();
 			return true; // keep message channel open for async
 		}
 	});
