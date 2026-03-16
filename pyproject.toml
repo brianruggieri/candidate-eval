@@ -1,0 +1,57 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "claude-candidate"
+version = "0.1.0"
+description = "Privacy-first pipeline: Claude Code session logs + resume → honest, evidence-backed job fit assessments"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [{ name = "Brian Ruggieri" }]
+keywords = ["claude", "ai", "job-search", "resume", "session-logs"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "pydantic>=2.0",
+    "click>=8.0",
+    "httpx>=0.27",
+    "pdfplumber>=0.11",
+    "python-docx>=1.1",
+    "fastapi>=0.115",
+    "uvicorn>=0.32",
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "mypy>=1.11",
+    "ruff>=0.7",
+]
+
+[project.scripts]
+claude-candidate = "claude_candidate.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/claude_candidate"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

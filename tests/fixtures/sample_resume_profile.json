@@ -1,0 +1,132 @@
+{
+  "profile_version": "0.1.0",
+  "parsed_at": "2026-03-15T10:00:00",
+  "source_file_hash": "b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3",
+  "source_format": "pdf",
+  "name": "Brian Ruggieri",
+  "current_title": "Senior Software Engineer",
+  "location": null,
+  "roles": [
+    {
+      "title": "Senior Software Engineer",
+      "company": "Previous Company",
+      "start_date": "2020-01",
+      "end_date": null,
+      "duration_months": 74,
+      "description": "Full-stack development with focus on backend services, API design, and developer tooling. Led adoption of AI-assisted development workflows.",
+      "technologies": ["python", "typescript", "react", "postgresql", "docker", "aws"],
+      "achievements": [
+        "Designed and deployed microservice architecture serving 10K+ daily active users",
+        "Reduced CI/CD pipeline runtime by 60% through parallelization and caching",
+        "Led technical evaluation and adoption of AI coding assistants across engineering team"
+      ],
+      "domain": "developer-tooling"
+    },
+    {
+      "title": "Software Engineer",
+      "company": "Earlier Company",
+      "start_date": "2017-06",
+      "end_date": "2019-12",
+      "duration_months": 30,
+      "description": "Backend development in Python and Java. Built data pipelines and internal tools.",
+      "technologies": ["python", "java", "postgresql", "redis", "docker"],
+      "achievements": [
+        "Built ETL pipeline processing 50M+ records daily",
+        "Reduced API response times by 40% through query optimization"
+      ],
+      "domain": "data-engineering"
+    }
+  ],
+  "total_years_experience": 8.5,
+  "skills": [
+    {
+      "name": "python",
+      "source_context": "Primary language in both roles. Listed in skills section. Used for backend services, data pipelines, and CLI tools.",
+      "implied_depth": "deep",
+      "years_experience": 8.0,
+      "recency": "current_role"
+    },
+    {
+      "name": "typescript",
+      "source_context": "Used in current role for frontend and tooling. Listed in skills section.",
+      "implied_depth": "applied",
+      "years_experience": 4.0,
+      "recency": "current_role"
+    },
+    {
+      "name": "react",
+      "source_context": "Listed in skills section. Used for frontend development in current role.",
+      "implied_depth": "applied",
+      "years_experience": 3.0,
+      "recency": "current_role"
+    },
+    {
+      "name": "postgresql",
+      "source_context": "Used in both roles for data storage. Query optimization mentioned in achievements.",
+      "implied_depth": "deep",
+      "years_experience": 6.0,
+      "recency": "current_role"
+    },
+    {
+      "name": "docker",
+      "source_context": "Listed in skills section. Used in both roles.",
+      "implied_depth": "applied",
+      "years_experience": 5.0,
+      "recency": "current_role"
+    },
+    {
+      "name": "aws",
+      "source_context": "Listed in skills section for current role.",
+      "implied_depth": "applied",
+      "years_experience": 4.0,
+      "recency": "current_role"
+    },
+    {
+      "name": "java",
+      "source_context": "Used at earlier company for backend services.",
+      "implied_depth": "applied",
+      "years_experience": 2.5,
+      "recency": "previous_role"
+    },
+    {
+      "name": "redis",
+      "source_context": "Listed in earlier role's technology stack.",
+      "implied_depth": "used",
+      "years_experience": 2.0,
+      "recency": "previous_role"
+    },
+    {
+      "name": "git",
+      "source_context": "Implied by engineering roles and CI/CD work.",
+      "implied_depth": "deep",
+      "years_experience": 8.0,
+      "recency": "current_role"
+    },
+    {
+      "name": "ci/cd",
+      "source_context": "Reduced CI/CD pipeline runtime by 60% — specific achievement mentioned.",
+      "implied_depth": "deep",
+      "years_experience": 5.0,
+      "recency": "current_role"
+    },
+    {
+      "name": "rest-api",
+      "source_context": "API design mentioned in current role description.",
+      "implied_depth": "deep",
+      "years_experience": 7.0,
+      "recency": "current_role"
+    },
+    {
+      "name": "microservices",
+      "source_context": "Designed and deployed microservice architecture — explicit achievement.",
+      "implied_depth": "deep",
+      "years_experience": 4.0,
+      "recency": "current_role"
+    }
+  ],
+  "education": [
+    "B.S. Computer Science"
+  ],
+  "certifications": [],
+  "professional_summary": "Senior Software Engineer with 8+ years of experience in backend development, API design, and developer tooling. Currently focused on AI-assisted development workflows and open-source tooling. Built multiple public projects demonstrating expertise in multi-agent AI systems, session log processing, and CLI design."
+}

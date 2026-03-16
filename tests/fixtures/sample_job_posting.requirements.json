@@ -1,0 +1,104 @@
+[
+  {
+    "description": "5+ years software engineering experience",
+    "skill_mapping": ["python", "typescript", "software-engineering"],
+    "priority": "must_have",
+    "source_text": "5+ years of software engineering experience"
+  },
+  {
+    "description": "Strong Python proficiency for production systems",
+    "skill_mapping": ["python"],
+    "priority": "must_have",
+    "source_text": "Strong Python proficiency with experience building production systems"
+  },
+  {
+    "description": "LLM API experience including prompt engineering",
+    "skill_mapping": ["claude-api", "prompt-engineering", "llm"],
+    "priority": "must_have",
+    "source_text": "Experience with LLM APIs (OpenAI, Anthropic, or similar) including prompt engineering"
+  },
+  {
+    "description": "CLI tools or developer SDK design and development",
+    "skill_mapping": ["cli-design", "developer-tooling"],
+    "priority": "must_have",
+    "source_text": "Experience designing and building CLI tools or developer-facing SDKs"
+  },
+  {
+    "description": "Modular system architecture ability",
+    "skill_mapping": ["modular_thinking", "architecture_first"],
+    "priority": "must_have",
+    "source_text": "Demonstrated ability to architect modular, maintainable systems"
+  },
+  {
+    "description": "Multi-agent or agentic AI pattern experience",
+    "skill_mapping": ["multi-agent-systems"],
+    "priority": "must_have",
+    "source_text": "Familiarity with multi-agent or agentic AI patterns"
+  },
+  {
+    "description": "Strong written communication and documentation skills",
+    "skill_mapping": ["communication_clarity", "documentation_driven"],
+    "priority": "must_have",
+    "source_text": "Strong written communication skills — you'll write docs and blog posts"
+  },
+  {
+    "description": "Active open-source presence on GitHub",
+    "skill_mapping": ["open-source", "git"],
+    "priority": "must_have",
+    "source_text": "Active GitHub profile or open-source contributions"
+  },
+  {
+    "description": "TypeScript/JavaScript for SDK development",
+    "skill_mapping": ["typescript", "javascript"],
+    "priority": "strong_preference",
+    "source_text": "Experience with TypeScript/JavaScript for SDK development"
+  },
+  {
+    "description": "Terminal environment proficiency (tmux, shell scripting)",
+    "skill_mapping": ["tmux", "bash"],
+    "priority": "strong_preference",
+    "source_text": "Familiarity with terminal environments (tmux, shell scripting)"
+  },
+  {
+    "description": "Structured log data or telemetry pipeline processing",
+    "skill_mapping": ["session-log-processing"],
+    "priority": "strong_preference",
+    "source_text": "Experience processing structured log data or telemetry pipelines"
+  },
+  {
+    "description": "Developer tooling or DevOps background",
+    "skill_mapping": ["developer-tooling"],
+    "priority": "strong_preference",
+    "source_text": "Background in developer tooling or DevOps"
+  },
+  {
+    "description": "Model evaluation and prompt optimization",
+    "skill_mapping": ["prompt-engineering"],
+    "priority": "nice_to_have",
+    "source_text": "Experience with model evaluation and prompt optimization"
+  },
+  {
+    "description": "Contributions to AI/LLM open-source projects",
+    "skill_mapping": ["open-source", "claude-api"],
+    "priority": "nice_to_have",
+    "source_text": "Contributions to AI/LLM open-source projects"
+  },
+  {
+    "description": "React experience for developer UIs",
+    "skill_mapping": ["react"],
+    "priority": "nice_to_have",
+    "source_text": "React mentioned in tech stack"
+  },
+  {
+    "description": "Docker and containerization",
+    "skill_mapping": ["docker"],
+    "priority": "nice_to_have",
+    "source_text": "Docker mentioned in tech stack"
+  },
+  {
+    "description": "Kubernetes orchestration",
+    "skill_mapping": ["kubernetes"],
+    "priority": "nice_to_have",
+    "source_text": "Kubernetes mentioned in tech stack"
+  }
+]

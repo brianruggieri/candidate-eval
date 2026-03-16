@@ -1,0 +1,46 @@
+Senior AI Engineer — Developer Tools
+
+About the Company
+We're building the next generation of AI-powered developer tools. Our platform helps engineering teams integrate LLMs into their development workflows — from code generation to automated testing to intelligent documentation. We're a Series B startup with 85 engineers, fully remote, and deeply committed to open source.
+
+About the Role
+We're looking for a Senior AI Engineer to join our Developer Experience team. You'll design and build the orchestration layer that connects our AI models to developer workflows. This is a hands-on IC role with significant architectural influence.
+
+What You'll Do
+- Design and implement multi-agent orchestration systems for developer-facing AI features
+- Build CLI tools and SDK integrations that developers love to use
+- Develop prompt engineering frameworks and evaluation pipelines
+- Collaborate with ML engineers on model integration and fine-tuning workflows
+- Contribute to our open-source projects and engage with the developer community
+- Write technical documentation and blog posts about our engineering approach
+
+Required Qualifications
+- 5+ years of software engineering experience
+- Strong Python proficiency with experience building production systems
+- Experience with LLM APIs (OpenAI, Anthropic, or similar) including prompt engineering
+- Experience designing and building CLI tools or developer-facing SDKs
+- Demonstrated ability to architect modular, maintainable systems
+- Familiarity with multi-agent or agentic AI patterns
+- Strong written communication skills — you'll write docs and blog posts
+- Active GitHub profile or open-source contributions
+
+Preferred Qualifications
+- Experience with TypeScript/JavaScript for SDK development
+- Familiarity with terminal environments (tmux, shell scripting)
+- Experience processing structured log data or telemetry pipelines
+- Background in developer tooling or DevOps
+- Experience with model evaluation and prompt optimization
+- Contributions to AI/LLM open-source projects
+
+Tech Stack
+Python, TypeScript, React, FastAPI, PostgreSQL, Docker, Kubernetes, GitHub Actions, Claude API, OpenAI API
+
+Work Style
+- Fully remote (US time zones)
+- Async-first communication with weekly syncs
+- Strong documentation culture — we write RFCs before building
+- Open source by default — internal tools get published when possible
+- Small autonomous teams (4-6 engineers) with high ownership
+
+Compensation
+$180K-$220K base + equity

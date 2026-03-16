@@ -1,0 +1,527 @@
+{
+  "profile_version": "0.1.0",
+  "generated_at": "2026-03-15T10:00:00",
+  "generator_version": "0.1.0",
+  "session_count": 247,
+  "date_range_start": "2025-09-01T00:00:00",
+  "date_range_end": "2026-03-15T00:00:00",
+  "manifest_hash": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+  "skills": [
+    {
+      "name": "python",
+      "category": "language",
+      "depth": "deep",
+      "frequency": 89,
+      "recency": "2026-03-14T00:00:00",
+      "first_seen": "2025-09-02T00:00:00",
+      "evidence": [
+        {
+          "session_id": "2026-02-14_10-30-00_ab12cd34",
+          "session_date": "2026-02-14T10:30:00",
+          "project_context": "claude-narrator pipeline development",
+          "evidence_snippet": "Designed six-module Python pipeline with pluggable NarratorInterface supporting Claude API, Ollama, and manual mode",
+          "evidence_type": "architecture_decision",
+          "confidence": 0.95
+        },
+        {
+          "session_id": "2025-12-01_14-00-00_ef56gh78",
+          "session_date": "2025-12-01T14:00:00",
+          "project_context": "obsidian-daily-digest clawbot script",
+          "evidence_snippet": "Built Python script compiling browser history, shell history, and session logs into daily Obsidian notes with AI summarization",
+          "evidence_type": "direct_usage",
+          "confidence": 0.92
+        }
+      ],
+      "context_notes": "Primary language for CLI tools, data pipelines, and AI integration. Used across all major projects."
+    },
+    {
+      "name": "typescript",
+      "category": "language",
+      "depth": "deep",
+      "frequency": 45,
+      "recency": "2026-03-12T00:00:00",
+      "first_seen": "2025-10-15T00:00:00",
+      "evidence": [
+        {
+          "session_id": "2026-01-20_09-00-00_ij90kl12",
+          "session_date": "2026-01-20T09:00:00",
+          "project_context": "teamchat CLI tool",
+          "evidence_snippet": "Built 8.3K LOC TypeScript application with zero prod dependencies, Bun tooling, custom React rendering",
+          "evidence_type": "direct_usage",
+          "confidence": 0.95
+        }
+      ],
+      "context_notes": "Used for Obsidian plugin (13.8K LOC) and teamchat tool. Strong typing discipline."
+    },
+    {
+      "name": "bash",
+      "category": "language",
+      "depth": "deep",
+      "frequency": 67,
+      "recency": "2026-03-10T00:00:00",
+      "first_seen": "2025-09-05T00:00:00",
+      "evidence": [
+        {
+          "session_id": "2026-02-01_11-00-00_mn34op56",
+          "session_date": "2026-02-01T11:00:00",
+          "project_context": "claude-code-pulse (ccp)",
+          "evidence_snippet": "Built ~6.9K LOC pure Bash CLI wrapper with OSC escape sequences, tmux integration, and lifecycle hooks",
+          "evidence_type": "direct_usage",
+          "confidence": 0.95
+        }
+      ],
+      "context_notes": "Extensive shell scripting for developer tooling and terminal automation."
+    },
+    {
+      "name": "react",
+      "category": "framework",
+      "depth": "applied",
+      "frequency": 18,
+      "recency": "2026-03-01T00:00:00",
+      "first_seen": "2025-11-01T00:00:00",
+      "evidence": [
+        {
+          "session_id": "2026-01-25_10-00-00_qr78st90",
+          "session_date": "2026-01-25T10:00:00",
+          "project_context": "teamchat UI",
+          "evidence_snippet": "Implemented custom React + Tailwind chat interface, deliberately choosing against chat UI libraries for control",
+          "evidence_type": "architecture_decision",
+          "confidence": 0.88
+        }
+      ]
+    },
+    {
+      "name": "claude-api",
+      "category": "platform",
+      "depth": "expert",
+      "frequency": 72,
+      "recency": "2026-03-15T00:00:00",
+      "first_seen": "2025-09-01T00:00:00",
+      "evidence": [
+        {
+          "session_id": "2026-03-01_09-00-00_uv12wx34",
+          "session_date": "2026-03-01T09:00:00",
+          "project_context": "blog-a-claude pipeline",
+          "evidence_snippet": "Orchestrated multi-agent content pipeline using Claude API with model mixing, delegate patterns, and shared context via CLAUDE.md",
+          "evidence_type": "integration",
+          "confidence": 0.98
+        }
+      ],
+      "context_notes": "Deep expertise across Claude Code CLI, Agent Teams, hooks system, MCP integration, and API usage."
+    },
+    {
+      "name": "prompt-engineering",
+      "category": "concept",
+      "depth": "expert",
+      "frequency": 95,
+      "recency": "2026-03-15T00:00:00",
+      "first_seen": "2025-09-01T00:00:00",
+      "evidence": [
+        {
+          "session_id": "2026-02-20_13-00-00_yz56ab78",
+          "session_date": "2026-02-20T13:00:00",
+          "project_context": "claude-narrator extraction prompts",
+          "evidence_snippet": "Designed pluggable NarratorInterface with structured extraction prompts that progressively refine narrative quality",
+          "evidence_type": "architecture_decision",
+          "confidence": 0.96
+        }
+      ],
+      "context_notes": "Core competency demonstrated across every project. Designs prompts as system interfaces, not ad-hoc queries."
+    },
+    {
+      "name": "multi-agent-systems",
+      "category": "concept",
+      "depth": "expert",
+      "frequency": 38,
+      "recency": "2026-03-14T00:00:00",
+      "first_seen": "2025-11-15T00:00:00",
+      "evidence": [
+        {
+          "session_id": "2026-01-15_08-00-00_cd90ef12",
+          "session_date": "2026-01-15T08:00:00",
+          "project_context": "teamchat agent visualization",
+          "evidence_snippet": "Built tool to visualize inter-agent communication from Claude Code Agent Teams inbox JSON files",
+          "evidence_type": "direct_usage",
+          "confidence": 0.95
+        }
+      ],
+      "context_notes": "Designed and built multi-agent orchestration systems, visualization tools, and coordination patterns."
+    },
+    {
+      "name": "git",
+      "category": "tool",
+      "depth": "deep",
+      "frequency": 120,
+      "recency": "2026-03-15T00:00:00",
+      "first_seen": "2025-09-01T00:00:00",
+      "evidence": [
+        {
+          "session_id": "2025-12-15_10-00-00_gh34ij56",
+          "session_date": "2025-12-15T10:00:00",
+          "project_context": "obsidian-daily-digest contributor review",
+          "evidence_snippet": "Reviewed open-source contributor PR, managed branch strategy, 302 commits across project lifecycle",
+          "evidence_type": "review",
+          "confidence": 0.90
+        }
+      ]
+    },
+    {
+      "name": "tmux",
+      "category": "tool",
+      "depth": "deep",
+      "frequency": 55,
+      "recency": "2026-03-10T00:00:00",
+      "first_seen": "2025-09-01T00:00:00",
+      "evidence": [
+        {
+          "session_id": "2026-02-05_09-30-00_kl78mn90",
+          "session_date": "2026-02-05T09:30:00",
+          "project_context": "claude-code-pulse tmux integration",
+          "evidence_snippet": "Solved Claude Code TUI title-overwrite limitation by pivoting to tmux-focused static labeling architecture",
+          "evidence_type": "debugging",
+          "confidence": 0.93
+        }
+      ]
+    },
+    {
+      "name": "cli-design",
+      "category": "domain",
+      "depth": "expert",
+      "frequency": 65,
+      "recency": "2026-03-14T00:00:00",
+      "first_seen": "2025-09-15T00:00:00",
+      "evidence": [
+        {
+          "session_id": "2026-01-10_14-00-00_op12qr34",
+          "session_date": "2026-01-10T14:00:00",
+          "project_context": "teamchat npx distribution design",
+          "evidence_snippet": "Designed npx teamchat distribution with auto-launch via PostToolUse hook, zero-config first run",
+          "evidence_type": "architecture_decision",
+          "confidence": 0.94
+        }
+      ],
+      "context_notes": "Built multiple CLI tools with considered UX: ccp, teamchat, voice-claude, daily-claw."
+    },
+    {
+      "name": "developer-tooling",
+      "category": "domain",
+      "depth": "expert",
+      "frequency": 80,
+      "recency": "2026-03-15T00:00:00",
+      "first_seen": "2025-09-01T00:00:00",
+      "evidence": [
+        {
+          "session_id": "2026-03-10_11-00-00_st56uv78",
+          "session_date": "2026-03-10T11:00:00",
+          "project_context": "claude-candidate planning",
+          "evidence_snippet": "Designed privacy-first pipeline architecture for session log analysis with cryptographic verification",
+          "evidence_type": "planning",
+          "confidence": 0.92
+        }
+      ],
+      "context_notes": "Primary domain across all projects. Builds tools for developers, by a developer."
+    },
+    {
+      "name": "open-source",
+      "category": "practice",
+      "depth": "deep",
+      "frequency": 40,
+      "recency": "2026-03-14T00:00:00",
+      "first_seen": "2025-10-01T00:00:00",
+      "evidence": [
+        {
+          "session_id": "2025-11-20_10-00-00_wx90yz12",
+          "session_date": "2025-11-20T10:00:00",
+          "project_context": "obsidian-daily-digest MIT licensing",
+          "evidence_snippet": "Selected MIT license for Obsidian ecosystem compatibility, reviewed external contributor PR",
+          "evidence_type": "evaluation",
+          "confidence": 0.88
+        }
+      ],
+      "context_notes": "Multiple public repos (blog-a-claude, teamchat, obsidian-daily-digest, claude-code-pulse, voice-claude). MIT licensed."
+    },
+    {
+      "name": "macos-automation",
+      "category": "domain",
+      "depth": "deep",
+      "frequency": 30,
+      "recency": "2026-02-28T00:00:00",
+      "first_seen": "2025-09-01T00:00:00",
+      "evidence": [
+        {
+          "session_id": "2026-02-10_15-00-00_ab34cd56",
+          "session_date": "2026-02-10T15:00:00",
+          "project_context": "voice-claude macOS integration",
+          "evidence_snippet": "Built Whisper.cpp + macOS say voice interface with pluggable TTS/STT abstraction and iTerm2 integration",
+          "evidence_type": "integration",
+          "confidence": 0.90
+        }
+      ]
+    },
+    {
+      "name": "session-log-processing",
+      "category": "domain",
+      "depth": "expert",
+      "frequency": 50,
+      "recency": "2026-03-15T00:00:00",
+      "first_seen": "2025-10-15T00:00:00",
+      "evidence": [
+        {
+          "session_id": "2025-12-05_09-00-00_ef78gh90",
+          "session_date": "2025-12-05T09:00:00",
+          "project_context": "obsidian-daily-digest JSONL processing",
+          "evidence_snippet": "Built pipeline ingesting Claude Code JSONL logs with secret scrubbing, domain categorization, and AI summarization",
+          "evidence_type": "direct_usage",
+          "confidence": 0.95
+        }
+      ],
+      "context_notes": "Unique expertise in processing and extracting value from Claude Code session logs. Built multiple tools in this space."
+    }
+  ],
+  "primary_languages": ["python", "typescript", "bash"],
+  "primary_domains": ["developer-tooling", "cli-design", "session-log-processing", "macos-automation"],
+  "problem_solving_patterns": [
+    {
+      "pattern_type": "architecture_first",
+      "frequency": "dominant",
+      "strength": "exceptional",
+      "description": "Consistently designs module boundaries, interface contracts, and data flow before writing implementation. In teamchat, produced a full v0.2 spec with technical decisions before code. In claude-narrator, defined a six-module pipeline with pluggable interfaces before implementation.",
+      "evidence": [
+        {
+          "session_id": "2026-01-20_09-00-00_ij90kl12",
+          "session_date": "2026-01-20T09:00:00",
+          "project_context": "teamchat v0.2 spec",
+          "evidence_snippet": "Produced detailed spec with module boundaries, tech decisions, and deferred features before any code",
+          "evidence_type": "planning",
+          "confidence": 0.96
+        }
+      ]
+    },
+    {
+      "pattern_type": "modular_thinking",
+      "frequency": "dominant",
+      "strength": "exceptional",
+      "description": "Decomposes every project into independent, composable modules with clear interfaces. Prefers pluggable abstractions over monolithic implementations.",
+      "evidence": [
+        {
+          "session_id": "2026-02-14_10-30-00_ab12cd34",
+          "session_date": "2026-02-14T10:30:00",
+          "project_context": "claude-narrator pluggable interface",
+          "evidence_snippet": "Designed NarratorInterface supporting Claude API, local Ollama, and manual mode with same contract",
+          "evidence_type": "architecture_decision",
+          "confidence": 0.95
+        }
+      ]
+    },
+    {
+      "pattern_type": "documentation_driven",
+      "frequency": "common",
+      "strength": "strong",
+      "description": "Creates CLAUDE.md, AGENTS.md, and spec documents as first-class artifacts. Documentation is a design tool, not an afterthought.",
+      "evidence": [
+        {
+          "session_id": "2026-01-18_10-00-00_cd12ef34",
+          "session_date": "2026-01-18T10:00:00",
+          "project_context": "teamchat CLAUDE.md authoring",
+          "evidence_snippet": "Wrote detailed CLAUDE.md and AGENTS.md as shared context for agent team coordination",
+          "evidence_type": "direct_usage",
+          "confidence": 0.90
+        }
+      ]
+    },
+    {
+      "pattern_type": "meta_cognition",
+      "frequency": "common",
+      "strength": "strong",
+      "description": "Regularly reflects on process and builds tools that observe their own creation. The blog-a-claude project documents its own construction; claude-candidate evaluates its own builder.",
+      "evidence": [
+        {
+          "session_id": "2026-03-10_11-00-00_st56uv78",
+          "session_date": "2026-03-10T11:00:00",
+          "project_context": "claude-candidate recursive property",
+          "evidence_snippet": "Designed tool where session logs from building it become input to it evaluating the builder",
+          "evidence_type": "planning",
+          "confidence": 0.92
+        }
+      ]
+    },
+    {
+      "pattern_type": "scope_management",
+      "frequency": "common",
+      "strength": "strong",
+      "description": "Explicitly defers features and manages complexity. Real Slack/Discord integration deferred to v2 in teamchat. Fine-tuning deferred in claude-narrator.",
+      "evidence": [
+        {
+          "session_id": "2026-01-22_11-00-00_gh56ij78",
+          "session_date": "2026-01-22T11:00:00",
+          "project_context": "teamchat scope decisions",
+          "evidence_snippet": "Explicitly deferred real Slack/Discord integration to v2, kept v1 focused on local JSON rendering",
+          "evidence_type": "evaluation",
+          "confidence": 0.91
+        }
+      ]
+    },
+    {
+      "pattern_type": "recovery_from_failure",
+      "frequency": "occasional",
+      "strength": "established",
+      "description": "Adapts when approaches fail. Pivoted claude-pane-pulse to claude-code-pulse when Claude TUI title overwriting proved unsolvable. Diagnosed mode:plan bug during teamchat build and respawned agents.",
+      "evidence": [
+        {
+          "session_id": "2026-01-28_14-00-00_kl90mn12",
+          "session_date": "2026-01-28T14:00:00",
+          "project_context": "teamchat mode:plan bug",
+          "evidence_snippet": "Diagnosed ~20-minute loop caused by mode:plan bug, respawned agents with mode:auto to recover",
+          "evidence_type": "debugging",
+          "confidence": 0.88
+        }
+      ],
+      "counter_evidence": [
+        {
+          "session_id": "2026-01-28_14-20-00_op34qr56",
+          "session_date": "2026-01-28T14:20:00",
+          "project_context": "teamchat mode:plan bug",
+          "evidence_snippet": "Took approximately 20 minutes to identify the mode:plan issue — not immediately diagnosed",
+          "evidence_type": "debugging",
+          "confidence": 0.7
+        }
+      ]
+    },
+    {
+      "pattern_type": "tool_selection",
+      "frequency": "common",
+      "strength": "strong",
+      "description": "Evaluates tools carefully, preferring open-source and modular options. Chose custom React over chat UI libraries for teamchat. Chose Bun over npm/yarn for speed.",
+      "evidence": [
+        {
+          "session_id": "2026-01-25_10-00-00_qr78st90",
+          "session_date": "2026-01-25T10:00:00",
+          "project_context": "teamchat tooling decisions",
+          "evidence_snippet": "Evaluated chat UI libraries, chose custom React+Tailwind for full control over rendering",
+          "evidence_type": "evaluation",
+          "confidence": 0.90
+        }
+      ]
+    }
+  ],
+  "working_style_summary": "Architecture-first developer who designs module boundaries and interface contracts before writing code. Works primarily in Python and TypeScript, building CLI tools and developer-facing infrastructure. Thinks in systems — projects are modular, composable, and often recursive (tools that observe their own creation). Strong preference for open-source, honest documentation over polished curation, and free tooling over paid alternatives. Comfortable managing multiple concurrent agent sessions and complex terminal environments.",
+  "projects": [
+    {
+      "project_name": "obsidian-daily-digest",
+      "description": "TypeScript Obsidian plugin with Python companion script. Compiles browser history, shell history, and Claude Code session logs into daily Obsidian notes with AI summarization.",
+      "public_repo_url": "https://github.com/brianruggieri/obsidian-daily-digest",
+      "complexity": "ambitious",
+      "technologies": ["typescript", "python", "obsidian-api", "claude-api", "sqlite"],
+      "session_count": 45,
+      "date_range_start": "2025-10-01T00:00:00",
+      "date_range_end": "2026-02-28T00:00:00",
+      "key_decisions": [
+        "Privacy-first 4-tier escalation chain, all opt-in, local AI default",
+        "MIT license for Obsidian ecosystem compatibility",
+        "WASM SQLite for browser history reading in plugin context"
+      ],
+      "challenges_overcome": [
+        "419-domain sensitivity filtering for content categorization",
+        "Managing external contributor (slegarraga) code review and merge"
+      ],
+      "evidence": [
+        {
+          "session_id": "2025-12-01_14-00-00_ef56gh78",
+          "session_date": "2025-12-01T14:00:00",
+          "project_context": "obsidian-daily-digest development",
+          "evidence_snippet": "Built collect-filter-analyze-summarize-render pipeline with secret scrubbing",
+          "evidence_type": "direct_usage",
+          "confidence": 0.93
+        }
+      ]
+    },
+    {
+      "project_name": "teamchat",
+      "description": "TypeScript CLI tool that renders Claude Code Agent Teams inter-agent communication as a Slack/WhatsApp-style group chat interface.",
+      "public_repo_url": "https://github.com/brianruggieri/teamchat",
+      "complexity": "complex",
+      "technologies": ["typescript", "react", "tailwind", "bun"],
+      "session_count": 28,
+      "date_range_start": "2025-12-15T00:00:00",
+      "date_range_end": "2026-03-12T00:00:00",
+      "key_decisions": [
+        "Custom React + Tailwind over chat UI libraries for full rendering control",
+        "Bun for file watching with debounce",
+        "npm distribution via npx teamchat"
+      ],
+      "challenges_overcome": [
+        "mode:plan bug causing ~20-minute agent loop",
+        "Broadcast message detection and idle notification suppression"
+      ],
+      "evidence": [
+        {
+          "session_id": "2026-01-20_09-00-00_ij90kl12",
+          "session_date": "2026-01-20T09:00:00",
+          "project_context": "teamchat development",
+          "evidence_snippet": "8.3K LOC TypeScript with zero prod dependencies",
+          "evidence_type": "direct_usage",
+          "confidence": 0.95
+        }
+      ]
+    },
+    {
+      "project_name": "claude-code-pulse",
+      "description": "Pure Bash CLI wrapper that keeps tmux pane titles updated with branch name, PR number, and live Claude Code agent status.",
+      "public_repo_url": "https://github.com/brianruggieri/claude-code-pulse",
+      "complexity": "complex",
+      "technologies": ["bash", "tmux", "claude-code-hooks"],
+      "session_count": 22,
+      "date_range_start": "2025-11-01T00:00:00",
+      "date_range_end": "2026-03-10T00:00:00",
+      "key_decisions": [
+        "Pure Bash for zero-dependency installation",
+        "Pivoted from iTerm title approach to tmux after TUI overwrite limitation"
+      ],
+      "challenges_overcome": [
+        "Claude Code TUI overwriting terminal titles — required architectural pivot",
+        "OSC escape sequence handling across terminal emulators"
+      ],
+      "evidence": [
+        {
+          "session_id": "2026-02-01_11-00-00_mn34op56",
+          "session_date": "2026-02-01T11:00:00",
+          "project_context": "claude-code-pulse development",
+          "evidence_snippet": "~6.9K LOC Bash with installer/uninstaller scripts",
+          "evidence_type": "direct_usage",
+          "confidence": 0.95
+        }
+      ]
+    },
+    {
+      "project_name": "blog-a-claude",
+      "description": "Pipeline that ingests Claude Code session logs and uses an AI agent team to auto-generate blog posts. The blog documents its own construction.",
+      "public_repo_url": "https://github.com/brianruggieri/blog-a-claude",
+      "complexity": "ambitious",
+      "technologies": ["python", "claude-api", "multi-agent-systems", "prompt-engineering"],
+      "session_count": 35,
+      "date_range_start": "2025-11-15T00:00:00",
+      "date_range_end": "2026-03-14T00:00:00",
+      "key_decisions": [
+        "Meta-concept: blog documents its own construction",
+        "Agent team architecture with specialized content roles"
+      ],
+      "challenges_overcome": [
+        "Quality calibration — early posts were generic, improved through prompt iteration"
+      ],
+      "evidence": [
+        {
+          "session_id": "2026-03-01_09-00-00_uv12wx34",
+          "session_date": "2026-03-01T09:00:00",
+          "project_context": "blog-a-claude pipeline",
+          "evidence_snippet": "Multi-agent content pipeline with model mixing and shared context",
+          "evidence_type": "integration",
+          "confidence": 0.94
+        }
+      ]
+    }
+  ],
+  "communication_style": "Precise and systems-oriented. Explains technical concepts through architecture metaphors and module boundaries rather than analogies. Asks clarifying questions about scope before starting. Writes documentation as a design tool.",
+  "documentation_tendency": "thorough",
+  "extraction_notes": "Sessions heavily weighted toward Python/TypeScript CLI tools and AI integration. Limited evidence of frontend design (beyond React components in teamchat), database administration, or cloud infrastructure. No evidence of team management or people leadership — all projects are individual contributor work. Session corpus does not capture pre-2025 career history.",
+  "confidence_assessment": "high"
+}
