@@ -35,24 +35,58 @@
 
 	// ─── LinkedIn ─────────────────────────────────────────────────────────────
 
+	/**
+	 * Find text content by looking for a heading containing specific text,
+	 * then grabbing the content that follows it.
+	 */
+	function getTextAfterHeading(headingText) {
+		const headings = document.querySelectorAll('h1, h2, h3, h4, [role="heading"]');
+		for (const h of headings) {
+			if (h.textContent.trim().toLowerCase().includes(headingText.toLowerCase())) {
+				// Get the parent section/container, or walk siblings
+				const parent = h.closest('section, article, div[class]');
+				if (parent) {
+					const text = parent.innerText || parent.textContent || '';
+					if (text.trim().length > 50) return text.trim();
+				}
+				// Fallback: collect sibling text
+				let text = '';
+				let sibling = h.nextElementSibling;
+				while (sibling) {
+					const tag = sibling.tagName.toLowerCase();
+					if (tag === 'h1' || tag === 'h2' || tag === 'h3') break;
+					text += (sibling.innerText || sibling.textContent || '') + '\n';
+					sibling = sibling.nextElementSibling;
+				}
+				if (text.trim().length > 50) return text.trim();
+			}
+		}
+		return null;
+	}
+
 	function extractLinkedIn() {
+		// Title — try specific selectors, then any h1
 		const title = queryText([
 			'.jobs-unified-top-card__job-title',
 			'.jobs-details-top-card__job-title',
 			'h1.job-title',
 			'h1[class*="job-title"]',
 			'.t-24.t-bold',
+			'h1',
 		]);
 
+		// Company — try specific selectors, then look near the title
 		const company = queryText([
 			'.jobs-unified-top-card__company-name',
-			'.jobs-details-top-card__company-info .ember-view',
+			'.jobs-details-top-card__company-info a',
 			'.jobs-unified-top-card__subtitle-primary-grouping a',
 			'[data-test-employer-name]',
-			'.jobs-top-card__company-info .ember-view',
+			'.jobs-top-card__company-info a',
+			'a[href*="/company/"]',
 		]);
 
-		const description = queryContent([
+		// Description — try selectors first, then heading-based fallback
+		let description = queryContent([
 			'.jobs-description__content',
 			'.jobs-box__html-content',
 			'.description__text',
@@ -60,6 +94,24 @@
 			'#job-details',
 			'.jobs-description',
 		]);
+
+		// Heading-based fallback: find "About the job" section
+		if (!description || description.length < 50) {
+			description = getTextAfterHeading('About the job');
+		}
+
+		// Last resort: grab the largest text block on the page
+		if (!description || description.length < 50) {
+			const candidates = document.querySelectorAll('section, article, main, [role="main"]');
+			let best = '';
+			for (const el of candidates) {
+				const text = (el.innerText || '').trim();
+				if (text.length > best.length && text.length > 100) {
+					best = text;
+				}
+			}
+			if (best.length > 100) description = best;
+		}
 
 		return {
 			title: title || document.title,

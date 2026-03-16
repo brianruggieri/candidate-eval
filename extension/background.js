@@ -43,9 +43,16 @@ async function handleCheckBackend() {
 
 async function handleAssess(payload) {
 	try {
+		// Map extension field names to server API field names
+		const body = {
+			posting_text: payload.description || '',
+			company: payload.company || 'Unknown Company',
+			title: payload.title || 'Unknown Position',
+			posting_url: payload.url || null,
+		};
 		const data = await apiFetch('/api/assess', {
 			method: 'POST',
-			body: JSON.stringify(payload),
+			body: JSON.stringify(body),
 		});
 		return { success: true, ...data };
 	} catch (err) {
@@ -64,9 +71,17 @@ async function handleGetAssessment(id) {
 
 async function handleAddToWatchlist(payload) {
 	try {
+		// Map extension fields to server API fields
+		const body = {
+			company_name: payload.company || payload.company_name || '',
+			job_title: payload.title || payload.job_title || '',
+			posting_url: payload.url || payload.posting_url || null,
+			assessment_id: payload.assessment_id || null,
+			notes: payload.notes || null,
+		};
 		const data = await apiFetch('/api/watchlist', {
 			method: 'POST',
-			body: JSON.stringify(payload),
+			body: JSON.stringify(body),
 		});
 		return { success: true, ...data };
 	} catch (err) {
