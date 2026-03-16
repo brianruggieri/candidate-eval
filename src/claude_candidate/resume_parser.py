@@ -204,11 +204,29 @@ def _months_between(start: str, end: str | None) -> int | None:
 # Section detection helpers
 # ---------------------------------------------------------------------------
 
+_SECTION_NAMES = [
+    "PROFESSIONAL SUMMARY", "WORK EXPERIENCE", "TECHNICAL SKILLS",
+    "CERTIFICATIONS? & LICENSES?", "CERTIFICATIONS?",
+    "SUMMARY", "OBJECTIVE", "EXPERIENCE", "EMPLOYMENT",
+    "SKILLS", "EDUCATION", "PROJECTS?", "AWARDS?", "PUBLICATIONS?",
+]
+
+# Match section headers even when two-column PDF interleaves them on one line
 SECTION_HEADERS = re.compile(
-    r"^\s*(SUMMARY|OBJECTIVE|EXPERIENCE|WORK EXPERIENCE|EMPLOYMENT|SKILLS|TECHNICAL SKILLS|"
-    r"EDUCATION|CERTIFICATIONS?|CERTIFICATIONS? & LICENSES?|PROJECTS?|AWARDS?|PUBLICATIONS?)\s*$",
+    r"^\s*(" + "|".join(_SECTION_NAMES) + r")(?:\s|$)",
     re.IGNORECASE,
 )
+
+def _extract_section_name(line: str) -> str | None:
+    """Extract the first recognized section header from a line.
+
+    Handles two-column PDFs where headers like 'WORK EXPERIENCE PROFESSIONAL SUMMARY'
+    appear on a single line.
+    """
+    m = SECTION_HEADERS.match(line.strip())
+    if m:
+        return m.group(1).upper().rstrip("S")  # Normalize plural
+    return None
 
 ROLE_SEPARATOR = re.compile(
     r"^(.+?)\s*[|\-–—]\s*(.+)$",
@@ -221,11 +239,17 @@ DATE_RANGE = re.compile(
     re.IGNORECASE,
 )
 
+# Location: "City, ST" — used for general text matching
 LOCATION_PATTERN = re.compile(
-    r"\b([A-Z][a-z]+(?: [A-Z][a-z]+)*),\s*([A-Z]{2})\b"
+    r"(?<![a-z])([A-Z][a-z]+(?:\s[A-Z][a-z]+)?),\s*([A-Z]{2})(?:\s|$|\))"
 )
 
-BULLET_LINE = re.compile(r"^\s*[-•*]\s+(.+)$")
+# Location at end of line (for header name/location splitting)
+LOCATION_EOL = re.compile(
+    r"([A-Z][a-z]+(?:\s[A-Z][a-z]+)?),\s*([A-Z]{2})\s*$"
+)
+
+BULLET_LINE = re.compile(r"^\s*[-•●*►▪◦]\s*(.+)$")
 
 
 def _normalize_skill(raw: str) -> str:
@@ -260,13 +284,27 @@ def _split_sections(text: str) -> dict[str, str]:
 
     Returns dict mapping section name (uppercased) to section body.
     A 'HEADER' key holds lines before the first recognized section.
+    Handles two-column PDFs where section headers may share a line.
     """
     sections: dict[str, list[str]] = {"HEADER": []}
     current = "HEADER"
     for line in text.splitlines():
-        if SECTION_HEADERS.match(line):
-            current = line.strip().upper()
-            sections[current] = []
+        section_name = _extract_section_name(line)
+        if section_name:
+            # Normalize to canonical names for lookup
+            if "EXPERIENCE" in section_name or "EMPLOYMENT" in section_name:
+                current = "WORK EXPERIENCE"
+            elif "SKILL" in section_name:
+                current = "SKILLS"
+            elif "SUMMARY" in section_name or "OBJECTIVE" in section_name:
+                current = "SUMMARY"
+            elif "EDUCATION" in section_name:
+                current = "EDUCATION"
+            elif "CERTIF" in section_name:
+                current = "CERTIFICATIONS"
+            else:
+                current = section_name
+            sections.setdefault(current, [])
         else:
             sections.setdefault(current, []).append(line)
     return {k: "\n".join(v) for k, v in sections.items()}
@@ -277,9 +315,14 @@ def _split_sections(text: str) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 
 def _parse_roles(experience_text: str) -> list[ResumeRole]:
-    """Parse the EXPERIENCE section into ResumeRole objects."""
+    """Parse the EXPERIENCE section into ResumeRole objects.
+
+    Handles two common formats:
+    1. Single-line: "Title | Company" or "Title - Company" followed by date
+    2. Multi-line: Title on one line, Company on next, Date on another
+    """
     roles: list[ResumeRole] = []
-    lines = [ln for ln in experience_text.splitlines()]
+    lines = experience_text.splitlines()
 
     i = 0
     while i < len(lines):
@@ -288,75 +331,104 @@ def _parse_roles(experience_text: str) -> list[ResumeRole]:
             i += 1
             continue
 
-        # Try to detect a role header: "Title | Company" or "Title - Company"
+        title_part: str | None = None
+        company_part: str | None = None
+        start_date = "unknown"
+        end_date: str | None = None
+        date_line_idx: int | None = None
+
+        # Strategy 1: "Title | Company" or "Title - Company" on one line
         role_match = ROLE_SEPARATOR.match(line)
         if role_match:
             title_part = role_match.group(1).strip()
             company_part = role_match.group(2).strip()
-
             # Look ahead for date range
-            start_date = "unknown"
-            end_date = None
-            j = i + 1
-            while j < len(lines) and j < i + 3:
-                next_line = lines[j].strip()
-                date_match = DATE_RANGE.search(next_line)
-                if date_match:
-                    start_date = _parse_date(date_match.group(1))
-                    raw_end = date_match.group(2)
-                    if raw_end.lower() in ("present", "current"):
-                        end_date = None
-                    else:
-                        end_date = _parse_date(raw_end)
-                    j += 1
+            for j in range(i + 1, min(i + 4, len(lines))):
+                dm = DATE_RANGE.search(lines[j])
+                if dm:
+                    start_date = _parse_date(dm.group(1))
+                    raw_end = dm.group(2)
+                    end_date = None if raw_end.lower() in ("present", "current") else _parse_date(raw_end)
+                    date_line_idx = j
                     break
-                j += 1
 
-            # Collect bullet points and Technologies lines
-            bullets: list[str] = []
-            technologies: list[str] = []
-            k = j
-            while k < len(lines):
-                bl = lines[k].strip()
-                if not bl:
-                    k += 1
-                    # Allow a single blank line gap
-                    if k < len(lines) and lines[k].strip():
-                        next_content = lines[k].strip()
-                        # Stop if this looks like a new role header
-                        if ROLE_SEPARATOR.match(next_content) or DATE_RANGE.search(next_content):
-                            break
-                    else:
-                        break
-                    continue
-                # Stop at next role header
-                if ROLE_SEPARATOR.match(bl) and k > i + 1:
+        # Strategy 2: Multi-line — look for a date range within 1-4 lines ahead
+        # If current line has no date, and a nearby line does, treat this as title
+        if title_part is None:
+            for j in range(i + 1, min(i + 5, len(lines))):
+                next_line = lines[j].strip() if j < len(lines) else ""
+                dm = DATE_RANGE.search(next_line)
+                if dm:
+                    # Found a date range — lines between i and j form the role header
+                    # Title is current line, company is lines between
+                    title_part = line
+                    company_lines = []
+                    for ci in range(i + 1, j):
+                        cl = lines[ci].strip()
+                        if cl and not DATE_RANGE.search(cl):
+                            company_lines.append(cl)
+                    company_part = ", ".join(company_lines) if company_lines else ""
+                    start_date = _parse_date(dm.group(1))
+                    raw_end = dm.group(2)
+                    end_date = None if raw_end.lower() in ("present", "current") else _parse_date(raw_end)
+                    date_line_idx = j
                     break
-                bullet_match = BULLET_LINE.match(lines[k])
-                if bullet_match:
-                    content = bullet_match.group(1).strip()
-                    if content.lower().startswith("technologies:"):
-                        tech_str = content[len("Technologies:"):].strip()
-                        technologies = [t.strip() for t in tech_str.split(",") if t.strip()]
-                    else:
-                        bullets.append(content)
-                k += 1
 
-            duration = _months_between(start_date, end_date)
-
-            roles.append(ResumeRole(
-                title=title_part,
-                company=company_part,
-                start_date=start_date,
-                end_date=end_date,
-                duration_months=duration,
-                description=" ".join(bullets),
-                technologies=technologies,
-                achievements=bullets,
-            ))
-            i = k
-        else:
+        if title_part is None or date_line_idx is None:
             i += 1
+            continue
+
+        # Clean up title/company — remove parenthetical location from company
+        if company_part:
+            # Strip trailing location like "Sacramento, CA (Remote)"
+            company_part = re.sub(r"\s*\(.*?\)\s*$", "", company_part).strip()
+            # Also strip trailing comma-separated location
+            company_part = re.sub(r",\s*[A-Z]{2}\s*$", "", company_part).strip()
+
+        # Collect bullet points and description lines after the date
+        bullets: list[str] = []
+        technologies: list[str] = []
+        k = date_line_idx + 1
+        while k < len(lines):
+            bl = lines[k].strip()
+            if not bl:
+                k += 1
+                continue
+
+            # Stop if this looks like a new role header (has a date range nearby)
+            if k + 4 < len(lines):
+                future_has_date = any(
+                    DATE_RANGE.search(lines[fj].strip())
+                    for fj in range(k + 1, min(k + 5, len(lines)))
+                    if lines[fj].strip()
+                )
+                # If this non-bullet line is followed by a date, it's a new role
+                if future_has_date and not BULLET_LINE.match(bl):
+                    break
+
+            bullet_match = BULLET_LINE.match(lines[k])
+            if bullet_match:
+                content = bullet_match.group(1).strip()
+                if content.lower().startswith("technologies:"):
+                    tech_str = content.split(":", 1)[1].strip()
+                    technologies = [t.strip() for t in tech_str.split(",") if t.strip()]
+                else:
+                    bullets.append(content)
+            k += 1
+
+        duration = _months_between(start_date, end_date)
+
+        roles.append(ResumeRole(
+            title=title_part,
+            company=company_part or "",
+            start_date=start_date,
+            end_date=end_date,
+            duration_months=duration,
+            description=" ".join(bullets[:3]),
+            technologies=technologies,
+            achievements=bullets,
+        ))
+        i = k
 
     return roles
 
@@ -369,20 +441,34 @@ def _parse_skills_section(skills_text: str) -> set[str]:
     """
     Extract canonical skill names from the SKILLS section.
 
-    The section is a comma/newline-separated list of skills.
+    Handles category-grouped skills like:
+        Languages: Python, TypeScript, JavaScript
+        Frameworks: React, Vue, Angular
     """
     found: set[str] = set()
-    tokens = re.split(r"[,\n]", skills_text)
-    for token in tokens:
-        token = token.strip().rstrip(".,;")
-        if not token:
+    for line in skills_text.splitlines():
+        line = line.strip()
+        if not line:
             continue
-        canonical = _normalize_skill(token)
-        if canonical:
-            found.add(canonical)
-        # Also try extracting known skills from the token
-        for s in _extract_skills_from_text(token):
-            found.add(s)
+        # Strip category header (e.g., "Languages:", "AI & Agentic Systems:")
+        if ":" in line:
+            line = line.split(":", 1)[1].strip()
+        if not line:
+            continue
+        # Split by comma, pipe, semicolon
+        tokens = re.split(r"[,|;]", line)
+        for token in tokens:
+            token = token.strip().rstrip(".,;()")
+            if not token or len(token) < 2:
+                continue
+            # Skip category-like tokens (end with colon, all caps multi-word)
+            if token.endswith(":"):
+                continue
+            canonical = _normalize_skill(token)
+            if canonical:
+                found.add(canonical)
+            for s in _extract_skills_from_text(token):
+                found.add(s)
     return found
 
 
@@ -407,14 +493,19 @@ def extract_text_from_file(path: Path) -> str:
         return path.read_text(encoding="utf-8", errors="replace")
 
     if suffix == ".pdf":
-        import pdfplumber
+        import fitz  # pymupdf — handles multi-column layouts in reading order
+
         pages: list[str] = []
-        with pdfplumber.open(path) as pdf:
-            for page in pdf.pages:
-                text = page.extract_text()
-                if text:
-                    pages.append(text)
-        return "\n".join(pages)
+        doc = fitz.open(path)
+        for page in doc:
+            text = page.get_text("text")
+            if text:
+                pages.append(text)
+        doc.close()
+        # Strip zero-width spaces that pymupdf sometimes inserts
+        result = "\n".join(pages)
+        result = result.replace("\u200b", "").replace("\u200c", "").replace("\u200d", "")
+        return result
 
     if suffix == ".docx":
         from docx import Document
@@ -423,6 +514,46 @@ def extract_text_from_file(path: Path) -> str:
         return "\n".join(paragraphs)
 
     raise ValueError(f"Unsupported file format: {suffix!r}. Supported: .pdf, .docx, .txt")
+
+
+def _preprocess_text(text: str) -> str:
+    """Clean up extracted text for parsing.
+
+    Fixes common PDF extraction artifacts:
+    - Bullet markers (●, •) on their own line get merged with the next line
+    - Multi-line bullet continuations get joined
+    """
+    lines = text.splitlines()
+    merged: list[str] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+        # Bullet marker on its own line — merge with next line
+        if stripped in ("●", "•", "►", "▪", "◦", "-", "*") and i + 1 < len(lines):
+            next_line = lines[i + 1]
+            merged.append(f"● {next_line.strip()}")
+            i += 2
+            # Also merge continuation lines (indented, no bullet, not a new section)
+            while i < len(lines):
+                cont = lines[i]
+                cont_stripped = cont.strip()
+                if (cont_stripped
+                        and not cont_stripped.startswith("●")
+                        and not cont_stripped.startswith("•")
+                        and not SECTION_HEADERS.match(cont_stripped)
+                        and not DATE_RANGE.search(cont_stripped)
+                        and len(cont_stripped) > 5
+                        and cont_stripped[0].islower()):
+                    # Continuation of previous bullet
+                    merged[-1] += " " + cont_stripped
+                    i += 1
+                else:
+                    break
+        else:
+            merged.append(line)
+            i += 1
+    return "\n".join(merged)
 
 
 def parse_resume_text(
@@ -437,6 +568,7 @@ def parse_resume_text(
     - USED: skill found in role context only
     - MENTIONED: skill found in skills section only
     """
+    text = _preprocess_text(text)
     sections = _split_sections(text)
 
     # ------------------------------------------------------------------
@@ -449,15 +581,33 @@ def parse_resume_text(
     location: str | None = None
 
     if header_lines:
-        # First non-empty line is typically the name
-        name = header_lines[0]
-        if len(header_lines) > 1:
-            current_title = header_lines[1]
-        for line in header_lines:
-            loc_match = LOCATION_PATTERN.search(line)
-            if loc_match:
-                location = f"{loc_match.group(1)}, {loc_match.group(2)}"
+        # First non-empty line is typically the name — strip location if appended
+        raw_name = header_lines[0]
+        loc_in_name = LOCATION_EOL.search(raw_name)
+        if loc_in_name:
+            location = f"{loc_in_name.group(1)}, {loc_in_name.group(2)}"
+            name = raw_name[:loc_in_name.start()].strip().rstrip(",")
+        else:
+            name = raw_name
+
+        # Title: look for a line that isn't a phone/email/url
+        for line in header_lines[1:]:
+            if re.search(r"\d{3}.*\d{4}", line):  # phone
+                continue
+            if "@" in line:  # email
+                continue
+            if re.search(r"(github|linkedin|\.com|\.io)", line, re.IGNORECASE):  # url
+                continue
+            if not current_title:
+                current_title = line
                 break
+
+        if not location:
+            for line in header_lines:
+                loc_match = LOCATION_PATTERN.search(line)
+                if loc_match:
+                    location = f"{loc_match.group(1)}, {loc_match.group(2)}"
+                    break
 
     # ------------------------------------------------------------------
     # Summary
@@ -474,8 +624,8 @@ def parse_resume_text(
     # Experience
     # ------------------------------------------------------------------
     experience_text = ""
-    for key in sections:
-        if "EXPERIENCE" in key or "EMPLOYMENT" in key:
+    for key in ("WORK EXPERIENCE", "EXPERIENCE", "EMPLOYMENT"):
+        if key in sections:
             experience_text = sections[key]
             break
 
