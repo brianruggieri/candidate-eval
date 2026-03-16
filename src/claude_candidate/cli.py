@@ -448,5 +448,66 @@ def server_start(host: str, port: int, data_dir: str | None) -> None:
     uvicorn.run(app, host=host, port=port)
 
 
+# === Sessions commands ===
+
+@main.group()
+def sessions() -> None:
+    """Manage Claude Code session scanning."""
+    pass
+
+
+@sessions.command()
+@click.option("--session-dir", type=click.Path(exists=True),
+              help="Directory containing session JSONL files")
+@click.option("--output", "-o", type=click.Path(),
+              help="Output path for CandidateProfile JSON")
+def scan(session_dir: str | None, output: str | None) -> None:
+    """Scan session logs and build a CandidateProfile."""
+    from claude_candidate.session_scanner import discover_sessions
+    from claude_candidate.manifest import hash_string
+    from claude_candidate.extractor import build_candidate_profile
+
+    search_dir = Path(session_dir) if session_dir else _default_sessions_dir()
+    click.echo(f"Scanning sessions in {search_dir}...")
+    sessions_found = discover_sessions(search_dir)
+    click.echo(f"  Found {len(sessions_found)} session files")
+    if not sessions_found:
+        click.echo("No sessions found. Nothing to do.")
+        return
+    signals_list = _process_sessions(sessions_found)
+    manifest_hash = hash_string("|".join(s.session_id for s in signals_list))
+    profile = build_candidate_profile(signals_list=signals_list, manifest_hash=manifest_hash)
+    click.echo(f"  Skills found: {len(profile.skills)}")
+    click.echo(f"  Sessions processed: {profile.session_count}")
+    output_path = Path(output) if output else _default_profile_path()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(profile.to_json())
+    click.echo(f"  Profile written to {output_path}")
+
+
+def _process_sessions(sessions_found: list) -> list:
+    """Sanitize and extract signals from discovered sessions."""
+    from claude_candidate.sanitizer import sanitize_text
+    from claude_candidate.extractor import extract_session_signals
+
+    signals_list = []
+    for info in sessions_found:
+        raw_content = info.path.read_text(errors="replace")
+        sanitized = sanitize_text(raw_content)
+        signals = extract_session_signals(sanitized.sanitized)
+        signals.session_id = info.session_id
+        signals.project_hint = info.project_hint
+        signals_list.append(signals)
+    return signals_list
+
+
+def _default_sessions_dir() -> Path:
+    return Path.home() / ".claude" / "projects"
+
+
+def _default_profile_path() -> Path:
+    return Path.home() / ".claude-candidate" / "candidate_profile.json"
+
+
 if __name__ == "__main__":
     main()

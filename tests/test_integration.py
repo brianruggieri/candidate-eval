@@ -215,3 +215,39 @@ class TestEndToEndFlow:
         out_path.write_text(json_str)
         reloaded = FitAssessment.from_json(out_path.read_text())
         assert reloaded.company_name == "AI Tools Corp"
+
+
+class TestSessionsScanCommand:
+    def test_scan_with_fixtures(self, tmp_path, fixtures_dir):
+        """Scan fixture session files and produce a CandidateProfile."""
+        sessions_dir = fixtures_dir / "sessions"
+        output_path = tmp_path / "profile.json"
+
+        runner = CliRunner()
+        result = runner.invoke(main, [
+            "sessions", "scan",
+            "--session-dir", str(sessions_dir),
+            "--output", str(output_path),
+        ])
+
+        assert result.exit_code == 0, result.output
+        assert output_path.exists()
+
+        from claude_candidate.schemas.candidate_profile import CandidateProfile
+        profile = CandidateProfile.from_json(output_path.read_text())
+        assert profile.session_count > 0
+        assert len(profile.skills) > 0
+
+    def test_scan_empty_dir(self, tmp_path):
+        """Scan an empty directory produces no output."""
+        empty_dir = tmp_path / "empty"
+        empty_dir.mkdir()
+
+        runner = CliRunner()
+        result = runner.invoke(main, [
+            "sessions", "scan",
+            "--session-dir", str(empty_dir),
+        ])
+
+        assert result.exit_code == 0
+        assert "No sessions found" in result.output

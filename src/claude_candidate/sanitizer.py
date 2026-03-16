@@ -75,7 +75,7 @@ PII_PATTERNS: list[re.Pattern[str]] = [
 ]
 
 ABSOLUTE_PATH_PATTERN: re.Pattern[str] = re.compile(
-    r"(?:/Users/[^/\s][^\s]*|/home/[^/\s][^\s]*)"
+    r"""(?:/Users/[^/\s"'][^\s"']*|/home/[^/\s"'][^\s"']*)"""
 )
 
 PATTERN_GROUPS: list[tuple[str, list[re.Pattern[str]]]] = [
