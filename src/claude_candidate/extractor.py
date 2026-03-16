@@ -381,6 +381,16 @@ def _parse_timestamp(ts: str) -> datetime:
         return datetime(2026, 1, 1)
 
 
+def _sanitize_project_hint(hint: str) -> str:
+    """Strip user path prefix from Claude project directory names."""
+    # "-Users-brianruggieri-git-myproject" -> "myproject"
+    parts = hint.split("-")
+    git_indices = [i for i, p in enumerate(parts) if p == "git"]
+    if git_indices:
+        return "-".join(parts[git_indices[-1] + 1:]) or hint
+    return hint
+
+
 def _build_session_ref(
     signals: SessionSignals,
     snippet: str,
@@ -389,7 +399,7 @@ def _build_session_ref(
     return SessionReference(
         session_id=signals.session_id,
         session_date=_parse_timestamp(signals.timestamp),
-        project_context=signals.project_hint,
+        project_context=_sanitize_project_hint(signals.project_hint),
         evidence_snippet=_truncate_snippet(snippet),
         evidence_type="direct_usage",
         confidence=DEFAULT_CONFIDENCE,
@@ -535,9 +545,10 @@ def _build_one_project(
     evidence = [
         _build_session_ref(s, _pick_snippet(s)) for s in sessions
     ]
+    clean_name = _sanitize_project_hint(name)
     return ProjectSummary(
-        project_name=name,
-        description=f"Project {name} with {len(sessions)} session(s)",
+        project_name=clean_name,
+        description=f"Project {clean_name} with {len(sessions)} session(s)",
         complexity=_project_complexity(len(sessions)),
         technologies=sorted(all_techs),
         session_count=len(sessions),
