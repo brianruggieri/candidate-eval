@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>claude-candidate</title>
+	<link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+
+	<!-- ── Loading ──────────────────────────────────────────────────────── -->
+	<div id="state-loading" class="state">
+		<div class="center-content">
+			<div class="spinner"></div>
+			<p class="status-text">Connecting…</p>
+		</div>
+	</div>
+
+	<!-- ── No Backend ───────────────────────────────────────────────────── -->
+	<div id="state-no-backend" class="state hidden">
+		<div class="center-content">
+			<div class="icon-block icon-block--error">✕</div>
+			<h2>Backend not running</h2>
+			<p class="muted">Start the local server first:</p>
+			<code class="code-block">candidate-eval serve</code>
+			<button id="btn-retry" class="btn btn-primary">Retry</button>
+		</div>
+	</div>
+
+	<!-- ── No Profile ───────────────────────────────────────────────────── -->
+	<div id="state-no-profile" class="state hidden">
+		<div class="center-content">
+			<div class="icon-block icon-block--warn">!</div>
+			<h2>No profile loaded</h2>
+			<p class="muted">Parse your resume to get started:</p>
+			<code class="code-block">candidate-eval parse-resume resume.pdf</code>
+			<button id="btn-retry" class="btn btn-primary">Retry</button>
+		</div>
+	</div>
+
+	<!-- ── No Job ────────────────────────────────────────────────────────── -->
+	<div id="state-no-job" class="state hidden">
+		<div class="center-content">
+			<div class="icon-block icon-block--neutral">?</div>
+			<h2>No job posting found</h2>
+			<p class="muted">Navigate to a job listing on LinkedIn, Greenhouse, Lever, or Indeed.</p>
+			<button id="btn-manual-extract" class="btn btn-primary">Try Again</button>
+		</div>
+	</div>
+
+	<!-- ── Assessing ─────────────────────────────────────────────────────── -->
+	<div id="state-assessing" class="state hidden">
+		<div class="center-content">
+			<div class="spinner"></div>
+			<p class="status-text">Assessing fit…</p>
+			<p class="muted" id="assessing-company"></p>
+		</div>
+	</div>
+
+	<!-- ── Results ───────────────────────────────────────────────────────── -->
+	<div id="state-results" class="state hidden">
+
+		<header class="results-header">
+			<div class="results-meta">
+				<span id="results-company" class="results-company"></span>
+				<h1 id="results-title" class="results-title"></h1>
+			</div>
+			<div class="results-grade" id="results-grade">—</div>
+		</header>
+
+		<div class="scores-section">
+			<div class="score-row">
+				<span class="score-label">Skills</span>
+				<div class="score-bar-track">
+					<div class="score-bar-fill" id="bar-skills"></div>
+				</div>
+				<span class="score-grade" id="grade-skills">—</span>
+			</div>
+			<div class="score-row">
+				<span class="score-label">Mission</span>
+				<div class="score-bar-track">
+					<div class="score-bar-fill" id="bar-mission"></div>
+				</div>
+				<span class="score-grade" id="grade-mission">—</span>
+			</div>
+			<div class="score-row">
+				<span class="score-label">Culture</span>
+				<div class="score-bar-track">
+					<div class="score-bar-fill" id="bar-culture"></div>
+				</div>
+				<span class="score-grade" id="grade-culture">—</span>
+			</div>
+		</div>
+
+		<div class="details-section">
+			<div class="detail-row" id="row-must-haves">
+				<span class="detail-label">Must-haves</span>
+				<span class="detail-value" id="detail-must-haves"></span>
+			</div>
+			<div class="detail-row" id="row-strongest-match">
+				<span class="detail-label">Strongest match</span>
+				<span class="detail-value" id="detail-strongest-match"></span>
+			</div>
+			<div class="detail-row" id="row-biggest-gap">
+				<span class="detail-label">Biggest gap</span>
+				<span class="detail-value" id="detail-biggest-gap"></span>
+			</div>
+		</div>
+
+		<div class="discoveries-section hidden" id="section-discoveries">
+			<div class="discoveries-header">Resume gaps found</div>
+			<ul class="discoveries-list" id="discoveries-list"></ul>
+		</div>
+
+		<div class="verdict-banner" id="verdict-banner">
+			<span id="verdict-text"></span>
+		</div>
+
+		<div class="action-row">
+			<button id="btn-watchlist" class="btn btn-secondary">Save to Watchlist</button>
+			<button id="btn-full-details" class="btn btn-primary">Full Details</button>
+		</div>
+
+	</div>
+
+	<!-- ── Error ─────────────────────────────────────────────────────────── -->
+	<div id="state-error" class="state hidden">
+		<div class="center-content">
+			<div class="icon-block icon-block--error">✕</div>
+			<h2>Something went wrong</h2>
+			<p class="error-message muted" id="error-message"></p>
+			<button id="btn-retry" class="btn btn-primary">Retry</button>
+		</div>
+	</div>
+
+	<script src="popup.js"></script>
+</body>
+</html>
