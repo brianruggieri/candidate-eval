@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 
 from claude_candidate.schemas.candidate_profile import DepthLevel
 from claude_candidate.schemas.merged_profile import EvidenceSource

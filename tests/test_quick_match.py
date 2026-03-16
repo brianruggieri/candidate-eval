@@ -4,12 +4,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-import pytest
 
 from claude_candidate.merger import merge_profiles, merge_candidate_only
 from claude_candidate.quick_match import QuickMatchEngine
 from claude_candidate.schemas.company_profile import CompanyProfile
-from claude_candidate.schemas.fit_assessment import score_to_grade, score_to_verdict
 from claude_candidate.schemas.job_requirements import QuickRequirement, RequirementPriority
 
 

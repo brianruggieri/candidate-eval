@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from datetime import datetime
 
 import pytest
@@ -12,27 +11,20 @@ from claude_candidate.schemas.candidate_profile import (
     CandidateProfile,
     DepthLevel,
     DEPTH_RANK,
-    PatternType,
-    ProblemSolvingPattern,
     SessionReference,
     SkillEntry,
 )
 from claude_candidate.schemas.job_requirements import (
-    JobRequirements,
     QuickRequirement,
     RequirementPriority,
 )
-from claude_candidate.schemas.match_evaluation import MatchEvaluation, SkillMatch
 from claude_candidate.schemas.resume_profile import ResumeProfile, ResumeSkill
 from claude_candidate.schemas.merged_profile import (
     EvidenceSource,
-    MergedEvidenceProfile,
     MergedSkillEvidence,
 )
 from claude_candidate.schemas.company_profile import CompanyProfile
 from claude_candidate.schemas.fit_assessment import (
-    FitAssessment,
-    DimensionScore,
     score_to_grade,
     score_to_verdict,
 )
