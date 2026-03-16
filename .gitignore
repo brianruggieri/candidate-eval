@@ -36,6 +36,9 @@ htmlcov/
 # Worktrees
 .worktrees/
 
+# Superpowers brainstorm artifacts
+.superpowers/
+
 # Local data
 *.tar.gz
 *.zip
