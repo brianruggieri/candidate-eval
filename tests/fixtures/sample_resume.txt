@@ -1,0 +1,33 @@
+BRIAN RUGGIERI
+Senior Software Engineer
+San Francisco, CA
+
+SUMMARY
+Full-stack engineer with 8+ years of experience in Python, TypeScript, and cloud infrastructure.
+Passionate about developer tooling, AI/ML systems, and open-source software.
+
+EXPERIENCE
+
+Senior Software Engineer | TechCorp Inc.
+January 2022 - Present
+- Architected and deployed microservices handling 50M+ requests/day using Python and FastAPI
+- Led migration from monolithic architecture to event-driven system, reducing latency by 40%
+- Built internal developer tools used by 200+ engineers
+- Technologies: Python, FastAPI, PostgreSQL, Redis, Docker, Kubernetes, AWS
+
+Software Engineer | StartupCo
+March 2019 - December 2021
+- Developed full-stack web applications using React and Node.js
+- Implemented CI/CD pipelines reducing deployment time from hours to minutes
+- Built data pipeline processing 10TB+ daily using Apache Spark
+- Technologies: TypeScript, React, Node.js, PostgreSQL, Apache Spark, GCP
+
+SKILLS
+Python, TypeScript, JavaScript, React, FastAPI, PostgreSQL, Redis, Docker, Kubernetes,
+AWS, GCP, Apache Spark, Git, CI/CD, Microservices, REST APIs
+
+EDUCATION
+B.S. Computer Science, University of California, Berkeley, 2018
+
+CERTIFICATIONS
+AWS Solutions Architect Associate, 2023

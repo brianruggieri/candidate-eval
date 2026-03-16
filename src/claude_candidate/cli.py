@@ -388,5 +388,47 @@ def profile_merge(candidate: str, resume: str | None, output: str) -> None:
         click.echo(f"  Discovery: {', '.join(merged.discovery_skills)}")
 
 
+# === Resume commands ===
+
+@main.group()
+def resume() -> None:
+    """Resume management commands."""
+    pass
+
+
+@resume.command("ingest")
+@click.argument("resume_path", type=click.Path(exists=True))
+@click.option("--output", "-o", type=click.Path(), default=None,
+              help="Output path for the ResumeProfile JSON. Defaults to ~/.claude-candidate/resume_profile.json")
+def resume_ingest(resume_path: str, output: str | None) -> None:
+    """Parse a resume file and save the structured profile."""
+    from claude_candidate.resume_parser import ingest_resume
+
+    path = Path(resume_path)
+    click.echo(f"Parsing resume: {path.name}")
+
+    profile = ingest_resume(path)
+
+    # Determine output path
+    if output:
+        out_path = Path(output)
+    else:
+        default_dir = Path.home() / ".claude-candidate"
+        default_dir.mkdir(parents=True, exist_ok=True)
+        out_path = default_dir / "resume_profile.json"
+
+    out_path.write_text(profile.to_json())
+
+    click.echo(f"  Name:        {profile.name or '(not detected)'}")
+    click.echo(f"  Title:       {profile.current_title or '(not detected)'}")
+    click.echo(f"  Location:    {profile.location or '(not detected)'}")
+    click.echo(f"  Roles:       {len(profile.roles)}")
+    click.echo(f"  Skills:      {len(profile.skills)}")
+    if profile.total_years_experience is not None:
+        click.echo(f"  Experience:  ~{profile.total_years_experience:.1f} years")
+    click.echo(f"  Hash:        {profile.source_file_hash[:16]}...")
+    click.echo(f"\nProfile written to {out_path}")
+
+
 if __name__ == "__main__":
     main()
