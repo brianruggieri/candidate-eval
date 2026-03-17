@@ -95,11 +95,13 @@ LANGUAGE_NAMES: set[str] = {
 }
 
 # Depth thresholds: (min_frequency, min_tool_count) -> DepthLevel
+# Frequency = number of sessions the skill appears in
+# Tool count = total tool_calls in sessions where this skill is used
 DEPTH_THRESHOLDS: list[tuple[int, int, DepthLevel]] = [
-    (10, 8, DepthLevel.EXPERT),
-    (6, 4, DepthLevel.DEEP),
-    (3, 2, DepthLevel.APPLIED),
-    (2, 1, DepthLevel.USED),
+    (8, 3, DepthLevel.EXPERT),
+    (5, 2, DepthLevel.DEEP),
+    (3, 1, DepthLevel.APPLIED),
+    (2, 0, DepthLevel.USED),
 ]
 
 
@@ -215,9 +217,45 @@ def _collect_techs_from_message(
     msg_type = msg.get("type", "")
     if msg_type == "tool_use":
         _collect_techs_from_tool(msg, seen)
-    elif msg_type in ("user", "assistant"):
+    elif msg_type == "assistant":
+        _collect_techs_from_assistant(msg, seen)
+    elif msg_type == "user":
         text = _get_text_from_message(msg)
         for tech in _detect_from_content(text):
+            seen.add(tech)
+
+
+def _collect_techs_from_assistant(
+    msg: dict[str, Any],
+    seen: set[str],
+) -> None:
+    """Collect techs from assistant message content blocks."""
+    content = msg.get("message", {}).get("content", [])
+    if not isinstance(content, list):
+        return
+    for block in content:
+        if not isinstance(block, dict):
+            continue
+        if block.get("type") == "tool_use":
+            _collect_techs_from_tool_block(block, seen)
+        elif block.get("type") == "text":
+            for tech in _detect_from_content(block.get("text", "")):
+                seen.add(tech)
+
+
+def _collect_techs_from_tool_block(
+    block: dict[str, Any],
+    seen: set[str],
+) -> None:
+    """Collect techs from a tool_use content block."""
+    tool_input = block.get("input", {})
+    file_path = tool_input.get("file_path", "")
+    if file_path:
+        for tech in _detect_from_file_path(file_path):
+            seen.add(tech)
+    content = tool_input.get("content", "")
+    if content:
+        for tech in _detect_from_content(content):
             seen.add(tech)
 
 
@@ -243,14 +281,37 @@ def _collect_techs_from_tool(
 
 
 def _extract_tool_calls(messages: list[dict]) -> list[str]:
-    """Extract list of tool names used in tool_use messages."""
+    """Extract tool names from both top-level and nested tool_use."""
     tools: list[str] = []
     for msg in messages:
-        if msg.get("type") == "tool_use":
-            name = msg.get("toolUse", {}).get("name", "")
-            if name:
-                tools.append(name)
+        tools.extend(_tools_from_message(msg))
     return tools
+
+
+def _tools_from_message(msg: dict[str, Any]) -> list[str]:
+    """Get tool names from a single message."""
+    if msg.get("type") == "tool_use":
+        name = msg.get("toolUse", {}).get("name", "")
+        return [name] if name else []
+    if msg.get("type") != "assistant":
+        return []
+    return _tools_from_assistant_content(msg)
+
+
+def _tools_from_assistant_content(
+    msg: dict[str, Any],
+) -> list[str]:
+    """Extract tool names from assistant message content blocks."""
+    content = msg.get("message", {}).get("content", [])
+    if not isinstance(content, list):
+        return []
+    return [
+        block.get("name", "")
+        for block in content
+        if isinstance(block, dict)
+        and block.get("type") == "tool_use"
+        and block.get("name")
+    ]
 
 
 def _truncate_snippet(text: str) -> str:
@@ -372,13 +433,28 @@ def _infer_depth(frequency: int, *, tool_count: int) -> DepthLevel:
 
 
 def _parse_timestamp(ts: str) -> datetime:
-    """Parse an ISO timestamp string to datetime."""
+    """Parse an ISO timestamp string to timezone-aware datetime."""
     if not ts:
-        return datetime(2026, 1, 1)
+        return _default_timestamp()
     try:
-        return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        return _ensure_utc(parsed)
     except (ValueError, TypeError):
-        return datetime(2026, 1, 1)
+        return _default_timestamp()
+
+
+def _default_timestamp() -> datetime:
+    """Return a default timezone-aware timestamp."""
+    from datetime import timezone
+    return datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+
+def _ensure_utc(dt: datetime) -> datetime:
+    """Ensure a datetime is timezone-aware (UTC if naive)."""
+    from datetime import timezone
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
 
 
 def _sanitize_project_hint(hint: str) -> str:
@@ -423,9 +499,8 @@ def _build_skill_entries(
     for signals in signals_list:
         for tech in signals.technologies:
             tech_data.setdefault(tech, []).append(signals)
-    total_tools = sum(len(s.tool_calls) for s in signals_list)
     return [
-        _build_one_skill(tech, sessions, total_tools)
+        _build_one_skill(tech, sessions)
         for tech, sessions in sorted(tech_data.items())
     ]
 
@@ -433,11 +508,10 @@ def _build_skill_entries(
 def _build_one_skill(
     tech: str,
     sessions: list[SessionSignals],
-    total_tools: int,
 ) -> SkillEntry:
     """Build a single SkillEntry for one technology."""
     frequency = len(sessions)
-    tool_count = min(total_tools, frequency * 3)
+    tool_count = sum(len(s.tool_calls) for s in sessions)
     timestamps = [_parse_timestamp(s.timestamp) for s in sessions]
     evidence = [
         _build_session_ref(s, _pick_snippet(s)) for s in sessions

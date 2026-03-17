@@ -392,10 +392,10 @@ class TestInferDepth:
         assert _infer_depth(4, tool_count=3) == DepthLevel.APPLIED
 
     def test_high_frequency_deep(self) -> None:
-        assert _infer_depth(8, tool_count=6) == DepthLevel.DEEP
+        assert _infer_depth(6, tool_count=3) == DepthLevel.DEEP
 
     def test_very_high_frequency_expert(self) -> None:
-        assert _infer_depth(15, tool_count=10) == DepthLevel.EXPERT
+        assert _infer_depth(8, tool_count=3) == DepthLevel.EXPERT
 
 
 # ---------------------------------------------------------------------------
