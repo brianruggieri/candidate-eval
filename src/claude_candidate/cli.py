@@ -101,6 +101,69 @@ def assess(
     _print_assessment_card(assessment)
 
 
+@main.command()
+@click.option("--assessment", "-a", type=click.Path(exists=True), required=True,
+              help="Path to assessment JSON file")
+@click.option("--output", "-o", type=click.Path(),
+              help="Output path for proof package markdown")
+def proof(assessment: str, output: str | None) -> None:
+    """Generate a proof package from an assessment."""
+    from claude_candidate.schemas.fit_assessment import FitAssessment
+    from claude_candidate.proof_generator import generate_proof_package
+
+    click.echo(f"Loading assessment from {assessment}...")
+    assessment_obj = FitAssessment.from_json(Path(assessment).read_text())
+
+    click.echo("Generating proof package...")
+    proof_markdown = generate_proof_package(assessment=assessment_obj)
+
+    if output:
+        Path(output).write_text(proof_markdown)
+        click.echo(f"Proof package written to {output}")
+    else:
+        click.echo(proof_markdown)
+
+
+@main.command()
+@click.option("--assessment", "-a", type=click.Path(exists=True), required=True,
+              help="Path to assessment JSON file")
+@click.option("--type", "-t", "deliverable_type",
+              type=click.Choice(["resume-bullets", "cover-letter", "interview-prep"]),
+              required=True,
+              help="Type of deliverable to generate")
+@click.option("--output", "-o", type=click.Path(),
+              help="Output path for generated deliverable")
+def generate(assessment: str, deliverable_type: str, output: str | None) -> None:
+    """Generate deliverables from an assessment."""
+    from claude_candidate.schemas.fit_assessment import FitAssessment
+    from claude_candidate.generator import (
+        generate_resume_bullets,
+        generate_cover_letter,
+        generate_interview_prep,
+    )
+
+    click.echo(f"Loading assessment from {assessment}...")
+    assessment_obj = FitAssessment.from_json(Path(assessment).read_text())
+
+    click.echo(f"Generating {deliverable_type}...")
+    result: str | list[str]
+    if deliverable_type == "resume-bullets":
+        result = generate_resume_bullets(assessment=assessment_obj)
+        content = "\n".join(f"- {b}" for b in result)
+    elif deliverable_type == "cover-letter":
+        result = generate_cover_letter(assessment=assessment_obj)
+        content = result
+    else:  # interview-prep
+        result = generate_interview_prep(assessment=assessment_obj)
+        content = result
+
+    if output:
+        Path(output).write_text(content)
+        click.echo(f"Deliverable written to {output}")
+    else:
+        click.echo(content)
+
+
 def _extract_basic_requirements(text: str) -> list:
     """
     Basic keyword-based requirement extraction for v0.1 PoC.

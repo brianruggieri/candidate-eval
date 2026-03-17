@@ -267,6 +267,134 @@ class TestMatchCorrelateCommand:
         assert isinstance(data, list)
 
 
+class TestProofCommand:
+    def test_generates_proof_from_assessment(self, tmp_path, fixtures_dir):
+        """Run assess first, then generate proof from the output file."""
+        assessment_file = tmp_path / "assessment.json"
+        proof_file = tmp_path / "proof.md"
+
+        runner = CliRunner()
+        # Step 1: create an assessment
+        result = runner.invoke(main, [
+            "assess",
+            "--profile", str(fixtures_dir / "sample_candidate_profile.json"),
+            "--resume", str(fixtures_dir / "sample_resume_profile.json"),
+            "--job", str(fixtures_dir / "sample_job_posting.txt"),
+            "--company", "Proof Corp",
+            "--title", "Staff Engineer",
+            "--output", str(assessment_file),
+        ])
+        assert result.exit_code == 0, f"assess failed: {result.output}"
+        assert assessment_file.exists()
+
+        # Step 2: generate proof
+        result = runner.invoke(main, [
+            "proof",
+            "--assessment", str(assessment_file),
+            "--output", str(proof_file),
+        ])
+        assert result.exit_code == 0, f"proof failed: {result.output}"
+        assert proof_file.exists()
+
+        content = proof_file.read_text()
+        assert "# Proof Package" in content
+        assert "Proof Corp" in content
+
+    def test_proof_to_stdout(self, tmp_path, fixtures_dir):
+        assessment_file = tmp_path / "assessment.json"
+
+        runner = CliRunner()
+        runner.invoke(main, [
+            "assess",
+            "--profile", str(fixtures_dir / "sample_candidate_profile.json"),
+            "--job", str(fixtures_dir / "sample_job_posting.txt"),
+            "--company", "Stdout Corp",
+            "--title", "Engineer",
+            "--output", str(assessment_file),
+        ])
+
+        result = runner.invoke(main, [
+            "proof",
+            "--assessment", str(assessment_file),
+        ])
+        assert result.exit_code == 0, f"proof failed: {result.output}"
+        assert "# Proof Package" in result.output
+
+
+class TestGenerateCommand:
+    def _create_assessment(self, fixtures_dir, tmp_path, runner: CliRunner) -> str:
+        """Helper: run assess and return path to assessment JSON."""
+        out = str(tmp_path / "assessment.json")
+        result = runner.invoke(main, [
+            "assess",
+            "--profile", str(fixtures_dir / "sample_candidate_profile.json"),
+            "--resume", str(fixtures_dir / "sample_resume_profile.json"),
+            "--job", str(fixtures_dir / "sample_job_posting.txt"),
+            "--company", "Deliverable Corp",
+            "--title", "Senior Engineer",
+            "--output", out,
+        ])
+        assert result.exit_code == 0, f"assess failed: {result.output}"
+        return out
+
+    def test_generates_resume_bullets(self, tmp_path, fixtures_dir):
+        runner = CliRunner()
+        assessment_path = self._create_assessment(fixtures_dir, tmp_path, runner)
+        output = tmp_path / "bullets.txt"
+
+        result = runner.invoke(main, [
+            "generate",
+            "--assessment", assessment_path,
+            "--type", "resume-bullets",
+            "--output", str(output),
+        ])
+        assert result.exit_code == 0, f"generate failed: {result.output}"
+        assert output.exists()
+        assert len(output.read_text()) > 0
+
+    def test_generates_cover_letter(self, tmp_path, fixtures_dir):
+        runner = CliRunner()
+        assessment_path = self._create_assessment(fixtures_dir, tmp_path, runner)
+        output = tmp_path / "cover_letter.txt"
+
+        result = runner.invoke(main, [
+            "generate",
+            "--assessment", assessment_path,
+            "--type", "cover-letter",
+            "--output", str(output),
+        ])
+        assert result.exit_code == 0, f"generate failed: {result.output}"
+        assert output.exists()
+        assert len(output.read_text()) > 0
+
+    def test_generates_interview_prep(self, tmp_path, fixtures_dir):
+        runner = CliRunner()
+        assessment_path = self._create_assessment(fixtures_dir, tmp_path, runner)
+        output = tmp_path / "interview.txt"
+
+        result = runner.invoke(main, [
+            "generate",
+            "--assessment", assessment_path,
+            "--type", "interview-prep",
+            "--output", str(output),
+        ])
+        assert result.exit_code == 0, f"generate failed: {result.output}"
+        assert output.exists()
+        assert len(output.read_text()) > 0
+
+    def test_generate_to_stdout(self, tmp_path, fixtures_dir):
+        runner = CliRunner()
+        assessment_path = self._create_assessment(fixtures_dir, tmp_path, runner)
+
+        result = runner.invoke(main, [
+            "generate",
+            "--assessment", assessment_path,
+            "--type", "cover-letter",
+        ])
+        assert result.exit_code == 0, f"generate failed: {result.output}"
+        assert len(result.output) > 0
+
+
 class TestSessionsScanCommand:
     def test_scan_with_fixtures(self, tmp_path, fixtures_dir):
         """Scan fixture session files and produce a CandidateProfile."""

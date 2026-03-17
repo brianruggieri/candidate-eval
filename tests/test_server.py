@@ -343,3 +343,95 @@ class TestWatchlistEndpoints:
 			})
 		resp = await client.get("/api/watchlist?limit=3")
 		assert len(resp.json()) == 3
+
+
+# ---------------------------------------------------------------------------
+# Proof package endpoint
+# ---------------------------------------------------------------------------
+
+
+class TestProofEndpoint:
+    async def test_generate_proof(self, client_with_profile: AsyncClient):
+        assess_resp = await client_with_profile.post("/api/assess", json=SAMPLE_ASSESS_PAYLOAD)
+        assert assess_resp.status_code == 200
+        assessment_id = assess_resp.json()["assessment_id"]
+
+        resp = await client_with_profile.post("/api/proof", json={"assessment_id": assessment_id})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "proof_package" in data
+        assert len(data["proof_package"]) > 0
+
+    async def test_proof_package_contains_assessment_id(self, client_with_profile: AsyncClient):
+        assess_resp = await client_with_profile.post("/api/assess", json=SAMPLE_ASSESS_PAYLOAD)
+        assessment_id = assess_resp.json()["assessment_id"]
+
+        resp = await client_with_profile.post("/api/proof", json={"assessment_id": assessment_id})
+        assert assessment_id in resp.json()["proof_package"]
+
+    async def test_proof_missing_assessment(self, client_with_profile: AsyncClient):
+        resp = await client_with_profile.post("/api/proof", json={"assessment_id": "nonexistent"})
+        assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Deliverable generation endpoint
+# ---------------------------------------------------------------------------
+
+
+class TestGenerateEndpoint:
+    async def _create_assessment_id(self, client: AsyncClient) -> str:
+        resp = await client.post("/api/assess", json=SAMPLE_ASSESS_PAYLOAD)
+        assert resp.status_code == 200
+        return resp.json()["assessment_id"]
+
+    async def test_generate_resume_bullets(self, client_with_profile: AsyncClient):
+        aid = await self._create_assessment_id(client_with_profile)
+        resp = await client_with_profile.post(
+            "/api/generate",
+            json={"assessment_id": aid, "deliverable_type": "resume_bullets"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["deliverable_type"] == "resume_bullets"
+        assert isinstance(data["result"], list)
+        assert len(data["result"]) > 0
+
+    async def test_generate_cover_letter(self, client_with_profile: AsyncClient):
+        aid = await self._create_assessment_id(client_with_profile)
+        resp = await client_with_profile.post(
+            "/api/generate",
+            json={"assessment_id": aid, "deliverable_type": "cover_letter"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["deliverable_type"] == "cover_letter"
+        assert isinstance(data["result"], str)
+        assert len(data["result"]) > 0
+
+    async def test_generate_interview_prep(self, client_with_profile: AsyncClient):
+        aid = await self._create_assessment_id(client_with_profile)
+        resp = await client_with_profile.post(
+            "/api/generate",
+            json={"assessment_id": aid, "deliverable_type": "interview_prep"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["deliverable_type"] == "interview_prep"
+        assert isinstance(data["result"], str)
+        assert len(data["result"]) > 0
+
+    async def test_generate_unknown_type_returns_422(self, client_with_profile: AsyncClient):
+        aid = await self._create_assessment_id(client_with_profile)
+        resp = await client_with_profile.post(
+            "/api/generate",
+            json={"assessment_id": aid, "deliverable_type": "magic_letter"},
+        )
+        assert resp.status_code == 422
+
+    async def test_generate_missing_assessment_returns_404(self, client_with_profile: AsyncClient):
+        resp = await client_with_profile.post(
+            "/api/generate",
+            json={"assessment_id": "nonexistent-id", "deliverable_type": "cover_letter"},
+        )
+        assert resp.status_code == 404
