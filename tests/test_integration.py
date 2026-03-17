@@ -217,6 +217,56 @@ class TestEndToEndFlow:
         assert reloaded.company_name == "AI Tools Corp"
 
 
+class TestJobParseCommand:
+    def test_parse_job_posting(self, fixtures_dir, tmp_path):
+        posting = fixtures_dir / "sample_job_posting.txt"
+        output = tmp_path / "reqs.json"
+        runner = CliRunner()
+        result = runner.invoke(main, ["job", "parse", str(posting), "-o", str(output)])
+        assert result.exit_code == 0, f"CLI failed: {result.output}"
+        assert output.exists()
+        reqs = json.loads(output.read_text())
+        assert len(reqs) > 0
+
+    def test_parse_to_stdout(self, fixtures_dir):
+        posting = fixtures_dir / "sample_job_posting.txt"
+        runner = CliRunner()
+        result = runner.invoke(main, ["job", "parse", str(posting)])
+        assert result.exit_code == 0, f"CLI failed: {result.output}"
+        assert "description" in result.output
+
+
+class TestMatchCorrelateCommand:
+    def test_correlate_without_profile(self, tmp_path):
+        """Correlate with no profile — should succeed with empty result (no signals to match)."""
+        output = tmp_path / "correlations.json"
+        runner = CliRunner()
+        result = runner.invoke(main, [
+            "match", "correlate",
+            "--github-user", "nonexistent-user-zzz999abc",
+            "-o", str(output),
+        ])
+        assert result.exit_code == 0, f"CLI failed: {result.output}"
+        assert output.exists()
+        data = json.loads(output.read_text())
+        assert isinstance(data, list)
+
+    def test_correlate_with_profile(self, fixtures_dir, tmp_path):
+        """Correlate with a real CandidateProfile — should produce valid JSON output."""
+        output = tmp_path / "correlations.json"
+        runner = CliRunner()
+        result = runner.invoke(main, [
+            "match", "correlate",
+            "--github-user", "nonexistent-user-zzz999abc",
+            "--profile", str(fixtures_dir / "sample_candidate_profile.json"),
+            "-o", str(output),
+        ])
+        assert result.exit_code == 0, f"CLI failed: {result.output}"
+        assert output.exists()
+        data = json.loads(output.read_text())
+        assert isinstance(data, list)
+
+
 class TestSessionsScanCommand:
     def test_scan_with_fixtures(self, tmp_path, fixtures_dir):
         """Scan fixture session files and produce a CandidateProfile."""

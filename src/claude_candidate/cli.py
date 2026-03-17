@@ -76,9 +76,10 @@ def assess(
         req_data = json.loads(req_path.read_text())
         requirements = [QuickRequirement(**r) for r in req_data]
     else:
-        click.echo("No .requirements.json found — using placeholder requirements")
-        click.echo("  (Full implementation will use Claude Code to parse requirements from text)")
-        requirements = _extract_basic_requirements(job_text)
+        click.echo("Parsing requirements with Claude...")
+        from claude_candidate.requirement_parser import parse_requirements_with_claude
+        requirements = parse_requirements_with_claude(job_text)
+        click.echo(f"  Extracted {len(requirements)} requirements")
 
     # Run assessment
     click.echo(f"\nAssessing fit for {title} at {company}...")
@@ -165,6 +166,82 @@ def _extract_basic_requirements(text: str) -> list:
         ))
 
     return requirements
+
+
+# === Job commands ===
+
+@main.group()
+def job() -> None:
+    """Job posting analysis commands."""
+    pass
+
+
+@job.command()
+@click.argument("posting_file", type=click.Path(exists=True))
+@click.option("--output", "-o", type=click.Path(), help="Output path for requirements JSON")
+def parse(posting_file: str, output: str | None) -> None:
+    """Parse a job posting into structured requirements."""
+    from claude_candidate.requirement_parser import parse_requirements_with_claude
+    import json
+
+    posting_text = Path(posting_file).read_text()
+    click.echo("Parsing requirements...")
+
+    requirements = parse_requirements_with_claude(posting_text)
+    click.echo(f"  Found {len(requirements)} requirements")
+
+    result = [r.model_dump() for r in requirements]
+    json_output = json.dumps(result, indent=2, default=str)
+
+    if output:
+        Path(output).write_text(json_output)
+        click.echo(f"  Written to {output}")
+    else:
+        click.echo(json_output)
+
+
+# === Match commands ===
+
+@main.group()
+def match() -> None:
+    """Matching and correlation commands."""
+    pass
+
+
+@match.command()
+@click.option("--github-user", required=True, help="GitHub username for public repo lookup")
+@click.option("--profile", "-p", type=click.Path(exists=True),
+              help="CandidateProfile JSON for correlation")
+@click.option("--output", "-o", type=click.Path(), help="Output path for correlations JSON")
+def correlate(github_user: str, profile: str | None, output: str | None) -> None:
+    """Correlate public GitHub repos with session evidence."""
+    from claude_candidate.correlator import fetch_public_repos, correlate_repos
+    from claude_candidate.extractor import SessionSignals
+    import json
+
+    signals_list: list[SessionSignals] = []
+    if profile:
+        from claude_candidate.schemas.candidate_profile import CandidateProfile
+        cp = CandidateProfile.from_json(Path(profile).read_text())
+        for skill in cp.skills:
+            sid = skill.evidence[0].session_id if skill.evidence else ""
+            signals_list.append(SessionSignals(session_id=sid, technologies=[skill.name]))
+
+    click.echo(f"Fetching public repos for {github_user}...")
+    repos = fetch_public_repos(github_user)
+    click.echo(f"  Found {len(repos)} repos")
+
+    correlations = correlate_repos(repos=repos, signals_list=signals_list)
+    click.echo(f"  Correlated {len(correlations)} repos")
+
+    result = [c.model_dump() for c in correlations]
+    json_output = json.dumps(result, indent=2, default=str)
+
+    if output:
+        Path(output).write_text(json_output)
+        click.echo(f"  Written to {output}")
+    else:
+        click.echo(json_output)
 
 
 def _print_assessment_card(assessment) -> None:
