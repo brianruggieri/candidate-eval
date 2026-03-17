@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 import pytest
+from hypothesis import given, settings
 from pydantic import ValidationError
 
 from claude_candidate.schemas.candidate_profile import (
@@ -14,19 +15,23 @@ from claude_candidate.schemas.candidate_profile import (
     SessionReference,
     SkillEntry,
 )
-from claude_candidate.schemas.job_requirements import (
-    QuickRequirement,
-    RequirementPriority,
-)
-from claude_candidate.schemas.resume_profile import ResumeProfile, ResumeSkill
-from claude_candidate.schemas.merged_profile import (
-    EvidenceSource,
-    MergedSkillEvidence,
-)
 from claude_candidate.schemas.company_profile import CompanyProfile
 from claude_candidate.schemas.fit_assessment import (
     score_to_grade,
     score_to_verdict,
+)
+from claude_candidate.schemas.job_requirements import (
+    QuickRequirement,
+    RequirementPriority,
+)
+from claude_candidate.schemas.merged_profile import (
+    EvidenceSource,
+    MergedSkillEvidence,
+)
+from claude_candidate.schemas.resume_profile import ResumeProfile, ResumeSkill
+from tests.strategies import (
+    quick_requirement_strategy,
+    session_reference_strategy,
 )
 
 
@@ -291,3 +296,26 @@ class TestCompanyProfile:
         )
         assert cp.enrichment_quality == "sparse"  # Default
         assert cp.oss_activity_level == "unknown"
+
+
+# === Property-Based Tests ===
+
+class TestPropertyBased:
+    @given(ref=session_reference_strategy)
+    @settings(max_examples=100)
+    def test_session_reference_roundtrip(self, ref: SessionReference) -> None:
+        json_str = ref.model_dump_json()
+        restored = SessionReference.model_validate_json(json_str)
+        assert restored.session_id == ref.session_id
+        assert restored.evidence_type == ref.evidence_type
+        assert restored.confidence == ref.confidence
+        assert restored.evidence_snippet == ref.evidence_snippet
+
+    @given(req=quick_requirement_strategy)
+    @settings(max_examples=100)
+    def test_quick_requirement_roundtrip(self, req: QuickRequirement) -> None:
+        json_str = req.model_dump_json()
+        restored = QuickRequirement.model_validate_json(json_str)
+        assert restored.description == req.description
+        assert restored.priority == req.priority
+        assert restored.skill_mapping == req.skill_mapping

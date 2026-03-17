@@ -9,10 +9,15 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
 
 from claude_candidate import __version__
+
+if TYPE_CHECKING:
+    from claude_candidate.extractor import SessionSignals
+    from claude_candidate.session_scanner import SessionInfo
 
 
 @click.group()
@@ -76,9 +81,10 @@ def assess(
         req_data = json.loads(req_path.read_text())
         requirements = [QuickRequirement(**r) for r in req_data]
     else:
-        click.echo("No .requirements.json found — using placeholder requirements")
-        click.echo("  (Full implementation will use Claude Code to parse requirements from text)")
-        requirements = _extract_basic_requirements(job_text)
+        click.echo("Parsing requirements with Claude...")
+        from claude_candidate.requirement_parser import parse_requirements_with_claude
+        requirements = parse_requirements_with_claude(job_text)
+        click.echo(f"  Extracted {len(requirements)} requirements")
 
     # Run assessment
     click.echo(f"\nAssessing fit for {title} at {company}...")
@@ -98,6 +104,69 @@ def assess(
         click.echo(f"\nFull assessment written to {output}")
 
     _print_assessment_card(assessment)
+
+
+@main.command()
+@click.option("--assessment", "-a", type=click.Path(exists=True), required=True,
+              help="Path to assessment JSON file")
+@click.option("--output", "-o", type=click.Path(),
+              help="Output path for proof package markdown")
+def proof(assessment: str, output: str | None) -> None:
+    """Generate a proof package from an assessment."""
+    from claude_candidate.schemas.fit_assessment import FitAssessment
+    from claude_candidate.proof_generator import generate_proof_package
+
+    click.echo(f"Loading assessment from {assessment}...")
+    assessment_obj = FitAssessment.from_json(Path(assessment).read_text())
+
+    click.echo("Generating proof package...")
+    proof_markdown = generate_proof_package(assessment=assessment_obj)
+
+    if output:
+        Path(output).write_text(proof_markdown)
+        click.echo(f"Proof package written to {output}")
+    else:
+        click.echo(proof_markdown)
+
+
+@main.command()
+@click.option("--assessment", "-a", type=click.Path(exists=True), required=True,
+              help="Path to assessment JSON file")
+@click.option("--type", "-t", "deliverable_type",
+              type=click.Choice(["resume-bullets", "cover-letter", "interview-prep"]),
+              required=True,
+              help="Type of deliverable to generate")
+@click.option("--output", "-o", type=click.Path(),
+              help="Output path for generated deliverable")
+def generate(assessment: str, deliverable_type: str, output: str | None) -> None:
+    """Generate deliverables from an assessment."""
+    from claude_candidate.schemas.fit_assessment import FitAssessment
+    from claude_candidate.generator import (
+        generate_resume_bullets,
+        generate_cover_letter,
+        generate_interview_prep,
+    )
+
+    click.echo(f"Loading assessment from {assessment}...")
+    assessment_obj = FitAssessment.from_json(Path(assessment).read_text())
+
+    click.echo(f"Generating {deliverable_type}...")
+    result: str | list[str]
+    if deliverable_type == "resume-bullets":
+        result = generate_resume_bullets(assessment=assessment_obj)
+        content = "\n".join(f"- {b}" for b in result)
+    elif deliverable_type == "cover-letter":
+        result = generate_cover_letter(assessment=assessment_obj)
+        content = result
+    else:  # interview-prep
+        result = generate_interview_prep(assessment=assessment_obj)
+        content = result
+
+    if output:
+        Path(output).write_text(content)
+        click.echo(f"Deliverable written to {output}")
+    else:
+        click.echo(content)
 
 
 def _extract_basic_requirements(text: str) -> list:
@@ -165,6 +234,82 @@ def _extract_basic_requirements(text: str) -> list:
         ))
 
     return requirements
+
+
+# === Job commands ===
+
+@main.group()
+def job() -> None:
+    """Job posting analysis commands."""
+    pass
+
+
+@job.command()
+@click.argument("posting_file", type=click.Path(exists=True))
+@click.option("--output", "-o", type=click.Path(), help="Output path for requirements JSON")
+def parse(posting_file: str, output: str | None) -> None:
+    """Parse a job posting into structured requirements."""
+    from claude_candidate.requirement_parser import parse_requirements_with_claude
+    import json
+
+    posting_text = Path(posting_file).read_text()
+    click.echo("Parsing requirements...")
+
+    requirements = parse_requirements_with_claude(posting_text)
+    click.echo(f"  Found {len(requirements)} requirements")
+
+    result = [r.model_dump(mode="json") for r in requirements]
+    json_output = json.dumps(result, indent=2)
+
+    if output:
+        Path(output).write_text(json_output)
+        click.echo(f"  Written to {output}")
+    else:
+        click.echo(json_output)
+
+
+# === Match commands ===
+
+@main.group()
+def match() -> None:
+    """Matching and correlation commands."""
+    pass
+
+
+@match.command()
+@click.option("--github-user", required=True, help="GitHub username for public repo lookup")
+@click.option("--profile", "-p", type=click.Path(exists=True),
+              help="CandidateProfile JSON for correlation")
+@click.option("--output", "-o", type=click.Path(), help="Output path for correlations JSON")
+def correlate(github_user: str, profile: str | None, output: str | None) -> None:
+    """Correlate public GitHub repos with session evidence."""
+    from claude_candidate.correlator import fetch_public_repos, correlate_repos
+    from claude_candidate.extractor import SessionSignals
+    import json
+
+    signals_list: list[SessionSignals] = []
+    if profile:
+        from claude_candidate.schemas.candidate_profile import CandidateProfile
+        cp = CandidateProfile.from_json(Path(profile).read_text())
+        for skill in cp.skills:
+            sid = skill.evidence[0].session_id if skill.evidence else ""
+            signals_list.append(SessionSignals(session_id=sid, technologies=[skill.name]))
+
+    click.echo(f"Fetching public repos for {github_user}...")
+    repos = fetch_public_repos(github_user)
+    click.echo(f"  Found {len(repos)} repos")
+
+    correlations = correlate_repos(repos=repos, signals_list=signals_list)
+    click.echo(f"  Correlated {len(correlations)} repos")
+
+    result = [c.model_dump(mode="json") for c in correlations]
+    json_output = json.dumps(result, indent=2)
+
+    if output:
+        Path(output).write_text(json_output)
+        click.echo(f"  Written to {output}")
+    else:
+        click.echo(json_output)
 
 
 def _print_assessment_card(assessment) -> None:
@@ -446,6 +591,67 @@ def server_start(host: str, port: int, data_dir: str | None) -> None:
     app = create_app(data_dir=data_path)
     click.echo(f"Starting claude-candidate server on {host}:{port}")
     uvicorn.run(app, host=host, port=port)
+
+
+# === Sessions commands ===
+
+@main.group()
+def sessions() -> None:
+    """Manage Claude Code session scanning."""
+    pass
+
+
+@sessions.command()
+@click.option("--session-dir", type=click.Path(exists=True),
+              help="Directory containing session JSONL files")
+@click.option("--output", "-o", type=click.Path(),
+              help="Output path for CandidateProfile JSON")
+def scan(session_dir: str | None, output: str | None) -> None:
+    """Scan session logs and build a CandidateProfile."""
+    from claude_candidate.session_scanner import discover_sessions
+    from claude_candidate.manifest import hash_string
+    from claude_candidate.extractor import build_candidate_profile
+
+    search_dir = Path(session_dir) if session_dir else _default_sessions_dir()
+    click.echo(f"Scanning sessions in {search_dir}...")
+    sessions_found = discover_sessions(search_dir)
+    click.echo(f"  Found {len(sessions_found)} session files")
+    if not sessions_found:
+        click.echo("No sessions found. Nothing to do.")
+        return
+    signals_list = _process_sessions(sessions_found)
+    manifest_hash = hash_string("|".join(s.session_id for s in signals_list))
+    profile = build_candidate_profile(signals_list=signals_list, manifest_hash=manifest_hash)
+    click.echo(f"  Skills found: {len(profile.skills)}")
+    click.echo(f"  Sessions processed: {profile.session_count}")
+    output_path = Path(output) if output else _default_profile_path()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(profile.to_json())
+    click.echo(f"  Profile written to {output_path}")
+
+
+def _process_sessions(sessions_found: list[SessionInfo]) -> list[SessionSignals]:
+    """Sanitize and extract signals from discovered sessions."""
+    from claude_candidate.sanitizer import sanitize_text
+    from claude_candidate.extractor import extract_session_signals
+
+    signals_list: list[SessionSignals] = []
+    for info in sessions_found:
+        raw_content = info.path.read_text(errors="replace")
+        sanitized = sanitize_text(raw_content)
+        signals = extract_session_signals(sanitized.sanitized)
+        signals.session_id = info.session_id
+        signals.project_hint = info.project_hint
+        signals_list.append(signals)
+    return signals_list
+
+
+def _default_sessions_dir() -> Path:
+    return Path.home() / ".claude" / "projects"
+
+
+def _default_profile_path() -> Path:
+    return Path.home() / ".claude-candidate" / "candidate_profile.json"
 
 
 if __name__ == "__main__":
