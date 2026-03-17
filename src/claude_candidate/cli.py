@@ -9,10 +9,15 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
 
 from claude_candidate import __version__
+
+if TYPE_CHECKING:
+    from claude_candidate.extractor import SessionSignals
+    from claude_candidate.session_scanner import SessionInfo
 
 
 @click.group()
@@ -253,8 +258,8 @@ def parse(posting_file: str, output: str | None) -> None:
     requirements = parse_requirements_with_claude(posting_text)
     click.echo(f"  Found {len(requirements)} requirements")
 
-    result = [r.model_dump() for r in requirements]
-    json_output = json.dumps(result, indent=2, default=str)
+    result = [r.model_dump(mode="json") for r in requirements]
+    json_output = json.dumps(result, indent=2)
 
     if output:
         Path(output).write_text(json_output)
@@ -297,8 +302,8 @@ def correlate(github_user: str, profile: str | None, output: str | None) -> None
     correlations = correlate_repos(repos=repos, signals_list=signals_list)
     click.echo(f"  Correlated {len(correlations)} repos")
 
-    result = [c.model_dump() for c in correlations]
-    json_output = json.dumps(result, indent=2, default=str)
+    result = [c.model_dump(mode="json") for c in correlations]
+    json_output = json.dumps(result, indent=2)
 
     if output:
         Path(output).write_text(json_output)
@@ -625,12 +630,12 @@ def scan(session_dir: str | None, output: str | None) -> None:
     click.echo(f"  Profile written to {output_path}")
 
 
-def _process_sessions(sessions_found: list) -> list:
+def _process_sessions(sessions_found: list[SessionInfo]) -> list[SessionSignals]:
     """Sanitize and extract signals from discovered sessions."""
     from claude_candidate.sanitizer import sanitize_text
     from claude_candidate.extractor import extract_session_signals
 
-    signals_list = []
+    signals_list: list[SessionSignals] = []
     for info in sessions_found:
         raw_content = info.path.read_text(errors="replace")
         sanitized = sanitize_text(raw_content)

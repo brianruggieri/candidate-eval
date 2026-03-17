@@ -51,7 +51,8 @@ TECH_KEYWORDS: dict[str, list[str]] = {
 }
 
 MUST_HAVE_WORDS = {"required", "must", "need", "essential"}
-NICE_TO_HAVE_WORDS = {"preferred", "ideal", "bonus", "plus"}
+STRONG_PREFERENCE_WORDS = {"preferred", "ideal"}
+NICE_TO_HAVE_WORDS = {"bonus", "plus", "nice to have", "optional"}
 
 
 def parse_requirements_with_claude(posting_text: str) -> list[QuickRequirement]:
@@ -61,7 +62,14 @@ def parse_requirements_with_claude(posting_text: str) -> list[QuickRequirement]:
         results = parse_requirements_from_response(raw)
         if results:
             return results
-    except Exception:
+    except (
+        FileNotFoundError,
+        subprocess.TimeoutExpired,
+        subprocess.SubprocessError,
+        RuntimeError,
+        json.JSONDecodeError,
+        OSError,
+    ):
         pass
     return parse_requirements_fallback(posting_text)
 
@@ -149,6 +157,8 @@ def _infer_priority(lines: list[str], keywords: list[str]) -> RequirementPriorit
             continue
         if any(w in line for w in MUST_HAVE_WORDS):
             return RequirementPriority.MUST_HAVE
-        if any(w in line for w in NICE_TO_HAVE_WORDS):
+        if any(w in line for w in STRONG_PREFERENCE_WORDS):
             return RequirementPriority.STRONG_PREFERENCE
+        if any(w in line for w in NICE_TO_HAVE_WORDS):
+            return RequirementPriority.NICE_TO_HAVE
     return RequirementPriority.NICE_TO_HAVE

@@ -306,7 +306,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="Assessment not found")
 
         data = row["data"] if row.get("data") and isinstance(row["data"], dict) else row
-        assessment = FitAssessment.from_json(json.dumps(data))
+        assessment = FitAssessment.model_validate(data)
         proof_markdown = generate_proof_package(assessment=assessment)
         return {"proof_package": proof_markdown}
 

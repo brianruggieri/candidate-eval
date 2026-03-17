@@ -74,14 +74,20 @@ PII_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}"),
 ]
 
-ABSOLUTE_PATH_PATTERN: re.Pattern[str] = re.compile(
-    r"""(?:/Users/[^/\s"'][^\s"']*|/home/[^/\s"'][^\s"']*)"""
-)
+ABSOLUTE_PATH_PATTERNS: list[re.Pattern[str]] = [
+    # macOS/Linux home directories
+    re.compile(r"""(?:/Users/[^/\s"'][^\s"']*|/home/[^/\s"'][^\s"']*)"""),
+    # Windows drive-letter paths (C:\Users\...)
+    re.compile(r"""[A-Z]:\\[Uu]sers\\[^\s"'\\]+(?:\\[^\s"']*)?"""),
+    # UNC paths (\\server\share\...)
+    re.compile(r"""\\\\[^\s"'\\]+\\[^\s"']*"""),
+]
 
 PATTERN_GROUPS: list[tuple[str, list[re.Pattern[str]]]] = [
     ("api_key", API_KEY_PATTERNS),
     ("auth_token", AUTH_TOKEN_PATTERNS),
     ("pii", PII_PATTERNS),
+    ("absolute_path", ABSOLUTE_PATH_PATTERNS),
 ]
 
 
@@ -110,27 +116,11 @@ def _scan_patterns(
     return findings
 
 
-def _scan_absolute_paths(text: str) -> list[SecretFinding]:
-    """Scan text for absolute path patterns."""
-    findings: list[SecretFinding] = []
-    for m in ABSOLUTE_PATH_PATTERN.finditer(text):
-        findings.append(
-            SecretFinding(
-                category="absolute_path",
-                start=m.start(),
-                end=m.end(),
-                matched_text=m.group(),
-            )
-        )
-    return findings
-
-
 def detect_secrets(text: str) -> list[SecretFinding]:
-    """Scan text using dispatch table and absolute path patterns."""
+    """Scan text for secrets, PII, and absolute paths."""
     findings: list[SecretFinding] = []
     for category, patterns in PATTERN_GROUPS:
         findings.extend(_scan_patterns(text, category, patterns))
-    findings.extend(_scan_absolute_paths(text))
     return findings
 
 
