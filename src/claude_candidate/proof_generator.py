@@ -20,8 +20,9 @@ from claude_candidate.schemas.session_manifest import SessionManifest
 GENERATOR_VERSION = "0.1.0"
 PRIVACY_NOTICE = (
     "This document was generated from sanitized session data. "
-    "No raw session content, API keys, or personally identifying "
-    "information is included."
+    "Secrets, API keys, and absolute paths are redacted via pattern matching. "
+    "Full PII scrubbing (names, addresses, phone numbers) is not yet implemented. "
+    "Session data is sourced exclusively from public GitHub projects."
 )
 NO_MANIFEST_NOTE = "No session manifest provided for this assessment."
 NO_PROFILE_NOTE = "No merged evidence profile provided for this assessment."
