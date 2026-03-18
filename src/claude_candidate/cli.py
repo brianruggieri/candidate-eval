@@ -22,9 +22,22 @@ if TYPE_CHECKING:
 
 @click.group()
 @click.version_option(__version__)
-def main() -> None:
+@click.pass_context
+def main(ctx: click.Context) -> None:
     """claude-candidate: Honest job fit assessment from your resume + Claude Code sessions."""
-    pass
+    ctx.ensure_object(dict)
+    # Commands that require Claude CLI
+    needs_claude = {"assess", "generate", "job"}
+    if ctx.invoked_subcommand in needs_claude:
+        from claude_candidate.claude_cli import check_claude_available
+
+        if not check_claude_available():
+            click.echo(
+                "Error: Claude CLI is required for this command but was not found.\n"
+                "Install from https://docs.anthropic.com/claude-code",
+                err=True,
+            )
+            ctx.exit(1)
 
 
 @main.command()
