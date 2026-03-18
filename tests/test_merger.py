@@ -39,9 +39,12 @@ class TestMergeProfiles:
     def test_merge_produces_all_skills(self, candidate_profile, resume_profile):
         merged = merge_profiles(candidate_profile, resume_profile)
 
-        # Should have union of all skills
-        cp_names = {s.name for s in candidate_profile.skills}
-        rp_names = {s.name for s in resume_profile.skills}
+        # Normalize names the same way the merger does before comparing
+        from claude_candidate.skill_taxonomy import SkillTaxonomy
+        taxonomy = SkillTaxonomy.load_default()
+
+        cp_names = {taxonomy.canonicalize(s.name) for s in candidate_profile.skills}
+        rp_names = {taxonomy.canonicalize(s.name) for s in resume_profile.skills}
         merged_names = {s.name for s in merged.skills}
 
         assert cp_names.issubset(merged_names)
@@ -142,3 +145,86 @@ class TestMergeResumeOnly:
     def test_no_projects(self, resume_profile):
         merged = merge_resume_only(resume_profile)
         assert merged.projects == []
+
+
+def test_corroboration_with_name_variants(candidate_profile):
+    """Skills with different names (React.js vs react) should still corroborate."""
+    import json
+    from pathlib import Path
+    from claude_candidate.merger import merge_profiles
+    from claude_candidate.schemas.candidate_profile import DepthLevel
+    from claude_candidate.schemas.resume_profile import ResumeProfile, ResumeSkill
+    from claude_candidate.schemas.merged_profile import EvidenceSource
+
+    # Build a minimal resume that uses the alias form "React.js"
+    # while the candidate_profile fixture has "react" (from sessions).
+    # First inject "react" into the candidate profile if it's not there already.
+    # The fixture may or may not have react — we build a fresh resume that
+    # uses the alias so the test is deterministic.
+
+    # Get the first skill from candidate_profile to borrow its session dates
+    first_skill = candidate_profile.skills[0]
+
+    # Build a ResumeProfile that references the alias form of that skill
+    # so we can test alias → canonical resolution in the merger.
+    # Use "Python" (alias: "py") vs "python" in sessions for a deterministic test.
+    python_in_sessions = any(
+        s.name == "python" for s in candidate_profile.skills
+    )
+    if not python_in_sessions:
+        # Fall back to building a minimal profile using the React alias test
+        # by injecting a "react" skill into a copy of the candidate profile
+        from datetime import datetime, timezone
+        from claude_candidate.schemas.candidate_profile import SkillEntry, SessionReference
+        import copy
+
+        now = datetime.now(tz=timezone.utc)
+        # We'll use the candidate_profile as-is and just check that the
+        # alias resolution works for Python (which is in both fixtures)
+        pass
+
+    # The sample_candidate_profile.json fixture has "python" in session skills.
+    # We create a resume that lists "Python" (capital P) or "py" (alias)
+    # to exercise the alias normalization path.
+    from datetime import datetime, timezone
+    now = datetime.now(tz=timezone.utc)
+    resume = ResumeProfile(
+        parsed_at=now,
+        source_file_hash="variant-test-hash",
+        source_format="txt",
+        skills=[
+            ResumeSkill(
+                name="React.js",  # alias for "react" in taxonomy
+                source_context="Built React.js applications",
+                implied_depth=DepthLevel.APPLIED,
+                recency="current_role",
+            )
+        ],
+        roles=[],
+    )
+
+    # Patch the candidate_profile to ensure it has a "react" skill
+    # by using from_json on a modified version
+    profile_data = json.loads(candidate_profile.to_json())
+    first_skill_data = profile_data["skills"][0]
+    react_skill = {
+        "name": "react",
+        "category": "framework",
+        "depth": "deep",
+        "frequency": 10,
+        "recency": first_skill_data["recency"],
+        "first_seen": first_skill_data["first_seen"],
+        "evidence": [first_skill_data["evidence"][0]],
+        "context_notes": None,
+    }
+    profile_data["skills"].append(react_skill)
+
+    from claude_candidate.schemas.candidate_profile import CandidateProfile
+    candidate_with_react = CandidateProfile.model_validate(profile_data)
+
+    merged = merge_profiles(candidate_with_react, resume)
+    corroborated = [
+        s for s in merged.skills
+        if s.source == EvidenceSource.CORROBORATED
+    ]
+    assert len(corroborated) >= 1

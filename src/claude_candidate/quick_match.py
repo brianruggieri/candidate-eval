@@ -17,6 +17,7 @@ from datetime import datetime
 
 from claude_candidate.schemas.candidate_profile import DepthLevel, DEPTH_RANK, PatternType
 from claude_candidate.schemas.company_profile import CompanyProfile
+from claude_candidate.skill_taxonomy import SkillTaxonomy
 from claude_candidate.schemas.fit_assessment import (
     DimensionScore,
     FitAssessment,
@@ -34,6 +35,20 @@ from claude_candidate.schemas.merged_profile import (
     MergedEvidenceProfile,
     MergedSkillEvidence,
 )
+
+
+# ---------------------------------------------------------------------------
+# Lazy-loaded taxonomy (module-level singleton)
+# ---------------------------------------------------------------------------
+
+_taxonomy: SkillTaxonomy | None = None
+
+
+def _get_taxonomy() -> SkillTaxonomy:
+    global _taxonomy
+    if _taxonomy is None:
+        _taxonomy = SkillTaxonomy.load_default()
+    return _taxonomy
 
 
 # ---------------------------------------------------------------------------
@@ -111,20 +126,6 @@ SENIORITY_DEPTH_FLOOR: dict[str, DepthLevel] = {
     "principal": DepthLevel.EXPERT,
     "director": DepthLevel.DEEP,
     "unknown": DepthLevel.APPLIED,
-}
-
-# Skill name abbreviation variants
-SKILL_VARIANTS: dict[str, str] = {
-    "js": "javascript",
-    "ts": "typescript",
-    "py": "python",
-    "k8s": "kubernetes",
-    "pg": "postgresql",
-    "postgres": "postgresql",
-    "node": "node.js",
-    "react.js": "react",
-    "vue.js": "vue",
-    "next.js": "nextjs",
 }
 
 # Pattern strength → DepthLevel
@@ -292,11 +293,12 @@ def _find_fuzzy_match(
 
 
 def _is_variant_match(query: str, skill_name: str) -> bool:
-    """Check whether query and skill_name are known abbreviation variants."""
-    return (
-        SKILL_VARIANTS.get(query) == skill_name
-        or SKILL_VARIANTS.get(skill_name) == query
-    )
+    """Check whether query and skill_name are known abbreviation variants via taxonomy."""
+    taxonomy = _get_taxonomy()
+    canon_query = taxonomy.canonicalize(query)
+    canon_skill = taxonomy.canonicalize(skill_name)
+    # They're the same canonical form, or are related in the taxonomy
+    return canon_query == canon_skill or taxonomy.are_related(query, skill_name)
 
 
 def _pattern_confidence(strength: str) -> float:
