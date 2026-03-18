@@ -583,6 +583,67 @@ def resume_ingest(resume_path: str, output: str | None) -> None:
     click.echo(f"\nProfile written to {out_path}")
 
 
+@resume.command("onboard")
+@click.argument("resume_path", type=click.Path(exists=True))
+@click.option("--output", "-o", type=click.Path(), default=None,
+              help="Output path for curated profile (default: ~/.claude-candidate/curated_resume.json)")
+def resume_onboard(resume_path: str, output: str | None) -> None:
+    """Interactive resume onboarding: parse and curate skill depths."""
+    from claude_candidate.resume_parser import ingest_resume
+    from claude_candidate.schemas.candidate_profile import DepthLevel
+
+    raw_profile = ingest_resume(Path(resume_path))
+    click.echo(f"\nParsed {len(raw_profile.skills)} skills from resume.\n")
+
+    if not raw_profile.skills:
+        click.echo("No skills found in resume. Nothing to curate.")
+        return
+
+    depth_choices = [d.value for d in DepthLevel]
+    curated_skills = []
+
+    for skill in raw_profile.skills:
+        click.echo(f"Skill: {skill.name}")
+        if skill.years_experience:
+            click.echo(f"  Detected: ~{skill.years_experience} years")
+        if skill.source_context:
+            click.echo(f"  Context: {skill.source_context[:80]}")
+
+        depth_str = click.prompt(
+            "  Depth",
+            type=click.Choice(depth_choices, case_sensitive=False),
+            default=skill.implied_depth.value if skill.implied_depth else "used",
+        )
+        duration = click.prompt(
+            "  Experience duration (e.g. '3 years', '2 months')",
+            default="",
+            show_default=False,
+        )
+
+        curated_skills.append({
+            "name": skill.name,
+            "depth": depth_str,
+            "duration": duration if duration else None,
+            "source_context": skill.source_context,
+            "curated": True,
+        })
+        click.echo()
+
+    # Save curated profile
+    output_path = Path(output) if output else Path.home() / ".claude-candidate" / "curated_resume.json"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    curated_data = raw_profile.model_dump(mode="json")
+    curated_data["curated_skills"] = curated_skills
+    curated_data["curated"] = True
+
+    with open(output_path, "w") as f:
+        json.dump(curated_data, f, indent=2, default=str)
+
+    click.echo(f"Curated profile saved: {output_path}")
+    click.echo(f"  {len(curated_skills)} skills curated")
+
+
 # === Server commands ===
 
 @main.group()
