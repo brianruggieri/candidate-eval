@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 from rapidfuzz import fuzz
 
@@ -27,7 +28,7 @@ _DEFAULT_TAXONOMY_PATH = Path(__file__).parent / "data" / "taxonomy.json"
 class SkillTaxonomy:
     """Canonical skill name resolver backed by a taxonomy of aliases and relationships."""
 
-    def __init__(self, skills: dict[str, dict]) -> None:
+    def __init__(self, skills: dict[str, dict[str, Any]]) -> None:
         """
         Build reverse alias map and prepare canonical names for fuzzy matching.
 
@@ -60,7 +61,7 @@ class SkillTaxonomy:
     def load(cls, path: Path) -> SkillTaxonomy:
         """Load a taxonomy from an arbitrary JSON file path."""
         with open(path) as f:
-            skills: dict[str, dict] = json.load(f)
+            skills: dict[str, dict[str, Any]] = json.load(f)
         return cls(skills)
 
     def canonicalize(self, name: str) -> str:
@@ -91,7 +92,7 @@ class SkillTaxonomy:
 
         # Tier 2: fuzzy match across all canonical names and aliases
         best_canonical: str | None = None
-        best_score = 0
+        best_score: float = 0
         for term, canonical in self._all_terms:
             score = fuzz.token_set_ratio(lowered, term)
             if score > best_score:

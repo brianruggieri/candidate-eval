@@ -35,6 +35,9 @@ def get_default_whitelist_path() -> Path:
 	return DEFAULT_CONFIG_DIR / WHITELIST_FILENAME
 
 
-def filter_sessions_by_whitelist(sessions, whitelist: WhitelistConfig):
+def filter_sessions_by_whitelist(
+	sessions: list[object],
+	whitelist: WhitelistConfig,
+) -> list[object]:
 	"""Filter sessions to whitelisted projects only."""
-	return [s for s in sessions if whitelist.is_whitelisted(s.project_hint)]
+	return [s for s in sessions if whitelist.is_whitelisted(s.project_hint)]  # type: ignore[attr-defined]

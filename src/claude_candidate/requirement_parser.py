@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 
-from claude_candidate.claude_cli import ClaudeCLIError, call_claude
+from claude_candidate.claude_cli import call_claude
 from claude_candidate.schemas.job_requirements import QuickRequirement, RequirementPriority
 
 CLAUDE_TIMEOUT_SECONDS = 60
