@@ -1,4 +1,0 @@
-# file: /Users/brianruggieri/git/candidate-eval/src/claude_candidate/schemas/resume_profile.py
-# hypothesis_version: 6.151.9
-
-['0.1.0', 'current_role', 'docx', 'historical', 'name', 'pdf', 'previous_role', 'txt', 'unknown']

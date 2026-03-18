@@ -1,4 +1,0 @@
-# file: /Users/brianruggieri/git/candidate-eval/src/claude_candidate/schemas/candidate_profile.py
-# hypothesis_version: 6.151.9
-
-[0.0, 1.0, 500, '0.1.0', 'ambitious', 'applied', 'architecture_first', 'common', 'complex', 'concept', 'debugging', 'deep', 'direct_usage', 'documentation_driven', 'domain', 'dominant', 'emerging', 'established', 'evaluation', 'evidence_snippet', 'exceptional', 'expert', 'extensive', 'framework', 'high', 'integration', 'iterative_refinement', 'language', 'low', 'mentioned', 'meta_cognition', 'minimal', 'moderate', 'modular_thinking', 'name', 'occasional', 'planning', 'platform', 'practice', 'rare', 'refactor', 'review', 'scope_management', 'simple', 'soft_skill', 'strong', 'systematic_debugging', 'teaching', 'testing', 'testing_instinct', 'thorough', 'tool', 'tool_selection', 'tradeoff_analysis', 'trivial', 'used', 'very_high']

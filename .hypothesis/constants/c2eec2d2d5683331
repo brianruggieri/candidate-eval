@@ -1,4 +1,0 @@
-# file: /Users/brianruggieri/git/candidate-eval/src/claude_candidate/server.py
-# hypothesis_version: 6.151.9
-
-[200, 201, 404, 422, 503, '*', '.claude-candidate', '/api/assess', '/api/assessments', '/api/health', '/api/profile/status', '/api/watchlist', 'Assessment not found', 'api', 'assessed_at', 'assessment_id', 'assessments.db', 'candidate', 'claude-candidate', 'company_name', 'data', 'deleted', 'has_merged_profile', 'has_resume_profile', 'hashes', 'id', 'job_title', 'merged', 'merged_profile.json', 'notes', 'ok', 'overall_grade', 'overall_score', 'posting_url', 'profile_loaded', 'profiles', 'resume', 'resume_profile.json', 'should_apply', 'status', 'store', 'unknown', 'updated', 'version', 'watching']

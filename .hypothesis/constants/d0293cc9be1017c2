@@ -1,4 +1,0 @@
-# file: /Users/brianruggieri/git/candidate-eval/src/claude_candidate/proof_generator.py
-# hypothesis_version: 6.151.9
-
-['\n\n---\n\n', '## Dimension Scores', '## Footer', '## Skills Evidence', '## Skills Matrix', '%Y-%m-%d', '%Y-%m-%dT%H:%M:%SZ', ', ', '0.1.0', 'A', 'A+', 'A-', 'Adjacent', 'B', 'B+', 'B-', 'C', 'C+', 'C-', 'Conflicting', 'Corroborated', 'D', 'Exceeds', 'F', 'Maybe', 'No', 'No Evidence', 'Partial Match', 'Probably Not', 'Resume Only', 'Sessions Only', 'Strong Match', 'Strong Yes', 'Yes', '_', 'adjacent', 'conflicting', 'corroborated', 'exceeds', 'maybe', 'no', 'no_evidence', 'partial_match', 'probably_not', 'resume_only', 'sessions_only', 'strong_match', 'strong_yes', 'yes']

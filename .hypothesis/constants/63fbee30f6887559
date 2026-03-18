@@ -1,4 +1,0 @@
-# file: /Users/brianruggieri/git/candidate-eval/src/claude_candidate/correlator.py
-# hypothesis_version: 6.151.9
-
-[100, 'combined', 'content_reference', 'created_at', 'description', 'full_name', 'html_url', 'language', 'moderate', 'name', 'per_page', 'pushed_at', 'strong', 'temporal', 'topics', 'weak']

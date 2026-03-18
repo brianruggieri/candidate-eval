@@ -1,4 +1,0 @@
-# file: /Users/brianruggieri/git/candidate-eval/src/claude_candidate/schemas/company_profile.py
-# hypothesis_version: 6.151.9
-
-['active', 'hybrid', 'in_office', 'minimal', 'moderate', 'none', 'remote_first', 'rich', 'sparse', 'unknown', 'very_active']

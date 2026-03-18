@@ -1,4 +1,0 @@
-# file: /Users/brianruggieri/git/candidate-eval/src/claude_candidate/storage.py
-# hypothesis_version: 6.151.9
-
-['assessed_at', 'assessment_id', 'assessment_id = ?', 'company_name', 'data', 'job_title', 'notes = ?', 'overall_grade', 'overall_score', 'posting_url', 'should_apply', 'status = ?']

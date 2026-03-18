@@ -1,4 +1,0 @@
-# file: /Users/brianruggieri/git/candidate-eval/src/claude_candidate/schemas/__init__.py
-# hypothesis_version: 6.151.9
-
-['CandidateProfile', 'CompanyProfile', 'CorpusStatistics', 'DepthLevel', 'DimensionScore', 'EvidenceSource', 'FitAssessment', 'JobRequirement', 'JobRequirements', 'MatchEvaluation', 'MergedSkillEvidence', 'PatternType', 'ProjectComplexity', 'ProjectSummary', 'RedactionSummary', 'RequirementPriority', 'ResumeProfile', 'ResumeRole', 'ResumeSkill', 'SessionFileRecord', 'SessionManifest', 'SessionReference', 'SkillEntry', 'SkillMatch', 'SkillMatchDetail', 'SkillTrajectoryPoint']

@@ -1,4 +1,0 @@
-# file: /Users/brianruggieri/git/candidate-eval/src/claude_candidate/manifest.py
-# hypothesis_version: 6.151.9
-
-[0.0, 1.3, 8192, 100000, '#!/bin', '%Y-%m', '%Y-%m-%d_%H-%M-%S', '*.jsonl', ',', '.claude', '.js', '.py', '.sh', '.ts', '.tsx', '0.1.0', ':', 'bash', 'branch', 'commit', 'container', 'detail', 'docker', 'dockerfile', 'errors', 'git', 'git ', 'import ', 'javascript', 'jsx', 'large_file', 'manifest_hash', 'match', 'merge', 'missing', 'node ', 'npm ', 'pip ', 'projects', 'python', 'rb', 'react', 'replace', 'session_id', 'sh ', 'status', 'tsx', 'typescript', 'useState', 'utf-8', 'valid']
