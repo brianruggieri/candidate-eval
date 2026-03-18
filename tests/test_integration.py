@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from unittest.mock import patch
 
 from click.testing import CliRunner
 
@@ -342,12 +343,16 @@ class TestGenerateCommand:
         assessment_path = self._create_assessment(fixtures_dir, tmp_path, runner)
         output = tmp_path / "bullets.txt"
 
-        result = runner.invoke(main, [
-            "generate",
-            "--assessment", assessment_path,
-            "--type", "resume-bullets",
-            "--output", str(output),
-        ])
+        with patch(
+            "claude_candidate.generator.call_claude",
+            return_value="- Led Python backend refactor\n- Built React dashboard",
+        ):
+            result = runner.invoke(main, [
+                "generate",
+                "--assessment", assessment_path,
+                "--type", "resume-bullets",
+                "--output", str(output),
+            ])
         assert result.exit_code == 0, f"generate failed: {result.output}"
         assert output.exists()
         assert len(output.read_text()) > 0
@@ -357,12 +362,16 @@ class TestGenerateCommand:
         assessment_path = self._create_assessment(fixtures_dir, tmp_path, runner)
         output = tmp_path / "cover_letter.txt"
 
-        result = runner.invoke(main, [
-            "generate",
-            "--assessment", assessment_path,
-            "--type", "cover-letter",
-            "--output", str(output),
-        ])
+        with patch(
+            "claude_candidate.generator.call_claude",
+            return_value="Dear Hiring Manager, I am excited to apply for this role...",
+        ):
+            result = runner.invoke(main, [
+                "generate",
+                "--assessment", assessment_path,
+                "--type", "cover-letter",
+                "--output", str(output),
+            ])
         assert result.exit_code == 0, f"generate failed: {result.output}"
         assert output.exists()
         assert len(output.read_text()) > 0
@@ -372,12 +381,16 @@ class TestGenerateCommand:
         assessment_path = self._create_assessment(fixtures_dir, tmp_path, runner)
         output = tmp_path / "interview.txt"
 
-        result = runner.invoke(main, [
-            "generate",
-            "--assessment", assessment_path,
-            "--type", "interview-prep",
-            "--output", str(output),
-        ])
+        with patch(
+            "claude_candidate.generator.call_claude",
+            return_value="## Technical Discussion Points\n- Python: strong\n## Questions to Ask\n- ?",
+        ):
+            result = runner.invoke(main, [
+                "generate",
+                "--assessment", assessment_path,
+                "--type", "interview-prep",
+                "--output", str(output),
+            ])
         assert result.exit_code == 0, f"generate failed: {result.output}"
         assert output.exists()
         assert len(output.read_text()) > 0
@@ -386,11 +399,15 @@ class TestGenerateCommand:
         runner = CliRunner()
         assessment_path = self._create_assessment(fixtures_dir, tmp_path, runner)
 
-        result = runner.invoke(main, [
-            "generate",
-            "--assessment", assessment_path,
-            "--type", "cover-letter",
-        ])
+        with patch(
+            "claude_candidate.generator.call_claude",
+            return_value="Dear Hiring Manager, I am excited to apply for this role...",
+        ):
+            result = runner.invoke(main, [
+                "generate",
+                "--assessment", assessment_path,
+                "--type", "cover-letter",
+            ])
         assert result.exit_code == 0, f"generate failed: {result.output}"
         assert len(result.output) > 0
 

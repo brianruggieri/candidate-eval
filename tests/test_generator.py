@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from datetime import datetime
+from unittest.mock import patch
 
+import pytest
 
+from claude_candidate.claude_cli import ClaudeCLIError
 from claude_candidate.schemas.fit_assessment import (
     DimensionScore,
     FitAssessment,
@@ -119,24 +122,19 @@ class TestGenerateResumeBullets:
         from claude_candidate.generator import generate_resume_bullets
 
         assessment = _make_assessment()
-        bullets = generate_resume_bullets(assessment=assessment)
+        claude_output = "- Engineered Python services handling 10k RPM\n- Led React migration"
+        with patch("claude_candidate.generator.call_claude", return_value=claude_output):
+            bullets = generate_resume_bullets(assessment=assessment)
         assert isinstance(bullets, list)
         assert len(bullets) > 0
-
-    def test_bullets_reference_skills(self):
-        from claude_candidate.generator import generate_resume_bullets
-
-        assessment = _make_assessment()
-        bullets = generate_resume_bullets(assessment=assessment)
-        combined = " ".join(bullets).lower()
-        # At least one skill from the matches should appear
-        assert "python" in combined or "react" in combined or "docker" in combined
 
     def test_bullets_are_nonempty_strings(self):
         from claude_candidate.generator import generate_resume_bullets
 
         assessment = _make_assessment()
-        bullets = generate_resume_bullets(assessment=assessment)
+        claude_output = "- Python backend\n- React frontend\n- Docker deploy"
+        with patch("claude_candidate.generator.call_claude", return_value=claude_output):
+            bullets = generate_resume_bullets(assessment=assessment)
         for bullet in bullets:
             assert isinstance(bullet, str)
             assert len(bullet.strip()) > 0
@@ -145,9 +143,21 @@ class TestGenerateResumeBullets:
         from claude_candidate.generator import generate_resume_bullets
 
         assessment = _make_assessment()
-        bullets = generate_resume_bullets(assessment=assessment, profile=None)
+        with patch("claude_candidate.generator.call_claude", return_value="- Bullet point"):
+            bullets = generate_resume_bullets(assessment=assessment, profile=None)
         assert isinstance(bullets, list)
         assert len(bullets) > 0
+
+    def test_raises_claude_cli_error_on_failure(self):
+        from claude_candidate.generator import generate_resume_bullets
+
+        assessment = _make_assessment()
+        with patch(
+            "claude_candidate.generator.call_claude",
+            side_effect=ClaudeCLIError("CLI not found"),
+        ):
+            with pytest.raises(ClaudeCLIError):
+                generate_resume_bullets(assessment=assessment)
 
 
 # ---------------------------------------------------------------------------
@@ -160,40 +170,41 @@ class TestGenerateCoverLetter:
         from claude_candidate.generator import generate_cover_letter
 
         assessment = _make_assessment()
-        letter = generate_cover_letter(assessment=assessment)
+        fake_letter = "Dear Hiring Manager, I am excited to apply for this role at Acme Corp..."
+        with patch("claude_candidate.generator.call_claude", return_value=fake_letter):
+            letter = generate_cover_letter(assessment=assessment)
         assert isinstance(letter, str)
         assert len(letter) > 0
 
-    def test_contains_company_name(self):
+    def test_returns_claude_output_verbatim(self):
         from claude_candidate.generator import generate_cover_letter
 
         assessment = _make_assessment(company="WidgetCo")
-        letter = generate_cover_letter(assessment=assessment)
-        assert "WidgetCo" in letter
-
-    def test_contains_job_title(self):
-        from claude_candidate.generator import generate_cover_letter
-
-        assessment = _make_assessment(title="Staff Backend Engineer")
-        letter = generate_cover_letter(assessment=assessment)
-        assert "Staff Backend Engineer" in letter
+        fake_letter = "Cover letter for WidgetCo mentioning Staff Backend Engineer position."
+        with patch("claude_candidate.generator.call_claude", return_value=fake_letter):
+            letter = generate_cover_letter(assessment=assessment)
+        assert letter == fake_letter
 
     def test_no_template_placeholders(self):
         from claude_candidate.generator import generate_cover_letter
 
         assessment = _make_assessment()
-        letter = generate_cover_letter(assessment=assessment)
+        fake_letter = "A real cover letter with no placeholders."
+        with patch("claude_candidate.generator.call_claude", return_value=fake_letter):
+            letter = generate_cover_letter(assessment=assessment)
         assert "{" not in letter
         assert "}" not in letter
 
-    def test_reasonable_length(self):
+    def test_raises_claude_cli_error_on_failure(self):
         from claude_candidate.generator import generate_cover_letter
 
         assessment = _make_assessment()
-        letter = generate_cover_letter(assessment=assessment)
-        word_count = len(letter.split())
-        assert word_count >= 50
-        assert word_count <= 2000
+        with patch(
+            "claude_candidate.generator.call_claude",
+            side_effect=ClaudeCLIError("timed out"),
+        ):
+            with pytest.raises(ClaudeCLIError):
+                generate_cover_letter(assessment=assessment)
 
 
 # ---------------------------------------------------------------------------
@@ -206,124 +217,55 @@ class TestGenerateInterviewPrep:
         from claude_candidate.generator import generate_interview_prep
 
         assessment = _make_assessment()
-        prep = generate_interview_prep(assessment=assessment)
+        fake_prep = "## Technical Discussion Points\n- Python: strong\n## Questions to Ask\n- ?"
+        with patch("claude_candidate.generator.call_claude", return_value=fake_prep):
+            prep = generate_interview_prep(assessment=assessment)
         assert isinstance(prep, str)
         assert len(prep) > 0
 
-    def test_contains_technical_section(self):
+    def test_returns_claude_output_verbatim(self):
         from claude_candidate.generator import generate_interview_prep
 
         assessment = _make_assessment()
-        prep = generate_interview_prep(assessment=assessment)
-        assert "Technical" in prep
+        fake_prep = "Interview prep content here."
+        with patch("claude_candidate.generator.call_claude", return_value=fake_prep):
+            prep = generate_interview_prep(assessment=assessment)
+        assert prep == fake_prep
 
-    def test_contains_questions_section(self):
+    def test_raises_claude_cli_error_on_failure(self):
         from claude_candidate.generator import generate_interview_prep
 
         assessment = _make_assessment()
-        prep = generate_interview_prep(assessment=assessment)
-        assert "Questions" in prep
-
-    def test_references_skills(self):
-        from claude_candidate.generator import generate_interview_prep
-
-        assessment = _make_assessment()
-        prep = generate_interview_prep(assessment=assessment).lower()
-        assert "python" in prep or "react" in prep or "docker" in prep
+        with patch(
+            "claude_candidate.generator.call_claude",
+            side_effect=ClaudeCLIError("CLI not found"),
+        ):
+            with pytest.raises(ClaudeCLIError):
+                generate_interview_prep(assessment=assessment)
 
 
 # ---------------------------------------------------------------------------
-# TestTryClaude
+# TestParseBulletLines
 # ---------------------------------------------------------------------------
 
 
-class TestTryClaude:
-    def test_returns_none_on_missing_cli(self, fp):
-        from claude_candidate.generator import _try_claude_generation
+class TestParseBulletLines:
+    """Unit tests for the bullet-line parser (pure function, no CLI needed)."""
 
-        fp.register_subprocess(
-            ["claude", "--print", "-p", fp.any()],
-            returncode=1,
-            stdout="",
-            stderr="command not found",
-        )
-        result = _try_claude_generation("test prompt")
-        assert result is None
+    def test_strips_dash_prefix(self):
+        from claude_candidate.generator import _parse_bullet_lines
 
-    def test_returns_none_on_timeout(self, fp):
-        import subprocess
+        result = _parse_bullet_lines("- First bullet\n- Second bullet")
+        assert result == ["First bullet", "Second bullet"]
 
-        from claude_candidate.generator import _try_claude_generation
+    def test_skips_blank_lines(self):
+        from claude_candidate.generator import _parse_bullet_lines
 
-        fp.register_subprocess(
-            ["claude", "--print", "-p", fp.any()],
-            callback=lambda _: (_ for _ in ()).throw(subprocess.TimeoutExpired("claude", 60)),
-        )
-        result = _try_claude_generation("test prompt")
-        assert result is None
+        result = _parse_bullet_lines("- Bullet\n\n- Another")
+        assert len(result) == 2
 
-    def test_returns_stdout_on_success(self, fp):
-        from claude_candidate.generator import _try_claude_generation
+    def test_handles_no_dash_prefix(self):
+        from claude_candidate.generator import _parse_bullet_lines
 
-        fp.register_subprocess(
-            ["claude", "--print", "-p", fp.any()],
-            returncode=0,
-            stdout="Generated content here",
-        )
-        result = _try_claude_generation("test prompt")
-        assert result == "Generated content here"
-
-    def test_returns_none_on_empty_stdout(self, fp):
-        from claude_candidate.generator import _try_claude_generation
-
-        fp.register_subprocess(
-            ["claude", "--print", "-p", fp.any()],
-            returncode=0,
-            stdout="   ",
-        )
-        result = _try_claude_generation("test prompt")
-        assert result is None
-
-
-# ---------------------------------------------------------------------------
-# TestBuildBulletFromMatch
-# ---------------------------------------------------------------------------
-
-
-class TestBuildBulletFromMatch:
-    def test_includes_requirement_name(self):
-        from claude_candidate.generator import _build_bullet_from_match
-
-        match = _make_skill_match(requirement="Python proficiency")
-        bullet = _build_bullet_from_match(match)
-        assert "Python proficiency" in bullet
-
-    def test_returns_nonempty_string(self):
-        from claude_candidate.generator import _build_bullet_from_match
-
-        match = _make_skill_match()
-        bullet = _build_bullet_from_match(match)
-        assert isinstance(bullet, str)
-        assert len(bullet.strip()) > 0
-
-
-# ---------------------------------------------------------------------------
-# TestBuildTalkingPoint
-# ---------------------------------------------------------------------------
-
-
-class TestBuildTalkingPoint:
-    def test_includes_requirement(self):
-        from claude_candidate.generator import _build_talking_point
-
-        match = _make_skill_match(requirement="Docker & Kubernetes")
-        point = _build_talking_point(match)
-        assert "Docker & Kubernetes" in point
-
-    def test_returns_nonempty_string(self):
-        from claude_candidate.generator import _build_talking_point
-
-        match = _make_skill_match()
-        point = _build_talking_point(match)
-        assert isinstance(point, str)
-        assert len(point.strip()) > 0
+        result = _parse_bullet_lines("Just a line\nAnother line")
+        assert len(result) == 2

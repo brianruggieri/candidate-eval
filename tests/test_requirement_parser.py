@@ -173,8 +173,9 @@ class TestParseRequirementsWithClaude:
         assert len(results) == 1
         assert results[0].skill_mapping == ["python"]
 
-    def test_falls_back_on_cli_error(self, fp):
-        """When claude CLI fails, keyword fallback is used."""
+    def test_raises_on_cli_error(self, fp):
+        """When claude CLI fails, ClaudeCLIError propagates (no silent fallback)."""
+        from claude_candidate.claude_cli import ClaudeCLIError
         from claude_candidate.requirement_parser import parse_requirements_with_claude
 
         fp.register_subprocess(
@@ -182,6 +183,19 @@ class TestParseRequirementsWithClaude:
             returncode=1,
             stdout="",
             stderr="error: command not found",
+        )
+
+        with pytest.raises(ClaudeCLIError):
+            parse_requirements_with_claude("We need strong Python and Docker skills.")
+
+    def test_falls_back_to_keywords_on_bad_json(self, fp):
+        """When Claude returns malformed JSON, keyword parser is used as fallback."""
+        from claude_candidate.requirement_parser import parse_requirements_with_claude
+
+        fp.register_subprocess(
+            ["claude", "--print", "-p", fp.any()],
+            returncode=0,
+            stdout="this is not valid json at all",
         )
 
         results = parse_requirements_with_claude("We need strong Python and Docker skills.")
