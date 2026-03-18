@@ -1,0 +1,4 @@
+# file: /Users/brianruggieri/git/candidate-eval/src/claude_candidate/schemas/job_requirements.py
+# hypothesis_version: 6.151.9
+
+[0.5, 1.0, 2.0, 3.0, 'director', 'implied', 'junior', 'mid', 'must_have', 'nice_to_have', 'principal', 'senior', 'staff', 'strong_preference', 'unknown']

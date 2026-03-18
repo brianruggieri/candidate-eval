@@ -1,0 +1,4 @@
+# file: /Users/brianruggieri/git/candidate-eval/src/claude_candidate/schemas/match_evaluation.py
+# hypothesis_version: 6.151.9
+
+['adjacent', 'exceeds', 'good', 'moderate', 'no_evidence', 'partial_match', 'poor', 'strong', 'strong_match', 'weak']

@@ -1,0 +1,4 @@
+# file: /Users/brianruggieri/git/candidate-eval/src/claude_candidate/sanitizer.py
+# hypothesis_version: 6.151.9
+
+['(?i)bearer\\s+\\S{10,}', '[PATH_REDACTED]', '[REDACTED]', 'absolute_path', 'api_key', 'auth_token', 'pii']

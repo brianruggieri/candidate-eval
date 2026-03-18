@@ -1,0 +1,4 @@
+# file: /Users/brianruggieri/git/candidate-eval/src/claude_candidate/requirement_parser.py
+# hypothesis_version: 6.151.9
+
+['--print', '-p', '```', 'agent', 'agentic', 'amazon web services', 'api', 'aws', 'bonus', 'ci/cd', 'cicd', 'claude', 'containers', 'docker', 'essential', 'gcp', 'git', 'google cloud', 'graphql', 'ideal', 'javascript', 'js', 'k8s', 'kubernetes', 'large language model', 'llm', 'machine learning', 'machine-learning', 'ml', 'multi-agent', 'must', 'need', 'nice to have', 'node', 'node.js', 'optional', 'plus', 'postgres', 'postgresql', 'preferred', 'prompt engineering', 'prompt-engineering', 'prompting', 'python', 'react', 'react.js', 'required', 'rest', 'rest-api', 'restful', 'ts', 'typescript']
