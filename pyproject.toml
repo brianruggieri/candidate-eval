@@ -29,6 +29,7 @@ dependencies = [
     "uvicorn>=0.32",
     "rich>=13.0",
     "aiosqlite>=0.20",
+    "rapidfuzz>=3.0",
 ]
 
 [project.optional-dependencies]
