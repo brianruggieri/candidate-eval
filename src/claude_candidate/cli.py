@@ -667,5 +667,77 @@ def _default_profile_path() -> Path:
     return Path.home() / ".claude-candidate" / "candidate_profile.json"
 
 
+# === Whitelist commands ===
+
+@main.group()
+def whitelist() -> None:
+    """Manage session project whitelist."""
+    pass
+
+
+@whitelist.command("setup")
+@click.option("--session-dir", type=click.Path(exists=True), default=None,
+              help="Directory containing session JSONL files")
+def whitelist_setup(session_dir: str | None) -> None:
+    """Interactive: discover projects, select which to include."""
+    from claude_candidate.session_scanner import discover_sessions
+    from claude_candidate.whitelist import (
+        WhitelistConfig,
+        get_default_whitelist_path,
+        save_whitelist,
+    )
+    from collections import Counter
+
+    search_dir = Path(session_dir) if session_dir else _default_sessions_dir()
+    click.echo(f"Scanning sessions in {search_dir}...")
+    sessions_found = discover_sessions(search_dir)
+    click.echo(f"  Found {len(sessions_found)} session files")
+
+    if not sessions_found:
+        click.echo("No sessions found. Nothing to whitelist.")
+        return
+
+    counts: Counter[str] = Counter(s.project_hint for s in sessions_found)
+    selected: list[str] = []
+
+    click.echo("\nFor each project, choose whether to include it in the whitelist.")
+    click.echo("Only include public GitHub projects — keep private/client work out.\n")
+
+    for hint in sorted(counts):
+        count = counts[hint]
+        label = f"  {hint} ({count} session{'s' if count != 1 else ''})"
+        if click.confirm(f"{label} — include?", default=False):
+            selected.append(hint)
+
+    config = WhitelistConfig(projects=selected)
+    path = get_default_whitelist_path()
+    save_whitelist(config, path)
+
+    click.echo(f"\nWhitelist saved to {path}")
+    click.echo(f"  Included projects ({len(selected)}): {', '.join(selected) or '(none)'}")
+
+
+@whitelist.command("show")
+def whitelist_show() -> None:
+    """Show current whitelist."""
+    from claude_candidate.whitelist import get_default_whitelist_path, load_whitelist
+
+    path = get_default_whitelist_path()
+    config = load_whitelist(path)
+
+    if config is None:
+        click.echo(f"No whitelist found at {path}")
+        click.echo("Run `claude-candidate whitelist setup` to create one.")
+        return
+
+    click.echo(f"Whitelist: {path}")
+    if config.projects:
+        click.echo(f"  {len(config.projects)} project(s):")
+        for p in sorted(config.projects):
+            click.echo(f"    - {p}")
+    else:
+        click.echo("  (empty — no projects whitelisted)")
+
+
 if __name__ == "__main__":
     main()
