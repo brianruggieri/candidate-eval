@@ -177,12 +177,13 @@ def merge_candidate_only(candidate_profile: CandidateProfile) -> MergedEvidenceP
     Create a MergedEvidenceProfile from sessions only (no resume).
 
     Used when the user hasn't uploaded a resume yet. All skills are sessions_only.
+    Deduplicates after canonicalization — keeps the entry with the highest depth.
     """
     taxonomy = _get_taxonomy()
-    merged_skills = []
+    seen: dict[str, MergedSkillEvidence] = {}
     for s_skill in candidate_profile.skills:
         canonical_name = taxonomy.canonicalize(s_skill.name)
-        merged_skills.append(MergedSkillEvidence(
+        entry = MergedSkillEvidence(
             name=canonical_name,
             source=EvidenceSource.SESSIONS_ONLY,
             session_depth=s_skill.depth,
@@ -194,7 +195,11 @@ def merge_candidate_only(candidate_profile: CandidateProfile) -> MergedEvidenceP
                 EvidenceSource.SESSIONS_ONLY, s_skill.frequency, None
             ),
             discovery_flag=True,
-        ))
+        )
+        existing = seen.get(canonical_name)
+        if existing is None or DEPTH_RANK.get(entry.effective_depth, 0) > DEPTH_RANK.get(existing.effective_depth, 0):
+            seen[canonical_name] = entry
+    merged_skills = list(seen.values())
 
     return MergedEvidenceProfile(
         skills=merged_skills,
@@ -217,13 +222,13 @@ def merge_resume_only(resume_profile: ResumeProfile) -> MergedEvidenceProfile:
     Create a MergedEvidenceProfile from resume only (no sessions).
 
     Used when the user hasn't built a CandidateProfile yet.
-    All skills are resume_only.
+    All skills are resume_only. Deduplicates after canonicalization.
     """
     taxonomy = _get_taxonomy()
-    merged_skills = []
+    seen: dict[str, MergedSkillEvidence] = {}
     for r_skill in resume_profile.skills:
         canonical_name = taxonomy.canonicalize(r_skill.name)
-        merged_skills.append(MergedSkillEvidence(
+        entry = MergedSkillEvidence(
             name=canonical_name,
             source=EvidenceSource.RESUME_ONLY,
             resume_depth=r_skill.implied_depth,
@@ -233,7 +238,11 @@ def merge_resume_only(resume_profile: ResumeProfile) -> MergedEvidenceProfile:
             confidence=MergedSkillEvidence.compute_confidence(
                 EvidenceSource.RESUME_ONLY, None, r_skill.source_context
             ),
-        ))
+        )
+        existing = seen.get(canonical_name)
+        if existing is None or DEPTH_RANK.get(entry.effective_depth, 0) > DEPTH_RANK.get(existing.effective_depth, 0):
+            seen[canonical_name] = entry
+    merged_skills = list(seen.values())
 
     return MergedEvidenceProfile(
         skills=merged_skills,

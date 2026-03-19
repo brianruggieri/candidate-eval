@@ -686,10 +686,20 @@ def scan(session_dir: str | None, output: str | None) -> None:
     from claude_candidate.manifest import hash_string
     from claude_candidate.extractor import build_candidate_profile
 
+    from claude_candidate.whitelist import load_whitelist, get_default_whitelist_path, filter_sessions_by_whitelist
+
     search_dir = Path(session_dir) if session_dir else _default_sessions_dir()
     click.echo(f"Scanning sessions in {search_dir}...")
     sessions_found = discover_sessions(search_dir)
     click.echo(f"  Found {len(sessions_found)} session files")
+
+    # Only apply whitelist when using default session dir (not explicit --session-dir)
+    if not session_dir:
+        whitelist = load_whitelist(get_default_whitelist_path())
+        if whitelist:
+            sessions_found = filter_sessions_by_whitelist(sessions_found, whitelist)
+            click.echo(f"  After whitelist filter: {len(sessions_found)} sessions")
+
     if not sessions_found:
         click.echo("No sessions found. Nothing to do.")
         return

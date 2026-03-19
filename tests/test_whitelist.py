@@ -3,13 +3,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from claude_candidate.whitelist import (
-	WhitelistConfig,
-	filter_sessions_by_whitelist,
-	load_whitelist,
-	save_whitelist,
+    WhitelistConfig,
+    filter_sessions_by_whitelist,
+    load_whitelist,
+    save_whitelist,
 )
 from claude_candidate.session_scanner import SessionInfo
 
@@ -17,93 +15,100 @@ from claude_candidate.session_scanner import SessionInfo
 # --- WhitelistConfig.is_whitelisted ---
 
 def test_is_whitelisted_returns_true_for_included_project():
-	config = WhitelistConfig(projects=["my-project", "other-project"])
-	assert config.is_whitelisted("my-project") is True
+    config = WhitelistConfig(projects=["my-project", "other-project"])
+    assert config.is_whitelisted("my-project") is True
 
 
 def test_is_whitelisted_returns_false_for_excluded_project():
-	config = WhitelistConfig(projects=["my-project"])
-	assert config.is_whitelisted("private-client-work") is False
+    config = WhitelistConfig(projects=["my-project"])
+    assert config.is_whitelisted("private-client-work") is False
 
 
 def test_is_whitelisted_empty_list_returns_false():
-	config = WhitelistConfig()
-	assert config.is_whitelisted("anything") is False
+    config = WhitelistConfig()
+    assert config.is_whitelisted("anything") is False
 
 
 # --- save_whitelist / load_whitelist round-trip ---
 
 def test_save_and_load_whitelist_round_trips(tmp_path):
-	path = tmp_path / "subdir" / "whitelist.json"
-	config = WhitelistConfig(projects=["project-a", "project-b"])
-	save_whitelist(config, path)
+    path = tmp_path / "subdir" / "whitelist.json"
+    config = WhitelistConfig(projects=["project-a", "project-b"])
+    save_whitelist(config, path)
 
-	loaded = load_whitelist(path)
-	assert loaded is not None
-	assert loaded.projects == ["project-a", "project-b"]
+    loaded = load_whitelist(path)
+    assert loaded is not None
+    assert loaded.projects == ["project-a", "project-b"]
 
 
 def test_save_whitelist_creates_parent_dirs(tmp_path):
-	path = tmp_path / "a" / "b" / "c" / "whitelist.json"
-	save_whitelist(WhitelistConfig(projects=["x"]), path)
-	assert path.exists()
+    path = tmp_path / "a" / "b" / "c" / "whitelist.json"
+    save_whitelist(WhitelistConfig(projects=["x"]), path)
+    assert path.exists()
 
 
 def test_save_whitelist_writes_valid_json(tmp_path):
-	import json
-	path = tmp_path / "whitelist.json"
-	save_whitelist(WhitelistConfig(projects=["proj"]), path)
-	data = json.loads(path.read_text())
-	assert data == {"projects": ["proj"]}
+    import json
+    path = tmp_path / "whitelist.json"
+    save_whitelist(WhitelistConfig(projects=["proj"]), path)
+    data = json.loads(path.read_text())
+    assert data == {"projects": ["proj"]}
 
 
 # --- load_whitelist missing file ---
 
 def test_load_whitelist_returns_none_for_missing_file(tmp_path):
-	path = tmp_path / "nonexistent.json"
-	result = load_whitelist(path)
-	assert result is None
+    path = tmp_path / "nonexistent.json"
+    result = load_whitelist(path)
+    assert result is None
+
+
+def test_load_whitelist_returns_none_for_corrupted_file(tmp_path):
+    path = tmp_path / "bad.json"
+    path.write_text("not valid json {{{")
+    result = load_whitelist(path)
+    assert result is None
 
 
 # --- filter_sessions_by_whitelist ---
 
 def _make_session(project_hint: str) -> SessionInfo:
-	"""Helper: construct a minimal SessionInfo."""
-	return SessionInfo(
-		path=Path(f"/fake/{project_hint}/session.jsonl"),
-		session_id="abc123",
-		project_hint=project_hint,
-		file_size_bytes=100,
-	)
+    """Helper: construct a minimal SessionInfo."""
+    return SessionInfo(
+        path=Path(f"/fake/{project_hint}/session.jsonl"),
+        session_id="abc123",
+        project_hint=project_hint,
+        file_size_bytes=100,
+    )
 
 
 def test_filter_sessions_keeps_whitelisted():
-	sessions = [
-		_make_session("public-project"),
-		_make_session("private-client"),
-		_make_session("public-project"),
-	]
-	whitelist = WhitelistConfig(projects=["public-project"])
-	result = filter_sessions_by_whitelist(sessions, whitelist)
-	assert len(result) == 2
-	assert all(s.project_hint == "public-project" for s in result)
+    sessions = [
+        _make_session("public-project"),
+        _make_session("private-client"),
+        _make_session("public-project"),
+    ]
+    whitelist = WhitelistConfig(projects=["public-project"])
+    result = filter_sessions_by_whitelist(sessions, whitelist)
+    assert len(result) == 2
+    assert all(s.project_hint == "public-project" for s in result)
 
 
 def test_filter_sessions_excludes_non_whitelisted():
-	sessions = [_make_session("secret-work")]
-	whitelist = WhitelistConfig(projects=["open-source"])
-	result = filter_sessions_by_whitelist(sessions, whitelist)
-	assert result == []
+    sessions = [_make_session("secret-work")]
+    whitelist = WhitelistConfig(projects=["open-source"])
+    result = filter_sessions_by_whitelist(sessions, whitelist)
+    assert result == []
 
 
 def test_filter_sessions_empty_whitelist_returns_empty():
-	sessions = [_make_session("any-project")]
-	whitelist = WhitelistConfig()
-	result = filter_sessions_by_whitelist(sessions, whitelist)
-	assert result == []
+    sessions = [_make_session("any-project")]
+    whitelist = WhitelistConfig()
+    result = filter_sessions_by_whitelist(sessions, whitelist)
+    assert result == []
 
 
 def test_filter_sessions_empty_input_returns_empty():
-	whitelist = WhitelistConfig(projects=["project-a"])
-	result = filter_sessions_by_whitelist([], whitelist)
-	assert result == []
+    whitelist = WhitelistConfig(projects=["project-a"])
+    result = filter_sessions_by_whitelist([], whitelist)
+    assert result == []

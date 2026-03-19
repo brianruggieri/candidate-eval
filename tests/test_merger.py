@@ -156,38 +156,13 @@ def test_corroboration_with_name_variants(candidate_profile):
     from claude_candidate.schemas.resume_profile import ResumeProfile, ResumeSkill
     from claude_candidate.schemas.merged_profile import EvidenceSource
 
-    # Build a minimal resume that uses the alias form "React.js"
-    # while the candidate_profile fixture has "react" (from sessions).
-    # First inject "react" into the candidate profile if it's not there already.
-    # The fixture may or may not have react — we build a fresh resume that
-    # uses the alias so the test is deterministic.
-
-    # Get the first skill from candidate_profile to borrow its session dates
-    first_skill = candidate_profile.skills[0]
-
-    # Build a ResumeProfile that references the alias form of that skill
-    # so we can test alias → canonical resolution in the merger.
-    # Use "Python" (alias: "py") vs "python" in sessions for a deterministic test.
-    python_in_sessions = any(
-        s.name == "python" for s in candidate_profile.skills
-    )
-    if not python_in_sessions:
-        # Fall back to building a minimal profile using the React alias test
-        # by injecting a "react" skill into a copy of the candidate profile
-        from datetime import datetime, timezone
-        from claude_candidate.schemas.candidate_profile import SkillEntry, SessionReference
-        import copy
-
-        now = datetime.now(tz=timezone.utc)
-        # We'll use the candidate_profile as-is and just check that the
-        # alias resolution works for Python (which is in both fixtures)
-        pass
-
-    # The sample_candidate_profile.json fixture has "python" in session skills.
-    # We create a resume that lists "Python" (capital P) or "py" (alias)
-    # to exercise the alias normalization path.
+    # Inject a "react" skill into the candidate profile and create a resume
+    # with "React.js" (alias). The merger should canonicalize both to "react"
+    # and produce a CORROBORATED entry.
     from datetime import datetime, timezone
     now = datetime.now(tz=timezone.utc)
+    first_skill = candidate_profile.skills[0]
+
     resume = ResumeProfile(
         parsed_at=now,
         source_file_hash="variant-test-hash",

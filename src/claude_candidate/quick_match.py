@@ -293,12 +293,16 @@ def _find_fuzzy_match(
 
 
 def _is_variant_match(query: str, skill_name: str) -> bool:
-    """Check whether query and skill_name are known abbreviation variants via taxonomy."""
+    """Check whether query and skill_name are canonical equivalents (aliases only).
+
+    Deliberately excludes 'related' skills (e.g. docker/kubernetes, react/javascript)
+    to avoid inflating match scores. Related skills should map to 'adjacent' status,
+    not be treated as the same skill.
+    """
     taxonomy = _get_taxonomy()
     canon_query = taxonomy.canonicalize(query)
     canon_skill = taxonomy.canonicalize(skill_name)
-    # They're the same canonical form, or are related in the taxonomy
-    return canon_query == canon_skill or taxonomy.are_related(query, skill_name)
+    return canon_query == canon_skill
 
 
 def _pattern_confidence(strength: str) -> float:
