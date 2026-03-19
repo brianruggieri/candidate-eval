@@ -583,51 +583,87 @@ def resume_ingest(resume_path: str, output: str | None) -> None:
     click.echo(f"\nProfile written to {out_path}")
 
 
+DEPTH_KEYS = {"1": "mentioned", "2": "used", "3": "applied", "4": "deep", "5": "expert"}
+DEPTH_LABELS = "1=mentioned 2=used 3=applied 4=deep 5=expert"
+
+
+def _prompt_depth(skill_name: str, default: str) -> str:
+    """Prompt for depth with single-key input (1-5) or full name."""
+    default_key = next((k for k, v in DEPTH_KEYS.items() if v == default), "2")
+    while True:
+        raw = click.prompt(
+            f"  [{DEPTH_LABELS}]",
+            default=default_key,
+            show_default=True,
+        ).strip().lower()
+        if raw in DEPTH_KEYS:
+            return DEPTH_KEYS[raw]
+        if raw in DEPTH_KEYS.values():
+            return raw
+        click.echo(f"  Invalid: enter 1-5 or a depth name")
+
+
 @resume.command("onboard")
 @click.argument("resume_path", type=click.Path(exists=True))
 @click.option("--output", "-o", type=click.Path(), default=None,
               help="Output path for curated profile (default: ~/.claude-candidate/curated_resume.json)")
-def resume_onboard(resume_path: str, output: str | None) -> None:
-    """Interactive resume onboarding: parse and curate skill depths."""
+@click.option("--accept-defaults", is_flag=True, default=False,
+              help="Accept all parser defaults without prompting")
+def resume_onboard(resume_path: str, output: str | None, accept_defaults: bool) -> None:
+    """Interactive resume onboarding: parse and curate skill depths.
+
+    Rate each skill with single-key input (1-5) for depth.
+    Duration is only prompted for deep (4) and expert (5) skills.
+    Use --accept-defaults to skip all prompts and use parser-inferred depths.
+    """
     from claude_candidate.resume_parser import ingest_resume
     from claude_candidate.schemas.candidate_profile import DepthLevel
 
     raw_profile = ingest_resume(Path(resume_path))
-    click.echo(f"\nParsed {len(raw_profile.skills)} skills from resume.\n")
+    click.echo(f"\nParsed {len(raw_profile.skills)} skills from resume.")
 
     if not raw_profile.skills:
         click.echo("No skills found in resume. Nothing to curate.")
         return
 
-    depth_choices = [d.value for d in DepthLevel]
+    if not accept_defaults:
+        click.echo(f"Rate each skill: {DEPTH_LABELS}, Enter=accept default, duration for deep/expert only.\n")
+
     curated_skills = []
 
-    for skill in raw_profile.skills:
-        click.echo(f"Skill: {skill.name}")
-        if skill.years_experience:
-            click.echo(f"  Detected: ~{skill.years_experience} years")
-        if skill.source_context:
-            click.echo(f"  Context: {skill.source_context[:80]}")
+    for i, skill in enumerate(raw_profile.skills, 1):
+        default_depth = skill.implied_depth.value if skill.implied_depth else "used"
 
-        depth_str = click.prompt(
-            "  Depth",
-            type=click.Choice(depth_choices, case_sensitive=False),
-            default=skill.implied_depth.value if skill.implied_depth else "used",
-        )
-        duration = click.prompt(
-            "  Experience duration (e.g. '3 years', '2 months')",
-            default="",
-            show_default=False,
-        )
+        if accept_defaults:
+            depth_str = default_depth
+            duration = None
+        else:
+            click.echo(f"({i}/{len(raw_profile.skills)}) {skill.name}")
+            depth_str = _prompt_depth(skill.name, default_depth)
+
+            # Only ask duration for deep/expert — the skills that matter most
+            duration = None
+            if depth_str in ("deep", "expert"):
+                duration = click.prompt(
+                    "  Duration (e.g. '3y', '6mo')",
+                    default="",
+                    show_default=False,
+                ).strip() or None
 
         curated_skills.append({
             "name": skill.name,
             "depth": depth_str,
-            "duration": duration if duration else None,
+            "duration": duration,
             "source_context": skill.source_context,
             "curated": True,
         })
-        click.echo()
+
+    # Summary
+    from collections import Counter
+    depths = Counter(s["depth"] for s in curated_skills)
+    click.echo(f"\n{len(curated_skills)} skills: " + ", ".join(
+        f"{v} {k}" for k, v in sorted(depths.items(), key=lambda x: -x[1])
+    ))
 
     # Save curated profile
     output_path = Path(output) if output else Path.home() / ".claude-candidate" / "curated_resume.json"
@@ -640,8 +676,7 @@ def resume_onboard(resume_path: str, output: str | None) -> None:
     with open(output_path, "w") as f:
         json.dump(curated_data, f, indent=2, default=str)
 
-    click.echo(f"Curated profile saved: {output_path}")
-    click.echo(f"  {len(curated_skills)} skills curated")
+    click.echo(f"Saved: {output_path}")
 
 
 # === Server commands ===
