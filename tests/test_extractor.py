@@ -12,12 +12,14 @@ from claude_candidate.extractor import (
     extract_session_signals,
     extract_technologies,
     parse_session_lines,
+    _aggregate_ai_scores,
     _classify_category,
     _detect_from_content,
     _detect_from_file_path,
     _extract_evidence_snippets,
     _extract_tool_calls,
     _infer_depth,
+    _is_ai_skill,
     _is_valid_json_line,
     _truncate_snippet,
 )
@@ -677,3 +679,250 @@ class TestEndToEnd:
                 assert ev.session_id != ""
                 assert ev.confidence >= 0.0
                 assert ev.confidence <= 1.0
+
+
+# ---------------------------------------------------------------------------
+# _is_ai_skill
+# ---------------------------------------------------------------------------
+
+
+class TestIsAiSkill:
+    def test_llm_is_ai_skill(self) -> None:
+        assert _is_ai_skill("llm") is True
+
+    def test_openai_is_ai_skill(self) -> None:
+        assert _is_ai_skill("openai") is True
+
+    def test_anthropic_is_ai_skill(self) -> None:
+        assert _is_ai_skill("anthropic") is True
+
+    def test_claude_is_ai_skill(self) -> None:
+        assert _is_ai_skill("claude") is True
+
+    def test_langchain_is_ai_skill(self) -> None:
+        assert _is_ai_skill("langchain") is True
+
+    def test_rag_is_ai_skill(self) -> None:
+        assert _is_ai_skill("rag") is True
+
+    def test_embedding_is_ai_skill(self) -> None:
+        assert _is_ai_skill("embedding") is True
+
+    def test_prompt_engineering_is_ai_skill(self) -> None:
+        assert _is_ai_skill("prompt-engineering") is True
+
+    def test_python_is_not_ai_skill(self) -> None:
+        assert _is_ai_skill("python") is False
+
+    def test_docker_is_not_ai_skill(self) -> None:
+        assert _is_ai_skill("docker") is False
+
+    def test_case_insensitive(self) -> None:
+        assert _is_ai_skill("LLM") is True
+        assert _is_ai_skill("OpenAI") is True
+
+
+# ---------------------------------------------------------------------------
+# _aggregate_ai_scores
+# ---------------------------------------------------------------------------
+
+
+class TestAggregateAiScores:
+    def test_no_sessions_returns_none(self) -> None:
+        assert _aggregate_ai_scores([]) is None
+
+    def test_sessions_without_ai_scores_returns_none(self) -> None:
+        sessions = [
+            SessionSignals(session_id="s1"),
+            SessionSignals(session_id="s2"),
+        ]
+        assert _aggregate_ai_scores(sessions) is None
+
+    def test_single_session_peak_equals_consistency(self) -> None:
+        sessions = [SessionSignals(session_id="s1", ai_scores={"composite": 0.8})]
+        # 70% * 0.8 + 30% * 0.8 = 0.8
+        result = _aggregate_ai_scores(sessions)
+        assert result is not None
+        assert abs(result - 0.8) < 1e-9
+
+    def test_70_30_aggregation(self) -> None:
+        # Two sessions: 0.9 and 0.3 -> peak=0.9, mean=0.6 -> 0.7*0.9 + 0.3*0.6
+        sessions = [
+            SessionSignals(session_id="s1", ai_scores={"composite": 0.9}),
+            SessionSignals(session_id="s2", ai_scores={"composite": 0.3}),
+        ]
+        expected = 0.7 * 0.9 + 0.3 * 0.6
+        result = _aggregate_ai_scores(sessions)
+        assert result is not None
+        assert abs(result - expected) < 1e-9
+
+    def test_skips_sessions_without_composite(self) -> None:
+        sessions = [
+            SessionSignals(session_id="s1", ai_scores={"level": "beginner"}),
+            SessionSignals(session_id="s2", ai_scores={"composite": 0.6}),
+        ]
+        result = _aggregate_ai_scores(sessions)
+        assert result is not None
+        # Only s2 contributes -> peak=0.6, mean=0.6 -> 0.6
+        assert abs(result - 0.6) < 1e-9
+
+
+# ---------------------------------------------------------------------------
+# _infer_depth with ai_composite_score
+# ---------------------------------------------------------------------------
+
+
+class TestInferDepthWithAiScore:
+    def test_ai_score_none_falls_back_to_frequency(self) -> None:
+        # Without ai_score, uses existing thresholds
+        assert _infer_depth(8, tool_count=3, ai_composite_score=None) == DepthLevel.EXPERT
+
+    def test_ai_score_expert_threshold(self) -> None:
+        # 0.75 and above -> EXPERT
+        assert _infer_depth(1, tool_count=0, ai_composite_score=0.75) == DepthLevel.EXPERT
+        assert _infer_depth(1, tool_count=0, ai_composite_score=0.90) == DepthLevel.EXPERT
+
+    def test_ai_score_advanced_threshold(self) -> None:
+        # 0.55 to 0.74 -> DEEP
+        assert _infer_depth(1, tool_count=0, ai_composite_score=0.55) == DepthLevel.DEEP
+        assert _infer_depth(1, tool_count=0, ai_composite_score=0.74) == DepthLevel.DEEP
+
+    def test_ai_score_intermediate_threshold(self) -> None:
+        # 0.35 to 0.54 -> APPLIED
+        assert _infer_depth(1, tool_count=0, ai_composite_score=0.35) == DepthLevel.APPLIED
+        assert _infer_depth(1, tool_count=0, ai_composite_score=0.54) == DepthLevel.APPLIED
+
+    def test_ai_score_below_intermediate_is_mentioned(self) -> None:
+        # Below 0.35 -> MENTIONED
+        assert _infer_depth(1, tool_count=0, ai_composite_score=0.0) == DepthLevel.MENTIONED
+        assert _infer_depth(1, tool_count=0, ai_composite_score=0.34) == DepthLevel.MENTIONED
+
+    def test_ai_score_overrides_high_frequency(self) -> None:
+        # High frequency that would be EXPERT via heuristics, but low AI score -> MENTIONED
+        assert _infer_depth(10, tool_count=10, ai_composite_score=0.1) == DepthLevel.MENTIONED
+
+    def test_ai_score_overrides_low_frequency(self) -> None:
+        # Low frequency that would be MENTIONED via heuristics, but high AI score -> EXPERT
+        assert _infer_depth(1, tool_count=0, ai_composite_score=0.8) == DepthLevel.EXPERT
+
+
+# ---------------------------------------------------------------------------
+# SessionSignals.ai_scores field
+# ---------------------------------------------------------------------------
+
+
+class TestSessionSignalsAiScores:
+    def test_default_ai_scores_is_empty_dict(self) -> None:
+        signals = SessionSignals()
+        assert signals.ai_scores == {}
+
+    def test_ai_scores_populated_by_extract_session_signals(self) -> None:
+        fixture = FIXTURES_DIR / "simple_python_session.jsonl"
+        content = fixture.read_text()
+        signals = extract_session_signals(content)
+        # ai_scores must be populated with at least composite and level
+        assert "composite" in signals.ai_scores
+        assert "level" in signals.ai_scores
+
+    def test_ai_scores_composite_in_range(self) -> None:
+        fixture = FIXTURES_DIR / "simple_python_session.jsonl"
+        content = fixture.read_text()
+        signals = extract_session_signals(content)
+        composite = signals.ai_scores["composite"]
+        assert isinstance(composite, float)
+        assert 0.0 <= composite <= 1.0
+
+    def test_ai_scores_level_is_valid_string(self) -> None:
+        fixture = FIXTURES_DIR / "simple_python_session.jsonl"
+        content = fixture.read_text()
+        signals = extract_session_signals(content)
+        level = signals.ai_scores["level"]
+        assert level in ("beginner", "intermediate", "advanced", "expert")
+
+
+# ---------------------------------------------------------------------------
+# AI skill depth in build_candidate_profile
+# ---------------------------------------------------------------------------
+
+
+class TestAiSkillDepthInProfile:
+    @pytest.fixture
+    def ai_signals_high(self) -> list[SessionSignals]:
+        """Sessions for an AI-related skill with high composite scores."""
+        return [
+            SessionSignals(
+                session_id="ai-session-001",
+                project_hint="llm-project",
+                technologies=["openai", "python"],
+                tool_calls=["Write", "Read"],
+                patterns_observed=[],
+                evidence_snippets=["Called OpenAI API with structured prompts."],
+                line_count=30,
+                timestamp="2026-03-10T09:00:00.000Z",
+                ai_scores={"composite": 0.80, "level": "expert"},
+            ),
+            SessionSignals(
+                session_id="ai-session-002",
+                project_hint="llm-project",
+                technologies=["openai", "python"],
+                tool_calls=["Write", "Read"],
+                patterns_observed=[],
+                evidence_snippets=["Built RAG pipeline using OpenAI embeddings."],
+                line_count=40,
+                timestamp="2026-03-11T10:00:00.000Z",
+                ai_scores={"composite": 0.85, "level": "expert"},
+            ),
+        ]
+
+    @pytest.fixture
+    def ai_signals_low(self) -> list[SessionSignals]:
+        """Sessions for an AI-related skill with low composite scores."""
+        return [
+            SessionSignals(
+                session_id="ai-session-003",
+                project_hint="ml-project",
+                technologies=["anthropic", "python"],
+                tool_calls=["Write"],
+                patterns_observed=[],
+                evidence_snippets=["Imported Anthropic SDK."],
+                line_count=10,
+                timestamp="2026-03-12T09:00:00.000Z",
+                ai_scores={"composite": 0.20, "level": "beginner"},
+            ),
+        ]
+
+    def test_high_ai_score_yields_expert_depth(
+        self, ai_signals_high: list[SessionSignals]
+    ) -> None:
+        profile = build_candidate_profile(
+            signals_list=ai_signals_high,
+            manifest_hash="ai-test-high",
+        )
+        openai_skill = profile.get_skill("openai")
+        assert openai_skill is not None
+        assert openai_skill.depth == DepthLevel.EXPERT
+
+    def test_low_ai_score_yields_low_depth(
+        self, ai_signals_low: list[SessionSignals]
+    ) -> None:
+        profile = build_candidate_profile(
+            signals_list=ai_signals_low,
+            manifest_hash="ai-test-low",
+        )
+        anthropic_skill = profile.get_skill("anthropic")
+        assert anthropic_skill is not None
+        # Low AI score (0.20) -> MENTIONED
+        assert anthropic_skill.depth == DepthLevel.MENTIONED
+
+    def test_non_ai_skill_unaffected_by_ai_scores(
+        self, ai_signals_high: list[SessionSignals]
+    ) -> None:
+        profile = build_candidate_profile(
+            signals_list=ai_signals_high,
+            manifest_hash="ai-test-non-ai",
+        )
+        python_skill = profile.get_skill("python")
+        assert python_skill is not None
+        # Python is not AI-related; depth uses frequency heuristics
+        # frequency=2, tool_count=4 -> USED (freq>=2, tools>=0 but not freq>=3)
+        assert python_skill.depth == DepthLevel.USED
