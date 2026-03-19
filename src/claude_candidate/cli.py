@@ -749,7 +749,9 @@ def whitelist() -> None:
 @whitelist.command("setup")
 @click.option("--session-dir", type=click.Path(exists=True), default=None,
               help="Directory containing session JSONL files")
-def whitelist_setup(session_dir: str | None) -> None:
+@click.option("--filter", "-f", "hint_filter", default=None,
+              help="Only show projects whose hint contains this substring (e.g. 'git')")
+def whitelist_setup(session_dir: str | None, hint_filter: str | None) -> None:
     """Interactive: discover projects, select which to include."""
     from claude_candidate.session_scanner import discover_sessions
     from claude_candidate.whitelist import (
@@ -769,6 +771,15 @@ def whitelist_setup(session_dir: str | None) -> None:
         return
 
     counts: Counter[str] = Counter(s.project_hint for s in sessions_found)
+
+    if hint_filter:
+        counts = Counter({h: c for h, c in counts.items() if hint_filter.lower() in h.lower()})
+        click.echo(f"  Filtered to {len(counts)} projects matching '{hint_filter}'")
+
+    if not counts:
+        click.echo("No projects match the filter. Nothing to whitelist.")
+        return
+
     selected: list[str] = []
 
     click.echo("\nFor each project, choose whether to include it in the whitelist.")
