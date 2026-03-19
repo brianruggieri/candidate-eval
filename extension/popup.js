@@ -183,14 +183,7 @@ function renderResults(data) {
 		actSection.classList.add('hidden');
 	}
 
-	// Full Details button — default: open raw assessment JSON endpoint
-	const btnFullDefault = el('btn-full-details');
-	if (btnFullDefault) {
-		const id = data.assessment_id;
-		btnFullDefault.onclick = () => {
-			chrome.tabs.create({ url: id ? `http://localhost:7429/api/assessments/${id}` : 'http://localhost:7429/api/health' });
-		};
-	}
+	// Full Details button starts hidden — shown only when full report is ready
 
 	// Verdict
 	const verdict = data.should_apply || '';
@@ -225,11 +218,32 @@ async function initialize() {
 		currentPosting = stored;
 		renderResults(lastAssessment.data);
 
+		const btnFull = el('btn-full-details');
+		const banner = el('banner-full-loading');
+
 		if (fullReady && fullReady.assessmentId) {
-			const btnFull = el('btn-full-details');
+			// Full report is ready — show button, hide banner
 			if (btnFull) {
+				btnFull.classList.remove('hidden');
 				btnFull.onclick = () => sendToBackground({ action: 'openReport', url: fullReady.url });
 			}
+			if (banner) banner.classList.add('hidden');
+		} else {
+			// Background is still generating — show banner, poll for completion
+			if (banner) banner.classList.remove('hidden');
+			const pollInterval = setInterval(async () => {
+				const ready = await new Promise(r => {
+					chrome.storage.local.get('fullReportReady', res => r(res.fullReportReady || null));
+				});
+				if (ready && ready.assessmentId) {
+					clearInterval(pollInterval);
+					if (banner) banner.classList.add('hidden');
+					if (btnFull) {
+						btnFull.classList.remove('hidden');
+						btnFull.onclick = () => sendToBackground({ action: 'openReport', url: ready.url });
+					}
+				}
+			}, 2000);
 		}
 		return;
 	}
@@ -287,10 +301,10 @@ async function initialize() {
 
 	renderResults(partial);
 	const banner = el('banner-full-loading');
+	const btnFull = el('btn-full-details');
 	if (banner) banner.classList.remove('hidden');
 
 	// Fire-and-forget: background.js runs the full assessment independently.
-	// If the popup closes, the background continues and stores the result.
 	const assessmentId = partial.assessment_id;
 	sendToBackground({ action: 'startFullAssess', assessmentId });
 
@@ -302,8 +316,8 @@ async function initialize() {
 		if (ready && ready.assessmentId) {
 			clearInterval(pollInterval);
 			if (banner) banner.classList.add('hidden');
-			const btnFull = el('btn-full-details');
 			if (btnFull) {
+				btnFull.classList.remove('hidden');
 				btnFull.onclick = () => sendToBackground({ action: 'openReport', url: ready.url });
 			}
 		}
