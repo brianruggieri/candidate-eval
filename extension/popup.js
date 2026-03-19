@@ -216,11 +216,23 @@ async function initialize() {
 	if (!health.connected) { showState('no-backend'); return; }
 	if (health.profile_loaded === false) { showState('no-profile'); return; }
 
-	let posting = null;
-	const stored = await new Promise(r => {
-		chrome.storage.local.get('currentPosting', res => r(res.currentPosting || null));
+	// Check for cached assessment result (instant reopen)
+	const cache = await new Promise(r => {
+		chrome.storage.local.get(['currentPosting', 'lastAssessment'], res => r(res));
 	});
+	const stored = cache.currentPosting || null;
+	const lastAssessment = cache.lastAssessment || null;
 	const fresh = stored && stored.extractedAt && (Date.now() - stored.extractedAt) < POSTING_TTL_MS;
+
+	// Fast path: cached assessment for the same URL — render instantly
+	if (fresh && lastAssessment && lastAssessment.url === stored.url) {
+		currentPosting = stored;
+		renderResults(lastAssessment.data);
+		return;
+	}
+
+	// Resolve posting (from cache or fresh extraction)
+	let posting = null;
 	if (fresh && stored.description) {
 		posting = stored;
 	}
@@ -261,6 +273,9 @@ async function initialize() {
 		showState('error');
 		return;
 	}
+
+	// Cache assessment result for instant reopen
+	chrome.storage.local.set({ lastAssessment: { url: posting.url, data: partial } });
 
 	renderResults(partial);
 	const banner = el('banner-full-loading');
