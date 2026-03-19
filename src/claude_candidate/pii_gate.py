@@ -81,10 +81,18 @@ _PERSON_PATTERN = re.compile(
 )
 
 # ---------------------------------------------------------------------------
-# Module-level DataFog instance (initialised once)
+# Lazy-initialised DataFog instance (avoids import-time side effects)
 # ---------------------------------------------------------------------------
 
-_datafog = DataFog()
+_datafog: DataFog | None = None
+
+
+def _get_datafog() -> DataFog:
+    """Return the shared DataFog instance, creating it on first call."""
+    global _datafog
+    if _datafog is None:
+        _datafog = DataFog()
+    return _datafog
 
 
 # ---------------------------------------------------------------------------
@@ -136,7 +144,7 @@ def scrub_deliverable(text: str) -> str:
         return text
 
     # Step 1: DataFog handles phone, SSN, credit card, email, IP, DOB, ZIP
-    result = _datafog.process(text, anonymize=True, method="redact")
+    result = _get_datafog().process(text, anonymize=True, method="redact")
     scrubbed = result.get("anonymized", text)
 
     # Step 2: Normalise DataFog's numbered placeholders to our canonical form

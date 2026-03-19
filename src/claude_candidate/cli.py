@@ -657,12 +657,7 @@ _SCENARIO_QUESTIONS: dict[str, dict] = {
     },
 }
 
-# Map scenario answer 'a' (strong match) to a strength value
-_SCENARIO_STRENGTH_MAP = {
-    "a": "established",
-    "b": "emerging",
-    "c": "emerging",
-}
+
 
 
 def _strength_bar(strength: str) -> str:
