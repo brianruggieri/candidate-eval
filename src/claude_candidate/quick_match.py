@@ -595,6 +595,38 @@ def _score_oss_culture(
 
 
 # ---------------------------------------------------------------------------
+# Adaptive dimension weighting
+# ---------------------------------------------------------------------------
+
+# Weight tuples: (skill, mission, culture)
+_WEIGHTS_RICH     = (0.50, 0.25, 0.25)
+_WEIGHTS_MODERATE = (0.60, 0.20, 0.20)
+_WEIGHTS_SPARSE   = (0.70, 0.15, 0.15)
+_WEIGHTS_NONE     = (0.85, 0.10, 0.05)
+
+
+def _compute_weights(
+    company_profile: CompanyProfile | None,
+) -> tuple[float, float, float]:
+    """Return (skill_weight, mission_weight, culture_weight) based on company data richness.
+
+    Tiers:
+      rich     → 50/25/25  (mission + blog + tech stack + culture keywords present)
+      moderate → 60/20/20  (tech stack + some fields)
+      sparse   → 70/15/15  (just job posting, minimal enrichment)
+      None     → 85/10/5   (no company data at all)
+    """
+    if company_profile is None:
+        return _WEIGHTS_NONE
+    quality = company_profile.enrichment_quality
+    if quality == "rich":
+        return _WEIGHTS_RICH
+    if quality == "moderate":
+        return _WEIGHTS_MODERATE
+    return _WEIGHTS_SPARSE
+
+
+# ---------------------------------------------------------------------------
 # Assessment result builders
 # ---------------------------------------------------------------------------
 
@@ -724,6 +756,10 @@ class QuickMatchEngine:
         culture_dim = self._score_culture_fit(
             inp.culture_signals or [], inp.company_profile,
         )
+        skill_w, mission_w, culture_w = _compute_weights(inp.company_profile)
+        skill_dim.weight = skill_w
+        mission_dim.weight = mission_w
+        culture_dim.weight = culture_w
         overall_score = _compute_overall_score(skill_dim, mission_dim, culture_dim)
         elapsed = time.time() - start_time
         return self._build_assessment(

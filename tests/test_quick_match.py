@@ -6,7 +6,7 @@ from datetime import datetime
 
 
 from claude_candidate.merger import merge_profiles, merge_candidate_only
-from claude_candidate.quick_match import QuickMatchEngine
+from claude_candidate.quick_match import QuickMatchEngine, _compute_weights
 from claude_candidate.schemas.company_profile import CompanyProfile
 from claude_candidate.schemas.job_requirements import QuickRequirement, RequirementPriority
 
@@ -294,3 +294,144 @@ class TestCandidateOnlyAssessment:
 
         assert assessment.overall_score > 0
         assert len(assessment.skill_matches) == len(quick_requirements)
+
+
+class TestComputeWeights:
+    """Unit tests for _compute_weights() across all four confidence tiers."""
+
+    def _make_profile(self, quality: str) -> CompanyProfile:
+        return CompanyProfile(
+            company_name="Test Co",
+            product_description="A product",
+            product_domain=["saas"],
+            enriched_at=datetime.now(),
+            enrichment_quality=quality,  # type: ignore[arg-type]
+        )
+
+    def test_no_company_data_returns_none_tier_weights(self):
+        skill_w, mission_w, culture_w = _compute_weights(None)
+        assert skill_w == 0.85
+        assert mission_w == 0.10
+        assert culture_w == 0.05
+
+    def test_sparse_enrichment_returns_sparse_tier_weights(self):
+        profile = self._make_profile("sparse")
+        skill_w, mission_w, culture_w = _compute_weights(profile)
+        assert skill_w == 0.70
+        assert mission_w == 0.15
+        assert culture_w == 0.15
+
+    def test_moderate_enrichment_returns_moderate_tier_weights(self):
+        profile = self._make_profile("moderate")
+        skill_w, mission_w, culture_w = _compute_weights(profile)
+        assert skill_w == 0.60
+        assert mission_w == 0.20
+        assert culture_w == 0.20
+
+    def test_rich_enrichment_returns_rich_tier_weights(self):
+        profile = self._make_profile("rich")
+        skill_w, mission_w, culture_w = _compute_weights(profile)
+        assert skill_w == 0.50
+        assert mission_w == 0.25
+        assert culture_w == 0.25
+
+    def test_weights_sum_to_one_for_each_tier(self):
+        for quality in ("rich", "moderate", "sparse"):
+            profile = self._make_profile(quality)
+            weights = _compute_weights(profile)
+            assert abs(sum(weights) - 1.0) < 1e-9, (
+                f"Weights for {quality!r} do not sum to 1.0: {weights}"
+            )
+        none_weights = _compute_weights(None)
+        assert abs(sum(none_weights) - 1.0) < 1e-9
+
+
+class TestAdaptiveWeightsWiredIntoAssessment:
+    """Integration tests verifying dimension weights are set from company data quality."""
+
+    def _minimal_requirements(self) -> list[QuickRequirement]:
+        return [QuickRequirement(
+            description="Python",
+            skill_mapping=["python"],
+            priority=RequirementPriority.MUST_HAVE,
+        )]
+
+    def _make_company_profile(self, quality: str) -> CompanyProfile:
+        return CompanyProfile(
+            company_name="Test Co",
+            product_description="A product",
+            product_domain=["saas"],
+            enriched_at=datetime.now(),
+            enrichment_quality=quality,  # type: ignore[arg-type]
+        )
+
+    def test_rich_profile_sets_rich_weights_on_dimensions(
+        self, candidate_profile, resume_profile
+    ):
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+        company_profile = self._make_company_profile("rich")
+
+        assessment = engine.assess(
+            requirements=self._minimal_requirements(),
+            company="Test Co",
+            title="Engineer",
+            company_profile=company_profile,
+        )
+
+        assert assessment.skill_match.weight == 0.50
+        assert assessment.mission_alignment.weight == 0.25
+        assert assessment.culture_fit.weight == 0.25
+
+    def test_moderate_profile_sets_moderate_weights_on_dimensions(
+        self, candidate_profile, resume_profile
+    ):
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+        company_profile = self._make_company_profile("moderate")
+
+        assessment = engine.assess(
+            requirements=self._minimal_requirements(),
+            company="Test Co",
+            title="Engineer",
+            company_profile=company_profile,
+        )
+
+        assert assessment.skill_match.weight == 0.60
+        assert assessment.mission_alignment.weight == 0.20
+        assert assessment.culture_fit.weight == 0.20
+
+    def test_sparse_profile_sets_sparse_weights_on_dimensions(
+        self, candidate_profile, resume_profile
+    ):
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+        company_profile = self._make_company_profile("sparse")
+
+        assessment = engine.assess(
+            requirements=self._minimal_requirements(),
+            company="Test Co",
+            title="Engineer",
+            company_profile=company_profile,
+        )
+
+        assert assessment.skill_match.weight == 0.70
+        assert assessment.mission_alignment.weight == 0.15
+        assert assessment.culture_fit.weight == 0.15
+
+    def test_no_company_profile_sets_none_tier_weights_on_dimensions(
+        self, candidate_profile, resume_profile
+    ):
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+
+        assessment = engine.assess(
+            requirements=self._minimal_requirements(),
+            company="Test Co",
+            title="Engineer",
+            company_profile=None,
+        )
+
+        assert assessment.skill_match.weight == 0.85
+        assert assessment.mission_alignment.weight == 0.10
+        assert assessment.culture_fit.weight == 0.05
