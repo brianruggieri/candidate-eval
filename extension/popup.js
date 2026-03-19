@@ -229,8 +229,10 @@ async function initialize() {
 			}
 			if (banner) banner.classList.add('hidden');
 		} else {
-			// Background is still generating — show banner, poll for completion
+			// Full report not ready — re-trigger generation and poll
 			if (banner) banner.classList.remove('hidden');
+			const aid = lastAssessment.data.assessment_id;
+			if (aid) sendToBackground({ action: 'startFullAssess', assessmentId: aid });
 			const pollInterval = setInterval(async () => {
 				const ready = await new Promise(r => {
 					chrome.storage.local.get('fullReportReady', res => r(res.fullReportReady || null));
