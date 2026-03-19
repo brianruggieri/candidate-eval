@@ -109,7 +109,7 @@ async function handleStartFullAssess(assessmentId) {
 
 	// Run in background — this continues even if popup closes
 	handleAssessFull(assessmentId).then(result => {
-		if (result.success && result.assessment_id) {
+		if (result.success && result.assessment_id && !result.error && result.deliverables) {
 			chrome.storage.local.set({
 				fullReportReady: {
 					assessmentId: result.assessment_id,

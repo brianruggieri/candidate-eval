@@ -20,7 +20,7 @@ __all__ = [
     "generate_interview_prep",
 ]
 
-CLAUDE_TIMEOUT_SECONDS = 60
+CLAUDE_TIMEOUT_SECONDS = 120
 
 # Match statuses considered "positive" evidence
 POSITIVE_STATUSES = {"strong_match", "exceeds", "partial_match"}
