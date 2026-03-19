@@ -212,27 +212,19 @@ function renderResults(data) {
 async function initialize() {
 	showState('loading');
 
-	const health = await sendToBackground({ action: 'checkBackend' });
-	if (!health.connected) { showState('no-backend'); return; }
-	if (health.profile_loaded === false) { showState('no-profile'); return; }
-
-	// Check for cached assessment result (instant reopen)
+	// Check cache FIRST — before any server calls. Instant reopen.
 	const cache = await new Promise(r => {
-		chrome.storage.local.get(['currentPosting', 'lastAssessment'], res => r(res));
+		chrome.storage.local.get(['currentPosting', 'lastAssessment', 'fullReportReady'], res => r(res));
 	});
 	const stored = cache.currentPosting || null;
 	const lastAssessment = cache.lastAssessment || null;
+	const fullReady = cache.fullReportReady || null;
 	const fresh = stored && stored.extractedAt && (Date.now() - stored.extractedAt) < POSTING_TTL_MS;
 
-	// Fast path: cached assessment for the same URL — render instantly
 	if (fresh && lastAssessment && lastAssessment.url === stored.url) {
 		currentPosting = stored;
 		renderResults(lastAssessment.data);
 
-		// Check if full report completed while popup was closed
-		const fullReady = await new Promise(r => {
-			chrome.storage.local.get('fullReportReady', res => r(res.fullReportReady || null));
-		});
 		if (fullReady && fullReady.assessmentId) {
 			const btnFull = el('btn-full-details');
 			if (btnFull) {
@@ -241,6 +233,11 @@ async function initialize() {
 		}
 		return;
 	}
+
+	// No cache — need the server
+	const health = await sendToBackground({ action: 'checkBackend' });
+	if (!health.connected) { showState('no-backend'); return; }
+	if (health.profile_loaded === false) { showState('no-profile'); return; }
 
 	// Resolve posting (from cache or fresh extraction)
 	let posting = null;
