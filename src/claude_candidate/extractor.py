@@ -107,7 +107,7 @@ DEPTH_THRESHOLDS: list[tuple[int, int, DepthLevel]] = [
 
 # AI score thresholds for depth inference (from ai_scoring.py)
 AI_SCORE_EXPERT: float = 0.75
-AI_SCORE_ADVANCED: float = 0.55
+AI_SCORE_DEEP: float = 0.55
 AI_SCORE_INTERMEDIATE: float = 0.35
 
 # Cross-session aggregation weights
@@ -488,7 +488,7 @@ def _infer_depth(
     if ai_composite_score is not None:
         if ai_composite_score >= AI_SCORE_EXPERT:
             return DepthLevel.EXPERT
-        if ai_composite_score >= AI_SCORE_ADVANCED:
+        if ai_composite_score >= AI_SCORE_DEEP:
             return DepthLevel.DEEP
         if ai_composite_score >= AI_SCORE_INTERMEDIATE:
             return DepthLevel.APPLIED
