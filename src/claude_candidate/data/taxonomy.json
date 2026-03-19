@@ -181,7 +181,7 @@
     "category": "platform",
     "related": ["llm", "machine-learning", "openai"],
     "parent": null,
-    "content_patterns": ["anthropic", "from anthropic", "import anthropic", "claude"]
+    "content_patterns": ["anthropic", "from anthropic", "import anthropic", "claude-3", "claude-4"]
   },
   "langchain": {
     "aliases": [],

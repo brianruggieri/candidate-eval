@@ -9,6 +9,7 @@ snippet (non-empty, <= 500 chars).
 
 from __future__ import annotations
 
+import functools
 import json
 import re
 from dataclasses import dataclass, field
@@ -60,9 +61,10 @@ FILE_EXTENSION_MAP: dict[str, list[str]] = {
 
 DOCKERFILE_NAMES: set[str] = {"Dockerfile", "dockerfile"}
 
-# Content patterns are loaded from the taxonomy at import time.
-# Use _CONTENT_PATTERNS for all keyword-based tech detection.
-_CONTENT_PATTERNS: dict[str, list[str]] = SkillTaxonomy.load_default().get_content_patterns()
+@functools.cache
+def _get_content_patterns() -> dict[str, list[str]]:
+    """Lazy-load content patterns from the taxonomy (cached after first call)."""
+    return SkillTaxonomy.load_default().get_content_patterns()
 
 CATEGORY_MAP: dict[str, str] = {
     "python": "language",
@@ -205,7 +207,7 @@ def _detect_from_content(content: str) -> list[str]:
     """Detect technologies from content keywords and patterns."""
     lower = content.lower()
     found: list[str] = []
-    for tech, patterns in _CONTENT_PATTERNS.items():
+    for tech, patterns in _get_content_patterns().items():
         if any(p.lower() in lower for p in patterns):
             found.append(tech)
     return found
