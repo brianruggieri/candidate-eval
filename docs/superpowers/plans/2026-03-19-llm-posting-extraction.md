@@ -15,7 +15,7 @@
 ## File Structure
 
 **Modified files:**
-- `src/claude_candidate/storage.py` — add `posting_cache` table + `cache_posting()`, `get_cached_posting()`, `delete_expired_postings()` methods
+- `src/claude_candidate/storage.py` — add `posting_cache` table + `cache_posting()`, `get_cached_posting()` methods
 - `src/claude_candidate/server.py` — add `ExtractPostingRequest`/`PostingExtraction` models, `POST /api/extract-posting` endpoint, `_infer_source()` helper
 - `tests/test_server.py` — extraction endpoint tests (cache hit/miss, TTL, errors, source inference, truncation)
 - `extension/content.js` — replace entire file: `grabPageText()` + `heuristicFallback()` + message listener
@@ -171,14 +171,19 @@ def _build_extraction_prompt(title: str, text: str) -> str:
     )
 ```
 
+- [ ] Add imports at the top of `server.py` (after the existing `from claude_candidate.storage import AssessmentStore` line):
+
+```python
+from claude_candidate.claude_cli import call_claude, ClaudeCLIError, check_claude_available
+```
+
+Note: `hashlib` and `json` are already imported at module level in `server.py`.
+
 - [ ] Add `POST /api/extract-posting` endpoint inside `create_app()`:
 
 ```python
 @app.post("/api/extract-posting")
 async def extract_posting(req: ExtractPostingRequest):
-    import hashlib
-    from claude_candidate.claude_cli import call_claude, ClaudeCLIError, check_claude_available
-
     store = get_store()
     url_hash = hashlib.sha256(req.url.encode()).hexdigest()[:16]
 
@@ -234,6 +239,8 @@ async def extract_posting(req: ExtractPostingRequest):
     return result_dict
 ```
 
+- [ ] Add `import json` to `tests/test_server.py` imports (needed for `json.dumps` in mock responses)
+
 - [ ] Write tests in `tests/test_server.py` — add `TestExtractPostingEndpoint` class:
 
 ```python
@@ -251,8 +258,8 @@ class TestExtractPostingEndpoint:
             "remote": True,
             "salary": "$150k",
         })
-        with patch("claude_candidate.server.check_claude_available", return_value=True), \
-             patch("claude_candidate.server.call_claude", return_value=claude_response):
+        with patch("claude_candidate.claude_cli.check_claude_available", return_value=True), \
+             patch("claude_candidate.claude_cli.call_claude", return_value=claude_response):
             resp = await client.post("/api/extract-posting", json={
                 "url": "https://linkedin.com/jobs/view/123",
                 "title": "Software Engineer | LinkedIn",
@@ -267,8 +274,8 @@ class TestExtractPostingEndpoint:
     async def test_returns_cached_result(self, client):
         """Cache hit: returns cached result without calling Claude."""
         claude_response = json.dumps({"company": "Cached Co", "title": "Eng", "description": "x"})
-        with patch("claude_candidate.server.check_claude_available", return_value=True), \
-             patch("claude_candidate.server.call_claude", return_value=claude_response) as mock_claude:
+        with patch("claude_candidate.claude_cli.check_claude_available", return_value=True), \
+             patch("claude_candidate.claude_cli.call_claude", return_value=claude_response) as mock_claude:
             # First call — populates cache
             await client.post("/api/extract-posting", json={
                 "url": "https://example.com/job/1",
@@ -287,7 +294,7 @@ class TestExtractPostingEndpoint:
 
     async def test_503_when_claude_unavailable(self, client):
         """Returns 503 when Claude CLI is not installed."""
-        with patch("claude_candidate.server.check_claude_available", return_value=False):
+        with patch("claude_candidate.claude_cli.check_claude_available", return_value=False):
             resp = await client.post("/api/extract-posting", json={
                 "url": "https://example.com/job/2",
                 "title": "Test",
@@ -297,8 +304,8 @@ class TestExtractPostingEndpoint:
 
     async def test_502_on_malformed_claude_response(self, client):
         """Returns 502 when Claude returns non-JSON."""
-        with patch("claude_candidate.server.check_claude_available", return_value=True), \
-             patch("claude_candidate.server.call_claude", return_value="This is not JSON"):
+        with patch("claude_candidate.claude_cli.check_claude_available", return_value=True), \
+             patch("claude_candidate.claude_cli.call_claude", return_value="This is not JSON"):
             resp = await client.post("/api/extract-posting", json={
                 "url": "https://example.com/job/3",
                 "title": "Test",
@@ -309,8 +316,8 @@ class TestExtractPostingEndpoint:
     async def test_infers_source_from_url(self, client):
         """Source field is inferred from URL, not from Claude."""
         claude_response = json.dumps({"company": "X", "title": "Y", "description": "Z"})
-        with patch("claude_candidate.server.check_claude_available", return_value=True), \
-             patch("claude_candidate.server.call_claude", return_value=claude_response):
+        with patch("claude_candidate.claude_cli.check_claude_available", return_value=True), \
+             patch("claude_candidate.claude_cli.call_claude", return_value=claude_response):
             resp = await client.post("/api/extract-posting", json={
                 "url": "https://boards.greenhouse.io/company/jobs/123",
                 "title": "Y",
@@ -322,8 +329,8 @@ class TestExtractPostingEndpoint:
         """Text longer than 15k chars is truncated before sending to Claude."""
         long_text = "x" * 20_000
         claude_response = json.dumps({"company": "X", "title": "Y", "description": "Z"})
-        with patch("claude_candidate.server.check_claude_available", return_value=True), \
-             patch("claude_candidate.server.call_claude", return_value=claude_response) as mock_claude:
+        with patch("claude_candidate.claude_cli.check_claude_available", return_value=True), \
+             patch("claude_candidate.claude_cli.call_claude", return_value=claude_response) as mock_claude:
             await client.post("/api/extract-posting", json={
                 "url": "https://example.com/job/4",
                 "title": "Test",
@@ -336,8 +343,8 @@ class TestExtractPostingEndpoint:
     async def test_handles_code_fenced_json(self, client):
         """Claude sometimes wraps JSON in markdown code fences."""
         fenced = '```json\n{"company": "Fenced Co", "title": "Eng", "description": "ok"}\n```'
-        with patch("claude_candidate.server.check_claude_available", return_value=True), \
-             patch("claude_candidate.server.call_claude", return_value=fenced):
+        with patch("claude_candidate.claude_cli.check_claude_available", return_value=True), \
+             patch("claude_candidate.claude_cli.call_claude", return_value=fenced):
             resp = await client.post("/api/extract-posting", json={
                 "url": "https://example.com/job/5",
                 "title": "Test",
@@ -352,8 +359,8 @@ class TestExtractPostingEndpoint:
             "company": None, "title": None, "description": None,
             "location": None, "seniority": None, "remote": None, "salary": None,
         })
-        with patch("claude_candidate.server.check_claude_available", return_value=True), \
-             patch("claude_candidate.server.call_claude", return_value=claude_response):
+        with patch("claude_candidate.claude_cli.check_claude_available", return_value=True), \
+             patch("claude_candidate.claude_cli.call_claude", return_value=claude_response):
             resp = await client.post("/api/extract-posting", json={
                 "url": "https://twitter.com/home",
                 "title": "Twitter",
@@ -362,7 +369,36 @@ class TestExtractPostingEndpoint:
         assert resp.status_code == 200
         assert resp.json()["company"] == ""
         assert resp.json()["description"] == ""
+
+    async def test_expired_cache_triggers_reextraction(self, client):
+        """Cache entry older than 7 days triggers a fresh Claude call."""
+        claude_response = json.dumps({"company": "Old Co", "title": "Eng", "description": "old"})
+        with patch("claude_candidate.claude_cli.check_claude_available", return_value=True), \
+             patch("claude_candidate.claude_cli.call_claude", return_value=claude_response):
+            # First call — populates cache
+            await client.post("/api/extract-posting", json={
+                "url": "https://example.com/job/expired",
+                "title": "Eng",
+                "text": "Some text",
+            })
+
+        # Manually backdate the cache entry to 8 days ago
+        store = client.app.state.store if hasattr(client.app, 'state') else None
+        # Use direct DB access to backdate
+        import aiosqlite
+        # The store's db path is accessible; manipulate extracted_at directly
+        # (This is a test-only hack to simulate TTL expiry)
+
+        new_response = json.dumps({"company": "Fresh Co", "title": "Eng", "description": "fresh"})
+        with patch("claude_candidate.claude_cli.check_claude_available", return_value=True), \
+             patch("claude_candidate.claude_cli.call_claude", return_value=new_response) as mock_claude:
+            # The implementer should backdate the cache row's extracted_at to 8 days ago
+            # before this second call, then verify mock_claude is called again.
+            # Exact DB manipulation depends on how the test fixture exposes the store.
+            pass
 ```
+
+Note: the expired cache test requires direct DB manipulation to backdate `extracted_at`. The implementer should adapt the exact DB access pattern to match the test fixture's store exposure.
 
 - [ ] Run tests: `/opt/homebrew/bin/python3.11 -m pytest tests/test_server.py -q`
 - [ ] Run full suite: `/opt/homebrew/bin/python3.11 -m pytest -q`
@@ -376,6 +412,8 @@ class TestExtractPostingEndpoint:
 - Rewrite: `extension/content.js`
 
 Delete all 383 lines. Replace with ~50 lines: `grabPageText()`, `heuristicFallback()`, and a message listener.
+
+Note: the spec mentions `rawPageText` auto-caching on page load. This is intentionally omitted because the content script is now injected on-demand via `chrome.scripting.executeScript`, not at `document_idle`. There is no auto-extract-on-load behavior.
 
 - [ ] Replace entire content of `extension/content.js`:
 
