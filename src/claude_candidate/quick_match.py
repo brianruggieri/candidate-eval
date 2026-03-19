@@ -624,7 +624,7 @@ def _compute_weights(
     """Return (skill_weight, mission_weight, culture_weight) based on company data richness.
 
     Tiers:
-      rich     → 50/25/25  (mission + blog + tech stack + culture keywords present)
+      rich     → 50/25/25  (mission + tech stack + culture keywords present)
       moderate → 60/20/20  (tech stack + some fields)
       sparse   → 70/15/15  (just job posting, minimal enrichment)
       None     → 85/10/5   (no company data at all)
