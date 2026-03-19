@@ -220,7 +220,7 @@ class TestMissionAlignment:
             company_profile=company_profile,
         )
 
-        # Strong alignment expected: developer-tooling domain overlap, tech overlap, OSS
+        # Strong alignment expected: developer-tooling domain overlap + tech overlap
         assert assessment.mission_alignment.score > 0.5
 
     def test_without_company_profile(self, candidate_profile, resume_profile):
@@ -242,6 +242,132 @@ class TestMissionAlignment:
         assert "Limited enrichment" in assessment.mission_alignment.details[-1] or \
                "Insufficient" in assessment.mission_alignment.details[-1] or \
                "overlap" in " ".join(assessment.mission_alignment.details).lower()
+
+    def test_tech_stack_overlap_signal(self, candidate_profile, resume_profile):
+        """Tech stack overlap produces a non-zero bonus when company techs match candidate skills."""
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+
+        # Company uses python and typescript — both well-demonstrated by candidate
+        company_profile = CompanyProfile(
+            company_name="PythonCo",
+            product_description="Data processing platform",
+            product_domain=["data-infrastructure"],
+            tech_stack_public=["python", "typescript"],
+            enriched_at=datetime.now(),
+            enrichment_quality="moderate",
+        )
+
+        assessment = engine.assess(
+            requirements=[QuickRequirement(
+                description="Python", skill_mapping=["python"],
+                priority=RequirementPriority.MUST_HAVE,
+            )],
+            company="PythonCo",
+            title="Engineer",
+            company_profile=company_profile,
+        )
+
+        details_text = " ".join(assessment.mission_alignment.details).lower()
+        assert "tech overlap" in details_text
+        assert assessment.mission_alignment.score > 0.5
+
+    def test_domain_overlap_signal(self, candidate_profile, resume_profile):
+        """Domain overlap produces a bonus when company domain matches candidate domains."""
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+
+        # Candidate has "developer-tooling" as an explicit skill name
+        company_profile = CompanyProfile(
+            company_name="ToolsCo",
+            product_description="Developer productivity tools",
+            product_domain=["developer-tooling"],
+            tech_stack_public=[],
+            enriched_at=datetime.now(),
+            enrichment_quality="sparse",
+        )
+
+        assessment = engine.assess(
+            requirements=[QuickRequirement(
+                description="Python", skill_mapping=["python"],
+                priority=RequirementPriority.MUST_HAVE,
+            )],
+            company="ToolsCo",
+            title="Engineer",
+            company_profile=company_profile,
+        )
+
+        details_text = " ".join(assessment.mission_alignment.details).lower()
+        assert "domain overlap" in details_text
+
+    def test_mission_text_alignment_signal(self, candidate_profile, resume_profile):
+        """Mission statement keyword overlap with candidate skills produces a bonus."""
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+
+        # Mission statement contains "python" and "developer" which overlap with candidate skills
+        company_profile = CompanyProfile(
+            company_name="MissionCo",
+            product_description="Platform for developers",
+            product_domain=["saas"],
+            tech_stack_public=[],
+            mission_statement=(
+                "We empower python developers to build better tools "
+                "through automation and cli-design"
+            ),
+            enriched_at=datetime.now(),
+            enrichment_quality="moderate",
+        )
+
+        assessment = engine.assess(
+            requirements=[QuickRequirement(
+                description="Python", skill_mapping=["python"],
+                priority=RequirementPriority.MUST_HAVE,
+            )],
+            company="MissionCo",
+            title="Engineer",
+            company_profile=company_profile,
+        )
+
+        details_text = " ".join(assessment.mission_alignment.details).lower()
+        assert "mission" in details_text
+        assert assessment.mission_alignment.score > 0.5
+
+    def test_oss_bonus_no_longer_applied(self, candidate_profile, resume_profile):
+        """OSS activity level should have no effect on mission score."""
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+
+        base_profile = CompanyProfile(
+            company_name="Co",
+            product_description="A product",
+            product_domain=["unrelated-niche-domain"],
+            tech_stack_public=[],
+            enriched_at=datetime.now(),
+            enrichment_quality="rich",
+        )
+        oss_profile = CompanyProfile(
+            company_name="Co",
+            product_description="A product",
+            product_domain=["unrelated-niche-domain"],
+            tech_stack_public=[],
+            oss_activity_level="very_active",
+            enriched_at=datetime.now(),
+            enrichment_quality="rich",
+        )
+
+        req = [QuickRequirement(
+            description="Python", skill_mapping=["python"],
+            priority=RequirementPriority.MUST_HAVE,
+        )]
+
+        a_base = engine.assess(requirements=req, company="Co", title="T",
+                               company_profile=base_profile)
+        a_oss = engine.assess(requirements=req, company="Co", title="T",
+                              company_profile=oss_profile)
+
+        # Scores must be identical — OSS level should not move the needle
+        assert a_base.mission_alignment.score == a_oss.mission_alignment.score
 
 
 class TestCultureFit:

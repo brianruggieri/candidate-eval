@@ -86,7 +86,7 @@ STATUS_RANK_NONE = 0
 MISSION_NEUTRAL_SCORE = 0.5
 MISSION_DOMAIN_BONUS = 0.15
 MISSION_TECH_OVERLAP_WEIGHT = 0.2
-MISSION_OSS_BONUS = 0.1
+MISSION_TEXT_OVERLAP_WEIGHT = 0.15
 MISSION_NO_ENRICHMENT_BASE = 0.3
 MISSION_NO_ENRICHMENT_RANGE = 0.4
 MISSION_SCORE_MAX = 1.0
@@ -517,23 +517,36 @@ def _score_tech_overlap(
     return 0.0, []
 
 
-def _score_oss_alignment(
+def _score_mission_text_alignment(
     profile: MergedEvidenceProfile,
     company_profile: CompanyProfile,
 ) -> tuple[float, list[str]]:
-    """Score open-source alignment; return (bonus, detail_lines)."""
-    has_oss = any(p.public_repo_url for p in profile.projects)
-    if has_oss and company_profile.oss_activity_level in ("active", "very_active"):
-        return MISSION_OSS_BONUS, ["Strong open source alignment"]
-    return 0.0, []
+    """Score mission text alignment; return (bonus, detail_lines).
 
+    Computes keyword overlap between the company's mission statement /
+    product description and the candidate's skill names and project
+    descriptions.
+    """
+    text_sources = []
+    if company_profile.mission_statement:
+        text_sources.append(company_profile.mission_statement)
+    text_sources.append(company_profile.product_description)
+    if not text_sources:
+        return 0.0, []
 
-def _blog_details(company_profile: CompanyProfile) -> list[str]:
-    """Return detail line for engineering blog activity, if any."""
-    if company_profile.recent_blog_topics:
-        count = len(company_profile.recent_blog_topics)
-        return [f"Engineering blog active: {count} recent posts"]
-    return []
+    combined_text = " ".join(text_sources).lower()
+    candidate_keywords: set[str] = {s.name.lower() for s in profile.skills}
+    for proj in profile.projects:
+        for tech in proj.technologies:
+            candidate_keywords.add(tech.lower())
+
+    matched = {kw for kw in candidate_keywords if kw in combined_text}
+    if not matched:
+        return 0.0, []
+
+    ratio = len(matched) / max(len(candidate_keywords), 1)
+    detail = f"Mission text overlap: {', '.join(sorted(matched)[:MAX_TECH_OVERLAP_DISPLAY])}"
+    return ratio * MISSION_TEXT_OVERLAP_WEIGHT, [detail]
 
 
 def _mission_from_posting(
@@ -910,7 +923,13 @@ class QuickMatchEngine:
         self,
         company_profile: CompanyProfile,
     ) -> tuple[float, list[str]]:
-        """Score mission alignment when a company profile is available."""
+        """Score mission alignment using three signals when a company profile is available.
+
+        Signals:
+        1. Tech stack overlap — company's known technologies vs candidate skills
+        2. Industry/domain match — company's product domain vs candidate project domains
+        3. Mission text alignment — keyword overlap between mission text and candidate skills
+        """
         score = MISSION_NEUTRAL_SCORE
         details: list[str] = []
 
@@ -926,13 +945,12 @@ class QuickMatchEngine:
         score += tech_bonus
         details.extend(tech_details)
 
-        oss_bonus, oss_details = _score_oss_alignment(
+        text_bonus, text_details = _score_mission_text_alignment(
             self.profile, company_profile,
         )
-        score += oss_bonus
-        details.extend(oss_details)
+        score += text_bonus
+        details.extend(text_details)
 
-        details.extend(_blog_details(company_profile))
         return min(score, MISSION_SCORE_MAX), details
 
     # -- dimension 3: culture fit -------------------------------------------
