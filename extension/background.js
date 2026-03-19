@@ -108,6 +108,22 @@ async function handleOpenReport(url) {
 	}
 }
 
+async function handleExtractPosting(payload) {
+	try {
+		const data = await apiFetch('/api/extract-posting', {
+			method: 'POST',
+			body: JSON.stringify({
+				url: payload.url || '',
+				title: payload.title || '',
+				text: payload.text || '',
+			}),
+		});
+		return { success: true, ...data };
+	} catch (err) {
+		return { success: false, error: err.message };
+	}
+}
+
 async function handleAddToWatchlist(payload) {
 	try {
 		// Map extension fields to server API fields
@@ -154,6 +170,10 @@ chrome.runtime.onMessage.addListener(function (request, _sender, sendResponse) {
 
 		case 'openReport':
 			promise = handleOpenReport(request.url);
+			break;
+
+		case 'extractPosting':
+			promise = handleExtractPosting(request.payload);
 			break;
 
 		case 'getAssessment':
