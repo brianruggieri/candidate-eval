@@ -9,6 +9,7 @@ silent template fallbacks.
 from __future__ import annotations
 
 from claude_candidate.claude_cli import ClaudeCLIError, call_claude
+from claude_candidate.pii_gate import scrub_deliverable
 from claude_candidate.schemas.fit_assessment import FitAssessment, SkillMatchDetail
 from claude_candidate.schemas.merged_profile import MergedEvidenceProfile
 
@@ -128,7 +129,8 @@ def generate_resume_bullets(
     """
     prompt = _build_bullet_prompt(assessment, profile)
     result = _call_claude(prompt)
-    return _parse_bullet_lines(result)
+    bullets = _parse_bullet_lines(result)
+    return [scrub_deliverable(bullet) for bullet in bullets]
 
 
 def _parse_bullet_lines(text: str) -> list[str]:
@@ -152,7 +154,7 @@ def generate_cover_letter(
         ClaudeCLIError: If the Claude CLI is unavailable or returns an error.
     """
     prompt = _build_cover_letter_prompt(assessment, profile)
-    return _call_claude(prompt)
+    return scrub_deliverable(_call_claude(prompt))
 
 
 def generate_interview_prep(
@@ -166,4 +168,4 @@ def generate_interview_prep(
         ClaudeCLIError: If the Claude CLI is unavailable or returns an error.
     """
     prompt = _build_interview_prompt(assessment, profile)
-    return _call_claude(prompt)
+    return scrub_deliverable(_call_claude(prompt))
