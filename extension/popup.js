@@ -18,14 +18,29 @@ function sendToBackground(msg) {
 	});
 }
 
-function sendToActiveTab(msg) {
+async function injectAndSend(msg) {
+	const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+	if (!tabs || !tabs.length) return { success: false, error: 'No active tab' };
+	const tabId = tabs[0].id;
+
+	try {
+		await chrome.scripting.executeScript({
+			target: { tabId },
+			files: ['content.js'],
+		});
+	} catch (err) {
+		return { success: false, error: 'Cannot inject script: ' + (err.message || '') };
+	}
+
+	await new Promise(r => setTimeout(r, 100));
+
 	return new Promise(resolve => {
-		chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
-			if (!tabs || !tabs.length) { resolve({ success: false }); return; }
-			chrome.tabs.sendMessage(tabs[0].id, msg, r => {
-				if (chrome.runtime.lastError) resolve({ success: false, error: chrome.runtime.lastError.message });
-				else resolve(r || {});
-			});
+		chrome.tabs.sendMessage(tabId, msg, r => {
+			if (chrome.runtime.lastError) {
+				resolve({ success: false, error: chrome.runtime.lastError.message });
+			} else {
+				resolve(r || {});
+			}
 		});
 	});
 }
@@ -205,23 +220,41 @@ async function initialize() {
 	const stored = await new Promise(r => {
 		chrome.storage.local.get('currentPosting', res => r(res.currentPosting || null));
 	});
-
 	const fresh = stored && stored.extractedAt && (Date.now() - stored.extractedAt) < POSTING_TTL_MS;
 	if (fresh && stored.description) {
 		posting = stored;
-	} else {
-		const ext = await sendToActiveTab({ action: 'extractJobPosting' });
-		if (ext.success && ext.posting) posting = ext.posting;
+	}
+
+	if (!posting) {
+		const ext = await injectAndSend({ action: 'extractJobPosting' });
+		if (ext.success && ext.pageData) {
+			const extraction = await sendToBackground({
+				action: 'extractPosting',
+				payload: ext.pageData,
+			});
+			if (extraction.success && extraction.description) {
+				posting = { ...extraction, extractedAt: Date.now() };
+				chrome.storage.local.set({ currentPosting: posting });
+			}
+		}
+
+		if (!posting) {
+			const fallback = await injectAndSend({ action: 'extractFallback' });
+			if (fallback.success && fallback.posting && fallback.posting.description) {
+				posting = { ...fallback.posting, extractedAt: Date.now() };
+			}
+		}
 	}
 
 	if (!posting || !posting.description) { showState('no-job'); return; }
 	currentPosting = posting;
 
 	const ac = el('assessing-company');
-	if (ac) ac.textContent = posting.company ? `${posting.title || 'Role'} at ${posting.company}` : posting.title || '';
+	if (ac) ac.textContent = posting.company
+		? `${posting.title || 'Role'} at ${posting.company}`
+		: posting.title || '';
 	showState('assessing');
 
-	// Step 1: fast local-only partial assessment
 	const partial = await sendToBackground({ action: 'assessPartial', payload: posting });
 	if (!partial.success && partial.error) {
 		el('error-message').textContent = partial.error;
@@ -229,26 +262,19 @@ async function initialize() {
 		return;
 	}
 
-	// Step 2: render partial results immediately with the full-report banner
 	renderResults(partial);
 	const banner = el('banner-full-loading');
 	if (banner) banner.classList.remove('hidden');
 
-	// Step 3: request full assessment (Claude deliverables) in the background;
-	// when ready, open the full report in a new tab and hide the banner
 	const assessmentId = partial.assessment_id;
 	sendToBackground({ action: 'assessFull', assessmentId }).then(full => {
 		if (banner) banner.classList.add('hidden');
-
 		const btnFull = el('btn-full-details');
 		if (!btnFull) return;
-
 		if (full.success && full.assessment_id) {
-			// Open the report URL in a new tab on click
 			const reportUrl = `http://localhost:7429/api/assessments/${full.assessment_id}`;
 			btnFull.onclick = () => sendToBackground({ action: 'openReport', url: reportUrl });
 		} else if (full.error) {
-			// Claude unavailable — fall back to the raw assessment JSON
 			btnFull.title = `Full report unavailable: ${full.error}`;
 		}
 	});
