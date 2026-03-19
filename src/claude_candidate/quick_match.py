@@ -2,10 +2,10 @@
 QuickMatchEngine: Produces FitAssessments by comparing a MergedEvidenceProfile
 against a parsed job posting and optional company profile.
 
-Scores three dimensions equally:
-1. Skill gap analysis (33%)
-2. Company/mission alignment (33%)
-3. Culture fit signals (33%)
+Scores three dimensions with adaptive weighting based on company data richness:
+1. Skill gap analysis (50–85% depending on data availability)
+2. Company/mission alignment (10–25%)
+3. Culture fit signals (5–25%)
 """
 
 from __future__ import annotations
