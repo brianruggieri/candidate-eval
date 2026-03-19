@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+
+{# ── helpers ────────────────────────────────────────────────────────────── #}
+{% macro grade_color(grade) %}
+	{%- if grade.startswith('A') -%}bg-emerald-100 text-emerald-800 border-emerald-200
+	{%- elif grade.startswith('B') -%}bg-blue-100 text-blue-800 border-blue-200
+	{%- elif grade.startswith('C') -%}bg-amber-100 text-amber-800 border-amber-200
+	{%- else -%}bg-red-100 text-red-800 border-red-200
+	{%- endif %}
+{% endmacro %}
+
+{% macro verdict_label(verdict) %}
+	{%- if verdict == 'strong_yes' -%}Strong Yes
+	{%- elif verdict == 'yes' -%}Yes
+	{%- elif verdict == 'maybe' -%}Maybe
+	{%- elif verdict == 'probably_not' -%}Probably Not
+	{%- else -%}No
+	{%- endif %}
+{% endmacro %}
+
+{% macro verdict_color(verdict) %}
+	{%- if verdict in ('strong_yes', 'yes') -%}bg-emerald-100 text-emerald-800
+	{%- elif verdict == 'maybe' -%}bg-amber-100 text-amber-800
+	{%- else -%}bg-red-100 text-red-800
+	{%- endif %}
+{% endmacro %}
+
+{% macro match_status_badge(status) %}
+	{%- if status == 'exceeds' -%}
+		<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">Exceeds</span>
+	{%- elif status == 'strong_match' -%}
+		<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800">Strong</span>
+	{%- elif status == 'partial_match' -%}
+		<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">Partial</span>
+	{%- elif status == 'adjacent' -%}
+		<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">Adjacent</span>
+	{%- else -%}
+		<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">No Evidence</span>
+	{%- endif %}
+{% endmacro %}
+
+{% macro priority_badge(priority) %}
+	{%- if priority == 'must_have' -%}
+		<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700 border border-red-200">Must Have</span>
+	{%- elif priority == 'strong_preference' -%}
+		<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200">Strong</span>
+	{%- elif priority == 'nice_to_have' -%}
+		<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-sky-50 text-sky-700 border border-sky-200">Nice</span>
+	{%- else -%}
+		<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-50 text-gray-500 border border-gray-200">Implied</span>
+	{%- endif %}
+{% endmacro %}
+
+{% macro score_bar(score) %}
+	<div class="w-full bg-gray-200 rounded-full h-2">
+		<div class="h-2 rounded-full
+			{%- if score >= 0.80 %} bg-emerald-500
+			{%- elif score >= 0.65 %} bg-blue-500
+			{%- elif score >= 0.50 %} bg-amber-500
+			{%- else %} bg-red-500{% endif %}"
+			style="width: {{ (score * 100) | round(1) }}%"></div>
+	</div>
+{% endmacro %}
+
+{# ── meta overrides ──────────────────────────────────────────────────────── #}
+{% block og_title %}{{ assessment.job_title }} at {{ assessment.company_name }} — Fit Assessment{% endblock %}
+{% block og_description %}{{ assessment.overall_summary }}{% endblock %}
+
+{% block title %}{{ assessment.job_title }} at {{ assessment.company_name }} — Fit Assessment{% endblock %}
+
+{# ── page body ───────────────────────────────────────────────────────────── #}
+{% block content %}
+<div class="min-h-screen bg-gray-50">
+
+	{# ── Hero ──────────────────────────────────────────────────────────────── #}
+	<header class="bg-white border-b border-gray-200 shadow-sm">
+		<div class="max-w-4xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+			<div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+				<div class="flex-1">
+					<p class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-1">Fit Assessment</p>
+					<h1 class="text-2xl sm:text-3xl font-bold text-gray-900 leading-tight">
+						{{ assessment.job_title }}
+					</h1>
+					<p class="mt-1 text-lg text-gray-600 font-medium">{{ assessment.company_name }}</p>
+
+					{% if assessment.posting_url %}
+					<a href="{{ assessment.posting_url }}"
+					   class="inline-flex items-center mt-2 text-sm text-blue-600 hover:text-blue-800 hover:underline"
+					   rel="noopener noreferrer" target="_blank">
+						View job posting &rarr;
+					</a>
+					{% endif %}
+				</div>
+
+				{# Grade badge #}
+				<div class="flex-shrink-0 text-center">
+					<div class="inline-flex flex-col items-center justify-center w-20 h-20 rounded-2xl border-2
+						{{ grade_color(assessment.overall_grade) }} shadow-sm">
+						<span class="text-3xl font-black leading-none">{{ assessment.overall_grade }}</span>
+						<span class="text-xs font-semibold mt-0.5 opacity-75">Overall</span>
+					</div>
+					<div class="mt-2">
+						<span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold
+							{{ verdict_color(assessment.should_apply) }}">
+							{{ verdict_label(assessment.should_apply) }}
+						</span>
+					</div>
+				</div>
+			</div>
+
+			{# Summary #}
+			<p class="mt-4 text-gray-700 leading-relaxed">{{ assessment.overall_summary }}</p>
+		</div>
+	</header>
+
+	<main class="max-w-4xl mx-auto px-4 py-8 sm:px-6 lg:px-8 space-y-8">
+
+		{# ── Dimension Scores ──────────────────────────────────────────────── #}
+		<section aria-labelledby="scores-heading">
+			<h2 id="scores-heading" class="text-lg font-semibold text-gray-900 mb-4">Score Breakdown</h2>
+			<div class="bg-white rounded-xl border border-gray-200 shadow-sm divide-y divide-gray-100">
+
+				{% for dim in [assessment.skill_match, assessment.mission_alignment, assessment.culture_fit] %}
+				<div class="px-6 py-4">
+					<div class="flex items-center justify-between mb-2">
+						<div class="flex items-center gap-2">
+							<span class="font-medium text-gray-900 capitalize">
+								{{ dim.dimension | replace('_', ' ') }}
+							</span>
+							<span class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-sm font-bold border
+								{{ grade_color(dim.grade) }}">{{ dim.grade }}</span>
+						</div>
+						<span class="text-sm font-semibold text-gray-500">
+							{{ (dim.score * 100) | round(0) | int }}%
+						</span>
+					</div>
+					{{ score_bar(dim.score) }}
+					<p class="mt-2 text-sm text-gray-600">{{ dim.summary }}</p>
+					{% if dim.details %}
+					<ul class="mt-2 space-y-0.5">
+						{% for detail in dim.details %}
+						<li class="text-xs text-gray-500 flex items-start gap-1.5">
+							<span class="mt-0.5 text-gray-400 flex-shrink-0">&bull;</span>
+							{{ detail }}
+						</li>
+						{% endfor %}
+					</ul>
+					{% endif %}
+				</div>
+				{% endfor %}
+
+			</div>
+		</section>
+
+		{# ── Must-Have Coverage & Key Signals ─────────────────────────────── #}
+		<section aria-labelledby="signals-heading">
+			<h2 id="signals-heading" class="text-lg font-semibold text-gray-900 mb-4">Key Signals</h2>
+			<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+
+				<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+					<p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Coverage</p>
+					<p class="text-sm font-semibold text-gray-900">{{ assessment.must_have_coverage }}</p>
+				</div>
+
+				<div class="bg-emerald-50 rounded-xl border border-emerald-200 shadow-sm p-4">
+					<p class="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-1">Strongest Match</p>
+					<p class="text-sm font-semibold text-emerald-900">{{ assessment.strongest_match }}</p>
+				</div>
+
+				<div class="bg-amber-50 rounded-xl border border-amber-200 shadow-sm p-4">
+					<p class="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1">Biggest Gap</p>
+					<p class="text-sm font-semibold text-amber-900">{{ assessment.biggest_gap }}</p>
+				</div>
+
+			</div>
+		</section>
+
+		{# ── Skills Breakdown ──────────────────────────────────────────────── #}
+		{% if assessment.skill_matches %}
+		<section aria-labelledby="skills-heading">
+			<h2 id="skills-heading" class="text-lg font-semibold text-gray-900 mb-4">Skills Breakdown</h2>
+			<div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+				<div class="overflow-x-auto">
+					<table class="min-w-full divide-y divide-gray-100">
+						<thead class="bg-gray-50">
+							<tr>
+								<th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Requirement</th>
+								<th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Priority</th>
+								<th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Match</th>
+								<th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Evidence</th>
+							</tr>
+						</thead>
+						<tbody class="divide-y divide-gray-50">
+							{% for skill in assessment.skill_matches %}
+							<tr class="hover:bg-gray-50 transition-colors">
+								<td class="px-4 py-3 text-sm font-medium text-gray-900">{{ skill.requirement }}</td>
+								<td class="px-4 py-3">{{ priority_badge(skill.priority) }}</td>
+								<td class="px-4 py-3">{{ match_status_badge(skill.match_status) }}</td>
+								<td class="px-4 py-3 text-xs text-gray-500 hidden sm:table-cell max-w-xs">{{ skill.candidate_evidence }}</td>
+							</tr>
+							{% endfor %}
+						</tbody>
+					</table>
+				</div>
+			</div>
+		</section>
+		{% endif %}
+
+		{# ── Action Items ──────────────────────────────────────────────────── #}
+		{% if assessment.action_items %}
+		<section aria-labelledby="actions-heading">
+			<h2 id="actions-heading" class="text-lg font-semibold text-gray-900 mb-4">Next Steps</h2>
+			<div class="bg-white rounded-xl border border-gray-200 shadow-sm px-6 py-4">
+				<ul class="space-y-2">
+					{% for item in assessment.action_items %}
+					<li class="flex items-start gap-3">
+						<span class="flex-shrink-0 mt-0.5 w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold">
+							{{ loop.index }}
+						</span>
+						<span class="text-sm text-gray-700">{{ item }}</span>
+					</li>
+					{% endfor %}
+				</ul>
+			</div>
+		</section>
+		{% endif %}
+
+		{# ── Resume Section ────────────────────────────────────────────────── #}
+		{% if resume_html %}
+		<section aria-labelledby="resume-heading">
+			<div class="flex items-center justify-between mb-4">
+				<h2 id="resume-heading" class="text-lg font-semibold text-gray-900">Tailored Resume</h2>
+				{% if resume_pdf_path %}
+				<a href="{{ resume_pdf_path }}"
+				   class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors shadow-sm"
+				   download>
+					&#8595; Download PDF
+				</a>
+				{% endif %}
+			</div>
+			<div class="bg-white rounded-xl border border-gray-200 shadow-sm px-6 py-6 prose prose-sm max-w-none">
+				{{ resume_html | safe }}
+			</div>
+		</section>
+		{% endif %}
+
+		{# ── Cover Letter Section ──────────────────────────────────────────── #}
+		{% if cover_letter %}
+		<section aria-labelledby="cover-letter-heading">
+			<div class="flex items-center justify-between mb-4">
+				<h2 id="cover-letter-heading" class="text-lg font-semibold text-gray-900">Cover Letter</h2>
+				{% if cover_letter_pdf_path %}
+				<a href="{{ cover_letter_pdf_path }}"
+				   class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors shadow-sm"
+				   download>
+					&#8595; Download PDF
+				</a>
+				{% endif %}
+			</div>
+			<div class="bg-white rounded-xl border border-gray-200 shadow-sm px-6 py-6">
+				<div class="prose prose-sm max-w-none whitespace-pre-line text-gray-700">{{ cover_letter }}</div>
+			</div>
+		</section>
+		{% endif %}
+
+		{# ── Company Context ───────────────────────────────────────────────── #}
+		{% if assessment.company_profile_summary %}
+		<section aria-labelledby="company-heading">
+			<h2 id="company-heading" class="text-lg font-semibold text-gray-900 mb-4">Company Context</h2>
+			<div class="bg-white rounded-xl border border-gray-200 shadow-sm px-6 py-4">
+				<p class="text-sm text-gray-700 leading-relaxed">{{ assessment.company_profile_summary }}</p>
+			</div>
+		</section>
+		{% endif %}
+
+		{# ── How This Works ────────────────────────────────────────────────── #}
+		<section aria-labelledby="how-it-works-heading" class="bg-gray-100 rounded-xl border border-gray-200 px-6 py-5">
+			<h2 id="how-it-works-heading" class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">How This Works</h2>
+			<p class="text-sm text-gray-600 leading-relaxed">
+				This assessment is powered by
+				<a href="https://github.com/brianruggieri/claude-candidate"
+				   class="text-blue-600 hover:underline font-medium"
+				   rel="noopener noreferrer" target="_blank">claude-candidate</a>,
+				an open-source tool that analyzes real Claude Code session logs alongside your resume
+				to build a grounded evidence profile of your skills.
+				It then maps that profile to the specific requirements of each job posting,
+				scoring three equally-weighted dimensions: skill match, mission alignment, and culture fit.
+				The result is an honest, evidence-backed assessment — not keyword matching — so you know
+				exactly where you stand and what to highlight before you apply.
+			</p>
+		</section>
+
+	</main>
+
+	{# ── Footer ──────────────────────────────────────────────────────────── #}
+	<footer class="border-t border-gray-200 bg-white mt-8">
+		<div class="max-w-4xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+			<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-gray-400">
+				<div class="space-y-0.5">
+					<p>Assessment ID: <span class="font-mono">{{ assessment.assessment_id }}</span></p>
+					<p>Generated: {{ assessment.assessed_at.strftime('%B %d, %Y at %H:%M UTC') }}</p>
+				</div>
+				<div class="text-right space-y-0.5">
+					<p>
+						<a href="https://github.com/brianruggieri/claude-candidate"
+						   class="hover:text-gray-600 hover:underline"
+						   rel="noopener noreferrer" target="_blank">
+							github.com/brianruggieri/claude-candidate
+						</a>
+					</p>
+					<p class="italic">Private page &mdash; not indexed by search engines.</p>
+				</div>
+			</div>
+		</div>
+	</footer>
+
+</div>
+{% endblock %}
