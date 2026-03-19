@@ -168,6 +168,15 @@ function renderResults(data) {
 		actSection.classList.add('hidden');
 	}
 
+	// Full Details button — default: open raw assessment JSON endpoint
+	const btnFullDefault = el('btn-full-details');
+	if (btnFullDefault) {
+		const id = data.assessment_id;
+		btnFullDefault.onclick = () => {
+			chrome.tabs.create({ url: id ? `http://localhost:7429/api/assessments/${id}` : 'http://localhost:7429/api/health' });
+		};
+	}
+
 	// Verdict
 	const verdict = data.should_apply || '';
 	const labels = {
@@ -212,13 +221,37 @@ async function initialize() {
 	if (ac) ac.textContent = posting.company ? `${posting.title || 'Role'} at ${posting.company}` : posting.title || '';
 	showState('assessing');
 
-	const resp = await sendToBackground({ action: 'assess', payload: posting });
-	if (!resp.success && resp.error) {
-		el('error-message').textContent = resp.error;
+	// Step 1: fast local-only partial assessment
+	const partial = await sendToBackground({ action: 'assessPartial', payload: posting });
+	if (!partial.success && partial.error) {
+		el('error-message').textContent = partial.error;
 		showState('error');
 		return;
 	}
-	renderResults(resp);
+
+	// Step 2: render partial results immediately with the full-report banner
+	renderResults(partial);
+	const banner = el('banner-full-loading');
+	if (banner) banner.classList.remove('hidden');
+
+	// Step 3: request full assessment (Claude deliverables) in the background;
+	// when ready, open the full report in a new tab and hide the banner
+	const assessmentId = partial.assessment_id;
+	sendToBackground({ action: 'assessFull', assessmentId }).then(full => {
+		if (banner) banner.classList.add('hidden');
+
+		const btnFull = el('btn-full-details');
+		if (!btnFull) return;
+
+		if (full.success && full.assessment_id) {
+			// Open the report URL in a new tab on click
+			const reportUrl = `http://localhost:7429/api/assessments/${full.assessment_id}`;
+			btnFull.onclick = () => sendToBackground({ action: 'openReport', url: reportUrl });
+		} else if (full.error) {
+			// Claude unavailable — fall back to the raw assessment JSON
+			btnFull.title = `Full report unavailable: ${full.error}`;
+		}
+	});
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -241,11 +274,8 @@ document.addEventListener('DOMContentLoaded', () => {
 		if (!r.success) { btnWatch.disabled = false; setTimeout(() => { btnWatch.textContent = 'Save to Watchlist'; }, 2000); }
 	});
 
-	const btnFull = el('btn-full-details');
-	if (btnFull) btnFull.addEventListener('click', () => {
-		const id = currentAssessment?.assessment_id;
-		chrome.tabs.create({ url: id ? `http://localhost:7429/api/assessments/${id}` : 'http://localhost:7429/api/health' });
-	});
+	// btn-full-details default click is set by renderResults (or overridden by
+	// the assessFull callback once Claude deliverables are ready).
 
 	initialize();
 });

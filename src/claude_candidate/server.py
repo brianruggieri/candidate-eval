@@ -60,6 +60,10 @@ class GenerateRequest(BaseModel):
     deliverable_type: str  # "resume_bullets", "cover_letter", "interview_prep"
 
 
+class AssessFullRequest(BaseModel):
+    assessment_id: str
+
+
 # ---------------------------------------------------------------------------
 # Application factory
 # ---------------------------------------------------------------------------
@@ -187,8 +191,12 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
     # Assess
     # ------------------------------------------------------------------
 
-    @app.post("/api/assess")
-    async def assess(req: AssessRequest):
+    async def _run_quick_assess(req: AssessRequest) -> dict[str, Any]:
+        """
+        Run QuickMatchEngine (local-only, no Claude calls) and persist the result.
+
+        Returns the assessment dict. Raises HTTPException on missing profile.
+        """
         from claude_candidate.schemas.candidate_profile import CandidateProfile
         from claude_candidate.schemas.resume_profile import ResumeProfile
         from claude_candidate.schemas.job_requirements import QuickRequirement
@@ -237,7 +245,6 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 
         # Persist
         assessment_dict = json.loads(assessment.to_json())
-        # Store the full assessment as nested data
         flat: dict[str, Any] = {
             "assessment_id": assessment.assessment_id,
             "assessed_at": assessment.assessed_at.isoformat(),
@@ -252,6 +259,62 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
         await store.save_assessment(flat)
 
         return assessment_dict
+
+    @app.post("/api/assess")
+    async def assess(req: AssessRequest):
+        return await _run_quick_assess(req)
+
+    @app.post("/api/assess/partial")
+    async def assess_partial(req: AssessRequest):
+        """
+        Fast partial assessment using local QuickMatchEngine only (no Claude calls).
+
+        Returns the assessment immediately. Callers can subsequently POST to
+        /api/assess/full with the returned assessment_id to generate deliverables.
+        """
+        return await _run_quick_assess(req)
+
+    @app.post("/api/assess/full")
+    async def assess_full(req: AssessFullRequest):
+        """
+        Generate all deliverables (resume bullets, cover letter, interview prep)
+        for an existing assessment via Claude.
+
+        Returns the assessment dict merged with a ``deliverables`` key containing
+        all three generated artifacts. If Claude is unavailable, returns the
+        assessment with an ``error`` field describing the failure.
+        """
+        from claude_candidate.schemas.fit_assessment import FitAssessment
+        from claude_candidate.generator import (
+            ClaudeCLIError,
+            generate_resume_bullets,
+            generate_cover_letter,
+            generate_interview_prep,
+        )
+
+        store = get_store()
+        row = await store.get_assessment(req.assessment_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="Assessment not found")
+
+        data = row["data"] if row.get("data") and isinstance(row["data"], dict) else row
+        assessment = FitAssessment.from_json(json.dumps(data))
+
+        try:
+            bullets = generate_resume_bullets(assessment=assessment)
+            cover_letter = generate_cover_letter(assessment=assessment)
+            interview_prep = generate_interview_prep(assessment=assessment)
+        except ClaudeCLIError as exc:
+            return {**data, "error": str(exc)}
+
+        return {
+            **data,
+            "deliverables": {
+                "resume_bullets": bullets,
+                "cover_letter": cover_letter,
+                "interview_prep": interview_prep,
+            },
+        }
 
     # ------------------------------------------------------------------
     # Assessment list / detail / delete

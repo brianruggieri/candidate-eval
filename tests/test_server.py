@@ -192,6 +192,113 @@ class TestAssessEndpoint:
 
 
 # ---------------------------------------------------------------------------
+# Partial assess endpoint
+# ---------------------------------------------------------------------------
+
+
+class TestAssessPartialEndpoint:
+	async def test_assess_partial_without_profile_returns_422(self, client: AsyncClient):
+		resp = await client.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
+		assert resp.status_code == 422
+
+	async def test_assess_partial_with_profile_returns_200(self, client_with_profile: AsyncClient):
+		resp = await client_with_profile.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
+		assert resp.status_code == 200
+
+	async def test_assess_partial_returns_assessment_fields(self, client_with_profile: AsyncClient):
+		resp = await client_with_profile.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
+		data = resp.json()
+		assert "assessment_id" in data
+		assert "overall_score" in data
+		assert "overall_grade" in data
+		assert "should_apply" in data
+		assert "skill_match" in data
+
+	async def test_assess_partial_persists_to_store(self, client_with_profile: AsyncClient):
+		resp = await client_with_profile.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
+		aid = resp.json()["assessment_id"]
+		get_resp = await client_with_profile.get(f"/api/assessments/{aid}")
+		assert get_resp.status_code == 200
+		assert get_resp.json()["assessment_id"] == aid
+
+	async def test_assess_partial_no_deliverables_key(self, client_with_profile: AsyncClient):
+		"""Partial endpoint must NOT return deliverables (those require Claude)."""
+		resp = await client_with_profile.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
+		assert "deliverables" not in resp.json()
+
+
+# ---------------------------------------------------------------------------
+# Full assess endpoint
+# ---------------------------------------------------------------------------
+
+
+class TestAssessFullEndpoint:
+	async def test_assess_full_not_found_returns_404(self, client_with_profile: AsyncClient):
+		resp = await client_with_profile.post(
+			"/api/assess/full", json={"assessment_id": "nonexistent"}
+		)
+		assert resp.status_code == 404
+
+	async def test_assess_full_returns_deliverables(self, client_with_profile: AsyncClient):
+		partial = await client_with_profile.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
+		aid = partial.json()["assessment_id"]
+
+		with patch(
+			"claude_candidate.generator.call_claude",
+			side_effect=[
+				"- Led Python backend refactor",
+				"Dear Hiring Manager, ...",
+				"## Technical Discussion Points",
+			],
+		):
+			resp = await client_with_profile.post(
+				"/api/assess/full", json={"assessment_id": aid}
+			)
+
+		assert resp.status_code == 200
+		data = resp.json()
+		assert "deliverables" in data
+		assert "resume_bullets" in data["deliverables"]
+		assert "cover_letter" in data["deliverables"]
+		assert "interview_prep" in data["deliverables"]
+
+	async def test_assess_full_preserves_assessment_fields(self, client_with_profile: AsyncClient):
+		partial = await client_with_profile.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
+		aid = partial.json()["assessment_id"]
+
+		with patch("claude_candidate.generator.call_claude", return_value="stub"):
+			resp = await client_with_profile.post(
+				"/api/assess/full", json={"assessment_id": aid}
+			)
+
+		data = resp.json()
+		assert data["assessment_id"] == aid
+		assert "overall_score" in data
+		assert "should_apply" in data
+
+	async def test_assess_full_returns_error_when_claude_unavailable(
+		self, client_with_profile: AsyncClient
+	):
+		from claude_candidate.claude_cli import ClaudeCLIError
+
+		partial = await client_with_profile.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
+		aid = partial.json()["assessment_id"]
+
+		with patch(
+			"claude_candidate.generator.call_claude",
+			side_effect=ClaudeCLIError("claude not found"),
+		):
+			resp = await client_with_profile.post(
+				"/api/assess/full", json={"assessment_id": aid}
+			)
+
+		# Should still return 200 with an error field, not crash
+		assert resp.status_code == 200
+		data = resp.json()
+		assert "error" in data
+
+
+# ---------------------------------------------------------------------------
 # Assessment list / detail / delete
 # ---------------------------------------------------------------------------
 

@@ -69,6 +69,45 @@ async function handleGetAssessment(id) {
 	}
 }
 
+async function handleAssessPartial(payload) {
+	try {
+		const body = {
+			posting_text: payload.description || '',
+			company: payload.company || 'Unknown Company',
+			title: payload.title || 'Unknown Position',
+			posting_url: payload.url || null,
+		};
+		const data = await apiFetch('/api/assess/partial', {
+			method: 'POST',
+			body: JSON.stringify(body),
+		});
+		return { success: true, ...data };
+	} catch (err) {
+		return { success: false, error: err.message };
+	}
+}
+
+async function handleAssessFull(assessmentId) {
+	try {
+		const data = await apiFetch('/api/assess/full', {
+			method: 'POST',
+			body: JSON.stringify({ assessment_id: assessmentId }),
+		});
+		return { success: true, ...data };
+	} catch (err) {
+		return { success: false, error: err.message };
+	}
+}
+
+async function handleOpenReport(url) {
+	try {
+		await chrome.tabs.create({ url });
+		return { success: true };
+	} catch (err) {
+		return { success: false, error: err.message };
+	}
+}
+
 async function handleAddToWatchlist(payload) {
 	try {
 		// Map extension fields to server API fields
@@ -103,6 +142,18 @@ chrome.runtime.onMessage.addListener(function (request, _sender, sendResponse) {
 
 		case 'assess':
 			promise = handleAssess(request.payload);
+			break;
+
+		case 'assessPartial':
+			promise = handleAssessPartial(request.payload);
+			break;
+
+		case 'assessFull':
+			promise = handleAssessFull(request.assessmentId);
+			break;
+
+		case 'openReport':
+			promise = handleOpenReport(request.url);
 			break;
 
 		case 'getAssessment':
