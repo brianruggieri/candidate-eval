@@ -42,3 +42,6 @@ htmlcov/
 # Local data
 *.tar.gz
 *.zip
+
+# Generated static site
+site/

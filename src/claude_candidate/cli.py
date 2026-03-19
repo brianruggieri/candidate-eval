@@ -856,5 +856,125 @@ def whitelist_show() -> None:
         click.echo("  (empty — no projects whitelisted)")
 
 
+# === Site commands ===
+
+@main.group()
+def site() -> None:
+    """Generate and manage the static application site."""
+    pass
+
+
+@site.command("render")
+@click.option("--company", "-c", default=None,
+              help="Filter to assessments matching this company name (case-insensitive substring).")
+@click.option("--output-dir", "-o", type=click.Path(), default="site",
+              help="Root output directory for the rendered site (default: site/).")
+@click.option("--db", type=click.Path(), default=None,
+              help="Path to assessments database (default: ~/.claude-candidate/assessments.db).")
+def site_render(company: str | None, output_dir: str, db: str | None) -> None:
+    """Render assessments to static HTML pages under site/apply/.
+
+    Each assessment is rendered to ``{output_dir}/apply/{company-slug}/index.html``.
+    Run with no arguments to render all stored assessments.
+
+    After rendering, deploy to Cloudflare Pages:
+
+    \b
+    1. Push the site/ directory to a GitHub repo (or use Wrangler CLI):
+         wrangler pages deploy site/ --project-name=<your-project>
+    2. Or connect the repo to Cloudflare Pages in the dashboard and set
+         the build output directory to ``site/``.
+    3. Each assessment page is reachable at:
+         https://<your-domain>/apply/<company-slug>/
+    """
+    import asyncio
+    import json as _json
+
+    from claude_candidate.schemas.fit_assessment import FitAssessment
+    from claude_candidate.site_renderer import render_assessment_page
+    from claude_candidate.storage import AssessmentStore
+
+    db_path = Path(db) if db else Path.home() / ".claude-candidate" / "assessments.db"
+    output_path = Path(output_dir)
+
+    async def _load_assessments() -> list[dict]:
+        store = AssessmentStore(db_path)
+        await store.initialize()
+        try:
+            return await store.list_assessments(limit=500)
+        finally:
+            await store.close()
+
+    if not db_path.exists():
+        click.echo(
+            f"No assessments database found at {db_path}.\n"
+            "Run an assessment first with `claude-candidate assess` or via the server.",
+            err=True,
+        )
+        return
+
+    records = asyncio.run(_load_assessments())
+
+    if not records:
+        click.echo("No assessments found in the database. Nothing to render.")
+        return
+
+    # Apply company filter
+    if company:
+        filter_lower = company.lower()
+        records = [r for r in records if filter_lower in (r.get("company_name") or "").lower()]
+        if not records:
+            click.echo(f"No assessments found matching company '{company}'.")
+            return
+        click.echo(f"Filtered to {len(records)} assessment(s) matching '{company}'.")
+    else:
+        click.echo(f"Found {len(records)} assessment(s) to render.")
+
+    rendered_count = 0
+    errors: list[str] = []
+
+    for record in records:
+        comp = record.get("company_name") or "Unknown"
+        title = record.get("job_title") or "Unknown"
+        try:
+            # The 'data' field holds the full FitAssessment JSON as a dict
+            data_field = record.get("data", {})
+            assessment_json = _json.dumps(data_field)
+            assessment = FitAssessment.from_json(assessment_json)
+
+            # Placeholder content — real generation requires `claude-candidate generate`
+            resume_html = (
+                f"<p><em>Resume tailored for {comp} – {title} will be generated "
+                f"with <code>claude-candidate generate</code>.</em></p>"
+            )
+            cover_letter = (
+                f"Cover letter for {comp} – {title} will be generated "
+                f"with `claude-candidate generate`."
+            )
+
+            out_file = render_assessment_page(
+                assessment=assessment,
+                resume_html=resume_html,
+                cover_letter=cover_letter,
+                output_dir=output_path,
+            )
+            click.echo(f"  Rendered: {out_file}")
+            rendered_count += 1
+        except Exception as exc:  # noqa: BLE001
+            msg = f"  Error rendering {comp} – {title}: {exc}"
+            click.echo(msg, err=True)
+            errors.append(msg)
+
+    click.echo(f"\nRendered {rendered_count} page(s) to {output_path.resolve()}/")
+
+    if errors:
+        click.echo(f"{len(errors)} page(s) failed — see errors above.", err=True)
+    else:
+        click.echo(
+            "\nTo deploy to Cloudflare Pages:\n"
+            "  wrangler pages deploy site/ --project-name=<your-project>"
+        )
+
+
 if __name__ == "__main__":
     main()
