@@ -6,7 +6,7 @@ from datetime import datetime
 
 
 from claude_candidate.merger import merge_profiles, merge_candidate_only
-from claude_candidate.quick_match import QuickMatchEngine
+from claude_candidate.quick_match import QuickMatchEngine, _compute_weights
 from claude_candidate.schemas.company_profile import CompanyProfile
 from claude_candidate.schemas.job_requirements import QuickRequirement, RequirementPriority
 
@@ -220,7 +220,7 @@ class TestMissionAlignment:
             company_profile=company_profile,
         )
 
-        # Strong alignment expected: developer-tooling domain overlap, tech overlap, OSS
+        # Strong alignment expected: developer-tooling domain overlap + tech overlap
         assert assessment.mission_alignment.score > 0.5
 
     def test_without_company_profile(self, candidate_profile, resume_profile):
@@ -243,12 +243,140 @@ class TestMissionAlignment:
                "Insufficient" in assessment.mission_alignment.details[-1] or \
                "overlap" in " ".join(assessment.mission_alignment.details).lower()
 
+    def test_tech_stack_overlap_signal(self, candidate_profile, resume_profile):
+        """Tech stack overlap produces a non-zero bonus when company techs match candidate skills."""
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+
+        # Company uses python and typescript — both well-demonstrated by candidate
+        company_profile = CompanyProfile(
+            company_name="PythonCo",
+            product_description="Data processing platform",
+            product_domain=["data-infrastructure"],
+            tech_stack_public=["python", "typescript"],
+            enriched_at=datetime.now(),
+            enrichment_quality="moderate",
+        )
+
+        assessment = engine.assess(
+            requirements=[QuickRequirement(
+                description="Python", skill_mapping=["python"],
+                priority=RequirementPriority.MUST_HAVE,
+            )],
+            company="PythonCo",
+            title="Engineer",
+            company_profile=company_profile,
+        )
+
+        details_text = " ".join(assessment.mission_alignment.details).lower()
+        assert "tech overlap" in details_text
+        assert assessment.mission_alignment.score > 0.5
+
+    def test_domain_overlap_signal(self, candidate_profile, resume_profile):
+        """Domain overlap produces a bonus when company domain matches candidate domains."""
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+
+        # Candidate has "developer-tooling" as an explicit skill name
+        company_profile = CompanyProfile(
+            company_name="ToolsCo",
+            product_description="Developer productivity tools",
+            product_domain=["developer-tooling"],
+            tech_stack_public=[],
+            enriched_at=datetime.now(),
+            enrichment_quality="sparse",
+        )
+
+        assessment = engine.assess(
+            requirements=[QuickRequirement(
+                description="Python", skill_mapping=["python"],
+                priority=RequirementPriority.MUST_HAVE,
+            )],
+            company="ToolsCo",
+            title="Engineer",
+            company_profile=company_profile,
+        )
+
+        details_text = " ".join(assessment.mission_alignment.details).lower()
+        assert "domain overlap" in details_text
+
+    def test_mission_text_alignment_signal(self, candidate_profile, resume_profile):
+        """Mission statement keyword overlap with candidate skills produces a bonus."""
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+
+        # Mission statement contains "python" and "developer" which overlap with candidate skills
+        company_profile = CompanyProfile(
+            company_name="MissionCo",
+            product_description="Platform for developers",
+            product_domain=["saas"],
+            tech_stack_public=[],
+            mission_statement=(
+                "We empower python developers to build better tools "
+                "through automation and cli-design"
+            ),
+            enriched_at=datetime.now(),
+            enrichment_quality="moderate",
+        )
+
+        assessment = engine.assess(
+            requirements=[QuickRequirement(
+                description="Python", skill_mapping=["python"],
+                priority=RequirementPriority.MUST_HAVE,
+            )],
+            company="MissionCo",
+            title="Engineer",
+            company_profile=company_profile,
+        )
+
+        details_text = " ".join(assessment.mission_alignment.details).lower()
+        assert "mission" in details_text
+        assert assessment.mission_alignment.score > 0.5
+
+    def test_oss_bonus_no_longer_applied(self, candidate_profile, resume_profile):
+        """OSS activity level should have no effect on mission score."""
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+
+        base_profile = CompanyProfile(
+            company_name="Co",
+            product_description="A product",
+            product_domain=["unrelated-niche-domain"],
+            tech_stack_public=[],
+            enriched_at=datetime.now(),
+            enrichment_quality="rich",
+        )
+        oss_profile = CompanyProfile(
+            company_name="Co",
+            product_description="A product",
+            product_domain=["unrelated-niche-domain"],
+            tech_stack_public=[],
+            oss_activity_level="very_active",
+            enriched_at=datetime.now(),
+            enrichment_quality="rich",
+        )
+
+        req = [QuickRequirement(
+            description="Python", skill_mapping=["python"],
+            priority=RequirementPriority.MUST_HAVE,
+        )]
+
+        a_base = engine.assess(requirements=req, company="Co", title="T",
+                               company_profile=base_profile)
+        a_oss = engine.assess(requirements=req, company="Co", title="T",
+                              company_profile=oss_profile)
+
+        # Scores must be identical — OSS level should not move the needle
+        assert a_base.mission_alignment.score == a_oss.mission_alignment.score
+
 
 class TestCultureFit:
-    def test_with_matching_signals(self, candidate_profile, resume_profile):
+    def test_with_directly_matching_signals(self, candidate_profile, resume_profile):
+        """Direct pattern name matches (documentation driven, scope management) produce score > 0.5."""
         merged = merge_profiles(candidate_profile, resume_profile)
         engine = QuickMatchEngine(merged)
 
+        # "documentation driven" and "scope management" are exact pattern type names
         assessment = engine.assess(
             requirements=[QuickRequirement(
                 description="Python", skill_mapping=["python"],
@@ -256,13 +384,16 @@ class TestCultureFit:
             )],
             company="Test",
             title="Test",
-            culture_signals=["documentation", "autonomous", "open source"],
+            culture_signals=["documentation driven", "scope management"],
         )
 
-        # The candidate has documentation_driven, scope_management, and open-source patterns
+        # Both signals match patterns directly; score should exceed 0.5
         assert assessment.culture_fit.score > 0.5
+        assert not assessment.culture_fit.insufficient_data
+        assert assessment.culture_fit.confidence > 0.0
 
-    def test_no_culture_signals(self, candidate_profile, resume_profile):
+    def test_no_culture_signals_marks_insufficient_data(self, candidate_profile, resume_profile):
+        """No culture signals → insufficient_data=True, confidence=0.0, weight redistributed."""
         merged = merge_profiles(candidate_profile, resume_profile)
         engine = QuickMatchEngine(merged)
 
@@ -275,8 +406,77 @@ class TestCultureFit:
             title="Test",
         )
 
-        # Should default to neutral (0.5)
         assert assessment.culture_fit.score == 0.5
+        assert assessment.culture_fit.insufficient_data is True
+        assert assessment.culture_fit.confidence == 0.0
+        # Weight redistributed — culture weight must be 0
+        assert assessment.culture_fit.weight == 0.0
+
+    def test_insufficient_data_redistributes_weight_to_skill_and_mission(
+        self, candidate_profile, resume_profile
+    ):
+        """When culture has insufficient data, its weight goes to skill and mission."""
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+
+        assessment = engine.assess(
+            requirements=[QuickRequirement(
+                description="Python", skill_mapping=["python"],
+                priority=RequirementPriority.MUST_HAVE,
+            )],
+            company="Test",
+            title="Test",
+            # No culture_signals → insufficient_data
+        )
+
+        total_weight = (
+            assessment.skill_match.weight
+            + assessment.mission_alignment.weight
+            + assessment.culture_fit.weight
+        )
+        assert abs(total_weight - 1.0) < 1e-9
+        assert assessment.culture_fit.weight == 0.0
+
+    def test_partial_signal_match_produces_intermediate_score(
+        self, candidate_profile, resume_profile
+    ):
+        """One matching signal among multiple produces score between 0.3 and 0.9."""
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+
+        # Only "documentation driven" matches; "move fast" and "open source" do not
+        assessment = engine.assess(
+            requirements=[QuickRequirement(
+                description="Python", skill_mapping=["python"],
+                priority=RequirementPriority.MUST_HAVE,
+            )],
+            company="Test",
+            title="Test",
+            culture_signals=["documentation driven", "move fast", "open source"],
+        )
+
+        # 1 match out of 3 → score = 0.3 + (1/3)*0.6 = 0.5 exactly
+        assert 0.3 <= assessment.culture_fit.score <= 0.9
+        assert not assessment.culture_fit.insufficient_data
+
+    def test_confidence_equals_match_ratio(self, candidate_profile, resume_profile):
+        """Confidence field equals matched / total signals."""
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+
+        assessment = engine.assess(
+            requirements=[QuickRequirement(
+                description="Python", skill_mapping=["python"],
+                priority=RequirementPriority.MUST_HAVE,
+            )],
+            company="Test",
+            title="Test",
+            culture_signals=["documentation driven", "scope management", "no match signal"],
+        )
+
+        # 2 out of 3 match → confidence ≈ 0.667
+        assert 0.0 <= assessment.culture_fit.confidence <= 1.0
+        assert not assessment.culture_fit.insufficient_data
 
 
 class TestCandidateOnlyAssessment:
@@ -294,3 +494,181 @@ class TestCandidateOnlyAssessment:
 
         assert assessment.overall_score > 0
         assert len(assessment.skill_matches) == len(quick_requirements)
+
+
+class TestComputeWeights:
+    """Unit tests for _compute_weights() across all four confidence tiers."""
+
+    def _make_profile(self, quality: str) -> CompanyProfile:
+        return CompanyProfile(
+            company_name="Test Co",
+            product_description="A product",
+            product_domain=["saas"],
+            enriched_at=datetime.now(),
+            enrichment_quality=quality,  # type: ignore[arg-type]
+        )
+
+    def test_no_company_data_returns_none_tier_weights(self):
+        skill_w, mission_w, culture_w = _compute_weights(None)
+        assert skill_w == 0.85
+        assert mission_w == 0.10
+        assert culture_w == 0.05
+
+    def test_sparse_enrichment_returns_sparse_tier_weights(self):
+        profile = self._make_profile("sparse")
+        skill_w, mission_w, culture_w = _compute_weights(profile)
+        assert skill_w == 0.70
+        assert mission_w == 0.15
+        assert culture_w == 0.15
+
+    def test_moderate_enrichment_returns_moderate_tier_weights(self):
+        profile = self._make_profile("moderate")
+        skill_w, mission_w, culture_w = _compute_weights(profile)
+        assert skill_w == 0.60
+        assert mission_w == 0.20
+        assert culture_w == 0.20
+
+    def test_rich_enrichment_returns_rich_tier_weights(self):
+        profile = self._make_profile("rich")
+        skill_w, mission_w, culture_w = _compute_weights(profile)
+        assert skill_w == 0.50
+        assert mission_w == 0.25
+        assert culture_w == 0.25
+
+    def test_weights_sum_to_one_for_each_tier(self):
+        for quality in ("rich", "moderate", "sparse"):
+            profile = self._make_profile(quality)
+            weights = _compute_weights(profile)
+            assert abs(sum(weights) - 1.0) < 1e-9, (
+                f"Weights for {quality!r} do not sum to 1.0: {weights}"
+            )
+        none_weights = _compute_weights(None)
+        assert abs(sum(none_weights) - 1.0) < 1e-9
+
+
+class TestAdaptiveWeightsWiredIntoAssessment:
+    """Integration tests verifying dimension weights are set from company data quality.
+
+    Culture signals are passed explicitly in all tests to prevent the insufficient-data
+    redistribution from interfering with the adaptive-weight assertions.
+    """
+
+    # Two signals that match patterns in the sample profile directly
+    _CULTURE_SIGNALS = ["documentation driven", "scope management"]
+
+    def _minimal_requirements(self) -> list[QuickRequirement]:
+        return [QuickRequirement(
+            description="Python",
+            skill_mapping=["python"],
+            priority=RequirementPriority.MUST_HAVE,
+        )]
+
+    def _make_company_profile(self, quality: str) -> CompanyProfile:
+        return CompanyProfile(
+            company_name="Test Co",
+            product_description="A product",
+            product_domain=["saas"],
+            enriched_at=datetime.now(),
+            enrichment_quality=quality,  # type: ignore[arg-type]
+        )
+
+    def test_rich_profile_sets_rich_weights_on_dimensions(
+        self, candidate_profile, resume_profile
+    ):
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+        company_profile = self._make_company_profile("rich")
+
+        assessment = engine.assess(
+            requirements=self._minimal_requirements(),
+            company="Test Co",
+            title="Engineer",
+            company_profile=company_profile,
+            culture_signals=self._CULTURE_SIGNALS,
+        )
+
+        assert assessment.skill_match.weight == 0.50
+        assert assessment.mission_alignment.weight == 0.25
+        assert assessment.culture_fit.weight == 0.25
+
+    def test_moderate_profile_sets_moderate_weights_on_dimensions(
+        self, candidate_profile, resume_profile
+    ):
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+        company_profile = self._make_company_profile("moderate")
+
+        assessment = engine.assess(
+            requirements=self._minimal_requirements(),
+            company="Test Co",
+            title="Engineer",
+            company_profile=company_profile,
+            culture_signals=self._CULTURE_SIGNALS,
+        )
+
+        assert assessment.skill_match.weight == 0.60
+        assert assessment.mission_alignment.weight == 0.20
+        assert assessment.culture_fit.weight == 0.20
+
+    def test_sparse_profile_sets_sparse_weights_on_dimensions(
+        self, candidate_profile, resume_profile
+    ):
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+        company_profile = self._make_company_profile("sparse")
+
+        assessment = engine.assess(
+            requirements=self._minimal_requirements(),
+            company="Test Co",
+            title="Engineer",
+            company_profile=company_profile,
+            culture_signals=self._CULTURE_SIGNALS,
+        )
+
+        assert assessment.skill_match.weight == 0.70
+        assert assessment.mission_alignment.weight == 0.15
+        assert assessment.culture_fit.weight == 0.15
+
+    def test_no_company_profile_sets_none_tier_weights_on_dimensions(
+        self, candidate_profile, resume_profile
+    ):
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+
+        assessment = engine.assess(
+            requirements=self._minimal_requirements(),
+            company="Test Co",
+            title="Engineer",
+            company_profile=None,
+            culture_signals=self._CULTURE_SIGNALS,
+        )
+
+        assert assessment.skill_match.weight == 0.85
+        assert assessment.mission_alignment.weight == 0.10
+        assert assessment.culture_fit.weight == 0.05
+
+    def test_insufficient_culture_data_zeroes_culture_weight_regardless_of_tier(
+        self, candidate_profile, resume_profile
+    ):
+        """With no culture signals, culture weight is 0 regardless of company data tier."""
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+        company_profile = self._make_company_profile("rich")
+
+        assessment = engine.assess(
+            requirements=self._minimal_requirements(),
+            company="Test Co",
+            title="Engineer",
+            company_profile=company_profile,
+            # No culture_signals
+        )
+
+        assert assessment.culture_fit.weight == 0.0
+        assert assessment.culture_fit.insufficient_data is True
+        # All weight still sums to 1.0
+        total = (
+            assessment.skill_match.weight
+            + assessment.mission_alignment.weight
+            + assessment.culture_fit.weight
+        )
+        assert abs(total - 1.0) < 1e-9

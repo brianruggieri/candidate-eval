@@ -24,6 +24,8 @@ class DimensionScore(BaseModel):
     weight: float = 0.333
     summary: str
     details: list[str] = Field(min_length=1, max_length=7)
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+    insufficient_data: bool = False
 
 
 class SkillMatchDetail(BaseModel):

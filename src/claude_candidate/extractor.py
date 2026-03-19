@@ -10,10 +10,12 @@ snippet (non-empty, <= 500 chars).
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from claude_candidate.ai_scoring import compute_ai_engineering_score
 from claude_candidate.schemas.candidate_profile import (
     CandidateProfile,
     DepthLevel,
@@ -64,6 +66,10 @@ CONTENT_PATTERNS: dict[str, list[str]] = {
     "docker": ["dockerfile", "docker-compose", "docker build"],
     "sqlalchemy": ["sqlalchemy", "Column(", "Base.metadata"],
     "git": ["git commit", "git push", "git branch"],
+    "openai": ["openai", "from openai", "import openai", "ChatCompletion"],
+    "anthropic": ["anthropic", "from anthropic", "import anthropic", "claude"],
+    "langchain": ["langchain", "from langchain"],
+    "llm": ["llm", "large language model", "language model"],
 }
 
 CATEGORY_MAP: dict[str, str] = {
@@ -88,6 +94,10 @@ CATEGORY_MAP: dict[str, str] = {
     "json": "tool",
     "html": "language",
     "css": "language",
+    "openai": "platform",
+    "anthropic": "platform",
+    "langchain": "framework",
+    "llm": "domain",
 }
 
 LANGUAGE_NAMES: set[str] = {
@@ -103,6 +113,32 @@ DEPTH_THRESHOLDS: list[tuple[int, int, DepthLevel]] = [
     (3, 1, DepthLevel.APPLIED),
     (2, 0, DepthLevel.USED),
 ]
+
+# AI score thresholds for depth inference (from ai_scoring.py)
+AI_SCORE_EXPERT: float = 0.75
+AI_SCORE_DEEP: float = 0.55
+AI_SCORE_INTERMEDIATE: float = 0.35
+
+# Cross-session aggregation weights
+AI_PEAK_WEIGHT: float = 0.7
+AI_CONSISTENCY_WEIGHT: float = 0.3
+
+# Keywords that classify a skill as AI-related
+AI_SKILL_KEYWORDS: frozenset[str] = frozenset(
+    {
+        "llm",
+        "prompt",
+        "ai",
+        "ml",
+        "machine-learning",
+        "rag",
+        "embedding",
+        "langchain",
+        "openai",
+        "anthropic",
+        "claude",
+    }
+)
 
 
 # ---------------------------------------------------------------------------
@@ -122,6 +158,7 @@ class SessionSignals:
     evidence_snippets: list[str] = field(default_factory=list)
     line_count: int = 0
     timestamp: str = ""
+    ai_scores: dict[str, float | str] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -402,6 +439,7 @@ def extract_session_signals(content: str) -> SessionSignals:
     tool_calls = _extract_tool_calls(messages)
     patterns = _detect_patterns(tool_calls, technologies)
     snippets = _extract_evidence_snippets(messages)
+    ai_scores = compute_ai_engineering_score(messages)
     return SessionSignals(
         session_id=_extract_session_id(messages),
         project_hint=_extract_project_hint(messages),
@@ -411,6 +449,7 @@ def extract_session_signals(content: str) -> SessionSignals:
         evidence_snippets=snippets,
         line_count=len(lines),
         timestamp=_extract_timestamp(messages),
+        ai_scores=ai_scores,
     )
 
 
@@ -424,8 +463,50 @@ def _classify_category(tech: str) -> str:
     return CATEGORY_MAP.get(tech.lower(), "tool")
 
 
-def _infer_depth(frequency: int, *, tool_count: int) -> DepthLevel:
-    """Infer skill depth from frequency and tool usage count."""
+def _is_ai_skill(skill_name: str) -> bool:
+    """Check if a skill name is AI-related.
+
+    Uses word-boundary matching to avoid false positives like "rails"
+    matching "ai" or "html" matching "ml".
+    """
+    lower = skill_name.lower()
+    return any(re.search(rf'\b{re.escape(kw)}\b', lower) for kw in AI_SKILL_KEYWORDS)
+
+
+def _aggregate_ai_scores(sessions: list[SessionSignals]) -> float | None:
+    """Aggregate AI composite scores across sessions. 70% peak + 30% consistency."""
+    scores = [
+        float(s.ai_scores["composite"])
+        for s in sessions
+        if s.ai_scores and "composite" in s.ai_scores
+    ]
+    if not scores:
+        return None
+    peak = max(scores)
+    consistency = sum(scores) / len(scores)
+    return peak * AI_PEAK_WEIGHT + consistency * AI_CONSISTENCY_WEIGHT
+
+
+def _infer_depth(
+    frequency: int,
+    *,
+    tool_count: int,
+    ai_composite_score: float | None = None,
+) -> DepthLevel:
+    """Infer skill depth from frequency and tool usage count.
+
+    When ai_composite_score is provided (AI-related skills), use it to
+    determine depth instead of the frequency/tool_count heuristics.
+    """
+    if ai_composite_score is not None:
+        if ai_composite_score >= AI_SCORE_EXPERT:
+            return DepthLevel.EXPERT
+        if ai_composite_score >= AI_SCORE_DEEP:
+            return DepthLevel.DEEP
+        if ai_composite_score >= AI_SCORE_INTERMEDIATE:
+            return DepthLevel.APPLIED
+        return DepthLevel.MENTIONED
+
     for min_freq, min_tools, level in DEPTH_THRESHOLDS:
         if frequency >= min_freq and tool_count >= min_tools:
             return level
@@ -516,10 +597,11 @@ def _build_one_skill(
     evidence = [
         _build_session_ref(s, _pick_snippet(s)) for s in sessions
     ]
+    ai_score = _aggregate_ai_scores(sessions) if _is_ai_skill(tech) else None
     return SkillEntry(
         name=tech,
         category=_classify_category(tech),
-        depth=_infer_depth(frequency, tool_count=tool_count),
+        depth=_infer_depth(frequency, tool_count=tool_count, ai_composite_score=ai_score),
         frequency=frequency,
         recency=max(timestamps),
         first_seen=min(timestamps),
