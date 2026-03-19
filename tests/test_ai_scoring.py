@@ -32,15 +32,15 @@ def tool_result_block(content: str, is_error: bool = False) -> dict:
 
 
 def assistant_msg(*blocks: dict) -> dict:
-    return {"role": "assistant", "content": list(blocks)}
+    return {"role": "assistant", "content": list(blocks), "raw": {}}
 
 
 def user_msg(text: str) -> dict:
-    return {"role": "user", "content": text}
+    return {"role": "user", "content": [text_block(text)], "raw": {}}
 
 
 def user_msg_with_result(content: str, is_error: bool = False) -> dict:
-    return {"role": "user", "content": [tool_result_block(content, is_error)]}
+    return {"role": "user", "content": [tool_result_block(content, is_error)], "raw": {}}
 
 
 # ---------------------------------------------------------------------------

@@ -21,7 +21,8 @@
     "aliases": ["react.js", "reactjs"],
     "category": "framework",
     "related": ["javascript", "typescript", "nextjs", "node.js"],
-    "parent": "javascript"
+    "parent": "javascript",
+    "content_patterns": ["import React", "useState", "useEffect"]
   },
   "node.js": {
     "aliases": ["node", "nodejs"],
@@ -39,7 +40,8 @@
     "aliases": ["dockerfile", "docker-compose"],
     "category": "tool",
     "related": ["kubernetes", "ci-cd", "terraform"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["dockerfile", "docker-compose", "docker build"]
   },
   "postgresql": {
     "aliases": ["pg", "postgres", "psql"],
@@ -51,7 +53,8 @@
     "aliases": ["fast-api"],
     "category": "framework",
     "related": ["python", "pydantic"],
-    "parent": "python"
+    "parent": "python",
+    "content_patterns": ["fastapi", "from fastapi"]
   },
   "vue": {
     "aliases": ["vue.js", "vuejs"],
@@ -81,19 +84,22 @@
     "aliases": [],
     "category": "framework",
     "related": ["python", "fastapi"],
-    "parent": "python"
+    "parent": "python",
+    "content_patterns": ["pydantic", "BaseModel"]
   },
   "pytest": {
     "aliases": ["py.test"],
     "category": "tool",
     "related": ["python"],
-    "parent": "python"
+    "parent": "python",
+    "content_patterns": ["pytest", "def test_"]
   },
   "git": {
     "aliases": ["github", "gitlab"],
     "category": "tool",
     "related": ["ci-cd"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["git commit", "git push", "git branch"]
   },
   "ci-cd": {
     "aliases": ["ci/cd", "continuous-integration", "github-actions"],
@@ -111,7 +117,8 @@
     "aliases": ["large-language-model"],
     "category": "domain",
     "related": ["machine-learning", "rag", "prompt-engineering", "python"],
-    "parent": "machine-learning"
+    "parent": "machine-learning",
+    "content_patterns": ["llm", "large language model", "language model"]
   },
   "prompt-engineering": {
     "aliases": [],
@@ -154,5 +161,33 @@
     "category": "language",
     "related": ["kubernetes", "docker"],
     "parent": null
+  },
+  "sqlalchemy": {
+    "aliases": [],
+    "category": "framework",
+    "related": ["python", "postgresql", "sql"],
+    "parent": "python",
+    "content_patterns": ["sqlalchemy", "Column(", "Base.metadata"]
+  },
+  "openai": {
+    "aliases": [],
+    "category": "platform",
+    "related": ["llm", "machine-learning", "anthropic"],
+    "parent": null,
+    "content_patterns": ["openai", "from openai", "import openai", "ChatCompletion"]
+  },
+  "anthropic": {
+    "aliases": [],
+    "category": "platform",
+    "related": ["llm", "machine-learning", "openai"],
+    "parent": null,
+    "content_patterns": ["anthropic", "from anthropic", "import anthropic", "claude"]
+  },
+  "langchain": {
+    "aliases": [],
+    "category": "framework",
+    "related": ["llm", "machine-learning", "openai"],
+    "parent": null,
+    "content_patterns": ["langchain", "from langchain"]
   }
 }
