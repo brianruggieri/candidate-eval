@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from asgi_lifespan import LifespanManager
@@ -387,10 +388,14 @@ class TestGenerateEndpoint:
 
     async def test_generate_resume_bullets(self, client_with_profile: AsyncClient):
         aid = await self._create_assessment_id(client_with_profile)
-        resp = await client_with_profile.post(
-            "/api/generate",
-            json={"assessment_id": aid, "deliverable_type": "resume_bullets"},
-        )
+        with patch(
+            "claude_candidate.generator.call_claude",
+            return_value="- Led Python backend refactor\n- Built React dashboard",
+        ):
+            resp = await client_with_profile.post(
+                "/api/generate",
+                json={"assessment_id": aid, "deliverable_type": "resume_bullets"},
+            )
         assert resp.status_code == 200
         data = resp.json()
         assert data["deliverable_type"] == "resume_bullets"
@@ -399,10 +404,14 @@ class TestGenerateEndpoint:
 
     async def test_generate_cover_letter(self, client_with_profile: AsyncClient):
         aid = await self._create_assessment_id(client_with_profile)
-        resp = await client_with_profile.post(
-            "/api/generate",
-            json={"assessment_id": aid, "deliverable_type": "cover_letter"},
-        )
+        with patch(
+            "claude_candidate.generator.call_claude",
+            return_value="Dear Hiring Manager, I am excited to apply for this role...",
+        ):
+            resp = await client_with_profile.post(
+                "/api/generate",
+                json={"assessment_id": aid, "deliverable_type": "cover_letter"},
+            )
         assert resp.status_code == 200
         data = resp.json()
         assert data["deliverable_type"] == "cover_letter"
@@ -411,10 +420,14 @@ class TestGenerateEndpoint:
 
     async def test_generate_interview_prep(self, client_with_profile: AsyncClient):
         aid = await self._create_assessment_id(client_with_profile)
-        resp = await client_with_profile.post(
-            "/api/generate",
-            json={"assessment_id": aid, "deliverable_type": "interview_prep"},
-        )
+        with patch(
+            "claude_candidate.generator.call_claude",
+            return_value="## Technical Discussion Points\n- Python: strong\n## Questions to Ask\n- ?",
+        ):
+            resp = await client_with_profile.post(
+                "/api/generate",
+                json={"assessment_id": aid, "deliverable_type": "interview_prep"},
+            )
         assert resp.status_code == 200
         data = resp.json()
         assert data["deliverable_type"] == "interview_prep"

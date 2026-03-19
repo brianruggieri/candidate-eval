@@ -22,9 +22,22 @@ if TYPE_CHECKING:
 
 @click.group()
 @click.version_option(__version__)
-def main() -> None:
+@click.pass_context
+def main(ctx: click.Context) -> None:
     """claude-candidate: Honest job fit assessment from your resume + Claude Code sessions."""
-    pass
+    ctx.ensure_object(dict)
+    # Commands that require Claude CLI
+    needs_claude = {"assess", "generate", "job"}
+    if ctx.invoked_subcommand in needs_claude:
+        from claude_candidate.claude_cli import check_claude_available
+
+        if not check_claude_available():
+            click.echo(
+                "Error: Claude CLI is required for this command but was not found.\n"
+                "Install from https://docs.anthropic.com/claude-code",
+                err=True,
+            )
+            ctx.exit(1)
 
 
 @main.command()
@@ -570,6 +583,102 @@ def resume_ingest(resume_path: str, output: str | None) -> None:
     click.echo(f"\nProfile written to {out_path}")
 
 
+DEPTH_KEYS = {"1": "mentioned", "2": "used", "3": "applied", "4": "deep", "5": "expert"}
+DEPTH_LABELS = "1=mentioned 2=used 3=applied 4=deep 5=expert"
+
+
+def _prompt_depth(skill_name: str, default: str) -> str:
+    """Prompt for depth with single-key input (1-5) or full name."""
+    default_key = next((k for k, v in DEPTH_KEYS.items() if v == default), "2")
+    while True:
+        raw = click.prompt(
+            f"  [{DEPTH_LABELS}]",
+            default=default_key,
+            show_default=True,
+        ).strip().lower()
+        if raw in DEPTH_KEYS:
+            return DEPTH_KEYS[raw]
+        if raw in DEPTH_KEYS.values():
+            return raw
+        click.echo(f"  Invalid: enter 1-5 or a depth name")
+
+
+@resume.command("onboard")
+@click.argument("resume_path", type=click.Path(exists=True))
+@click.option("--output", "-o", type=click.Path(), default=None,
+              help="Output path for curated profile (default: ~/.claude-candidate/curated_resume.json)")
+@click.option("--accept-defaults", is_flag=True, default=False,
+              help="Accept all parser defaults without prompting")
+def resume_onboard(resume_path: str, output: str | None, accept_defaults: bool) -> None:
+    """Interactive resume onboarding: parse and curate skill depths.
+
+    Rate each skill with single-key input (1-5) for depth.
+    Duration is only prompted for deep (4) and expert (5) skills.
+    Use --accept-defaults to skip all prompts and use parser-inferred depths.
+    """
+    from claude_candidate.resume_parser import ingest_resume
+    from claude_candidate.schemas.candidate_profile import DepthLevel
+
+    raw_profile = ingest_resume(Path(resume_path))
+    click.echo(f"\nParsed {len(raw_profile.skills)} skills from resume.")
+
+    if not raw_profile.skills:
+        click.echo("No skills found in resume. Nothing to curate.")
+        return
+
+    if not accept_defaults:
+        click.echo(f"Rate each skill: {DEPTH_LABELS}, Enter=accept default, duration for deep/expert only.\n")
+
+    curated_skills = []
+
+    for i, skill in enumerate(raw_profile.skills, 1):
+        default_depth = skill.implied_depth.value if skill.implied_depth else "used"
+
+        if accept_defaults:
+            depth_str = default_depth
+            duration = None
+        else:
+            click.echo(f"({i}/{len(raw_profile.skills)}) {skill.name}")
+            depth_str = _prompt_depth(skill.name, default_depth)
+
+            # Only ask duration for deep/expert — the skills that matter most
+            duration = None
+            if depth_str in ("deep", "expert"):
+                duration = click.prompt(
+                    "  Duration (e.g. '3y', '6mo')",
+                    default="",
+                    show_default=False,
+                ).strip() or None
+
+        curated_skills.append({
+            "name": skill.name,
+            "depth": depth_str,
+            "duration": duration,
+            "source_context": skill.source_context,
+            "curated": True,
+        })
+
+    # Summary
+    from collections import Counter
+    depths = Counter(s["depth"] for s in curated_skills)
+    click.echo(f"\n{len(curated_skills)} skills: " + ", ".join(
+        f"{v} {k}" for k, v in sorted(depths.items(), key=lambda x: -x[1])
+    ))
+
+    # Save curated profile
+    output_path = Path(output) if output else Path.home() / ".claude-candidate" / "curated_resume.json"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    curated_data = raw_profile.model_dump(mode="json")
+    curated_data["curated_skills"] = curated_skills
+    curated_data["curated"] = True
+
+    with open(output_path, "w") as f:
+        json.dump(curated_data, f, indent=2, default=str)
+
+    click.echo(f"Saved: {output_path}")
+
+
 # === Server commands ===
 
 @main.group()
@@ -612,10 +721,20 @@ def scan(session_dir: str | None, output: str | None) -> None:
     from claude_candidate.manifest import hash_string
     from claude_candidate.extractor import build_candidate_profile
 
+    from claude_candidate.whitelist import load_whitelist, get_default_whitelist_path, filter_sessions_by_whitelist
+
     search_dir = Path(session_dir) if session_dir else _default_sessions_dir()
     click.echo(f"Scanning sessions in {search_dir}...")
     sessions_found = discover_sessions(search_dir)
     click.echo(f"  Found {len(sessions_found)} session files")
+
+    # Only apply whitelist when using default session dir (not explicit --session-dir)
+    if not session_dir:
+        whitelist = load_whitelist(get_default_whitelist_path())
+        if whitelist:
+            sessions_found = filter_sessions_by_whitelist(sessions_found, whitelist)
+            click.echo(f"  After whitelist filter: {len(sessions_found)} sessions")
+
     if not sessions_found:
         click.echo("No sessions found. Nothing to do.")
         return
@@ -652,6 +771,89 @@ def _default_sessions_dir() -> Path:
 
 def _default_profile_path() -> Path:
     return Path.home() / ".claude-candidate" / "candidate_profile.json"
+
+
+# === Whitelist commands ===
+
+@main.group()
+def whitelist() -> None:
+    """Manage session project whitelist."""
+    pass
+
+
+@whitelist.command("setup")
+@click.option("--session-dir", type=click.Path(exists=True), default=None,
+              help="Directory containing session JSONL files")
+@click.option("--filter", "-f", "hint_filter", default=None,
+              help="Only show projects whose hint contains this substring (e.g. 'git')")
+def whitelist_setup(session_dir: str | None, hint_filter: str | None) -> None:
+    """Interactive: discover projects, select which to include."""
+    from claude_candidate.session_scanner import discover_sessions
+    from claude_candidate.whitelist import (
+        WhitelistConfig,
+        get_default_whitelist_path,
+        save_whitelist,
+    )
+    from collections import Counter
+
+    search_dir = Path(session_dir) if session_dir else _default_sessions_dir()
+    click.echo(f"Scanning sessions in {search_dir}...")
+    sessions_found = discover_sessions(search_dir)
+    click.echo(f"  Found {len(sessions_found)} session files")
+
+    if not sessions_found:
+        click.echo("No sessions found. Nothing to whitelist.")
+        return
+
+    counts: Counter[str] = Counter(s.project_hint for s in sessions_found)
+
+    if hint_filter:
+        counts = Counter({h: c for h, c in counts.items() if hint_filter.lower() in h.lower()})
+        click.echo(f"  Filtered to {len(counts)} projects matching '{hint_filter}'")
+
+    if not counts:
+        click.echo("No projects match the filter. Nothing to whitelist.")
+        return
+
+    selected: list[str] = []
+
+    click.echo("\nFor each project, choose whether to include it in the whitelist.")
+    click.echo("Only include public GitHub projects — keep private/client work out.\n")
+
+    for hint in sorted(counts):
+        count = counts[hint]
+        label = f"  {hint} ({count} session{'s' if count != 1 else ''})"
+        if click.confirm(f"{label} — include?", default=False):
+            selected.append(hint)
+
+    config = WhitelistConfig(projects=selected)
+    path = get_default_whitelist_path()
+    save_whitelist(config, path)
+
+    click.echo(f"\nWhitelist saved to {path}")
+    click.echo(f"  Included projects ({len(selected)}): {', '.join(selected) or '(none)'}")
+
+
+@whitelist.command("show")
+def whitelist_show() -> None:
+    """Show current whitelist."""
+    from claude_candidate.whitelist import get_default_whitelist_path, load_whitelist
+
+    path = get_default_whitelist_path()
+    config = load_whitelist(path)
+
+    if config is None:
+        click.echo(f"No whitelist found at {path}")
+        click.echo("Run `claude-candidate whitelist setup` to create one.")
+        return
+
+    click.echo(f"Whitelist: {path}")
+    if config.projects:
+        click.echo(f"  {len(config.projects)} project(s):")
+        for p in sorted(config.projects):
+            click.echo(f"    - {p}")
+    else:
+        click.echo("  (empty — no projects whitelisted)")
 
 
 if __name__ == "__main__":

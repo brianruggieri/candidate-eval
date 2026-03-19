@@ -15,6 +15,17 @@ from claude_candidate.schemas.merged_profile import (
     MergedSkillEvidence,
 )
 from claude_candidate.schemas.resume_profile import ResumeProfile
+from claude_candidate.skill_taxonomy import SkillTaxonomy
+
+
+_taxonomy: SkillTaxonomy | None = None
+
+
+def _get_taxonomy() -> SkillTaxonomy:
+    global _taxonomy
+    if _taxonomy is None:
+        _taxonomy = SkillTaxonomy.load_default()
+    return _taxonomy
 
 
 def classify_evidence_source(
@@ -53,9 +64,21 @@ def merge_profiles(
     3. Carry over patterns/projects from sessions, roles from resume
     4. Identify discovery skills (sessions_only with depth >= applied)
     """
-    # Collect all unique skill names
-    resume_skills = {s.name: s for s in resume_profile.skills}
-    session_skills = {s.name: s for s in candidate_profile.skills}
+    taxonomy = _get_taxonomy()
+
+    # Normalize skill names via taxonomy BEFORE building lookup dicts
+    from claude_candidate.schemas.resume_profile import ResumeSkill
+    from claude_candidate.schemas.candidate_profile import SkillEntry
+    resume_skills: dict[str, ResumeSkill] = {}
+    for s in resume_profile.skills:
+        canonical = taxonomy.canonicalize(s.name)
+        resume_skills[canonical] = s
+
+    session_skills: dict[str, SkillEntry] = {}
+    for s in candidate_profile.skills:
+        canonical = taxonomy.canonicalize(s.name)
+        session_skills[canonical] = s
+
     all_skill_names = set(resume_skills.keys()) | set(session_skills.keys())
 
     merged_skills: list[MergedSkillEvidence] = []
@@ -154,11 +177,14 @@ def merge_candidate_only(candidate_profile: CandidateProfile) -> MergedEvidenceP
     Create a MergedEvidenceProfile from sessions only (no resume).
 
     Used when the user hasn't uploaded a resume yet. All skills are sessions_only.
+    Deduplicates after canonicalization — keeps the entry with the highest depth.
     """
-    merged_skills = []
+    taxonomy = _get_taxonomy()
+    seen: dict[str, MergedSkillEvidence] = {}
     for s_skill in candidate_profile.skills:
-        merged_skills.append(MergedSkillEvidence(
-            name=s_skill.name,
+        canonical_name = taxonomy.canonicalize(s_skill.name)
+        entry = MergedSkillEvidence(
+            name=canonical_name,
             source=EvidenceSource.SESSIONS_ONLY,
             session_depth=s_skill.depth,
             session_frequency=s_skill.frequency,
@@ -169,7 +195,11 @@ def merge_candidate_only(candidate_profile: CandidateProfile) -> MergedEvidenceP
                 EvidenceSource.SESSIONS_ONLY, s_skill.frequency, None
             ),
             discovery_flag=True,
-        ))
+        )
+        existing = seen.get(canonical_name)
+        if existing is None or DEPTH_RANK.get(entry.effective_depth, 0) > DEPTH_RANK.get(existing.effective_depth, 0):
+            seen[canonical_name] = entry
+    merged_skills = list(seen.values())
 
     return MergedEvidenceProfile(
         skills=merged_skills,
@@ -192,12 +222,14 @@ def merge_resume_only(resume_profile: ResumeProfile) -> MergedEvidenceProfile:
     Create a MergedEvidenceProfile from resume only (no sessions).
 
     Used when the user hasn't built a CandidateProfile yet.
-    All skills are resume_only.
+    All skills are resume_only. Deduplicates after canonicalization.
     """
-    merged_skills = []
+    taxonomy = _get_taxonomy()
+    seen: dict[str, MergedSkillEvidence] = {}
     for r_skill in resume_profile.skills:
-        merged_skills.append(MergedSkillEvidence(
-            name=r_skill.name,
+        canonical_name = taxonomy.canonicalize(r_skill.name)
+        entry = MergedSkillEvidence(
+            name=canonical_name,
             source=EvidenceSource.RESUME_ONLY,
             resume_depth=r_skill.implied_depth,
             resume_context=r_skill.source_context,
@@ -206,7 +238,11 @@ def merge_resume_only(resume_profile: ResumeProfile) -> MergedEvidenceProfile:
             confidence=MergedSkillEvidence.compute_confidence(
                 EvidenceSource.RESUME_ONLY, None, r_skill.source_context
             ),
-        ))
+        )
+        existing = seen.get(canonical_name)
+        if existing is None or DEPTH_RANK.get(entry.effective_depth, 0) > DEPTH_RANK.get(existing.effective_depth, 0):
+            seen[canonical_name] = entry
+    merged_skills = list(seen.values())
 
     return MergedEvidenceProfile(
         skills=merged_skills,

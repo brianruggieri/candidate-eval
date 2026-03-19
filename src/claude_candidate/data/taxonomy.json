@@ -1,0 +1,158 @@
+{
+  "python": {
+    "aliases": ["py", "python3", "cpython"],
+    "category": "language",
+    "related": ["fastapi", "pydantic", "pytest", "machine-learning"],
+    "parent": null
+  },
+  "typescript": {
+    "aliases": ["ts", "tsx"],
+    "category": "language",
+    "related": ["javascript", "react", "node.js", "nextjs"],
+    "parent": null
+  },
+  "javascript": {
+    "aliases": ["js", "ecmascript", "es6"],
+    "category": "language",
+    "related": ["typescript", "react", "node.js", "vue", "nextjs"],
+    "parent": null
+  },
+  "react": {
+    "aliases": ["react.js", "reactjs"],
+    "category": "framework",
+    "related": ["javascript", "typescript", "nextjs", "node.js"],
+    "parent": "javascript"
+  },
+  "node.js": {
+    "aliases": ["node", "nodejs"],
+    "category": "runtime",
+    "related": ["javascript", "typescript", "react", "nextjs"],
+    "parent": null
+  },
+  "kubernetes": {
+    "aliases": ["k8s", "kube"],
+    "category": "platform",
+    "related": ["docker", "terraform", "ci-cd"],
+    "parent": null
+  },
+  "docker": {
+    "aliases": ["dockerfile", "docker-compose"],
+    "category": "tool",
+    "related": ["kubernetes", "ci-cd", "terraform"],
+    "parent": null
+  },
+  "postgresql": {
+    "aliases": ["pg", "postgres", "psql"],
+    "category": "tool",
+    "related": ["sql", "redis"],
+    "parent": null
+  },
+  "fastapi": {
+    "aliases": ["fast-api"],
+    "category": "framework",
+    "related": ["python", "pydantic"],
+    "parent": "python"
+  },
+  "vue": {
+    "aliases": ["vue.js", "vuejs"],
+    "category": "framework",
+    "related": ["javascript", "typescript", "node.js"],
+    "parent": "javascript"
+  },
+  "nextjs": {
+    "aliases": ["next.js", "next"],
+    "category": "framework",
+    "related": ["react", "javascript", "typescript", "node.js"],
+    "parent": "react"
+  },
+  "aws": {
+    "aliases": ["amazon-web-services"],
+    "category": "platform",
+    "related": ["gcp", "terraform", "kubernetes", "docker"],
+    "parent": null
+  },
+  "gcp": {
+    "aliases": ["google-cloud"],
+    "category": "platform",
+    "related": ["aws", "terraform", "kubernetes", "docker"],
+    "parent": null
+  },
+  "pydantic": {
+    "aliases": [],
+    "category": "framework",
+    "related": ["python", "fastapi"],
+    "parent": "python"
+  },
+  "pytest": {
+    "aliases": ["py.test"],
+    "category": "tool",
+    "related": ["python"],
+    "parent": "python"
+  },
+  "git": {
+    "aliases": ["github", "gitlab"],
+    "category": "tool",
+    "related": ["ci-cd"],
+    "parent": null
+  },
+  "ci-cd": {
+    "aliases": ["ci/cd", "continuous-integration", "github-actions"],
+    "category": "practice",
+    "related": ["git", "docker", "kubernetes", "terraform"],
+    "parent": null
+  },
+  "machine-learning": {
+    "aliases": ["ml", "deep-learning"],
+    "category": "domain",
+    "related": ["python", "llm", "rag", "prompt-engineering"],
+    "parent": null
+  },
+  "llm": {
+    "aliases": ["large-language-model"],
+    "category": "domain",
+    "related": ["machine-learning", "rag", "prompt-engineering", "python"],
+    "parent": "machine-learning"
+  },
+  "prompt-engineering": {
+    "aliases": [],
+    "category": "practice",
+    "related": ["llm", "machine-learning", "rag"],
+    "parent": null
+  },
+  "rag": {
+    "aliases": ["retrieval-augmented-generation"],
+    "category": "domain",
+    "related": ["llm", "machine-learning", "prompt-engineering"],
+    "parent": "machine-learning"
+  },
+  "sql": {
+    "aliases": [],
+    "category": "language",
+    "related": ["postgresql", "redis"],
+    "parent": null
+  },
+  "redis": {
+    "aliases": [],
+    "category": "tool",
+    "related": ["postgresql", "sql"],
+    "parent": null
+  },
+  "terraform": {
+    "aliases": ["tf", "hcl"],
+    "category": "tool",
+    "related": ["aws", "gcp", "kubernetes", "docker", "ci-cd"],
+    "parent": null
+  },
+  "rust": {
+    "aliases": ["rs"],
+    "category": "language",
+    "related": [],
+    "parent": null
+  },
+  "go": {
+    "aliases": ["golang"],
+    "category": "language",
+    "related": ["kubernetes", "docker"],
+    "parent": null
+  }
+}

@@ -29,6 +29,7 @@ dependencies = [
     "uvicorn>=0.32",
     "rich>=13.0",
     "aiosqlite>=0.20",
+    "rapidfuzz>=3.0",
 ]
 
 [project.optional-dependencies]
@@ -38,8 +39,6 @@ dev = [
     "asgi-lifespan>=2.1",
     "mypy>=1.11",
     "ruff>=0.7",
-    "vcrpy>=8.0",
-    "pytest-recording>=0.13",
     "syrupy>=4.0",
     "hypothesis>=6.100",
     "pytest-subprocess>=1.5",
