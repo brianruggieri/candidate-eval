@@ -15,7 +15,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 
-from claude_candidate.schemas.candidate_profile import DepthLevel, DEPTH_RANK, PatternType
+from claude_candidate.schemas.candidate_profile import DepthLevel, DEPTH_RANK
 from claude_candidate.schemas.company_profile import CompanyProfile
 from claude_candidate.skill_taxonomy import SkillTaxonomy
 from claude_candidate.schemas.fit_assessment import (
@@ -197,41 +197,12 @@ SOURCE_LABEL: dict[EvidenceSource, str] = {
     EvidenceSource.CONFLICTING: "Evidence conflicts between resume and sessions",
 }
 
-# Culture signal → (PatternType, description) alignment mapping
-CULTURE_ALIGNMENTS: dict[str, tuple[PatternType | None, str | None]] = {
-    "move fast": (
-        PatternType.ITERATIVE_REFINEMENT,
-        "Iterative approach aligns with fast-paced culture",
-    ),
-    "quality first": (
-        PatternType.TESTING_INSTINCT,
-        "Testing instinct aligns with quality focus",
-    ),
-    "documentation": (
-        PatternType.DOCUMENTATION_DRIVEN,
-        "Documentation-driven approach matches",
-    ),
-    "collaborative": (
-        PatternType.COMMUNICATION_CLARITY,
-        "Clear communication style supports collaboration",
-    ),
-    "autonomous": (
-        PatternType.SCOPE_MANAGEMENT,
-        "Self-directed scope management aligns",
-    ),
-    "open source": (None, None),
-    "pair programming": (
-        PatternType.COMMUNICATION_CLARITY,
-        "Communication clarity supports pairing",
-    ),
-    "remote": (
-        PatternType.DOCUMENTATION_DRIVEN,
-        "Documentation habits support remote work",
-    ),
-    "agile": (
-        PatternType.ITERATIVE_REFINEMENT,
-        "Iterative refinement fits agile methodology",
-    ),
+# Pattern strength → culture match value
+CULTURE_PATTERN_STRENGTH_SCORE: dict[str, float] = {
+    "exceptional": 1.0,
+    "strong": 1.0,
+    "established": CULTURE_ESTABLISHED_MATCH,
+    "emerging": CULTURE_EMERGING_MATCH,
 }
 
 
@@ -577,34 +548,30 @@ def _mission_from_posting(
 # Culture fit helpers
 # ---------------------------------------------------------------------------
 
-def _score_culture_signal(
-    pattern: PatternType | None,
-    description: str | None,
-    pattern_types: set[PatternType],
-    pattern_strengths: dict[PatternType, str],
-) -> tuple[float, str | None]:
-    """Score a single culture signal alignment. Returns (match_value, detail)."""
-    if not pattern or pattern not in pattern_types:
-        return 0.0, None
-    strength = pattern_strengths.get(pattern, "emerging")
-    if strength in ("strong", "exceptional"):
-        return CULTURE_FULL_MATCH, f"Strong: {description}"
-    if strength == "established":
-        return CULTURE_ESTABLISHED_MATCH, f"Good: {description}"
-    return CULTURE_EMERGING_MATCH, None
-
-
-def _score_oss_culture(
-    signals_lower: set[str],
+def _match_signal_to_pattern(
+    signal: str,
     profile: MergedEvidenceProfile,
-) -> tuple[float, str | None, bool]:
-    """Check open-source culture signal. Returns (match_value, detail, found)."""
-    if not any("open source" in sig for sig in signals_lower):
-        return 0.0, None, False
-    has_oss = any(p.public_repo_url for p in profile.projects)
-    if has_oss:
-        return CULTURE_FULL_MATCH, "Active open source contributor", True
-    return 0.0, "No public OSS contributions found", True
+) -> tuple[float, str | None]:
+    """Match a single culture signal directly to a candidate pattern by name.
+
+    Checks whether any of the candidate's observed patterns have a pattern_type
+    whose value (the enum string) appears as a substring of the culture signal,
+    or the culture signal appears as a substring of the pattern_type value.
+    Returns (match_value, detail_or_None).
+    """
+    signal_lower = signal.lower()
+    for pat in profile.patterns:
+        pt_value = pat.pattern_type.value  # e.g. "documentation_driven"
+        # Normalize pattern type to words for comparison
+        pt_words = pt_value.replace("_", " ")
+        if pt_words in signal_lower or signal_lower in pt_words:
+            score = CULTURE_PATTERN_STRENGTH_SCORE.get(pat.strength, CULTURE_EMERGING_MATCH)
+            if pat.strength in ("strong", "exceptional"):
+                return score, f"Strong {pt_words} pattern aligns with '{signal}'"
+            if pat.strength == "established":
+                return score, f"Established {pt_words} pattern aligns with '{signal}'"
+            return score, None
+    return 0.0, None
 
 
 # ---------------------------------------------------------------------------
@@ -616,6 +583,25 @@ _WEIGHTS_RICH     = (0.50, 0.25, 0.25)
 _WEIGHTS_MODERATE = (0.60, 0.20, 0.20)
 _WEIGHTS_SPARSE   = (0.70, 0.15, 0.15)
 _WEIGHTS_NONE     = (0.85, 0.10, 0.05)
+
+
+def _redistribute_culture_weight(
+    skill_w: float,
+    mission_w: float,
+    culture_w: float,
+) -> tuple[float, float]:
+    """Redistribute culture weight proportionally to skill and mission.
+
+    Returns (new_skill_w, new_mission_w) — culture weight becomes 0 at call site.
+    """
+    total_remaining = skill_w + mission_w
+    if total_remaining == 0.0:
+        # Degenerate case: split evenly
+        half = culture_w / 2.0
+        return skill_w + half, mission_w + half
+    skill_ratio = skill_w / total_remaining
+    mission_ratio = mission_w / total_remaining
+    return skill_w + culture_w * skill_ratio, mission_w + culture_w * mission_ratio
 
 
 def _compute_weights(
@@ -770,6 +756,14 @@ class QuickMatchEngine:
             inp.culture_signals or [], inp.company_profile,
         )
         skill_w, mission_w, culture_w = _compute_weights(inp.company_profile)
+
+        # Redistribute culture weight to skill and mission when insufficient data
+        if culture_dim.insufficient_data:
+            skill_w, mission_w = _redistribute_culture_weight(
+                skill_w, mission_w, culture_w,
+            )
+            culture_w = 0.0
+
         skill_dim.weight = skill_w
         mission_dim.weight = mission_w
         culture_dim.weight = culture_w
@@ -960,16 +954,20 @@ class QuickMatchEngine:
         culture_signals: list[str],
         company_profile: CompanyProfile | None,
     ) -> DimensionScore:
-        """Score culture/working style fit."""
+        """Score culture/working style fit via direct pattern matching.
+
+        Compares each culture signal to the candidate's observed behavioral
+        patterns. If no signals are present, or if the candidate has no
+        patterns, marks insufficient_data=True.
+        """
         all_signals = self._collect_culture_signals(
             culture_signals, company_profile,
         )
-        if not all_signals:
+        if not all_signals or not self.profile.patterns:
             return self._neutral_culture_dimension()
 
-        signals_lower = {s.lower() for s in all_signals}
         matches, total_signals, details = self._evaluate_culture_signals(
-            signals_lower,
+            all_signals,
         )
         score = self._compute_culture_score(matches, total_signals)
 
@@ -980,12 +978,15 @@ class QuickMatchEngine:
         if not details:
             details = ["Culture alignment assessment based on available signals"]
 
+        confidence = matches / total_signals if total_signals > 0 else 0.0
+
         return DimensionScore(
             dimension="culture_fit",
             score=round(score, SCORE_PRECISION),
             grade=score_to_grade(score),
-            summary=f"Culture fit based on {total_signals} detected signals",
+            summary=f"Culture fit based on {total_signals} pattern signals",
             details=details,
+            confidence=round(confidence, SCORE_PRECISION),
         )
 
     def _collect_culture_signals(
@@ -1000,49 +1001,34 @@ class QuickMatchEngine:
         return all_signals
 
     def _neutral_culture_dimension(self) -> DimensionScore:
-        """Return a neutral culture dimension when no signals exist."""
+        """Return a neutral culture dimension when data is insufficient."""
         return DimensionScore(
             dimension="culture_fit",
             score=CULTURE_NEUTRAL_SCORE,
             grade=score_to_grade(CULTURE_NEUTRAL_SCORE),
-            summary="Insufficient culture signals for assessment",
-            details=["No culture signals found in posting or company profile"],
+            summary="Insufficient culture data for assessment",
+            details=["No culture signals or candidate patterns available"],
+            confidence=0.0,
+            insufficient_data=True,
         )
 
     def _evaluate_culture_signals(
         self,
-        signals_lower: set[str],
+        signals: list[str],
     ) -> tuple[float, int, list[str]]:
-        """Evaluate all culture alignments. Returns (matches, total, details)."""
-        pattern_types = {p.pattern_type for p in self.profile.patterns}
-        pattern_strengths = {
-            p.pattern_type: p.strength for p in self.profile.patterns
-        }
+        """Match culture signals directly against candidate patterns.
+
+        Returns (total_match_value, signal_count, detail_lines).
+        """
         matches = 0.0
-        total_signals = 0
+        total_signals = len(signals)
         details: list[str] = []
 
-        for signal_key, (pattern, description) in CULTURE_ALIGNMENTS.items():
-            if not any(signal_key in sig for sig in signals_lower):
-                continue
-            if signal_key == "open source":
-                continue  # handled separately
-            total_signals += 1
-            value, detail = _score_culture_signal(
-                pattern, description, pattern_types, pattern_strengths,
-            )
+        for signal in signals:
+            value, detail = _match_signal_to_pattern(signal, self.profile)
             matches += value
             if detail:
                 details.append(detail)
-
-        oss_value, oss_detail, oss_found = _score_oss_culture(
-            signals_lower, self.profile,
-        )
-        if oss_found:
-            total_signals += 1
-            matches += oss_value
-        if oss_detail:
-            details.append(oss_detail)
 
         return matches, total_signals, details
 

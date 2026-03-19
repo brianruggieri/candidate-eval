@@ -371,10 +371,12 @@ class TestMissionAlignment:
 
 
 class TestCultureFit:
-    def test_with_matching_signals(self, candidate_profile, resume_profile):
+    def test_with_directly_matching_signals(self, candidate_profile, resume_profile):
+        """Direct pattern name matches (documentation driven, scope management) produce score > 0.5."""
         merged = merge_profiles(candidate_profile, resume_profile)
         engine = QuickMatchEngine(merged)
 
+        # "documentation driven" and "scope management" are exact pattern type names
         assessment = engine.assess(
             requirements=[QuickRequirement(
                 description="Python", skill_mapping=["python"],
@@ -382,13 +384,16 @@ class TestCultureFit:
             )],
             company="Test",
             title="Test",
-            culture_signals=["documentation", "autonomous", "open source"],
+            culture_signals=["documentation driven", "scope management"],
         )
 
-        # The candidate has documentation_driven, scope_management, and open-source patterns
+        # Both signals match patterns directly; score should exceed 0.5
         assert assessment.culture_fit.score > 0.5
+        assert not assessment.culture_fit.insufficient_data
+        assert assessment.culture_fit.confidence > 0.0
 
-    def test_no_culture_signals(self, candidate_profile, resume_profile):
+    def test_no_culture_signals_marks_insufficient_data(self, candidate_profile, resume_profile):
+        """No culture signals → insufficient_data=True, confidence=0.0, weight redistributed."""
         merged = merge_profiles(candidate_profile, resume_profile)
         engine = QuickMatchEngine(merged)
 
@@ -401,8 +406,77 @@ class TestCultureFit:
             title="Test",
         )
 
-        # Should default to neutral (0.5)
         assert assessment.culture_fit.score == 0.5
+        assert assessment.culture_fit.insufficient_data is True
+        assert assessment.culture_fit.confidence == 0.0
+        # Weight redistributed — culture weight must be 0
+        assert assessment.culture_fit.weight == 0.0
+
+    def test_insufficient_data_redistributes_weight_to_skill_and_mission(
+        self, candidate_profile, resume_profile
+    ):
+        """When culture has insufficient data, its weight goes to skill and mission."""
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+
+        assessment = engine.assess(
+            requirements=[QuickRequirement(
+                description="Python", skill_mapping=["python"],
+                priority=RequirementPriority.MUST_HAVE,
+            )],
+            company="Test",
+            title="Test",
+            # No culture_signals → insufficient_data
+        )
+
+        total_weight = (
+            assessment.skill_match.weight
+            + assessment.mission_alignment.weight
+            + assessment.culture_fit.weight
+        )
+        assert abs(total_weight - 1.0) < 1e-9
+        assert assessment.culture_fit.weight == 0.0
+
+    def test_partial_signal_match_produces_intermediate_score(
+        self, candidate_profile, resume_profile
+    ):
+        """One matching signal among multiple produces score between 0.3 and 0.9."""
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+
+        # Only "documentation driven" matches; "move fast" and "open source" do not
+        assessment = engine.assess(
+            requirements=[QuickRequirement(
+                description="Python", skill_mapping=["python"],
+                priority=RequirementPriority.MUST_HAVE,
+            )],
+            company="Test",
+            title="Test",
+            culture_signals=["documentation driven", "move fast", "open source"],
+        )
+
+        # 1 match out of 3 → score = 0.3 + (1/3)*0.6 = 0.5 exactly
+        assert 0.3 <= assessment.culture_fit.score <= 0.9
+        assert not assessment.culture_fit.insufficient_data
+
+    def test_confidence_equals_match_ratio(self, candidate_profile, resume_profile):
+        """Confidence field equals matched / total signals."""
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+
+        assessment = engine.assess(
+            requirements=[QuickRequirement(
+                description="Python", skill_mapping=["python"],
+                priority=RequirementPriority.MUST_HAVE,
+            )],
+            company="Test",
+            title="Test",
+            culture_signals=["documentation driven", "scope management", "no match signal"],
+        )
+
+        # 2 out of 3 match → confidence ≈ 0.667
+        assert 0.0 <= assessment.culture_fit.confidence <= 1.0
+        assert not assessment.culture_fit.insufficient_data
 
 
 class TestCandidateOnlyAssessment:
@@ -473,7 +547,14 @@ class TestComputeWeights:
 
 
 class TestAdaptiveWeightsWiredIntoAssessment:
-    """Integration tests verifying dimension weights are set from company data quality."""
+    """Integration tests verifying dimension weights are set from company data quality.
+
+    Culture signals are passed explicitly in all tests to prevent the insufficient-data
+    redistribution from interfering with the adaptive-weight assertions.
+    """
+
+    # Two signals that match patterns in the sample profile directly
+    _CULTURE_SIGNALS = ["documentation driven", "scope management"]
 
     def _minimal_requirements(self) -> list[QuickRequirement]:
         return [QuickRequirement(
@@ -503,6 +584,7 @@ class TestAdaptiveWeightsWiredIntoAssessment:
             company="Test Co",
             title="Engineer",
             company_profile=company_profile,
+            culture_signals=self._CULTURE_SIGNALS,
         )
 
         assert assessment.skill_match.weight == 0.50
@@ -521,6 +603,7 @@ class TestAdaptiveWeightsWiredIntoAssessment:
             company="Test Co",
             title="Engineer",
             company_profile=company_profile,
+            culture_signals=self._CULTURE_SIGNALS,
         )
 
         assert assessment.skill_match.weight == 0.60
@@ -539,6 +622,7 @@ class TestAdaptiveWeightsWiredIntoAssessment:
             company="Test Co",
             title="Engineer",
             company_profile=company_profile,
+            culture_signals=self._CULTURE_SIGNALS,
         )
 
         assert assessment.skill_match.weight == 0.70
@@ -556,8 +640,35 @@ class TestAdaptiveWeightsWiredIntoAssessment:
             company="Test Co",
             title="Engineer",
             company_profile=None,
+            culture_signals=self._CULTURE_SIGNALS,
         )
 
         assert assessment.skill_match.weight == 0.85
         assert assessment.mission_alignment.weight == 0.10
         assert assessment.culture_fit.weight == 0.05
+
+    def test_insufficient_culture_data_zeroes_culture_weight_regardless_of_tier(
+        self, candidate_profile, resume_profile
+    ):
+        """With no culture signals, culture weight is 0 regardless of company data tier."""
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+        company_profile = self._make_company_profile("rich")
+
+        assessment = engine.assess(
+            requirements=self._minimal_requirements(),
+            company="Test Co",
+            title="Engineer",
+            company_profile=company_profile,
+            # No culture_signals
+        )
+
+        assert assessment.culture_fit.weight == 0.0
+        assert assessment.culture_fit.insufficient_data is True
+        # All weight still sums to 1.0
+        total = (
+            assessment.skill_match.weight
+            + assessment.mission_alignment.weight
+            + assessment.culture_fit.weight
+        )
+        assert abs(total - 1.0) < 1e-9
