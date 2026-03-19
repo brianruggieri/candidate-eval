@@ -228,6 +228,17 @@ async function initialize() {
 	if (fresh && lastAssessment && lastAssessment.url === stored.url) {
 		currentPosting = stored;
 		renderResults(lastAssessment.data);
+
+		// Check if full report completed while popup was closed
+		const fullReady = await new Promise(r => {
+			chrome.storage.local.get('fullReportReady', res => r(res.fullReportReady || null));
+		});
+		if (fullReady && fullReady.assessmentId) {
+			const btnFull = el('btn-full-details');
+			if (btnFull) {
+				btnFull.onclick = () => sendToBackground({ action: 'openReport', url: fullReady.url });
+			}
+		}
 		return;
 	}
 
@@ -281,18 +292,25 @@ async function initialize() {
 	const banner = el('banner-full-loading');
 	if (banner) banner.classList.remove('hidden');
 
+	// Fire-and-forget: background.js runs the full assessment independently.
+	// If the popup closes, the background continues and stores the result.
 	const assessmentId = partial.assessment_id;
-	sendToBackground({ action: 'assessFull', assessmentId }).then(full => {
-		if (banner) banner.classList.add('hidden');
-		const btnFull = el('btn-full-details');
-		if (!btnFull) return;
-		if (full.success && full.assessment_id) {
-			const reportUrl = `http://localhost:7429/api/assessments/${full.assessment_id}`;
-			btnFull.onclick = () => sendToBackground({ action: 'openReport', url: reportUrl });
-		} else if (full.error) {
-			btnFull.title = `Full report unavailable: ${full.error}`;
+	sendToBackground({ action: 'startFullAssess', assessmentId });
+
+	// Poll for completion (if popup stays open)
+	const pollInterval = setInterval(async () => {
+		const ready = await new Promise(r => {
+			chrome.storage.local.get('fullReportReady', res => r(res.fullReportReady || null));
+		});
+		if (ready && ready.assessmentId) {
+			clearInterval(pollInterval);
+			if (banner) banner.classList.add('hidden');
+			const btnFull = el('btn-full-details');
+			if (btnFull) {
+				btnFull.onclick = () => sendToBackground({ action: 'openReport', url: ready.url });
+			}
 		}
-	});
+	}, 2000);
 }
 
 document.addEventListener('DOMContentLoaded', () => {

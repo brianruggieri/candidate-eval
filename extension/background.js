@@ -99,6 +99,31 @@ async function handleAssessFull(assessmentId) {
 	}
 }
 
+/**
+ * Fire-and-forget: start full assessment in background, store result when done.
+ * Survives popup close. Popup checks fullReportReady on reopen.
+ */
+async function handleStartFullAssess(assessmentId) {
+	// Clear any previous result
+	chrome.storage.local.remove('fullReportReady');
+
+	// Run in background — this continues even if popup closes
+	handleAssessFull(assessmentId).then(result => {
+		if (result.success && result.assessment_id) {
+			chrome.storage.local.set({
+				fullReportReady: {
+					assessmentId: result.assessment_id,
+					url: `http://localhost:7429/api/assessments/${result.assessment_id}`,
+					completedAt: Date.now(),
+				}
+			});
+		}
+	});
+
+	// Return immediately — don't wait for Claude
+	return { success: true, started: true };
+}
+
 async function handleOpenReport(url) {
 	try {
 		await chrome.tabs.create({ url });
@@ -166,6 +191,10 @@ chrome.runtime.onMessage.addListener(function (request, _sender, sendResponse) {
 
 		case 'assessFull':
 			promise = handleAssessFull(request.assessmentId);
+			break;
+
+		case 'startFullAssess':
+			promise = handleStartFullAssess(request.assessmentId);
 			break;
 
 		case 'openReport':
