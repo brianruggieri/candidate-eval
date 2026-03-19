@@ -10,6 +10,7 @@ snippet (non-empty, <= 500 chars).
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -65,6 +66,10 @@ CONTENT_PATTERNS: dict[str, list[str]] = {
     "docker": ["dockerfile", "docker-compose", "docker build"],
     "sqlalchemy": ["sqlalchemy", "Column(", "Base.metadata"],
     "git": ["git commit", "git push", "git branch"],
+    "openai": ["openai", "from openai", "import openai", "ChatCompletion"],
+    "anthropic": ["anthropic", "from anthropic", "import anthropic", "claude"],
+    "langchain": ["langchain", "from langchain"],
+    "llm": ["llm", "large language model", "language model"],
 }
 
 CATEGORY_MAP: dict[str, str] = {
@@ -89,6 +94,10 @@ CATEGORY_MAP: dict[str, str] = {
     "json": "tool",
     "html": "language",
     "css": "language",
+    "openai": "platform",
+    "anthropic": "platform",
+    "langchain": "framework",
+    "llm": "domain",
 }
 
 LANGUAGE_NAMES: set[str] = {
@@ -455,9 +464,13 @@ def _classify_category(tech: str) -> str:
 
 
 def _is_ai_skill(skill_name: str) -> bool:
-    """Check if a skill name is AI-related."""
+    """Check if a skill name is AI-related.
+
+    Uses word-boundary matching to avoid false positives like "rails"
+    matching "ai" or "html" matching "ml".
+    """
     lower = skill_name.lower()
-    return any(kw in lower for kw in AI_SKILL_KEYWORDS)
+    return any(re.search(rf'\b{re.escape(kw)}\b', lower) for kw in AI_SKILL_KEYWORDS)
 
 
 def _aggregate_ai_scores(sessions: list[SessionSignals]) -> float | None:

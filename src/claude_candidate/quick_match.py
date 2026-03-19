@@ -10,6 +10,7 @@ Scores three dimensions with adaptive weighting based on company data richness:
 
 from __future__ import annotations
 
+import re
 import time
 import uuid
 from dataclasses import dataclass
@@ -495,8 +496,9 @@ def _score_mission_text_alignment(
     """Score mission text alignment; return (bonus, detail_lines).
 
     Computes keyword overlap between the company's mission statement /
-    product description and the candidate's skill names and project
-    descriptions.
+    product description and the candidate's skill names and project technologies.
+    Uses word-boundary matching to avoid false positives (e.g. "go" inside "good").
+    Only keywords of 3+ characters are considered to reduce noise.
     """
     text_sources = []
     if company_profile.mission_statement:
@@ -511,7 +513,11 @@ def _score_mission_text_alignment(
         for tech in proj.technologies:
             candidate_keywords.add(tech.lower())
 
-    matched = {kw for kw in candidate_keywords if kw in combined_text}
+    # Filter out very short keywords and use word-boundary matching
+    matched = {
+        kw for kw in candidate_keywords
+        if len(kw) >= 3 and re.search(rf'\b{re.escape(kw)}\b', combined_text)
+    }
     if not matched:
         return 0.0, []
 
@@ -609,10 +615,10 @@ def _compute_weights(
 ) -> tuple[float, float, float]:
     """Return (skill_weight, mission_weight, culture_weight) based on company data richness.
 
-    Tiers:
-      rich     → 50/25/25  (mission + tech stack + culture keywords present)
-      moderate → 60/20/20  (tech stack + some fields)
-      sparse   → 70/15/15  (just job posting, minimal enrichment)
+    Tiers (based on CompanyProfile.enrichment_quality):
+      rich     → 50/25/25
+      moderate → 60/20/20
+      sparse   → 70/15/15
       None     → 85/10/5   (no company data at all)
     """
     if company_profile is None:
@@ -985,7 +991,7 @@ class QuickMatchEngine:
             score=round(score, SCORE_PRECISION),
             grade=score_to_grade(score),
             summary=f"Culture fit based on {total_signals} pattern signals",
-            details=details,
+            details=details[:7],
             confidence=round(confidence, SCORE_PRECISION),
         )
 

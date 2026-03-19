@@ -57,21 +57,78 @@ STANDARD_TOOLS: frozenset[str] = frozenset(
 
 
 def _iter_tool_uses(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Return all tool_use blocks from all messages."""
+    """Return all tool_use blocks from all messages.
+
+    Handles two formats:
+    - JSONL format: top-level {"type": "tool_use", "toolUse": {"name": ..., "input": ...}}
+    - Nested format: {"type": "assistant", "message": {"content": [{"type": "tool_use", ...}]}}
+    - Legacy format: top-level {"content": [{"type": "tool_use", ...}]}
+    """
     blocks: list[dict[str, Any]] = []
     for msg in messages:
+        msg_type = msg.get("type", "")
+
+        # JSONL top-level tool_use: {"type": "tool_use", "toolUse": {...}}
+        if msg_type == "tool_use":
+            tool_use = msg.get("toolUse", {})
+            if tool_use:
+                # Normalize to the block format callers expect (name + input)
+                blocks.append({
+                    "type": "tool_use",
+                    "name": tool_use.get("name", ""),
+                    "input": tool_use.get("input", {}),
+                })
+            continue
+
+        # JSONL assistant message: {"type": "assistant", "message": {"content": [...]}}
+        if msg_type == "assistant":
+            content = msg.get("message", {}).get("content", [])
+            if isinstance(content, list):
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "tool_use":
+                        blocks.append(block)
+            continue
+
+        # Legacy / flat format: {"content": [...]}
         content = msg.get("content", [])
         if isinstance(content, list):
             for block in content:
                 if isinstance(block, dict) and block.get("type") == "tool_use":
                     blocks.append(block)
+
     return blocks
 
 
 def _iter_text_content(messages: list[dict[str, Any]]) -> list[str]:
-    """Return all text strings found in message content."""
+    """Return all text strings found in message content.
+
+    Handles two formats:
+    - JSONL format: {"type": "user"/"assistant", "message": {"content": ...}}
+    - Legacy format: {"content": "string" or [{"type": "text", "text": ...}]}
+    """
     texts: list[str] = []
     for msg in messages:
+        msg_type = msg.get("type", "")
+
+        # JSONL user message: {"type": "user", "message": {"content": "string" or [...]}}
+        if msg_type in ("user", "assistant"):
+            inner = msg.get("message", {})
+            content = inner.get("content", "")
+            if isinstance(content, str):
+                if content:
+                    texts.append(content)
+            elif isinstance(content, list):
+                for block in content:
+                    if isinstance(block, dict):
+                        if block.get("type") == "text":
+                            texts.append(block.get("text", ""))
+                        elif block.get("type") == "tool_result":
+                            c = block.get("content", "")
+                            if isinstance(c, str):
+                                texts.append(c)
+            continue
+
+        # Legacy / flat format: {"content": "string" or [...]}
         content = msg.get("content", "")
         if isinstance(content, str):
             texts.append(content)
@@ -84,6 +141,7 @@ def _iter_text_content(messages: list[dict[str, Any]]) -> list[str]:
                         c = block.get("content", "")
                         if isinstance(c, str):
                             texts.append(c)
+
     return texts
 
 
@@ -327,7 +385,6 @@ def score_error_recovery(messages: list[dict[str, Any]]) -> float:
         return 0.0
 
     tool_uses = _iter_tool_uses(messages)
-    tool_names_seq = [t.get("name", "") for t in tool_uses]
     all_text = " ".join(_iter_text_content(messages))
 
     # Build a sequence of (tool_name, is_error_result) for pattern detection
@@ -348,7 +405,7 @@ def score_error_recovery(messages: list[dict[str, Any]]) -> float:
                     )
                     event_seq.append(("__result__", is_error))
 
-    # Category 1: Test-fix cycle — error result followed by Edit/Write, then re-run
+    # Category 1: Test-fix cycle — error result followed by Edit/Write (fix attempt)
     has_test_fix = False
     for i, (name, is_err) in enumerate(event_seq):
         if is_err:
