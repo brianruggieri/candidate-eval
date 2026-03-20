@@ -1,0 +1,174 @@
+{
+  "company": "Kiddom",
+  "title": "Machine Learning Engineer",
+  "description": "About Kiddom\n\nKiddom is a groundbreaking educational platform that promotes student equity and growth by uniting high-quality instructional materials with dynamic digital learning. Through unparalleled curriculum management functionality, Kiddom empowers schools and districts to take ownership of their curriculum \u2013 resulting in learning experiences tailored to meet the unique needs and goals of local communities. Kiddom's high-quality curriculum is layered with robust teacher and leader data insights to drive the continuous improvement of instructional decisions, school/district programming, and professional learning.\n\nWhat The Job Involves\n\nYou will be part of Kiddom's AI team, building the foundation of our search, recommendation, and insights systems. Your work will directly support teachers and students by delivering timely insights, personalized content, and intelligent assistance.\n\n- Support the build of machine learning systems for search, personalization, and recommendations that power Kiddom's teacher helper and insight engine\n- Develop evaluation-first development workflows to measure how models improve teaching efficiency, lesson planning, and student learning outcomes\n- Fine-tune machine learning models with feedback signals from teachers and students to align outputs with instructional goals and classroom needs\n- Design intelligent discovery pipelines that combine semantic retrieval, curriculum alignment, and real-time personalization\n- Build agentic assistants that help teachers plan lessons, adapt instruction, and reduce repetitive tasks\n- Collaborate closely with product managers, designers, and curriculum experts to translate high-level educational goals into scalable ML-powered systems\n\nWho You Are\n\n- 2+ years of industry experience applying machine learning to solve real-world problems with large, complex datasets\n- Proven track record designing, evaluating, and deploying ML/AI systems in production environments that drive measurable business impact, ideally in recommendation, personalization, search, or workflow optimization\n- Strong programming skills in Python and fluency in data manipulation (SQL, Pandas) and common ML toolkits (scikit-learn, XGBoost, TensorFlow/PyTorch)\n- Strong analytical skills and ability to break down complex problems into measurable hypotheses and experiments\n- Excellent communication skills with a history of cross-functional collaboration with product, design, and engineering stakeholders\n\nDesirable\n\n- Deep expertise in modern deep learning frameworks and advanced LLM architectures\n- Experience building evaluation pipelines for ML/AI systems, ensuring reliable measurement of impact and quality in real-world use\n- Experience implementing and fine-tuning large language models (LLMs), including prompt engineering, embeddings, and efficient inference optimization\n- Familiarity with foundation model adaptation techniques such as PEFT, LoRA, or RLHF\n- Self-motivated innovator who thrives in fast-moving environments and is excited to explore emerging AI techniques to solve meaningful problems in education\n- Passion for applying cutting-edge AI research to improve teaching workflows and personalize student learning at scale\n\nSalary range is dependent on geographic location, prior experience, seniority, and demonstrated role related ability during the interview process.\n\nWhat we offer\n\n- Competitive salary\n- Meaningful equity\n- Health insurance benefits: medical (various PPO/HMO/HSA plans), dental, vision, disability and life insurance\n- One Medical membership (in participating locations)\n- Flexible vacation time policy (subject to internal approval). Average use 4 weeks off per year\n- 10 paid sick days per year (pro rated depending on start date)\n- Paid holidays\n- Paid bereavement leave\n- Paid family leave after birth/adoption. Minimum of 16 paid weeks for birthing parents, 10 weeks for caretaker parents. Meant to supplement benefits offered by State\n- Commuter and FSA plans",
+  "url": "https://www.linkedin.com/jobs/view/4258586810/",
+  "source": "linkedin",
+  "location": "New York, United States",
+  "seniority": "mid",
+  "remote": false,
+  "salary": "$200K/yr - $300K/yr",
+  "requirements": [
+    {
+      "description": "2+ years of industry experience applying machine learning to solve real-world problems with large, complex datasets",
+      "skill_mapping": [
+        "machine-learning",
+        "data_science"
+      ],
+      "priority": "must_have",
+      "years_experience": 2,
+      "education_level": null
+    },
+    {
+      "description": "Proven track record designing, evaluating, and deploying ML/AI systems in production environments that drive measurable business impact, ideally in recommendation, personalization, search, or workflow optimization",
+      "skill_mapping": [
+        "machine-learning",
+        "ml_ops",
+        "recommendation_systems",
+        "search",
+        "personalization"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Strong programming skills in Python and fluency in data manipulation (SQL, Pandas) and common ML toolkits (scikit-learn, XGBoost, TensorFlow/PyTorch)",
+      "skill_mapping": [
+        "python",
+        "sql",
+        "pandas",
+        "scikit_learn",
+        "xgboost",
+        "tensorflow",
+        "pytorch"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Strong analytical skills and ability to break down complex problems into measurable hypotheses and experiments",
+      "skill_mapping": [
+        "analytical_skills",
+        "experimentation",
+        "ab_testing"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Excellent communication skills with a history of cross-functional collaboration with product, design, and engineering stakeholders",
+      "skill_mapping": [
+        "communication",
+        "cross_functional_collaboration"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Deep expertise in modern deep learning frameworks and advanced LLM architectures",
+      "skill_mapping": [
+        "machine-learning",
+        "llm",
+        "transformer_architectures"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience building evaluation pipelines for ML/AI systems, ensuring reliable measurement of impact and quality in real-world use",
+      "skill_mapping": [
+        "ml_evaluation",
+        "ml_ops",
+        "metrics"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience implementing and fine-tuning large language models (LLMs), including prompt engineering, embeddings, and efficient inference optimization",
+      "skill_mapping": [
+        "llm",
+        "fine_tuning",
+        "prompt-engineering",
+        "embeddings",
+        "inference_optimization"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Familiarity with foundation model adaptation techniques such as PEFT, LoRA, or RLHF",
+      "skill_mapping": [
+        "peft",
+        "lora",
+        "rlhf",
+        "model_adaptation"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Self-motivated innovator who thrives in fast-moving environments and is excited to explore emerging AI techniques to solve meaningful problems in education",
+      "skill_mapping": [
+        "self_motivation",
+        "innovation",
+        "edtech"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Passion for applying cutting-edge AI research to improve teaching workflows and personalize student learning at scale",
+      "skill_mapping": [
+        "ai_research",
+        "edtech",
+        "personalization"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Build machine learning systems for search, personalization, and recommendations",
+      "skill_mapping": [
+        "search_systems",
+        "recommendation_systems",
+        "personalization"
+      ],
+      "priority": "implied",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Design intelligent discovery pipelines combining semantic retrieval, curriculum alignment, and real-time personalization",
+      "skill_mapping": [
+        "semantic_search",
+        "information_retrieval",
+        "pipeline_design"
+      ],
+      "priority": "implied",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Build agentic assistants that help teachers plan lessons, adapt instruction, and reduce repetitive tasks",
+      "skill_mapping": [
+        "ai_agents",
+        "llm",
+        "automation"
+      ],
+      "priority": "implied",
+      "years_experience": null,
+      "education_level": null
+    }
+  ]
+}

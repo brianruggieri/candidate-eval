@@ -1,0 +1,215 @@
+{
+  "company": "Anthropic",
+  "title": "Software Engineer, Claude Code",
+  "description": "About Anthropic\n\nAnthropic's mission is to create reliable, interpretable, and steerable AI systems. We want AI to be safe and beneficial for our users and for society as a whole. Our team is a quickly growing group of committed researchers, engineers, policy experts, and business leaders working together to build beneficial AI systems.\n\nAt Anthropic, we believe new AI capabilities are best achieved through secure foundations, not in spite of them. As capabilities grow more advanced, it is critical that progress moves forward safely and for the benefit of all society. It is the reason why security sits at the center of our work, and not as an afterthought.\n\nWe're specifically looking for a Software Engineer to help us build and maintain new agentic coding tools for developers. The ideal candidate will have a passion for developer tools, extensive knowledge of diverse programming environments and languages, and experience with advanced LLM features like tool-use, chaining and orchestration patterns, and prompt engineering. Curiosity about AI research is a must!\n\nResponsibilities\n\nDesign, build, and maintain scalable features and infrastructure for AI-powered development tools\nEngage directly with developers inside and outside Anthropic to gather insights and improve user experience\nCollaborate with researchers to improve model capabilities through shared tools and evals\nStay ahead of advancements in AI-assisted coding by experimenting with new tools, evaluating emerging techniques, and tracking enhancements to existing ones\nContribute across the stack\u2014from front-end UI to back-end infrastructure\u2014to develop new features, fix bugs, and optimize performance\nDive into possibly unfamiliar areas like Python notebooks, VS Code plug-ins, and containerized environments.\n\nYou May Be a Good Fit If You\n\nAre excited about AI-assisted coding as a tool to enhance developer productivity and creativity\u2014not replace human ingenuity\nSpend a lot of time refining and customizing your AI workflows\nHave experience building and maintaining dev tools\nAre an expert in React development, including performance optimization, modern patterns (hooks, context, suspense), and component architecture\nSpecialize in user experience engineering but are a capable full stack developer\nHave hands-on experience working with large language models and prompt engineering\nHave worked on projects with stringent safety, security and/or compliance requirements\nCare about the societal impacts and ethics of your work\nHave 5+ years of work experience\n\nStrong Candidates May Also Have Experience With\n\nBuilding and maintaining CLI tools\nWorking in large codebases and quickly jumping in to unfamiliar development environments\nWorking with container orchestration and cloud infrastructure\nScaling TypeScript projects\nWorking with alternate JavaScript runtimes like Bun and Deno\n\nDeadline to apply: None. Applications will be reviewed on a rolling basis.\n\nThe annual compensation range for this role is listed below.\n\nAnnual Salary: $320,000\u2014$560,000 USD\n\nLogistics\n\nEducation requirements: We require at least a Bachelor's degree in a related field or equivalent experience.\n\nLocation-based hybrid policy: Currently, we expect all staff to be in one of our offices at least 25% of the time. However, some roles may require more time in our offices.\n\nVisa sponsorship: We do sponsor visas! However, we aren't able to successfully sponsor visas for every role and every candidate. But if we make you an offer, we will make every reasonable effort to get you a visa, and we retain an immigration lawyer to help with this.\n\nAnthropic is a public benefit corporation headquartered in San Francisco. We offer competitive compensation and benefits, optional equity donation matching, generous vacation and parental leave, flexible working hours, and a lovely office space in which to collaborate with colleagues.",
+  "url": "https://www.linkedin.com/jobs/view/4370000466/",
+  "source": "linkedin",
+  "location": "New York City Metropolitan Area",
+  "seniority": "mid",
+  "remote": false,
+  "salary": "$320,000 - $560,000 USD",
+  "requirements": [
+    {
+      "description": "Passion for developer tools with extensive knowledge of diverse programming environments and languages",
+      "skill_mapping": [
+        "developer-tools",
+        "software-engineering"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience with advanced LLM features like tool-use, chaining and orchestration patterns, and prompt engineering",
+      "skill_mapping": [
+        "llm",
+        "prompt-engineering",
+        "ai-orchestration"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Curiosity about AI research",
+      "skill_mapping": [
+        "ai-research"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience building and maintaining dev tools",
+      "skill_mapping": [
+        "developer-tools"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Expert in React development, including performance optimization, modern patterns (hooks, context, suspense), and component architecture",
+      "skill_mapping": [
+        "react",
+        "javascript",
+        "frontend",
+        "performance-optimization"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Specialize in user experience engineering but are a capable full stack developer",
+      "skill_mapping": [
+        "ux-engineering",
+        "full-stack"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Hands-on experience working with large language models and prompt engineering",
+      "skill_mapping": [
+        "llm",
+        "prompt-engineering"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience on projects with stringent safety, security and/or compliance requirements",
+      "skill_mapping": [
+        "security",
+        "compliance",
+        "ai-safety"
+      ],
+      "priority": "strong_preference",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "5+ years of work experience",
+      "skill_mapping": [
+        "software-engineering"
+      ],
+      "priority": "must_have",
+      "years_experience": 5,
+      "education_level": null
+    },
+    {
+      "description": "At least a Bachelor's degree in a related field or equivalent experience",
+      "skill_mapping": [
+        "computer-science"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": "bachelor"
+    },
+    {
+      "description": "Design, build, and maintain scalable features and infrastructure for AI-powered development tools",
+      "skill_mapping": [
+        "software-architecture",
+        "scalability",
+        "infrastructure"
+      ],
+      "priority": "implied",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Full stack capability from front-end UI to back-end infrastructure",
+      "skill_mapping": [
+        "frontend",
+        "backend",
+        "full-stack"
+      ],
+      "priority": "implied",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Building and maintaining CLI tools",
+      "skill_mapping": [
+        "cli",
+        "developer-tools"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Working in large codebases and quickly jumping in to unfamiliar development environments",
+      "skill_mapping": [
+        "software-engineering",
+        "codebase-navigation"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Working with container orchestration and cloud infrastructure",
+      "skill_mapping": [
+        "docker",
+        "kubernetes",
+        "cloud-infrastructure"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Scaling TypeScript projects",
+      "skill_mapping": [
+        "typescript"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Working with alternate JavaScript runtimes like Bun and Deno",
+      "skill_mapping": [
+        "bun",
+        "deno",
+        "javascript-runtimes"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience with Python notebooks and VS Code plug-ins",
+      "skill_mapping": [
+        "python",
+        "jupyter",
+        "vscode-extensions"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Excited about AI-assisted coding to enhance developer productivity and creativity",
+      "skill_mapping": [
+        "ai-assisted-development"
+      ],
+      "priority": "implied",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Care about societal impacts and ethics of AI work",
+      "skill_mapping": [
+        "ai-ethics"
+      ],
+      "priority": "implied",
+      "years_experience": null,
+      "education_level": null
+    }
+  ]
+}

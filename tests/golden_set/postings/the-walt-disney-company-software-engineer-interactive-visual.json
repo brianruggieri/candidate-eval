@@ -1,0 +1,226 @@
+{
+  "company": "The Walt Disney Company",
+  "title": "Software Engineer - Interactive Visualization",
+  "description": "At Walt Disney Animation Studios we have a deep commitment to the philosophy that creativity inspires technology, and technology inspires creativity. Engineers on our Production Technology team develop and implement new algorithms to solve challenging problems for all of our animated content. Through constant collaboration with artists and end users, Production Technology creates the tools, environments, and pipelines that our production teams use daily.\n\nWe are looking for a Software Engineer to join our Production Technology team, as a member of the team responsible for interactive visualization and real-time renderers at our studio. In this role, you will partner with artists, studio leadership, technical directors, cross-team software engineers, Disney Research, and other stakeholders across the Walt Disney family of Studios. Your work will focus on the design and implementation of innovative workflows, as well as state-of-the-art solutions motivated by our long term vision for Walt Disney Animation Studios.\n\nProjects Include:\n- Developing Real-Time Interactive GPU Accelerated Renderers for use in Film Making\n- Working closely with Artists and Technical Directors to support workflows and solutions\n- Support a spectrum of rendering technologies from high-performance Virtual Production (VR) through to Cinematic Quality\n- Contributing to development and extension of an Open Source Graphics Engine and associated pipelines\n- Integration of graphics solutions into various Content Creation Applications\n\nWhat does it mean to be a part of Production Technology?\n- Our engineers get the opportunity to work on the full stack of our tools, from developing the underlying algorithms, through to building intuitive & artist-friendly interfaces\n- We work in a collaborative, cross-site environment in the pursuit of simple and performant solutions to complex problems\n- The team works hand in hand with artists to make the tools we need for the incredibly complex and rich characters and environments featured in our movies\n- Develop new artist-centric interaction models using the latest hardware and technologies\n\nEducation:\n- BS or Masters in Computer Science, Computer Engineering, Electrical Engineering or other related field; or comparable industry experience\n\nKey Qualifications:\n- 3 or more years designing and developing complex user facing software, ideally in a studio environment\n- Proficiency in C/C++, ideally C++11/14, with the ability to quickly produce clear, testable code\n- Experience in developing rendering pipelines such as used in film or game production\n- Experience with USD or similar data formats as used in real-time applications\n- Experience writing/debugging multithreaded and SIMD code including the use of intrinsics\n- Experience with performance measurement, profiling and analysis tools\n- Strong communication, teamwork and problem solving skills, balancing the timeliness of solutions with their sustainability. Able to prioritize competing demands based on business value\n- Desire to work closely with in-house artists and engineers to prototype, develop, and support solutions to our filmmaking challenges\n\nBonus Qualifications:\n- Knowledge of animation, graphics techniques and algorithms\n- Experience developing in content creation applications such as Maya and Houdini\n- Experience with underlying real-time graphics engine internals such as those used by Unreal & Unity\n- Strong mathematical fundamentals, including linear algebra, statistics and numerical methods\n- Knowledge of Computer System Level Architectures for CPU & GPU\n- Knowledge of Modern GPU programming APIs such as OpenGL, Vulkan or DirectX as related to real-time rendering\n- Knowledge of shading languages, such as GLSL or HLSL or Cuda\n\nThe hiring range for this position in California is $117,500.00-$157,500.00 per year based on a 40 hour work week. The amount of hours scheduled per week may vary based on business needs. The base pay actually offered will take into account internal equity and also may vary depending on the candidate's geographic region, job-related knowledge, skills, and experience among other factors. A bonus and/or long-term incentive units may be provided as part of the compensation package, in addition to the full range of medical, financial, and/or other benefits, dependent on the level and position offered.",
+  "url": "https://www.linkedin.com/jobs/view/4380686995/",
+  "source": "linkedin",
+  "location": "Burbank, CA",
+  "seniority": "mid",
+  "remote": false,
+  "salary": "$117,500 - $157,500/year",
+  "requirements": [
+    {
+      "description": "BS or Masters in Computer Science, Computer Engineering, Electrical Engineering or other related field; or comparable industry experience",
+      "skill_mapping": [
+        "computer_science",
+        "computer_engineering",
+        "electrical_engineering"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": "bachelor"
+    },
+    {
+      "description": "3 or more years designing and developing complex user facing software, ideally in a studio environment",
+      "skill_mapping": [
+        "software_engineering",
+        "user_facing_software"
+      ],
+      "priority": "must_have",
+      "years_experience": 3,
+      "education_level": null
+    },
+    {
+      "description": "Proficiency in C/C++, ideally C++11/14, with the ability to quickly produce clear, testable code",
+      "skill_mapping": [
+        "c",
+        "cpp",
+        "cpp11",
+        "cpp14"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience in developing rendering pipelines such as used in film or game production",
+      "skill_mapping": [
+        "rendering_pipelines",
+        "graphics_programming",
+        "film_production",
+        "game_development"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience with USD or similar data formats as used in real-time applications",
+      "skill_mapping": [
+        "usd",
+        "universal_scene_description",
+        "real_time_graphics"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience writing/debugging multithreaded and SIMD code including the use of intrinsics",
+      "skill_mapping": [
+        "multithreading",
+        "simd",
+        "intrinsics",
+        "concurrent_programming"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience with performance measurement, profiling and analysis tools",
+      "skill_mapping": [
+        "performance_profiling",
+        "performance_optimization",
+        "profiling_tools"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Strong communication, teamwork and problem solving skills, balancing the timeliness of solutions with their sustainability",
+      "skill_mapping": [
+        "communication",
+        "collaboration",
+        "problem-solving"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Desire to work closely with in-house artists and engineers to prototype, develop, and support solutions to filmmaking challenges",
+      "skill_mapping": [
+        "collaboration",
+        "prototyping",
+        "artist_collaboration"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Knowledge of animation, graphics techniques and algorithms",
+      "skill_mapping": [
+        "animation",
+        "computer_graphics",
+        "graphics_algorithms"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience developing in content creation applications such as Maya and Houdini",
+      "skill_mapping": [
+        "maya",
+        "houdini",
+        "dcc_tools"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience with underlying real-time graphics engine internals such as those used by Unreal & Unity",
+      "skill_mapping": [
+        "unreal_engine",
+        "unity",
+        "game_engine_internals"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Strong mathematical fundamentals, including linear algebra, statistics and numerical methods",
+      "skill_mapping": [
+        "linear_algebra",
+        "statistics",
+        "numerical_methods",
+        "mathematics"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Knowledge of Computer System Level Architectures for CPU & GPU",
+      "skill_mapping": [
+        "cpu_architecture",
+        "gpu_architecture",
+        "systems_architecture"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Knowledge of Modern GPU programming APIs such as OpenGL, Vulkan or DirectX as related to real-time rendering",
+      "skill_mapping": [
+        "opengl",
+        "vulkan",
+        "directx",
+        "gpu_programming"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Knowledge of shading languages, such as GLSL or HLSL or CUDA",
+      "skill_mapping": [
+        "glsl",
+        "hlsl",
+        "cuda",
+        "shader_programming"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Developing Real-Time Interactive GPU Accelerated Renderers",
+      "skill_mapping": [
+        "gpu_programming",
+        "real_time_rendering",
+        "gpu_acceleration"
+      ],
+      "priority": "implied",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience with Virtual Production (VR) technologies",
+      "skill_mapping": [
+        "virtual_production",
+        "vr",
+        "virtual_reality"
+      ],
+      "priority": "implied",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience with open source graphics engine development",
+      "skill_mapping": [
+        "open_source",
+        "graphics_engine_development"
+      ],
+      "priority": "implied",
+      "years_experience": null,
+      "education_level": null
+    }
+  ]
+}

@@ -1,0 +1,207 @@
+{
+  "company": "Adobe",
+  "title": "Senior Software Development Engineer",
+  "description": "The Opportunity\n\nWe're driving the future of search, discovery, and personalization on Adobe Express - making content not only inspiring but effortless to find and use. Our team leads with creativity and innovation, building intelligent systems that help users surface the right content at the right moment. By enhancing how content is organized, recommended, and understood, we accelerate creation and enable smarter, more meaningful results. Whether it's students, social influencers, marketers, or small & big businesses, we empower every user to quickly discover the perfect asset and turn their ideas into standout work that resonates with their audience.\n\nWhat You'll Do\n\nLead product-centric engineering teams. Solve intricate challenges to deliver outstanding user experiences on the web and a diverse range of devices. Build responsive and scalable user interfaces, alongside producing reusable code and unified user experiences. Collaborate seamlessly with researchers, engineers, user experience designers, and product managers to prototype and construct an innovative web application that defines the future of web experiences. Engage in pair programming and peer reviews. Collaborate with fellow engineers on challenges spanning code intricacies, novel ideas, and innovative methodologies. Provide invaluable insights to improve product usability. Apply analytics tools, user research, and our in-house community team to gather information and garner insights into how our product drives new ideas.\n\nWhat You Need To Succeed\n\nOver 10 years' demonstrated expertise in constructing and deploying web applications or interactive websites. A Bachelor's degree or equivalent experience in Computer Science, HCI, web design, or a related field. Proficiency in JavaScript, HTML, CSS, and experience with ES6 as well as React, Vue, or equivalent UI frameworks. Proven mastery in building and architecting web apps that seamlessly function across various browsers, including mobile, where distinct performance, resource constraints, and capabilities necessitate. Demonstrated experience in building durable and sophisticated user interfaces, alongside producing reusable code and unified user experiences. Profound knowledge of web technologies, encompassing the DOM, canvas and WebGL rendering, web security, asynchrony, workers, and performance optimization. Experience in guiding fellow developers and influencing a team's technical trajectory. Experience in troubleshooting complex systems and identifying multiple solutions. Ability to move fast in ambiguous environments - high ownership and bias for action. Problem-finder approach consistently challenging the status-quo.\n\nNice to have\n\nHave worked directly with AI/LLM APIs using timely/context engineering techniques. Familiarity with concepts such as functional programming, state management, and immutability. Experience with TypeScript and Lit Web components.\n\nAbout Adobe\n\nAdobe empowers everyone to create through innovative platforms and tools that unleash creativity, productivity and personalized customer experiences. Adobe's industry-leading offerings including Adobe Acrobat Studio, Adobe Express, Adobe Firefly, Creative Cloud, Adobe Experience Platform, Adobe Experience Manager, and GenStudio enable people and businesses to turn ideas into impact, powered by AI and driven by human ingenuity. Our 30,000+ employees worldwide are creating the future and raising the bar as we drive the next decade of growth.",
+  "url": "https://www.linkedin.com/jobs/view/4370460552/",
+  "source": "linkedin",
+  "location": "San Jose, CA",
+  "seniority": "senior",
+  "remote": false,
+  "salary": "$159,200 - $301,600/yr",
+  "requirements": [
+    {
+      "description": "Over 10 years' demonstrated expertise in constructing and deploying web applications or interactive websites",
+      "skill_mapping": [
+        "web development",
+        "software engineering"
+      ],
+      "priority": "must_have",
+      "years_experience": 10,
+      "education_level": null
+    },
+    {
+      "description": "A Bachelor's degree or equivalent experience in Computer Science, HCI, web design, or a related field",
+      "skill_mapping": [
+        "computer science"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": "bachelor"
+    },
+    {
+      "description": "Proficiency in JavaScript, HTML, CSS, and experience with ES6",
+      "skill_mapping": [
+        "javascript",
+        "html",
+        "css"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience with React, Vue, or equivalent UI frameworks",
+      "skill_mapping": [
+        "react",
+        "vue",
+        "ui frameworks"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Proven mastery in building and architecting web apps that seamlessly function across various browsers, including mobile",
+      "skill_mapping": [
+        "cross-browser development",
+        "mobile web",
+        "web architecture"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Demonstrated experience in building durable and sophisticated user interfaces, alongside producing reusable code and unified user experiences",
+      "skill_mapping": [
+        "ui development",
+        "component architecture",
+        "ux engineering"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Profound knowledge of web technologies, encompassing the DOM, canvas and WebGL rendering, web security, asynchrony, workers, and performance optimization",
+      "skill_mapping": [
+        "dom",
+        "canvas",
+        "webgl",
+        "web security",
+        "web workers",
+        "performance optimization",
+        "async programming"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience in guiding fellow developers and influencing a team's technical trajectory",
+      "skill_mapping": [
+        "leadership",
+        "mentoring"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience in troubleshooting complex systems and identifying multiple solutions",
+      "skill_mapping": [
+        "debugging",
+        "problem-solving",
+        "systems thinking"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Ability to move fast in ambiguous environments - high ownership and bias for action",
+      "skill_mapping": [
+        "ownership",
+        "ambiguity tolerance",
+        "bias for action"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Problem-finder approach consistently challenging the status-quo",
+      "skill_mapping": [
+        "problem-solving",
+        "innovation"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Lead product-centric engineering teams",
+      "skill_mapping": [
+        "leadership"
+      ],
+      "priority": "implied",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Collaborate with researchers, engineers, UX designers, and product managers to prototype and build innovative web applications",
+      "skill_mapping": [
+        "collaboration",
+        "prototyping"
+      ],
+      "priority": "implied",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience with pair programming and peer code reviews",
+      "skill_mapping": [
+        "pair programming",
+        "code review"
+      ],
+      "priority": "implied",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience applying analytics tools and user research to improve product usability",
+      "skill_mapping": [
+        "analytics",
+        "user research",
+        "product sense"
+      ],
+      "priority": "implied",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Have worked directly with AI/LLM APIs using timely/context engineering techniques",
+      "skill_mapping": [
+        "ai",
+        "llm",
+        "prompt engineering",
+        "api integration"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Familiarity with concepts such as functional programming, state management, and immutability",
+      "skill_mapping": [
+        "functional programming",
+        "state management",
+        "immutability"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience with TypeScript and Lit Web components",
+      "skill_mapping": [
+        "typescript",
+        "lit",
+        "web components"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    }
+  ]
+}

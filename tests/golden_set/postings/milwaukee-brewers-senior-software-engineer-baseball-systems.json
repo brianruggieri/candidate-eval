@@ -1,0 +1,113 @@
+{
+  "company": "Milwaukee Brewers",
+  "title": "Senior Software Engineer (Baseball Systems)",
+  "description": "The Senior Software Engineer (Baseball Systems) will collaborate with the Systems team to build features for our stakeholders. This position requires strong software development skills and experience, as well as a demonstrated ability for independent thought and the willingness to work within a team framework.\n\nCore duties for this role include, but are not limited to:\n\n- Deliver highly dependable, easy to use software while being part of a fast-moving team.\n- Create and maintain features that deliver information to stakeholders while collaborating with Data Engineering, Tech Operations, and Research & Development.\n- Propose visualizations or interfaces that communicate the intended information to a broad audience throughout baseball operations.\n- Work with advanced baseball concepts, particularly statistics relevant to player evaluation techniques.\n\nThe ideal candidate will have experience across the full web stack. They will have a bachelor's degree (B. A.) in Computer Science, Information Systems, or related field from four-year college or university; and five years related experience and/or training; or equivalent combination of education and experience. Hands-on experience in baseball (team, league, or related organization) strongly preferred. Experience utilizing Large Language Models (LLM).\n\nBaseball Systems is the software backbone of Baseball Operations. We provide data and decision-making tools for analysts, coaches, and front office personnel to help win a World Series. Our department consists of a team of data engineers and a team of software engineers who work across all different aspects of Baseball Operations providing support and tools relevant to each group. We work directly with stakeholders in every department of Baseball Operations to ensure every project we work on drives value to the organization and helps us win more games on the field. We help drive technical innovation to find new ways to solve baseball problems.\n\nBenefits include: Exceptional health and dental rates, and fully covered vision package; 401(K) match and an additional annual contribution from the Club; Unlimited vacation time; Paid parental leave; Collaborative recognition program and incentives; Leadership development programming; Online educational platform for personal and professional development; Business Resource Groups; Paid time off for volunteering; Inclusive training and leadership development opportunities aligned with Club values; Brewers Home Game tickets, promotional giveaways and other discounts.",
+  "url": "https://www.linkedin.com/jobs/view/4376796840/",
+  "source": "linkedin",
+  "location": "Milwaukee, WI",
+  "seniority": "senior",
+  "remote": false,
+  "salary": null,
+  "requirements": [
+    {
+      "description": "Strong software development skills and experience",
+      "skill_mapping": [
+        "software engineering"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience across the full web stack",
+      "skill_mapping": [
+        "full-stack development",
+        "frontend",
+        "backend"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Bachelor's degree in Computer Science, Information Systems, or related field",
+      "skill_mapping": [
+        "computer science"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": "bachelor"
+    },
+    {
+      "description": "Five years related experience and/or training, or equivalent combination of education and experience",
+      "skill_mapping": [
+        "software engineering"
+      ],
+      "priority": "must_have",
+      "years_experience": 5,
+      "education_level": null
+    },
+    {
+      "description": "Demonstrated ability for independent thought and willingness to work within a team framework",
+      "skill_mapping": [
+        "collaboration",
+        "independent problem solving"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Ability to create visualizations or interfaces that communicate information to a broad audience",
+      "skill_mapping": [
+        "data visualization",
+        "ui design"
+      ],
+      "priority": "implied",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Ability to work with advanced baseball concepts, particularly statistics relevant to player evaluation",
+      "skill_mapping": [
+        "baseball analytics",
+        "statistics",
+        "sabermetrics"
+      ],
+      "priority": "implied",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Hands-on experience in baseball (team, league, or related organization)",
+      "skill_mapping": [
+        "baseball operations",
+        "sports industry"
+      ],
+      "priority": "strong_preference",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience utilizing Large Language Models (LLM)",
+      "skill_mapping": [
+        "llm",
+        "machine learning",
+        "ai"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Collaboration with Data Engineering, Tech Operations, and Research & Development teams",
+      "skill_mapping": [
+        "collaboration",
+        "data engineering"
+      ],
+      "priority": "implied",
+      "years_experience": null,
+      "education_level": null
+    }
+  ]
+}

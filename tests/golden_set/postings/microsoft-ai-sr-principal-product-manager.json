@@ -1,0 +1,149 @@
+{
+  "company": "Microsoft AI",
+  "title": "Sr. Principal Product Manager",
+  "description": "Join the Copilot for Education team as a Senior Principal Product Manager and lead the development of AI\u2011first learning experiences that help students excel in their schoolwork and educational journeys. This role sits at the intersection of learning science, adaptive technologies, and cutting\u2011edge AI, driving products that meaningfully improve student outcomes at scale.\n\nYou will shape product vision, strategy, and execution across multiple feature areas to create tools that motivate, personalize, and enhance student learning outcomes. Your work will directly impact millions of learners by making education more accessible, effective, and inspiring. Your work will advance Microsoft's mission to empower every student to achieve more.\n\nResponsibilities\n\nProduct Strategy & Vision\n- Define and own the long\u2011term product strategy for student\u2011focused learning tools, integrating learning science, adaptive learning, and AI\u2011driven workflows.\n- Translate complex educational, technical, and market insights into a clear product vision and roadmap across multiple feature areas.\n- Drive product\u2011market fit by synthesizing customer signals, competitive analysis, and research evidence to identify unmet or emerging student needs.\n- Establish success metrics (OKRs, KPIs, learning efficacy measures) and ensure alignment with Microsoft's broader AI strategy.\n- Partner with researchers, educators, and data science teams to validate hypotheses, run experiments, and incorporate evidence\u2011based instructional methods.\n- Champion learning efficacy and motivational frameworks into product experiences.\n- Identify opportunities to disrupt the education market with innovative, student\u2011centered solutions that differentiate Copilot for Education.\n\nCross\u2011Functional Leadership & Execution\n- Lead end\u2011to\u2011end product execution \u2014from ideation to launch to iteration\u2014ensuring high standards of quality, security, accessibility, and responsible AI.\n- Collaborate with engineering, design, research, marketing, and data teams to deliver cohesive, scalable student experiences.\n- Drive alignment resolving complex dependencies and influencing senior stakeholders to support product strategy and investments.\n- Use data and AI\u2011driven insights to continuously improve engagement, retention, and student outcomes.\n- Leverage AI\u2011powered tools and prototyping workflows to accelerate design exploration, experimentation, and iteration.\n\nQualifications\n\nRequired/minimum qualifications:\nBachelor's Degree in Computer Science or related technical field AND 8+ years technical engineering experience with coding in languages including, but not limited to, C, C++, C#, Java, JavaScript, or Python OR equivalent experience.\n\nAdditional Or Preferred Qualifications:\n- Master's Degree in Computer Science or related technical field AND 12+ years technical engineering experience with coding in languages including, but not limited to, C, C++, C#, Java, JavaScript, or Python OR Bachelor's Degree in Computer Science or related technical field AND 15+ years technical engineering experience with coding in languages including, but not limited to, C, C++, C#, Java, JavaScript, or Python OR equivalent experience.\n- 8+ years of product management experience, with a strong track record of shipping impactful consumer education technology products.\n- Deep understanding of learning science, adaptive learning, and engagement-driven design.\n- Experience working with cross-functional teams including research, engineering, design, data, and education stakeholders.\n- Passion for improving educational outcomes and creating engaging, student-centered learning experiences.\n- Strong analytical skills with the ability to leverage data to inform product decisions.\n- Excellent communication and leadership skills, capable of inspiring teams and influencing senior leaders.\n\nProduct Management IC6 - The typical base pay range for this role across the U.S. is USD $163,000 - $296,400 per year. There is a different range applicable to specific work locations, within the San Francisco Bay area and New York City metropolitan area, and the base pay range for this role in those locations is USD $220,800 - $331,200 per year.\n\nMicrosoft is an equal opportunity employer. All qualified applicants will receive consideration for employment without regard to age, ancestry, citizenship, color, family or medical care leave, gender identity or expression, genetic information, immigration status, marital status, medical condition, national origin, physical or mental disability, political affiliation, protected veteran or military status, race, ethnicity, religion, sex (including pregnancy), sexual orientation, or any other characteristic protected by applicable local laws, regulations and ordinances.",
+  "url": "https://www.linkedin.com/jobs/view/4381479890/",
+  "source": "linkedin",
+  "location": "Mountain View, CA",
+  "seniority": "principal",
+  "remote": false,
+  "salary": "$163,000 - $331,200/yr",
+  "requirements": [
+    {
+      "description": "Bachelor's Degree in Computer Science or related technical field AND 8+ years technical engineering experience with coding in languages including C, C++, C#, Java, JavaScript, or Python OR equivalent experience",
+      "skill_mapping": [
+        "computer_science",
+        "c",
+        "cpp",
+        "csharp",
+        "java",
+        "javascript",
+        "python",
+        "software_engineering"
+      ],
+      "priority": "must_have",
+      "years_experience": 8,
+      "education_level": "bachelor"
+    },
+    {
+      "description": "Master's Degree in Computer Science or related technical field AND 12+ years technical engineering experience OR Bachelor's Degree AND 15+ years experience",
+      "skill_mapping": [
+        "computer_science",
+        "software_engineering"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": 12,
+      "education_level": "master"
+    },
+    {
+      "description": "8+ years of product management experience with a strong track record of shipping impactful consumer education technology products",
+      "skill_mapping": [
+        "product_management",
+        "edtech",
+        "consumer_products"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": 8,
+      "education_level": null
+    },
+    {
+      "description": "Deep understanding of learning science, adaptive learning, and engagement-driven design",
+      "skill_mapping": [
+        "learning_science",
+        "adaptive_learning",
+        "engagement_design",
+        "instructional_design"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience working with cross-functional teams including research, engineering, design, data, and education stakeholders",
+      "skill_mapping": [
+        "cross_functional_leadership",
+        "stakeholder_management"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Passion for improving educational outcomes and creating engaging, student-centered learning experiences",
+      "skill_mapping": [
+        "education",
+        "user_centered_design"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Strong analytical skills with the ability to leverage data to inform product decisions",
+      "skill_mapping": [
+        "data_analysis",
+        "product_analytics",
+        "data_driven_decision_making"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Excellent communication and leadership skills, capable of inspiring teams and influencing senior leaders",
+      "skill_mapping": [
+        "leadership",
+        "communication",
+        "executive_influence"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience with AI-driven product development and strategy",
+      "skill_mapping": [
+        "artificial_intelligence",
+        "ai_product_strategy",
+        "machine-learning"
+      ],
+      "priority": "implied",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Product vision and roadmap development across multiple feature areas",
+      "skill_mapping": [
+        "product_strategy",
+        "product_roadmap",
+        "product_vision"
+      ],
+      "priority": "implied",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience establishing success metrics including OKRs, KPIs, and learning efficacy measures",
+      "skill_mapping": [
+        "okrs",
+        "kpis",
+        "metrics",
+        "product_metrics"
+      ],
+      "priority": "implied",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience with responsible AI practices, security, and accessibility standards",
+      "skill_mapping": [
+        "responsible_ai",
+        "accessibility",
+        "security"
+      ],
+      "priority": "implied",
+      "years_experience": null,
+      "education_level": null
+    }
+  ]
+}

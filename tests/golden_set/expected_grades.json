@@ -1,0 +1,98 @@
+{
+  "cohere-senior-software-engineer-agent-infrastructure": {
+    "expected": "?",
+    "rationale": "Cohere \u2014 Senior Software Engineer, Agent Infrastructure"
+  },
+  "fullstack-principal-agentic-engineer": {
+    "expected": "?",
+    "rationale": "FullStack \u2014 Principal Agentic Engineer"
+  },
+  "schoolai-fullstack-software-engineer": {
+    "expected": "?",
+    "rationale": "SchoolAI \u2014 Fullstack Software Engineer"
+  },
+  "kiddom-machine-learning-engineer": {
+    "expected": "?",
+    "rationale": "Kiddom \u2014 Machine Learning Engineer"
+  },
+  "milwaukee-brewers-senior-software-engineer-baseball-systems": {
+    "expected": "?",
+    "rationale": "Milwaukee Brewers \u2014 Senior Software Engineer (Baseball Systems)"
+  },
+  "adobe-senior-software-development-engineer": {
+    "expected": "?",
+    "rationale": "Adobe \u2014 Senior Software Development Engineer"
+  },
+  "adobe-senior-customer-facing-applied-ai-engineer": {
+    "expected": "?",
+    "rationale": "Adobe \u2014 Senior Customer Facing Applied AI Engineer"
+  },
+  "motion-recruitment-sr-react-three-js-unreal-engine-unity-nod": {
+    "expected": "?",
+    "rationale": "Motion Recruitment \u2014 Sr. React, Three.js / Unreal Engine / Unity / Node / WebGL"
+  },
+  "change-org-senior-staff-software-engineer-ai-and-tools": {
+    "expected": "?",
+    "rationale": "Change.org \u2014 Senior Staff Software Engineer, AI and Tools"
+  },
+  "substack-full-stack-product-engineer-creator-activation": {
+    "expected": "?",
+    "rationale": "Substack \u2014 Full Stack Product Engineer \u2013 Creator Activation"
+  },
+  "deeprec-ai-senior-agentic-ai-engineer": {
+    "expected": "?",
+    "rationale": "DeepRec.ai \u2014 Senior Agentic AI Engineer"
+  },
+  "arcadia-senior-software-engineer-ai-agents": {
+    "expected": "?",
+    "rationale": "Arcadia \u2014 Senior Software Engineer (AI Agents)"
+  },
+  "suno-staff-software-engineer": {
+    "expected": "?",
+    "rationale": "Suno \u2014 Staff Software Engineer"
+  },
+  "staffing-science-senior-staff-software-engineer-agentic": {
+    "expected": "?",
+    "rationale": "Staffing Science \u2014 Senior/Staff Software Engineer (Agentic)"
+  },
+  "microsoft-ai-sr-principal-product-manager": {
+    "expected": "?",
+    "rationale": "Microsoft AI \u2014 Sr. Principal Product Manager"
+  },
+  "microsoft-member-of-technical-staff-senior-applied-ai-engine": {
+    "expected": "?",
+    "rationale": "Microsoft \u2014 Member of Technical Staff, Senior Applied AI Engineer"
+  },
+  "npr-senior-ai-engineer-ai-labs": {
+    "expected": "?",
+    "rationale": "NPR \u2014 Senior AI Engineer, AI Labs"
+  },
+  "imbue-product-engineer": {
+    "expected": "?",
+    "rationale": "Imbue \u2014 Product Engineer"
+  },
+  "product-ai-software-engineer-ai-commerce": {
+    "expected": "?",
+    "rationale": "Product.ai \u2014 Software Engineer - AI Commerce"
+  },
+  "the-walt-disney-company-sr-staff-r-d-engineer": {
+    "expected": "?",
+    "rationale": "The Walt Disney Company \u2014 Sr Staff R&D Engineer"
+  },
+  "interplay-learning-principal-react-engineer": {
+    "expected": "?",
+    "rationale": "Interplay Learning \u2014 Principal React Engineer"
+  },
+  "backflip-ai-senior-ai-systems-engineer-agents-reasoning": {
+    "expected": "?",
+    "rationale": "Backflip AI \u2014 Senior AI Systems Engineer (Agents & Reasoning)"
+  },
+  "anthropic-software-engineer-claude-code": {
+    "expected": "?",
+    "rationale": "Anthropic \u2014 Software Engineer, Claude Code"
+  },
+  "the-walt-disney-company-software-engineer-interactive-visual": {
+    "expected": "?",
+    "rationale": "The Walt Disney Company \u2014 Software Engineer - Interactive Visualization"
+  }
+}
