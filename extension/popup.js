@@ -363,6 +363,10 @@ async function initialize() {
 
 	renderResults(partial);
 
+	// Show deep analysis indicator
+	const deepBanner = el('banner-deep-analysis');
+	if (deepBanner) deepBanner.classList.remove('hidden');
+
 	// Fire-and-forget: background.js runs the full assessment independently.
 	const assessmentId = partial.assessment_id;
 	sendToBackground({ action: 'startFullAssess', assessmentId });
@@ -374,6 +378,7 @@ async function initialize() {
 		});
 		if (ready && ready.assessmentId && ready.data) {
 			clearInterval(pollInterval);
+			if (deepBanner) deepBanner.classList.add('hidden');
 			renderResults(ready.data);
 		}
 	}, 2000);
