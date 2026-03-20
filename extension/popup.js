@@ -274,6 +274,10 @@ function renderResults(data) {
 async function initialize() {
 	showState('loading');
 
+	// Get current tab URL to validate cache
+	const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+	const currentTabUrl = activeTab?.url || '';
+
 	// Check cache FIRST — before any server calls. Instant reopen.
 	const cache = await new Promise(r => {
 		chrome.storage.local.get(['currentPosting', 'lastAssessment', 'fullAssessmentReady'], res => r(res));
@@ -283,7 +287,11 @@ async function initialize() {
 	const fullReady = cache.fullAssessmentReady || null;
 	const fresh = stored && stored.extractedAt && (Date.now() - stored.extractedAt) < POSTING_TTL_MS;
 
-	if (fresh && lastAssessment && lastAssessment.url === stored.url) {
+	// Cache only valid if it matches the current tab's URL
+	const normalizeUrl = (u) => (u || '').replace(/\?.*$/, '').replace(/\/+$/, '');
+	const cacheMatchesTab = stored && normalizeUrl(stored.url) === normalizeUrl(currentTabUrl);
+
+	if (fresh && cacheMatchesTab && lastAssessment && lastAssessment.url === stored.url) {
 		currentPosting = stored;
 
 		if (fullReady && fullReady.assessmentId && fullReady.data) {
