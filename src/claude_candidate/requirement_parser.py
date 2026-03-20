@@ -149,3 +149,30 @@ def _infer_priority(lines: list[str], keywords: list[str]) -> RequirementPriorit
         if any(w in line for w in NICE_TO_HAVE_WORDS):
             return RequirementPriority.NICE_TO_HAVE
     return RequirementPriority.NICE_TO_HAVE
+
+
+def normalize_skill_mappings(requirements: list[dict], taxonomy=None) -> list[dict]:
+    """Normalize skill_mapping entries through the taxonomy.
+
+    Matched entries are replaced with canonical names.
+    Unmatched entries are preserved as-is.
+    Returns modified requirements list (mutates in place).
+    """
+    if taxonomy is None:
+        from claude_candidate.skill_taxonomy import SkillTaxonomy
+        taxonomy = SkillTaxonomy.load_default()
+
+    for req in requirements:
+        normalized = []
+        for skill_name in req.get("skill_mapping", []):
+            canonical = taxonomy.match(skill_name)
+            normalized.append(canonical if canonical else skill_name)
+        # Deduplicate while preserving order
+        seen = set()
+        deduped = []
+        for name in normalized:
+            if name not in seen:
+                seen.add(name)
+                deduped.append(name)
+        req["skill_mapping"] = deduped
+    return requirements
