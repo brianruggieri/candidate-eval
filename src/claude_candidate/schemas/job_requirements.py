@@ -88,11 +88,13 @@ class QuickRequirement(BaseModel):
     Lightweight requirement for fast matching in the browser extension flow.
 
     Stripped-down version of JobRequirement that skips evidence_needed
-    and years_experience for speed. Produced by the QuickMatchEngine's
-    internal parser rather than the full Job Parser agent.
+    for speed. Produced by the QuickMatchEngine's internal parser or
+    the enriched extraction prompt rather than the full Job Parser agent.
     """
 
     description: str
     skill_mapping: list[str] = Field(min_length=1)
     priority: RequirementPriority
+    years_experience: int | None = None
+    education_level: str | None = None  # "bachelor", "master", "phd", etc.
     source_text: str = ""  # Original text fragment this was extracted from

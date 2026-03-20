@@ -579,6 +579,32 @@ SAMPLE_CLAUDE_JSON = json.dumps({
     "salary": "$180k-$220k",
 })
 
+SAMPLE_CLAUDE_JSON_WITH_REQUIREMENTS = json.dumps({
+    "company": "Acme Corp",
+    "title": "Senior Backend Engineer",
+    "description": "Build scalable services. Requirements: 5+ years Python, strong system design skills.",
+    "location": "San Francisco, CA",
+    "seniority": "senior",
+    "remote": True,
+    "salary": "$180k-$220k",
+    "requirements": [
+        {
+            "description": "5+ years of Python experience",
+            "skill_mapping": ["python"],
+            "priority": "must_have",
+            "years_experience": 5,
+            "education_level": None,
+        },
+        {
+            "description": "Strong system design skills",
+            "skill_mapping": ["system design", "architecture"],
+            "priority": "must_have",
+            "years_experience": None,
+            "education_level": None,
+        },
+    ],
+})
+
 
 class TestExtractPostingEndpoint:
     async def test_extracts_posting_via_claude(self, client: AsyncClient):
@@ -705,3 +731,74 @@ class TestExtractPostingEndpoint:
         assert data["description"] == ""
         assert data["location"] is None
         assert data["remote"] is None
+
+    async def test_extraction_includes_requirements(self, client: AsyncClient):
+        """Extraction response includes structured requirements from Claude."""
+        with (
+            patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
+            patch("claude_candidate.claude_cli.call_claude", return_value=SAMPLE_CLAUDE_JSON_WITH_REQUIREMENTS),
+        ):
+            resp = await client.post(
+                "/api/extract-posting",
+                json={
+                    "url": "https://acme.com/jobs/99",
+                    "title": "Senior Backend Engineer at Acme",
+                    "text": "Acme Corp is hiring. Requirements: 5+ years Python, system design.",
+                },
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "requirements" in data
+        assert isinstance(data["requirements"], list)
+        assert len(data["requirements"]) == 2
+        req0 = data["requirements"][0]
+        assert req0["description"] == "5+ years of Python experience"
+        assert req0["skill_mapping"] == ["python"]
+        assert req0["priority"] == "must_have"
+        assert req0["years_experience"] == 5
+
+    async def test_extraction_requirements_null_when_absent(self, client: AsyncClient):
+        """Requirements is null when Claude response omits it (backward compat)."""
+        with (
+            patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
+            patch("claude_candidate.claude_cli.call_claude", return_value=SAMPLE_CLAUDE_JSON),
+        ):
+            resp = await client.post(
+                "/api/extract-posting",
+                json={
+                    "url": "https://acme.com/jobs/100",
+                    "title": "Engineer",
+                    "text": "Some job posting text.",
+                },
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["requirements"] is None
+
+    async def test_extraction_prompt_asks_for_requirements(self, client: AsyncClient):
+        """The prompt sent to Claude asks for requirements extraction."""
+        captured_prompts: list[str] = []
+
+        def capture_call(prompt: str, **kwargs):
+            captured_prompts.append(prompt)
+            return SAMPLE_CLAUDE_JSON_WITH_REQUIREMENTS
+
+        with (
+            patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
+            patch("claude_candidate.claude_cli.call_claude", side_effect=capture_call),
+        ):
+            await client.post(
+                "/api/extract-posting",
+                json={
+                    "url": "https://acme.com/jobs/101",
+                    "title": "Engineer",
+                    "text": "Some job posting text.",
+                },
+            )
+        assert len(captured_prompts) == 1
+        prompt = captured_prompts[0]
+        assert "requirements" in prompt.lower()
+        assert "skill_mapping" in prompt
+        assert "must_have" in prompt
+        assert "years_experience" in prompt
+        assert "education_level" in prompt

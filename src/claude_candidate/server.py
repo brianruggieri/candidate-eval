@@ -81,6 +81,7 @@ class PostingExtraction(BaseModel):
     seniority: str | None = None
     remote: bool | None = None
     salary: str | None = None
+    requirements: list[dict] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -510,7 +511,18 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
             '- location: string or null\n'
             '- seniority: string or null (one of: junior, mid, senior, staff, principal, director)\n'
             '- remote: boolean or null\n'
-            '- salary: string or null\n\n'
+            '- salary: string or null\n'
+            '- requirements: array of objects, each with:\n'
+            '  - description: string (human-readable requirement)\n'
+            '  - skill_mapping: array of strings (normalized skill names, e.g. ["python", "django"])\n'
+            '  - priority: string (one of: must_have, strong_preference, nice_to_have, implied)\n'
+            '  - years_experience: integer or null (e.g. 5 for "5+ years")\n'
+            '  - education_level: string or null (e.g. "bachelor", "master", "phd")\n\n'
+            "For requirements, extract every qualification, skill, or experience mentioned in the posting. "
+            "Use must_have for requirements labeled required/must/essential, "
+            "strong_preference for strongly preferred/highly desired, "
+            "nice_to_have for preferred/bonus/plus, "
+            "and implied for unlabeled qualifications that are clearly expected.\n\n"
             "If this page does not contain a job posting, return all fields as null.\n\n"
             f"Page title: {title}\n"
             f"Page text:\n{truncated}"
@@ -562,6 +574,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
             seniority=parsed.get("seniority"),
             remote=parsed.get("remote"),
             salary=parsed.get("salary"),
+            requirements=parsed.get("requirements"),
         )
         result_dict = result.model_dump()
         await store.cache_posting(url_hash, req.url, result_dict)
