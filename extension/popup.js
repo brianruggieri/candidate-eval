@@ -67,17 +67,32 @@ let currentPosting = null;
 function renderResults(data) {
 	currentAssessment = data;
 
+	const phase = data.assessment_phase || 'partial';
+
 	// Header
 	el('results-company').textContent = data.company_name || currentPosting?.company || '';
 	el('results-title').textContent = data.job_title || currentPosting?.title || 'Unknown Role';
 
-	const overall = data.overall_score;
-	const grade = data.overall_grade || scoreToGrade(overall);
-	const gradeEl = el('results-grade');
-	gradeEl.textContent = grade;
-	gradeEl.dataset.grade = grade;
+	// Hero display: percentage for partial, letter grade for full
+	const heroEl = el('results-hero');
+	if (phase === 'full') {
+		const grade = data.overall_grade || scoreToGrade(data.overall_score || 0);
+		heroEl.textContent = grade;
+		heroEl.dataset.grade = grade;
+		heroEl.classList.add('hero-grade');
+		heroEl.classList.remove('hero-pct');
+	} else {
+		const partial = data.partial_percentage != null
+			? Math.round(data.partial_percentage)
+			: Math.round((data.overall_score || 0) * 100);
+		heroEl.textContent = partial + '%';
+		heroEl.dataset.grade = '';
+		heroEl.classList.add('hero-pct');
+		heroEl.classList.remove('hero-grade');
+	}
 
 	// Overall bar
+	const overall = data.overall_score || (data.partial_percentage != null ? data.partial_percentage / 100 : 0);
 	requestAnimationFrame(() => {
 		el('bar-overall').style.width = pct(overall);
 	});
@@ -86,9 +101,9 @@ function renderResults(data) {
 	// Summary
 	el('results-summary').textContent = data.overall_summary || '';
 
-	// Three dimensions — server returns nested objects
+	// Dimension renderer helper
 	function setDim(key, barId, pctId, detailId) {
-		const dim = data[key]; // e.g. data.skill_match = {score, grade, summary, details}
+		const dim = data[key];
 		if (!dim) return;
 		const score = dim.score || 0;
 		const fill = el(barId);
@@ -100,9 +115,49 @@ function renderResults(data) {
 		el(detailId).textContent = dim.summary || '';
 	}
 
+	// Local dimensions (always shown)
 	setDim('skill_match', 'bar-skills', 'pct-skills', 'detail-skills');
-	setDim('mission_alignment', 'bar-mission', 'pct-mission', 'detail-mission');
-	setDim('culture_fit', 'bar-culture', 'pct-culture', 'detail-culture');
+	setDim('experience_match', 'bar-experience', 'pct-experience', 'detail-experience');
+	setDim('education_match', 'bar-education', 'pct-education', 'detail-education');
+
+	// Full assessment dimensions (only shown when phase === 'full')
+	const fullDimsSection = el('section-full-dims');
+	const narrativeSection = el('section-narrative');
+	const receptivitySection = el('section-receptivity');
+
+	if (phase === 'full') {
+		// Mission & culture
+		if (data.mission_alignment) {
+			setDim('mission_alignment', 'bar-mission', 'pct-mission', 'detail-mission');
+		}
+		if (data.culture_fit) {
+			setDim('culture_fit', 'bar-culture', 'pct-culture', 'detail-culture');
+		}
+		if (data.mission_alignment || data.culture_fit) {
+			fullDimsSection.classList.remove('hidden');
+		}
+
+		// Narrative verdict
+		if (data.narrative_verdict) {
+			el('narrative-verdict').textContent = data.narrative_verdict;
+			narrativeSection.classList.remove('hidden');
+		}
+
+		// Receptivity badge
+		if (data.receptivity_level) {
+			const badge = el('receptivity-badge');
+			badge.textContent = data.receptivity_level;
+			badge.className = 'receptivity-badge receptivity-' + data.receptivity_level;
+			if (data.receptivity_reason) {
+				el('receptivity-reason').textContent = data.receptivity_reason;
+			}
+			receptivitySection.classList.remove('hidden');
+		}
+	} else {
+		fullDimsSection.classList.add('hidden');
+		narrativeSection.classList.add('hidden');
+		receptivitySection.classList.add('hidden');
+	}
 
 	// Stats
 	el('detail-must-haves').textContent = data.must_have_coverage || '--';
@@ -183,8 +238,6 @@ function renderResults(data) {
 		actSection.classList.add('hidden');
 	}
 
-	// Full Details button starts hidden — shown only when full report is ready
-
 	// Verdict
 	const verdict = data.should_apply || '';
 	const labels = {
@@ -207,43 +260,32 @@ async function initialize() {
 
 	// Check cache FIRST — before any server calls. Instant reopen.
 	const cache = await new Promise(r => {
-		chrome.storage.local.get(['currentPosting', 'lastAssessment', 'fullReportReady'], res => r(res));
+		chrome.storage.local.get(['currentPosting', 'lastAssessment', 'fullAssessmentReady'], res => r(res));
 	});
 	const stored = cache.currentPosting || null;
 	const lastAssessment = cache.lastAssessment || null;
-	const fullReady = cache.fullReportReady || null;
+	const fullReady = cache.fullAssessmentReady || null;
 	const fresh = stored && stored.extractedAt && (Date.now() - stored.extractedAt) < POSTING_TTL_MS;
 
 	if (fresh && lastAssessment && lastAssessment.url === stored.url) {
 		currentPosting = stored;
-		renderResults(lastAssessment.data);
 
-		const btnFull = el('btn-full-details');
-		const banner = el('banner-full-loading');
-
-		if (fullReady && fullReady.assessmentId) {
-			// Full report is ready — show button, hide banner
-			if (btnFull) {
-				btnFull.classList.remove('hidden');
-				btnFull.onclick = () => sendToBackground({ action: 'openReport', url: fullReady.url });
-			}
-			if (banner) banner.classList.add('hidden');
+		if (fullReady && fullReady.assessmentId && fullReady.data) {
+			// Full assessment is ready — render it directly
+			renderResults(fullReady.data);
 		} else {
-			// Full report not ready — re-trigger generation and poll
-			if (banner) banner.classList.remove('hidden');
+			// Show partial results, then poll for full
+			renderResults(lastAssessment.data);
+
 			const aid = lastAssessment.data.assessment_id;
 			if (aid) sendToBackground({ action: 'startFullAssess', assessmentId: aid });
 			const pollInterval = setInterval(async () => {
 				const ready = await new Promise(r => {
-					chrome.storage.local.get('fullReportReady', res => r(res.fullReportReady || null));
+					chrome.storage.local.get('fullAssessmentReady', res => r(res.fullAssessmentReady || null));
 				});
-				if (ready && ready.assessmentId) {
+				if (ready && ready.assessmentId && ready.data) {
 					clearInterval(pollInterval);
-					if (banner) banner.classList.add('hidden');
-					if (btnFull) {
-						btnFull.classList.remove('hidden');
-						btnFull.onclick = () => sendToBackground({ action: 'openReport', url: ready.url });
-					}
+					renderResults(ready.data);
 				}
 			}, 2000);
 		}
@@ -302,26 +344,19 @@ async function initialize() {
 	chrome.storage.local.set({ lastAssessment: { url: posting.url, data: partial } });
 
 	renderResults(partial);
-	const banner = el('banner-full-loading');
-	const btnFull = el('btn-full-details');
-	if (banner) banner.classList.remove('hidden');
 
 	// Fire-and-forget: background.js runs the full assessment independently.
 	const assessmentId = partial.assessment_id;
 	sendToBackground({ action: 'startFullAssess', assessmentId });
 
-	// Poll for completion (if popup stays open)
+	// Poll for completion (if popup stays open) — update in-place
 	const pollInterval = setInterval(async () => {
 		const ready = await new Promise(r => {
-			chrome.storage.local.get('fullReportReady', res => r(res.fullReportReady || null));
+			chrome.storage.local.get('fullAssessmentReady', res => r(res.fullAssessmentReady || null));
 		});
-		if (ready && ready.assessmentId) {
+		if (ready && ready.assessmentId && ready.data) {
 			clearInterval(pollInterval);
-			if (banner) banner.classList.add('hidden');
-			if (btnFull) {
-				btnFull.classList.remove('hidden');
-				btnFull.onclick = () => sendToBackground({ action: 'openReport', url: ready.url });
-			}
+			renderResults(ready.data);
 		}
 	}, 2000);
 }
@@ -334,20 +369,44 @@ document.addEventListener('DOMContentLoaded', () => {
 	const btnManual = el('btn-manual-extract');
 	if (btnManual) btnManual.addEventListener('click', initialize);
 
-	const btnWatch = el('btn-watchlist');
-	if (btnWatch) btnWatch.addEventListener('click', async () => {
+	const btnShortlist = el('btn-shortlist');
+	if (btnShortlist) btnShortlist.addEventListener('click', async () => {
 		if (!currentAssessment && !currentPosting) return;
-		btnWatch.disabled = true;
+		btnShortlist.disabled = true;
 		const r = await sendToBackground({
-			action: 'addToWatchlist',
-			payload: { ...(currentPosting || {}), assessment_id: currentAssessment?.assessment_id },
+			action: 'addToShortlist',
+			payload: {
+				...(currentPosting || {}),
+				assessment_id: currentAssessment?.assessment_id,
+				salary: currentPosting?.salary || null,
+				location: currentPosting?.location || null,
+				overall_grade: currentAssessment?.overall_grade || null,
+			},
 		});
-		btnWatch.textContent = r.success ? 'Saved' : 'Failed';
-		if (!r.success) { btnWatch.disabled = false; setTimeout(() => { btnWatch.textContent = 'Save to Watchlist'; }, 2000); }
+		btnShortlist.textContent = r.success ? 'Added' : 'Failed';
+		if (!r.success) {
+			btnShortlist.disabled = false;
+			setTimeout(() => { btnShortlist.textContent = 'Add to Shortlist'; }, 2000);
+		}
 	});
 
-	// btn-full-details default click is set by renderResults (or overridden by
-	// the assessFull callback once Claude deliverables are ready).
+	const btnCopy = el('btn-clipboard');
+	if (btnCopy) btnCopy.addEventListener('click', () => {
+		const data = currentAssessment;
+		const posting = currentPosting;
+		const row = [
+			data?.company_name || '',
+			data?.job_title || '',
+			posting?.location || '',
+			posting?.salary || '',
+			posting?.url || '',
+			data?.overall_grade || '',
+			new Date().toLocaleDateString(),
+		].join('\t');
+		navigator.clipboard.writeText(row);
+		btnCopy.textContent = 'Copied!';
+		setTimeout(() => { btnCopy.textContent = '\u{1F4CB}'; }, 1500);
+	});
 
 	initialize();
 });

@@ -76,6 +76,8 @@ async function handleAssessPartial(payload) {
 			company: payload.company || 'Unknown Company',
 			title: payload.title || 'Unknown Position',
 			posting_url: payload.url || null,
+			requirements: payload.requirements || null,
+			seniority: payload.seniority || 'unknown',
 		};
 		const data = await apiFetch('/api/assess/partial', {
 			method: 'POST',
@@ -101,19 +103,19 @@ async function handleAssessFull(assessmentId) {
 
 /**
  * Fire-and-forget: start full assessment in background, store result when done.
- * Survives popup close. Popup checks fullReportReady on reopen.
+ * Survives popup close. Popup checks fullAssessmentReady on reopen.
  */
 async function handleStartFullAssess(assessmentId) {
 	// Clear any previous result
-	chrome.storage.local.remove('fullReportReady');
+	chrome.storage.local.remove('fullAssessmentReady');
 
 	// Run in background — this continues even if popup closes
 	handleAssessFull(assessmentId).then(result => {
-		if (result.success && result.assessment_id && !result.error && result.deliverables) {
+		if (result.success && result.assessment_phase === 'full') {
 			chrome.storage.local.set({
-				fullReportReady: {
+				fullAssessmentReady: {
 					assessmentId: result.assessment_id,
-					url: `http://localhost:7429/api/assessments/${result.assessment_id}`,
+					data: result,
 					completedAt: Date.now(),
 				}
 			});
@@ -122,15 +124,6 @@ async function handleStartFullAssess(assessmentId) {
 
 	// Return immediately — don't wait for Claude
 	return { success: true, started: true };
-}
-
-async function handleOpenReport(url) {
-	try {
-		await chrome.tabs.create({ url });
-		return { success: true };
-	} catch (err) {
-		return { success: false, error: err.message };
-	}
 }
 
 async function handleExtractPosting(payload) {
@@ -149,7 +142,7 @@ async function handleExtractPosting(payload) {
 	}
 }
 
-async function handleAddToWatchlist(payload) {
+async function handleAddToShortlist(payload) {
 	try {
 		// Map extension fields to server API fields
 		const body = {
@@ -157,9 +150,12 @@ async function handleAddToWatchlist(payload) {
 			job_title: payload.title || payload.job_title || '',
 			posting_url: payload.url || payload.posting_url || null,
 			assessment_id: payload.assessment_id || null,
+			salary: payload.salary || null,
+			location: payload.location || null,
+			overall_grade: payload.overall_grade || null,
 			notes: payload.notes || null,
 		};
-		const data = await apiFetch('/api/watchlist', {
+		const data = await apiFetch('/api/shortlist', {
 			method: 'POST',
 			body: JSON.stringify(body),
 		});
@@ -197,10 +193,6 @@ chrome.runtime.onMessage.addListener(function (request, _sender, sendResponse) {
 			promise = handleStartFullAssess(request.assessmentId);
 			break;
 
-		case 'openReport':
-			promise = handleOpenReport(request.url);
-			break;
-
 		case 'extractPosting':
 			promise = handleExtractPosting(request.payload);
 			break;
@@ -209,8 +201,8 @@ chrome.runtime.onMessage.addListener(function (request, _sender, sendResponse) {
 			promise = handleGetAssessment(request.id);
 			break;
 
-		case 'addToWatchlist':
-			promise = handleAddToWatchlist(request.payload);
+		case 'addToShortlist':
+			promise = handleAddToShortlist(request.payload);
 			break;
 
 		default:

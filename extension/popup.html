@@ -60,18 +60,12 @@
 	<!-- Results -->
 	<div id="state-results" class="state hidden">
 
-		<!-- Full-report generation banner (hidden until partial results shown) -->
-		<div id="banner-full-loading" class="full-loading-banner hidden">
-			<div class="banner-spinner"></div>
-			<span>Generating full report&hellip;</span>
-		</div>
-
 		<header class="results-header">
 			<div class="results-meta">
 				<span id="results-company" class="results-company"></span>
 				<h1 id="results-title" class="results-title"></h1>
 			</div>
-			<div class="results-grade" id="results-grade">--</div>
+			<div class="results-hero" id="results-hero">--</div>
 		</header>
 
 		<!-- Overall bar -->
@@ -85,11 +79,11 @@
 		<!-- Summary -->
 		<p class="overall-summary" id="results-summary"></p>
 
-		<!-- Three dimensions -->
-		<div class="dim-section">
+		<!-- Local dimensions (always shown: skills, experience, education) -->
+		<div class="dim-section" id="section-local-dims">
 			<div class="dim">
 				<div class="dim-top">
-					<span class="dim-name">Skills</span>
+					<span class="dim-name">Skills Match</span>
 					<span class="dim-pct" id="pct-skills"></span>
 				</div>
 				<div class="dim-track"><div class="dim-fill" id="bar-skills"></div></div>
@@ -97,7 +91,27 @@
 			</div>
 			<div class="dim">
 				<div class="dim-top">
-					<span class="dim-name">Mission</span>
+					<span class="dim-name">Experience</span>
+					<span class="dim-pct" id="pct-experience"></span>
+				</div>
+				<div class="dim-track"><div class="dim-fill" id="bar-experience"></div></div>
+				<p class="dim-detail" id="detail-experience"></p>
+			</div>
+			<div class="dim">
+				<div class="dim-top">
+					<span class="dim-name">Education / Tech</span>
+					<span class="dim-pct" id="pct-education"></span>
+				</div>
+				<div class="dim-track"><div class="dim-fill" id="bar-education"></div></div>
+				<p class="dim-detail" id="detail-education"></p>
+			</div>
+		</div>
+
+		<!-- Full assessment dimensions (hidden until full assessment completes) -->
+		<div class="dim-section hidden" id="section-full-dims">
+			<div class="dim">
+				<div class="dim-top">
+					<span class="dim-name">Mission Alignment</span>
 					<span class="dim-pct" id="pct-mission"></span>
 				</div>
 				<div class="dim-track"><div class="dim-fill" id="bar-mission"></div></div>
@@ -105,12 +119,24 @@
 			</div>
 			<div class="dim">
 				<div class="dim-top">
-					<span class="dim-name">Culture</span>
+					<span class="dim-name">Culture Fit</span>
 					<span class="dim-pct" id="pct-culture"></span>
 				</div>
 				<div class="dim-track"><div class="dim-fill" id="bar-culture"></div></div>
 				<p class="dim-detail" id="detail-culture"></p>
 			</div>
+		</div>
+
+		<!-- Narrative verdict (hidden until full assessment) -->
+		<div class="narrative-section hidden" id="section-narrative">
+			<p class="narrative-text" id="narrative-verdict"></p>
+		</div>
+
+		<!-- Receptivity badge (hidden until full assessment) -->
+		<div class="receptivity-section hidden" id="section-receptivity">
+			<span class="receptivity-label">Receptivity</span>
+			<span class="receptivity-badge" id="receptivity-badge"></span>
+			<span class="receptivity-reason muted" id="receptivity-reason"></span>
 		</div>
 
 		<!-- Key stats -->
@@ -160,8 +186,8 @@
 
 		<!-- Buttons -->
 		<div class="btn-row">
-			<button id="btn-watchlist" class="btn btn-secondary">Save to Watchlist</button>
-			<button id="btn-full-details" class="btn btn-primary hidden">Full Details</button>
+			<button id="btn-clipboard" class="btn btn-icon" title="Copy row to clipboard">&#128203;</button>
+			<button id="btn-shortlist" class="btn btn-secondary">Add to Shortlist</button>
 		</div>
 
 	</div>
