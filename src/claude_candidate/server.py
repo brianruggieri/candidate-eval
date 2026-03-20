@@ -247,9 +247,16 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
         else:
             merged = merge_candidate_only(cp)
 
-        # Build requirements
+        # Build requirements — filter out invalid entries from Claude
         if req.requirements:
-            requirements = [QuickRequirement(**r) for r in req.requirements]
+            requirements = []
+            for r in req.requirements:
+                try:
+                    requirements.append(QuickRequirement(**r))
+                except Exception:
+                    continue  # Skip malformed requirements
+            if not requirements:
+                requirements = _extract_basic_requirements(req.posting_text)
         else:
             requirements = _extract_basic_requirements(req.posting_text)
 
