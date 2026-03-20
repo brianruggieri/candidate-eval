@@ -128,6 +128,20 @@ class SkillTaxonomy:
             return None
         return data.get("category")
 
+    def get_content_patterns(self) -> dict[str, list[str]]:
+        """Return a mapping of canonical skill name to content patterns.
+
+        Only entries with a non-empty content_patterns list are included.
+        Used by extract_technologies() to drive keyword detection from the taxonomy
+        rather than a hardcoded dict.
+        """
+        result: dict[str, list[str]] = {}
+        for canonical, data in self._skills.items():
+            patterns = data.get("content_patterns", [])
+            if patterns:
+                result[canonical] = list(patterns)
+        return result
+
     def are_related(self, name_a: str, name_b: str) -> bool:
         """
         Check if two skills are related.

@@ -23,6 +23,7 @@ from claude_candidate.extractor import (
     _is_valid_json_line,
     _truncate_snippet,
 )
+from claude_candidate.message_format import normalize_messages
 from claude_candidate.schemas.candidate_profile import (
     CandidateProfile,
     DepthLevel,
@@ -167,7 +168,7 @@ class TestDetectFromContent:
 
 class TestExtractTechnologies:
     def test_detects_python_from_tool_use(self) -> None:
-        messages = [
+        raw = [
             {
                 "type": "tool_use",
                 "toolUse": {
@@ -176,11 +177,11 @@ class TestExtractTechnologies:
                 },
             },
         ]
-        techs = extract_technologies(messages)
+        techs = extract_technologies(normalize_messages(raw))
         assert "python" in techs
 
     def test_detects_typescript_from_file_extension(self) -> None:
-        messages = [
+        raw = [
             {
                 "type": "tool_use",
                 "toolUse": {
@@ -189,11 +190,11 @@ class TestExtractTechnologies:
                 },
             },
         ]
-        techs = extract_technologies(messages)
+        techs = extract_technologies(normalize_messages(raw))
         assert "typescript" in techs
 
     def test_no_duplicates(self) -> None:
-        messages = [
+        raw = [
             {
                 "type": "tool_use",
                 "toolUse": {
@@ -209,12 +210,12 @@ class TestExtractTechnologies:
                 },
             },
         ]
-        techs = extract_technologies(messages)
+        techs = extract_technologies(normalize_messages(raw))
         assert techs.count("python") == 1
         assert techs.count("fastapi") == 1
 
     def test_detects_from_content_patterns(self) -> None:
-        messages = [
+        raw = [
             {
                 "type": "assistant",
                 "message": {
@@ -225,11 +226,11 @@ class TestExtractTechnologies:
                 },
             },
         ]
-        techs = extract_technologies(messages)
+        techs = extract_technologies(normalize_messages(raw))
         assert "pydantic" in techs
 
     def test_detects_from_user_messages(self) -> None:
-        messages = [
+        raw = [
             {
                 "type": "user",
                 "message": {
@@ -240,7 +241,7 @@ class TestExtractTechnologies:
                 },
             },
         ]
-        techs = extract_technologies(messages)
+        techs = extract_technologies(normalize_messages(raw))
         assert "docker" in techs
 
     def test_empty_messages_returns_empty(self) -> None:
@@ -254,22 +255,22 @@ class TestExtractTechnologies:
 
 class TestExtractToolCalls:
     def test_extracts_tool_names(self) -> None:
-        messages = [
+        raw = [
             {"type": "tool_use", "toolUse": {"name": "Write", "input": {}}},
             {"type": "tool_use", "toolUse": {"name": "Read", "input": {}}},
             {"type": "tool_use", "toolUse": {"name": "Bash", "input": {}}},
         ]
-        tools = _extract_tool_calls(messages)
+        tools = _extract_tool_calls(normalize_messages(raw))
         assert "Write" in tools
         assert "Read" in tools
         assert "Bash" in tools
 
     def test_skips_non_tool_messages(self) -> None:
-        messages = [
+        raw = [
             {"type": "user", "message": {"role": "user"}},
             {"type": "tool_use", "toolUse": {"name": "Write", "input": {}}},
         ]
-        tools = _extract_tool_calls(messages)
+        tools = _extract_tool_calls(normalize_messages(raw))
         assert tools == ["Write"]
 
     def test_empty_messages(self) -> None:
@@ -283,7 +284,7 @@ class TestExtractToolCalls:
 
 class TestExtractEvidenceSnippets:
     def test_extracts_from_assistant_messages(self) -> None:
-        messages = [
+        raw = [
             {
                 "type": "assistant",
                 "message": {
@@ -294,12 +295,12 @@ class TestExtractEvidenceSnippets:
                 },
             },
         ]
-        snippets = _extract_evidence_snippets(messages)
+        snippets = _extract_evidence_snippets(normalize_messages(raw))
         assert len(snippets) >= 1
         assert any("FastAPI" in s for s in snippets)
 
     def test_skips_user_messages(self) -> None:
-        messages = [
+        raw = [
             {
                 "type": "user",
                 "message": {
@@ -308,12 +309,12 @@ class TestExtractEvidenceSnippets:
                 },
             },
         ]
-        snippets = _extract_evidence_snippets(messages)
+        snippets = _extract_evidence_snippets(normalize_messages(raw))
         assert len(snippets) == 0
 
     def test_truncates_long_snippets(self) -> None:
         long_text = "A" * 600
-        messages = [
+        raw = [
             {
                 "type": "assistant",
                 "message": {
@@ -322,7 +323,7 @@ class TestExtractEvidenceSnippets:
                 },
             },
         ]
-        snippets = _extract_evidence_snippets(messages)
+        snippets = _extract_evidence_snippets(normalize_messages(raw))
         assert all(len(s) <= 500 for s in snippets)
 
     def test_empty_messages(self) -> None:

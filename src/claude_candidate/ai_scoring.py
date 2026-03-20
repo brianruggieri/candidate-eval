@@ -11,7 +11,10 @@ No external dependencies — pure string/dict inspection.
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from claude_candidate.message_format import NormalizedMessage
 
 # ---------------------------------------------------------------------------
 # Weights (must sum to 1.0)
@@ -56,92 +59,30 @@ STANDARD_TOOLS: frozenset[str] = frozenset(
 # ---------------------------------------------------------------------------
 
 
-def _iter_tool_uses(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Return all tool_use blocks from all messages.
-
-    Handles two formats:
-    - JSONL format: top-level {"type": "tool_use", "toolUse": {"name": ..., "input": ...}}
-    - Nested format: {"type": "assistant", "message": {"content": [{"type": "tool_use", ...}]}}
-    - Legacy format: top-level {"content": [{"type": "tool_use", ...}]}
-    """
+def _iter_tool_uses(messages: list["NormalizedMessage"]) -> list[dict[str, Any]]:
+    """Return all tool_use blocks from normalized messages."""
     blocks: list[dict[str, Any]] = []
     for msg in messages:
-        msg_type = msg.get("type", "")
-
-        # JSONL top-level tool_use: {"type": "tool_use", "toolUse": {...}}
-        if msg_type == "tool_use":
-            tool_use = msg.get("toolUse", {})
-            if tool_use:
-                # Normalize to the block format callers expect (name + input)
-                blocks.append({
-                    "type": "tool_use",
-                    "name": tool_use.get("name", ""),
-                    "input": tool_use.get("input", {}),
-                })
-            continue
-
-        # JSONL assistant message: {"type": "assistant", "message": {"content": [...]}}
-        if msg_type == "assistant":
-            content = msg.get("message", {}).get("content", [])
-            if isinstance(content, list):
-                for block in content:
-                    if isinstance(block, dict) and block.get("type") == "tool_use":
-                        blocks.append(block)
-            continue
-
-        # Legacy / flat format: {"content": [...]}
-        content = msg.get("content", [])
-        if isinstance(content, list):
-            for block in content:
-                if isinstance(block, dict) and block.get("type") == "tool_use":
-                    blocks.append(block)
-
+        for block in msg["content"]:
+            if block.get("type") == "tool_use":
+                blocks.append(block)
     return blocks
 
 
-def _iter_text_content(messages: list[dict[str, Any]]) -> list[str]:
-    """Return all text strings found in message content.
-
-    Handles two formats:
-    - JSONL format: {"type": "user"/"assistant", "message": {"content": ...}}
-    - Legacy format: {"content": "string" or [{"type": "text", "text": ...}]}
-    """
+def _iter_text_content(messages: list["NormalizedMessage"]) -> list[str]:
+    """Return all text strings found in normalized message content."""
     texts: list[str] = []
     for msg in messages:
-        msg_type = msg.get("type", "")
-
-        # JSONL user message: {"type": "user", "message": {"content": "string" or [...]}}
-        if msg_type in ("user", "assistant"):
-            inner = msg.get("message", {})
-            content = inner.get("content", "")
-            if isinstance(content, str):
-                if content:
-                    texts.append(content)
-            elif isinstance(content, list):
-                for block in content:
-                    if isinstance(block, dict):
-                        if block.get("type") == "text":
-                            texts.append(block.get("text", ""))
-                        elif block.get("type") == "tool_result":
-                            c = block.get("content", "")
-                            if isinstance(c, str):
-                                texts.append(c)
-            continue
-
-        # Legacy / flat format: {"content": "string" or [...]}
-        content = msg.get("content", "")
-        if isinstance(content, str):
-            texts.append(content)
-        elif isinstance(content, list):
-            for block in content:
-                if isinstance(block, dict):
-                    if block.get("type") == "text":
-                        texts.append(block.get("text", ""))
-                    elif block.get("type") == "tool_result":
-                        c = block.get("content", "")
-                        if isinstance(c, str):
-                            texts.append(c)
-
+        for block in msg["content"]:
+            block_type = block.get("type", "")
+            if block_type == "text":
+                text = block.get("text", "")
+                if text:
+                    texts.append(text)
+            elif block_type == "tool_result":
+                c = block.get("content", "")
+                if isinstance(c, str) and c:
+                    texts.append(c)
     return texts
 
 
@@ -165,7 +106,7 @@ def _score_from_hits(found: int, total: int, extra_bonus: float = 0.0) -> float:
 _ORCHESTRATION_SIGNALS = 6  # total possible categories
 
 
-def score_orchestration(messages: list[dict[str, Any]]) -> float:
+def score_orchestration(messages: list["NormalizedMessage"]) -> float:
     """Score orchestration sophistication based on agentic tool usage patterns."""
     if not messages:
         return 0.0
@@ -191,9 +132,8 @@ def score_orchestration(messages: list[dict[str, Any]]) -> float:
 
     # Category 4: Parallel tool invocations (multiple tool_use in one message)
     has_parallel = any(
-        sum(1 for b in msg.get("content", []) if isinstance(b, dict) and b.get("type") == "tool_use") >= 2
+        sum(1 for b in msg["content"] if b.get("type") == "tool_use") >= 2
         for msg in messages
-        if isinstance(msg.get("content"), list)
     )
 
     # Category 5: Team creation
@@ -229,7 +169,7 @@ _AI_DOMAIN_PATTERNS: dict[str, list[str]] = {
 _AI_DOMAIN_TOTAL = len(_AI_DOMAIN_PATTERNS)
 
 
-def score_ai_domain(messages: list[dict[str, Any]]) -> float:
+def score_ai_domain(messages: list["NormalizedMessage"]) -> float:
     """Score AI domain knowledge by detecting LLM/ML pattern categories in text."""
     if not messages:
         return 0.0
@@ -259,7 +199,7 @@ def score_ai_domain(messages: list[dict[str, Any]]) -> float:
 _PROMPT_ENG_TOTAL = 5  # five signal categories
 
 
-def score_prompt_engineering(messages: list[dict[str, Any]]) -> float:
+def score_prompt_engineering(messages: list["NormalizedMessage"]) -> float:
     """Score prompt engineering sophistication from user/assistant text patterns."""
     if not messages:
         return 0.0
@@ -314,7 +254,7 @@ def score_prompt_engineering(messages: list[dict[str, Any]]) -> float:
 _TOOL_ECOSYSTEM_TOTAL = 5  # five tool categories
 
 
-def score_tool_ecosystem(messages: list[dict[str, Any]]) -> float:
+def score_tool_ecosystem(messages: list["NormalizedMessage"]) -> float:
     """Score tool ecosystem diversity beyond standard Claude Code tools."""
     if not messages:
         return 0.0
@@ -379,7 +319,7 @@ def score_tool_ecosystem(messages: list[dict[str, Any]]) -> float:
 _ERROR_RECOVERY_TOTAL = 4  # four recovery pattern categories
 
 
-def score_error_recovery(messages: list[dict[str, Any]]) -> float:
+def score_error_recovery(messages: list["NormalizedMessage"]) -> float:
     """Score error recovery patterns: test-fix cycles, diagnostics, refinement."""
     if not messages:
         return 0.0
@@ -390,20 +330,16 @@ def score_error_recovery(messages: list[dict[str, Any]]) -> float:
     # Build a sequence of (tool_name, is_error_result) for pattern detection
     event_seq: list[tuple[str, bool]] = []
     for msg in messages:
-        content = msg.get("content", [])
-        if isinstance(content, list):
-            for block in content:
-                if not isinstance(block, dict):
-                    continue
-                btype = block.get("type", "")
-                if btype == "tool_use":
-                    event_seq.append((block.get("name", ""), False))
-                elif btype == "tool_result":
-                    result_text = str(block.get("content", "")).lower()
-                    is_error = block.get("is_error", False) or any(
-                        kw in result_text for kw in ("failed", "error", "traceback", "exception", "assert")
-                    )
-                    event_seq.append(("__result__", is_error))
+        for block in msg["content"]:
+            btype = block.get("type", "")
+            if btype == "tool_use":
+                event_seq.append((block.get("name", ""), False))
+            elif btype == "tool_result":
+                result_text = str(block.get("content", "")).lower()
+                is_error = block.get("is_error", False) or any(
+                    kw in result_text for kw in ("failed", "error", "traceback", "exception", "assert")
+                )
+                event_seq.append(("__result__", is_error))
 
     # Category 1: Test-fix cycle — error result followed by Edit/Write (fix attempt)
     has_test_fix = False
@@ -428,14 +364,12 @@ def score_error_recovery(messages: list[dict[str, Any]]) -> float:
     # Category 3: Iterative refinement — same file edited 2+ times
     edit_targets: list[str] = []
     for msg in messages:
-        content = msg.get("content", [])
-        if isinstance(content, list):
-            for block in content:
-                if isinstance(block, dict) and block.get("type") == "tool_use":
-                    if block.get("name") in {"Edit", "Write"}:
-                        fp = block.get("input", {}).get("file_path", "")
-                        if fp:
-                            edit_targets.append(fp)
+        for block in msg["content"]:
+            if block.get("type") == "tool_use":
+                if block.get("name") in {"Edit", "Write"}:
+                    fp = block.get("input", {}).get("file_path", "")
+                    if fp:
+                        edit_targets.append(fp)
     has_refinement = len(edit_targets) != len(set(edit_targets))
 
     # Category 4: Error acknowledgment in assistant text
@@ -457,7 +391,7 @@ def score_error_recovery(messages: list[dict[str, Any]]) -> float:
 # ---------------------------------------------------------------------------
 
 
-def compute_ai_engineering_score(messages: list[dict[str, Any]]) -> dict[str, float | str]:
+def compute_ai_engineering_score(messages: list["NormalizedMessage"]) -> dict[str, float | str]:
     """Compute composite AI engineering score from session messages.
 
     Returns a dict with keys: orchestration, ai_domain, prompt_engineering,

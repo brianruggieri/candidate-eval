@@ -541,6 +541,327 @@ def profile_merge(candidate: str, resume: str | None, output: str) -> None:
         click.echo(f"  Discovery: {', '.join(merged.discovery_skills)}")
 
 
+# Strength bar display for pattern review
+_STRENGTH_BARS = {
+    "emerging":    "█░░░",
+    "established": "██░░",
+    "strong":      "███░",
+    "exceptional": "████",
+}
+
+# Strength rank for computing delta
+_STRENGTH_RANK = {
+    "emerging":    1,
+    "established": 2,
+    "strong":      3,
+    "exceptional": 4,
+}
+
+# Scenario gap-fill questions keyed by PatternType value
+_SCENARIO_QUESTIONS: dict[str, dict] = {
+    "systematic_debugging": {
+        "q": "You're debugging a production issue. What's your first instinct?",
+        "options": {
+            "a": ("Check logs and traces systematically", True),
+            "b": ("Try the most likely fix immediately", False),
+            "c": ("Ask a colleague who worked on this area", False),
+        },
+    },
+    "architecture_first": {
+        "q": "You're starting a new feature. What do you do first?",
+        "options": {
+            "a": ("Write a brief design doc or diagram", True),
+            "b": ("Start coding a prototype", False),
+            "c": ("Research existing implementations", False),
+        },
+    },
+    "iterative_refinement": {
+        "q": "You've shipped a working v1. What's your natural next move?",
+        "options": {
+            "a": ("Gather feedback and plan v2 improvements", True),
+            "b": ("Move on to the next project", False),
+            "c": ("Write tests to lock in current behavior", False),
+        },
+    },
+    "tradeoff_analysis": {
+        "q": "You're evaluating two technical approaches. What drives your decision?",
+        "options": {
+            "a": ("Explicit pros/cons of each including long-term implications", True),
+            "b": ("Pick the simpler one and move fast", False),
+            "c": ("Go with what the team already knows", False),
+        },
+    },
+    "scope_management": {
+        "q": "Midway through a project, the requirements expand. What do you do?",
+        "options": {
+            "a": ("Explicitly defer the new scope and document the decision", True),
+            "b": ("Absorb it — the project isn't shipped yet anyway", False),
+            "c": ("Raise the timeline concern with stakeholders", False),
+        },
+    },
+    "documentation_driven": {
+        "q": "Before writing any code, what artifact do you produce first?",
+        "options": {
+            "a": ("A spec doc, CLAUDE.md, or design notes", True),
+            "b": ("Skeleton files to establish structure", False),
+            "c": ("A list of tasks in an issue tracker", False),
+        },
+    },
+    "recovery_from_failure": {
+        "q": "A technical approach you invested in clearly isn't working. What do you do?",
+        "options": {
+            "a": ("Pivot early and document what you learned", True),
+            "b": ("Keep pushing — sunk cost rarely justifies a full pivot", False),
+            "c": ("Seek a second opinion before abandoning", False),
+        },
+    },
+    "tool_selection": {
+        "q": "You need to add a new dependency. What's your process?",
+        "options": {
+            "a": ("Evaluate alternatives explicitly before picking one", True),
+            "b": ("Use whatever I've used before and know well", False),
+            "c": ("Use the most popular option in the ecosystem", False),
+        },
+    },
+    "modular_thinking": {
+        "q": "You're designing a system. What's your natural decomposition style?",
+        "options": {
+            "a": ("Independent modules with clear interface contracts", True),
+            "b": ("Monolith first, extract later if needed", False),
+            "c": ("Follow the framework's recommended structure", False),
+        },
+    },
+    "testing_instinct": {
+        "q": "When do you write tests?",
+        "options": {
+            "a": ("Alongside or before the feature — it's part of the work", True),
+            "b": ("After the feature works, to prevent regression", False),
+            "c": ("When there's time — tests are debt prevention, not blocking", False),
+        },
+    },
+    "meta_cognition": {
+        "q": "After completing a project, what do you typically reflect on?",
+        "options": {
+            "a": ("What the process revealed about how I work best", True),
+            "b": ("What I'd build differently given the outcome", False),
+            "c": ("Whether the end result met the original spec", False),
+        },
+    },
+    "communication_clarity": {
+        "q": "You need to explain a complex technical decision to a non-technical stakeholder. What do you lead with?",
+        "options": {
+            "a": ("The tradeoff framing: what we gain vs. what we give up", True),
+            "b": ("The bottom line outcome: what this means for the product", False),
+            "c": ("The analogy that makes the concept concrete", False),
+        },
+    },
+}
+
+
+
+
+def _strength_bar(strength: str) -> str:
+    return _STRENGTH_BARS.get(strength, "????")
+
+
+def _prompt_strength_adjust(pattern_name: str, current_strength: str) -> str | None:
+    """
+    Prompt user to confirm or adjust a pattern strength.
+
+    Returns the adjusted strength string, or the original if confirmed.
+    """
+    bar = _strength_bar(current_strength)
+    while True:
+        raw = click.prompt(
+            f"  Confirm (Enter) or adjust [e]merging/es[t]ablished/[s]trong/e[x]ceptional",
+            default="",
+            show_default=False,
+        ).strip().lower()
+        if raw == "":
+            return current_strength
+        mapping = {"e": "emerging", "t": "established", "s": "strong", "x": "exceptional"}
+        if raw in mapping:
+            return mapping[raw]
+        # Allow full word input too
+        if raw in ("emerging", "established", "strong", "exceptional"):
+            return raw
+        click.echo("  Invalid. Press Enter to confirm, or e/t/s/x to adjust.")
+
+
+@profile.command("review")
+@click.option("--candidate", "-c", type=click.Path(exists=True), required=True,
+              help="Path to CandidateProfile JSON")
+@click.option("--output", "-o", type=click.Path(), default=None,
+              help="Output path for curated profile")
+@click.option("--skip-gaps", is_flag=True, default=False,
+              help="Skip scenario gap-fill questions")
+def profile_review(candidate: str, output: str | None, skip_gaps: bool) -> None:
+    """Interactive pattern profile review with confirm/adjust and gap-fill.
+
+    Displays auto-detected behavioral patterns with evidence, lets you
+    confirm or adjust each one, then optionally fills gaps via scenario
+    questions for unobserved pattern types.
+
+    Result is saved as a curated profile JSON linked to your resume onboard
+    output (if present).
+    """
+    import datetime
+
+    from claude_candidate.schemas.candidate_profile import CandidateProfile, PatternType
+
+    cp = CandidateProfile.from_json(Path(candidate).read_text())
+
+    click.echo()
+    click.echo("=" * 60)
+    click.echo("  Pattern Profile Review")
+    click.echo(f"  {cp.session_count} sessions analysed  |  "
+               f"{len(cp.problem_solving_patterns)} pattern(s) detected")
+    click.echo("=" * 60)
+
+    # ── Step 1: Confirm/Adjust observed patterns ─────────────────────────────
+
+    observed_types: set[str] = set()
+    curated_patterns: list[dict] = []
+
+    if cp.problem_solving_patterns:
+        click.echo()
+        click.echo("Step 1 of 2 — Confirm or adjust detected patterns")
+        click.echo("─" * 60)
+
+        for pattern in cp.problem_solving_patterns:
+            observed_types.add(pattern.pattern_type.value)
+            session_count = len(pattern.evidence)
+            bar = _strength_bar(pattern.strength)
+
+            click.echo()
+            click.echo(
+                f"  {pattern.pattern_type.value:<28}  {bar} {pattern.strength}"
+                f"  ({session_count} session{'s' if session_count != 1 else ''})"
+            )
+            click.echo(f'    "{pattern.description[:100]}{"..." if len(pattern.description) > 100 else ""}"')
+
+            adjusted = _prompt_strength_adjust(pattern.pattern_type.value, pattern.strength)
+
+            observed_rank = _STRENGTH_RANK.get(pattern.strength, 0)
+            adjusted_rank = _STRENGTH_RANK.get(adjusted, 0)
+            delta = adjusted_rank - observed_rank
+
+            curated_patterns.append({
+                "pattern_type": pattern.pattern_type.value,
+                "observed_strength": pattern.strength,
+                "self_reported_strength": adjusted,
+                "delta": delta,
+                "session_count": session_count,
+                "source": "session_evidence",
+            })
+
+            if adjusted != pattern.strength:
+                click.echo(f"  Adjusted: {pattern.strength} → {adjusted}  (delta: {delta:+d})")
+    else:
+        click.echo()
+        click.echo("  No patterns detected in session data.")
+
+    # ── Step 2: Scenario gap-fill ─────────────────────────────────────────────
+
+    all_pattern_types = {pt.value for pt in PatternType}
+    gap_types = sorted(all_pattern_types - observed_types)
+
+    if gap_types and not skip_gaps:
+        click.echo()
+        click.echo("─" * 60)
+        click.echo("Step 2 of 2 — Gap-fill: No session evidence for these patterns")
+        click.echo("─" * 60)
+        click.echo("  Answer scenario questions to self-report patterns not observed in sessions.")
+        click.echo()
+
+        for i, pt_value in enumerate(gap_types, 1):
+            scenario = _SCENARIO_QUESTIONS.get(pt_value)
+            if not scenario:
+                # No scenario defined — skip
+                continue
+
+            click.echo(f"Q{i}: {scenario['q']}")
+            for letter, (text, _is_strong) in scenario["options"].items():
+                click.echo(f"  {letter}) {text}")
+
+            while True:
+                answer = click.prompt("  Answer", default="b").strip().lower()
+                if answer in scenario["options"]:
+                    break
+                click.echo("  Please enter a, b, or c.")
+
+            _text, is_strong = scenario["options"][answer]
+            strength = "established" if is_strong else "emerging"
+
+            curated_patterns.append({
+                "pattern_type": pt_value,
+                "observed_strength": None,
+                "self_reported_strength": strength,
+                "delta": None,
+                "session_count": 0,
+                "source": "scenario_gap_fill",
+            })
+
+            click.echo(f"  -> {pt_value}: self-reported {strength}")
+            click.echo()
+
+    elif gap_types and skip_gaps:
+        click.echo()
+        click.echo(f"  Skipping gap-fill for {len(gap_types)} unobserved pattern(s).")
+
+    # ── Build and save curated profile ────────────────────────────────────────
+
+    default_dir = Path.home() / ".claude-candidate"
+    default_dir.mkdir(parents=True, exist_ok=True)
+
+    curated_resume_path = default_dir / "curated_resume.json"
+    resume_exists = curated_resume_path.exists()
+
+    curated_data = {
+        "curated": True,
+        "curated_at": datetime.datetime.now(tz=datetime.timezone.utc).isoformat(),
+        "patterns": curated_patterns,
+        "resume_integration": {
+            "curated_resume_path": str(curated_resume_path),
+            "curated_resume_exists": resume_exists,
+        },
+    }
+
+    out_path = Path(output) if output else default_dir / "curated_profile.json"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(out_path, "w") as f:
+        json.dump(curated_data, f, indent=2, default=str)
+
+    # ── Summary ───────────────────────────────────────────────────────────────
+
+    click.echo()
+    click.echo("=" * 60)
+    click.echo("  Profile Review Complete")
+    click.echo("─" * 60)
+
+    evidence_count = sum(1 for p in curated_patterns if p["source"] == "session_evidence")
+    gap_count = sum(1 for p in curated_patterns if p["source"] == "scenario_gap_fill")
+    adjusted_count = sum(
+        1 for p in curated_patterns
+        if p["source"] == "session_evidence" and p["delta"] != 0
+    )
+
+    click.echo(f"  Patterns from sessions:  {evidence_count}")
+    click.echo(f"  Patterns from gap-fill:  {gap_count}")
+    if adjusted_count:
+        click.echo(f"  Patterns adjusted:       {adjusted_count}")
+
+    if resume_exists:
+        click.echo()
+        click.echo(f"  Resume onboard found at: {curated_resume_path}")
+        click.echo("  Both profiles are linked in the curated output.")
+
+    click.echo()
+    click.echo(f"  Saved: {out_path}")
+    click.echo("=" * 60)
+    click.echo()
+
+
 # === Resume commands ===
 
 @main.group()
@@ -854,6 +1175,126 @@ def whitelist_show() -> None:
             click.echo(f"    - {p}")
     else:
         click.echo("  (empty — no projects whitelisted)")
+
+
+# === Site commands ===
+
+@main.group()
+def site() -> None:
+    """Generate and manage the static application site."""
+    pass
+
+
+@site.command("render")
+@click.option("--company", "-c", default=None,
+              help="Filter to assessments matching this company name (case-insensitive substring).")
+@click.option("--output-dir", "-o", type=click.Path(), default="site",
+              help="Root output directory for the rendered site (default: site/).")
+@click.option("--db", type=click.Path(), default=None,
+              help="Path to assessments database (default: ~/.claude-candidate/assessments.db).")
+def site_render(company: str | None, output_dir: str, db: str | None) -> None:
+    """Render assessments to static HTML pages under site/apply/.
+
+    Each assessment is rendered to ``{output_dir}/apply/{company-slug}/index.html``.
+    Run with no arguments to render all stored assessments.
+
+    After rendering, deploy to Cloudflare Pages:
+
+    \b
+    1. Push the site/ directory to a GitHub repo (or use Wrangler CLI):
+         wrangler pages deploy site/ --project-name=<your-project>
+    2. Or connect the repo to Cloudflare Pages in the dashboard and set
+         the build output directory to ``site/``.
+    3. Each assessment page is reachable at:
+         https://<your-domain>/apply/<company-slug>/
+    """
+    import asyncio
+    import json as _json
+
+    from claude_candidate.schemas.fit_assessment import FitAssessment
+    from claude_candidate.site_renderer import render_assessment_page
+    from claude_candidate.storage import AssessmentStore
+
+    db_path = Path(db) if db else Path.home() / ".claude-candidate" / "assessments.db"
+    output_path = Path(output_dir)
+
+    async def _load_assessments() -> list[dict]:
+        store = AssessmentStore(db_path)
+        await store.initialize()
+        try:
+            return await store.list_assessments(limit=500)
+        finally:
+            await store.close()
+
+    if not db_path.exists():
+        click.echo(
+            f"No assessments database found at {db_path}.\n"
+            "Run an assessment first with `claude-candidate assess` or via the server.",
+            err=True,
+        )
+        return
+
+    records = asyncio.run(_load_assessments())
+
+    if not records:
+        click.echo("No assessments found in the database. Nothing to render.")
+        return
+
+    # Apply company filter
+    if company:
+        filter_lower = company.lower()
+        records = [r for r in records if filter_lower in (r.get("company_name") or "").lower()]
+        if not records:
+            click.echo(f"No assessments found matching company '{company}'.")
+            return
+        click.echo(f"Filtered to {len(records)} assessment(s) matching '{company}'.")
+    else:
+        click.echo(f"Found {len(records)} assessment(s) to render.")
+
+    rendered_count = 0
+    errors: list[str] = []
+
+    for record in records:
+        comp = record.get("company_name") or "Unknown"
+        title = record.get("job_title") or "Unknown"
+        try:
+            # The 'data' field holds the full FitAssessment JSON as a dict
+            data_field = record.get("data", {})
+            assessment_json = _json.dumps(data_field)
+            assessment = FitAssessment.from_json(assessment_json)
+
+            # Placeholder content — real generation requires `claude-candidate generate`
+            resume_html = (
+                f"<p><em>Resume tailored for {comp} – {title} will be generated "
+                f"with <code>claude-candidate generate</code>.</em></p>"
+            )
+            cover_letter = (
+                f"Cover letter for {comp} – {title} will be generated "
+                f"with `claude-candidate generate`."
+            )
+
+            out_file = render_assessment_page(
+                assessment=assessment,
+                resume_html=resume_html,
+                cover_letter=cover_letter,
+                output_dir=output_path,
+            )
+            click.echo(f"  Rendered: {out_file}")
+            rendered_count += 1
+        except Exception as exc:  # noqa: BLE001
+            msg = f"  Error rendering {comp} – {title}: {exc}"
+            click.echo(msg, err=True)
+            errors.append(msg)
+
+    click.echo(f"\nRendered {rendered_count} page(s) to {output_path.resolve()}/")
+
+    if errors:
+        click.echo(f"{len(errors)} page(s) failed — see errors above.", err=True)
+    else:
+        click.echo(
+            "\nTo deploy to Cloudflare Pages:\n"
+            "  wrangler pages deploy site/ --project-name=<your-project>"
+        )
 
 
 if __name__ == "__main__":

@@ -18,14 +18,29 @@ function sendToBackground(msg) {
 	});
 }
 
-function sendToActiveTab(msg) {
+async function injectAndSend(msg) {
+	const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+	if (!tabs || !tabs.length) return { success: false, error: 'No active tab' };
+	const tabId = tabs[0].id;
+
+	try {
+		await chrome.scripting.executeScript({
+			target: { tabId },
+			files: ['content.js'],
+		});
+	} catch (err) {
+		return { success: false, error: 'Cannot inject script: ' + (err.message || '') };
+	}
+
+	await new Promise(r => setTimeout(r, 100));
+
 	return new Promise(resolve => {
-		chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
-			if (!tabs || !tabs.length) { resolve({ success: false }); return; }
-			chrome.tabs.sendMessage(tabs[0].id, msg, r => {
-				if (chrome.runtime.lastError) resolve({ success: false, error: chrome.runtime.lastError.message });
-				else resolve(r || {});
-			});
+		chrome.tabs.sendMessage(tabId, msg, r => {
+			if (chrome.runtime.lastError) {
+				resolve({ success: false, error: chrome.runtime.lastError.message });
+			} else {
+				resolve(r || {});
+			}
 		});
 	});
 }
@@ -168,6 +183,8 @@ function renderResults(data) {
 		actSection.classList.add('hidden');
 	}
 
+	// Full Details button starts hidden — shown only when full report is ready
+
 	// Verdict
 	const verdict = data.should_apply || '';
 	const labels = {
@@ -188,37 +205,125 @@ function renderResults(data) {
 async function initialize() {
 	showState('loading');
 
+	// Check cache FIRST — before any server calls. Instant reopen.
+	const cache = await new Promise(r => {
+		chrome.storage.local.get(['currentPosting', 'lastAssessment', 'fullReportReady'], res => r(res));
+	});
+	const stored = cache.currentPosting || null;
+	const lastAssessment = cache.lastAssessment || null;
+	const fullReady = cache.fullReportReady || null;
+	const fresh = stored && stored.extractedAt && (Date.now() - stored.extractedAt) < POSTING_TTL_MS;
+
+	if (fresh && lastAssessment && lastAssessment.url === stored.url) {
+		currentPosting = stored;
+		renderResults(lastAssessment.data);
+
+		const btnFull = el('btn-full-details');
+		const banner = el('banner-full-loading');
+
+		if (fullReady && fullReady.assessmentId) {
+			// Full report is ready — show button, hide banner
+			if (btnFull) {
+				btnFull.classList.remove('hidden');
+				btnFull.onclick = () => sendToBackground({ action: 'openReport', url: fullReady.url });
+			}
+			if (banner) banner.classList.add('hidden');
+		} else {
+			// Full report not ready — re-trigger generation and poll
+			if (banner) banner.classList.remove('hidden');
+			const aid = lastAssessment.data.assessment_id;
+			if (aid) sendToBackground({ action: 'startFullAssess', assessmentId: aid });
+			const pollInterval = setInterval(async () => {
+				const ready = await new Promise(r => {
+					chrome.storage.local.get('fullReportReady', res => r(res.fullReportReady || null));
+				});
+				if (ready && ready.assessmentId) {
+					clearInterval(pollInterval);
+					if (banner) banner.classList.add('hidden');
+					if (btnFull) {
+						btnFull.classList.remove('hidden');
+						btnFull.onclick = () => sendToBackground({ action: 'openReport', url: ready.url });
+					}
+				}
+			}, 2000);
+		}
+		return;
+	}
+
+	// No cache — need the server
 	const health = await sendToBackground({ action: 'checkBackend' });
 	if (!health.connected) { showState('no-backend'); return; }
 	if (health.profile_loaded === false) { showState('no-profile'); return; }
 
+	// Resolve posting (from cache or fresh extraction)
 	let posting = null;
-	const stored = await new Promise(r => {
-		chrome.storage.local.get('currentPosting', res => r(res.currentPosting || null));
-	});
-
-	const fresh = stored && stored.extractedAt && (Date.now() - stored.extractedAt) < POSTING_TTL_MS;
 	if (fresh && stored.description) {
 		posting = stored;
-	} else {
-		const ext = await sendToActiveTab({ action: 'extractJobPosting' });
-		if (ext.success && ext.posting) posting = ext.posting;
+	}
+
+	if (!posting) {
+		const ext = await injectAndSend({ action: 'extractJobPosting' });
+		if (ext.success && ext.pageData) {
+			const extraction = await sendToBackground({
+				action: 'extractPosting',
+				payload: ext.pageData,
+			});
+			if (extraction.success && extraction.description) {
+				posting = { ...extraction, extractedAt: Date.now() };
+				chrome.storage.local.set({ currentPosting: posting });
+			}
+		}
+
+		if (!posting) {
+			const fallback = await injectAndSend({ action: 'extractFallback' });
+			if (fallback.success && fallback.posting && fallback.posting.description) {
+				posting = { ...fallback.posting, extractedAt: Date.now() };
+			}
+		}
 	}
 
 	if (!posting || !posting.description) { showState('no-job'); return; }
 	currentPosting = posting;
 
 	const ac = el('assessing-company');
-	if (ac) ac.textContent = posting.company ? `${posting.title || 'Role'} at ${posting.company}` : posting.title || '';
+	if (ac) ac.textContent = posting.company
+		? `${posting.title || 'Role'} at ${posting.company}`
+		: posting.title || '';
 	showState('assessing');
 
-	const resp = await sendToBackground({ action: 'assess', payload: posting });
-	if (!resp.success && resp.error) {
-		el('error-message').textContent = resp.error;
+	const partial = await sendToBackground({ action: 'assessPartial', payload: posting });
+	if (!partial.success && partial.error) {
+		el('error-message').textContent = partial.error;
 		showState('error');
 		return;
 	}
-	renderResults(resp);
+
+	// Cache assessment result for instant reopen
+	chrome.storage.local.set({ lastAssessment: { url: posting.url, data: partial } });
+
+	renderResults(partial);
+	const banner = el('banner-full-loading');
+	const btnFull = el('btn-full-details');
+	if (banner) banner.classList.remove('hidden');
+
+	// Fire-and-forget: background.js runs the full assessment independently.
+	const assessmentId = partial.assessment_id;
+	sendToBackground({ action: 'startFullAssess', assessmentId });
+
+	// Poll for completion (if popup stays open)
+	const pollInterval = setInterval(async () => {
+		const ready = await new Promise(r => {
+			chrome.storage.local.get('fullReportReady', res => r(res.fullReportReady || null));
+		});
+		if (ready && ready.assessmentId) {
+			clearInterval(pollInterval);
+			if (banner) banner.classList.add('hidden');
+			if (btnFull) {
+				btnFull.classList.remove('hidden');
+				btnFull.onclick = () => sendToBackground({ action: 'openReport', url: ready.url });
+			}
+		}
+	}, 2000);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -241,11 +346,8 @@ document.addEventListener('DOMContentLoaded', () => {
 		if (!r.success) { btnWatch.disabled = false; setTimeout(() => { btnWatch.textContent = 'Save to Watchlist'; }, 2000); }
 	});
 
-	const btnFull = el('btn-full-details');
-	if (btnFull) btnFull.addEventListener('click', () => {
-		const id = currentAssessment?.assessment_id;
-		chrome.tabs.create({ url: id ? `http://localhost:7429/api/assessments/${id}` : 'http://localhost:7429/api/health' });
-	});
+	// btn-full-details default click is set by renderResults (or overridden by
+	// the assessFull callback once Claude deliverables are ready).
 
 	initialize();
 });

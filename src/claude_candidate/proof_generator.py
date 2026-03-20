@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from claude_candidate.pii_gate import scrub_deliverable
 from claude_candidate.schemas.fit_assessment import FitAssessment, SkillMatchDetail
 from claude_candidate.schemas.merged_profile import MergedEvidenceProfile
 from claude_candidate.schemas.session_manifest import SessionManifest
@@ -21,7 +22,8 @@ GENERATOR_VERSION = "0.1.0"
 PRIVACY_NOTICE = (
     "This document was generated from sanitized session data. "
     "Secrets, API keys, and absolute paths are redacted via pattern matching. "
-    "Full PII scrubbing (names, addresses, phone numbers) is not yet implemented. "
+    "PII scrubbing is active: phone numbers, SSNs, credit cards, email addresses, "
+    "physical addresses, and honorific-prefixed names are redacted via DataFog + regex. "
     "A session whitelist is available to restrict processing to public GitHub projects."
 )
 NO_MANIFEST_NOTE = "No session manifest provided for this assessment."
@@ -269,4 +271,4 @@ def generate_proof_package(
         _manifest_section(manifest),
         _footer_section(),
     ]
-    return SECTION_SEP.join(sections) + "\n"
+    return scrub_deliverable(SECTION_SEP.join(sections) + "\n")

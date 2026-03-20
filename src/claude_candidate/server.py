@@ -18,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from claude_candidate import __version__
+import claude_candidate.claude_cli as _claude_cli
 from claude_candidate.storage import AssessmentStore
 
 
@@ -58,6 +59,28 @@ class ProofRequest(BaseModel):
 class GenerateRequest(BaseModel):
     assessment_id: str
     deliverable_type: str  # "resume_bullets", "cover_letter", "interview_prep"
+
+
+class AssessFullRequest(BaseModel):
+    assessment_id: str
+
+
+class ExtractPostingRequest(BaseModel):
+    url: str
+    title: str
+    text: str
+
+
+class PostingExtraction(BaseModel):
+    company: str = ""
+    title: str = ""
+    description: str = ""
+    url: str = ""
+    source: str = "web"
+    location: str | None = None
+    seniority: str | None = None
+    remote: bool | None = None
+    salary: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -187,8 +210,12 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
     # Assess
     # ------------------------------------------------------------------
 
-    @app.post("/api/assess")
-    async def assess(req: AssessRequest):
+    async def _run_quick_assess(req: AssessRequest) -> dict[str, Any]:
+        """
+        Run QuickMatchEngine (local-only, no Claude calls) and persist the result.
+
+        Returns the assessment dict. Raises HTTPException on missing profile.
+        """
         from claude_candidate.schemas.candidate_profile import CandidateProfile
         from claude_candidate.schemas.resume_profile import ResumeProfile
         from claude_candidate.schemas.job_requirements import QuickRequirement
@@ -237,7 +264,6 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 
         # Persist
         assessment_dict = json.loads(assessment.to_json())
-        # Store the full assessment as nested data
         flat: dict[str, Any] = {
             "assessment_id": assessment.assessment_id,
             "assessed_at": assessment.assessed_at.isoformat(),
@@ -252,6 +278,65 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
         await store.save_assessment(flat)
 
         return assessment_dict
+
+    @app.post("/api/assess")
+    async def assess(req: AssessRequest):
+        return await _run_quick_assess(req)
+
+    @app.post("/api/assess/partial")
+    async def assess_partial(req: AssessRequest):
+        """
+        Fast partial assessment using local QuickMatchEngine only (no Claude calls).
+
+        Returns the assessment immediately. Callers can subsequently POST to
+        /api/assess/full with the returned assessment_id to generate deliverables.
+        """
+        return await _run_quick_assess(req)
+
+    @app.post("/api/assess/full")
+    async def assess_full(req: AssessFullRequest):
+        """
+        Generate all deliverables (resume bullets, cover letter, interview prep)
+        for an existing assessment via Claude.
+
+        Returns the assessment dict merged with a ``deliverables`` key containing
+        all three generated artifacts. If Claude is unavailable, returns the
+        assessment with an ``error`` field describing the failure.
+        """
+        from claude_candidate.schemas.fit_assessment import FitAssessment
+        from claude_candidate.generator import (
+            ClaudeCLIError,
+            generate_resume_bullets,
+            generate_cover_letter,
+            generate_interview_prep,
+        )
+
+        store = get_store()
+        row = await store.get_assessment(req.assessment_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="Assessment not found")
+
+        data = row["data"] if row.get("data") and isinstance(row["data"], dict) else row
+        assessment = FitAssessment.from_json(json.dumps(data))
+
+        import asyncio
+
+        def _generate_all():
+            return {
+                "resume_bullets": generate_resume_bullets(assessment=assessment),
+                "cover_letter": generate_cover_letter(assessment=assessment),
+                "interview_prep": generate_interview_prep(assessment=assessment),
+            }
+
+        try:
+            deliverables = await asyncio.get_event_loop().run_in_executor(None, _generate_all)
+        except ClaudeCLIError as exc:
+            return {**data, "error": str(exc)}
+
+        return {
+            **data,
+            "deliverables": deliverables,
+        }
 
     # ------------------------------------------------------------------
     # Assessment list / detail / delete
@@ -399,5 +484,87 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
         if not removed:
             raise HTTPException(status_code=404, detail="Watchlist entry not found")
         return {"deleted": True, "id": watchlist_id}
+
+    # ------------------------------------------------------------------
+    # Extract posting
+    # ------------------------------------------------------------------
+
+    MAX_EXTRACTION_TEXT = 15_000
+
+    def _infer_source(url: str) -> str:
+        lower = url.lower()
+        if "linkedin.com" in lower: return "linkedin"
+        if "greenhouse.io" in lower: return "greenhouse"
+        if "lever.co" in lower: return "lever"
+        if "indeed.com" in lower: return "indeed"
+        return "web"
+
+    def _build_extraction_prompt(title: str, text: str) -> str:
+        truncated = text[:MAX_EXTRACTION_TEXT]
+        return (
+            "Extract the job posting from this web page text. "
+            "Return ONLY valid JSON with these fields:\n"
+            '- company: string (the hiring company name)\n'
+            '- title: string (the job title)\n'
+            '- description: string (full job description including requirements and qualifications)\n'
+            '- location: string or null\n'
+            '- seniority: string or null (one of: junior, mid, senior, staff, principal, director)\n'
+            '- remote: boolean or null\n'
+            '- salary: string or null\n\n'
+            "If this page does not contain a job posting, return all fields as null.\n\n"
+            f"Page title: {title}\n"
+            f"Page text:\n{truncated}"
+        )
+
+    @app.post("/api/extract-posting")
+    async def extract_posting(req: ExtractPostingRequest):
+        store = get_store()
+        url_hash = hashlib.sha256(req.url.encode()).hexdigest()[:16]
+
+        cached = await store.get_cached_posting(url_hash)
+        if cached is not None:
+            return cached
+
+        if not _claude_cli.check_claude_available():
+            raise HTTPException(status_code=503, detail="Claude CLI not available for extraction")
+
+        import asyncio
+
+        prompt = _build_extraction_prompt(req.title, req.text)
+        try:
+            raw = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: _claude_cli.call_claude(prompt, timeout=30)
+            )
+        except _claude_cli.ClaudeCLIError as exc:
+            raise HTTPException(status_code=503, detail=f"Claude CLI error: {exc}") from exc
+
+        try:
+            cleaned = raw.strip()
+            if cleaned.startswith("```"):
+                cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned
+            if cleaned.endswith("```"):
+                cleaned = cleaned.rsplit("```", 1)[0]
+            cleaned = cleaned.strip()
+            parsed = json.loads(cleaned)
+        except (json.JSONDecodeError, ValueError) as exc:
+            raise HTTPException(
+                status_code=502, detail="Extraction failed: invalid response from Claude",
+            ) from exc
+
+        source = _infer_source(req.url)
+        result = PostingExtraction(
+            company=parsed.get("company") or "",
+            title=parsed.get("title") or "",
+            description=parsed.get("description") or "",
+            url=req.url,
+            source=source,
+            location=parsed.get("location"),
+            seniority=parsed.get("seniority"),
+            remote=parsed.get("remote"),
+            salary=parsed.get("salary"),
+        )
+        result_dict = result.model_dump()
+        await store.cache_posting(url_hash, req.url, result_dict)
+        return result_dict
 
     return app

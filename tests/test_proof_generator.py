@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from claude_candidate.proof_generator import (
+    PRIVACY_NOTICE,
     generate_proof_package,
     _header_section,
     _summary_section,
@@ -266,3 +267,43 @@ class TestSections:
         assert "0.77" in section or "77" in section
         assert "A-" in section
         assert "B" in section
+
+
+# -----------------------------------------------------------------------
+# TestPIIScrubbing
+# -----------------------------------------------------------------------
+
+
+class TestPIIScrubbing:
+    """Verify that PII is scrubbed from proof package output."""
+
+    def test_privacy_notice_reflects_active_scrubbing(self):
+        assert "not yet implemented" not in PRIVACY_NOTICE
+        assert "DataFog" in PRIVACY_NOTICE
+
+    def test_proof_package_scrubs_phone_in_summary(self):
+        """A phone number embedded in the overall_summary must be redacted."""
+        assessment = _make_assessment()
+        # Inject a phone number into the summary via subclass override
+        assessment = FitAssessment(
+            **{
+                **assessment.model_dump(),
+                "overall_summary": "Call 555-867-5309 to verify background.",
+            }
+        )
+        result = generate_proof_package(assessment=assessment)
+        assert "555-867-5309" not in result
+        assert "[PHONE]" in result
+
+    def test_proof_package_scrubs_email_in_summary(self):
+        """An email address embedded in the overall_summary must be redacted."""
+        assessment = _make_assessment()
+        assessment = FitAssessment(
+            **{
+                **assessment.model_dump(),
+                "overall_summary": "Contact candidate@example.com for references.",
+            }
+        )
+        result = generate_proof_package(assessment=assessment)
+        assert "candidate@example.com" not in result
+        assert "[EMAIL]" in result

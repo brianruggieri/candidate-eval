@@ -8,6 +8,11 @@ from unittest.mock import patch
 import pytest
 
 from claude_candidate.claude_cli import ClaudeCLIError
+from claude_candidate.generator import (
+    generate_cover_letter,
+    generate_interview_prep,
+    generate_resume_bullets,
+)
 from claude_candidate.schemas.fit_assessment import (
     DimensionScore,
     FitAssessment,
@@ -269,3 +274,61 @@ class TestParseBulletLines:
 
         result = _parse_bullet_lines("Just a line\nAnother line")
         assert len(result) == 2
+
+
+# ---------------------------------------------------------------------------
+# TestPIIScrubbing
+# ---------------------------------------------------------------------------
+
+
+class TestPIIScrubbing:
+    """Verify that PII is scrubbed from all hiring-manager-facing deliverables."""
+
+    def test_cover_letter_scrubs_phone_number(self):
+        assessment = _make_assessment()
+        fake_letter = "Reach me at 555-123-4567 for discussion."
+        with patch("claude_candidate.generator.call_claude", return_value=fake_letter):
+            letter = generate_cover_letter(assessment=assessment)
+        assert "555-123-4567" not in letter
+        assert "[PHONE]" in letter
+
+    def test_cover_letter_scrubs_ssn(self):
+        assessment = _make_assessment()
+        fake_letter = "My SSN is 123-45-6789 for verification."
+        with patch("claude_candidate.generator.call_claude", return_value=fake_letter):
+            letter = generate_cover_letter(assessment=assessment)
+        assert "123-45-6789" not in letter
+        assert "[SSN]" in letter
+
+    def test_cover_letter_scrubs_credit_card(self):
+        assessment = _make_assessment()
+        fake_letter = "Card number 4111 1111 1111 1111 on file."
+        with patch("claude_candidate.generator.call_claude", return_value=fake_letter):
+            letter = generate_cover_letter(assessment=assessment)
+        assert "4111 1111 1111 1111" not in letter
+        assert "[CREDIT_CARD]" in letter
+
+    def test_interview_prep_scrubs_phone_number(self):
+        assessment = _make_assessment()
+        fake_prep = "Contact recruiter at 800-555-0199 before interview."
+        with patch("claude_candidate.generator.call_claude", return_value=fake_prep):
+            prep = generate_interview_prep(assessment=assessment)
+        assert "800-555-0199" not in prep
+        assert "[PHONE]" in prep
+
+    def test_resume_bullets_scrubs_phone_number(self):
+        assessment = _make_assessment()
+        fake_output = "- Led team; call 212-555-9876 for reference"
+        with patch("claude_candidate.generator.call_claude", return_value=fake_output):
+            bullets = generate_resume_bullets(assessment=assessment)
+        full_text = " ".join(bullets)
+        assert "212-555-9876" not in full_text
+        assert "[PHONE]" in full_text
+
+    def test_clean_text_passes_through_unchanged(self):
+        """Text with no PII should be returned verbatim (modulo whitespace)."""
+        assessment = _make_assessment()
+        clean = "Strong Python engineer with 10 years of backend experience."
+        with patch("claude_candidate.generator.call_claude", return_value=clean):
+            letter = generate_cover_letter(assessment=assessment)
+        assert letter == clean

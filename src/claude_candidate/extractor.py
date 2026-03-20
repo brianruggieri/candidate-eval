@@ -9,6 +9,7 @@ snippet (non-empty, <= 500 chars).
 
 from __future__ import annotations
 
+import functools
 import json
 import re
 from dataclasses import dataclass, field
@@ -16,6 +17,8 @@ from datetime import datetime
 from typing import Any
 
 from claude_candidate.ai_scoring import compute_ai_engineering_score
+from claude_candidate.message_format import NormalizedMessage, normalize_messages
+from claude_candidate.skill_taxonomy import SkillTaxonomy
 from claude_candidate.schemas.candidate_profile import (
     CandidateProfile,
     DepthLevel,
@@ -58,19 +61,10 @@ FILE_EXTENSION_MAP: dict[str, list[str]] = {
 
 DOCKERFILE_NAMES: set[str] = {"Dockerfile", "dockerfile"}
 
-CONTENT_PATTERNS: dict[str, list[str]] = {
-    "fastapi": ["fastapi", "from fastapi"],
-    "pydantic": ["pydantic", "BaseModel"],
-    "pytest": ["pytest", "def test_"],
-    "react": ["import React", "useState", "useEffect"],
-    "docker": ["dockerfile", "docker-compose", "docker build"],
-    "sqlalchemy": ["sqlalchemy", "Column(", "Base.metadata"],
-    "git": ["git commit", "git push", "git branch"],
-    "openai": ["openai", "from openai", "import openai", "ChatCompletion"],
-    "anthropic": ["anthropic", "from anthropic", "import anthropic", "claude"],
-    "langchain": ["langchain", "from langchain"],
-    "llm": ["llm", "large language model", "language model"],
-}
+@functools.cache
+def _get_content_patterns() -> dict[str, list[str]]:
+    """Lazy-load content patterns from the taxonomy (cached after first call)."""
+    return SkillTaxonomy.load_default().get_content_patterns()
 
 CATEGORY_MAP: dict[str, str] = {
     "python": "language",
@@ -213,103 +207,40 @@ def _detect_from_content(content: str) -> list[str]:
     """Detect technologies from content keywords and patterns."""
     lower = content.lower()
     found: list[str] = []
-    for tech, patterns in CONTENT_PATTERNS.items():
+    for tech, patterns in _get_content_patterns().items():
         if any(p.lower() in lower for p in patterns):
             found.append(tech)
     return found
 
 
-def _get_text_from_message(msg: dict[str, Any]) -> str:
-    """Extract plain text from a user or assistant message dict."""
-    message = msg.get("message", {})
-    content = message.get("content", [])
-    if isinstance(content, str):
-        return content
-    parts: list[str] = []
-    for item in content:
-        if isinstance(item, dict) and item.get("type") == "text":
-            parts.append(item.get("text", ""))
-    return " ".join(parts)
-
-
-def _get_tool_input(msg: dict[str, Any]) -> dict[str, Any]:
-    """Extract tool input dict from a tool_use message."""
-    tool_use = msg.get("toolUse", {})
-    return tool_use.get("input", {})
-
-
-def extract_technologies(messages: list[dict]) -> list[str]:
-    """Detect technologies from file extensions and content across messages."""
+def extract_technologies(messages: list[NormalizedMessage]) -> list[str]:
+    """Detect technologies from file extensions and content across normalized messages."""
     seen: set[str] = set()
     for msg in messages:
-        _collect_techs_from_message(msg, seen)
+        _collect_techs_from_normalized(msg, seen)
     return sorted(seen)
 
 
-def _collect_techs_from_message(
-    msg: dict[str, Any],
+def _collect_techs_from_normalized(
+    msg: NormalizedMessage,
     seen: set[str],
 ) -> None:
-    """Collect technologies from a single message into the seen set."""
-    msg_type = msg.get("type", "")
-    if msg_type == "tool_use":
-        _collect_techs_from_tool(msg, seen)
-    elif msg_type == "assistant":
-        _collect_techs_from_assistant(msg, seen)
-    elif msg_type == "user":
-        text = _get_text_from_message(msg)
-        for tech in _detect_from_content(text):
-            seen.add(tech)
-
-
-def _collect_techs_from_assistant(
-    msg: dict[str, Any],
-    seen: set[str],
-) -> None:
-    """Collect techs from assistant message content blocks."""
-    content = msg.get("message", {}).get("content", [])
-    if not isinstance(content, list):
-        return
-    for block in content:
-        if not isinstance(block, dict):
-            continue
-        if block.get("type") == "tool_use":
-            _collect_techs_from_tool_block(block, seen)
-        elif block.get("type") == "text":
+    """Collect technologies from a single normalized message into the seen set."""
+    for block in msg["content"]:
+        block_type = block.get("type", "")
+        if block_type == "tool_use":
+            tool_input = block.get("input", {})
+            file_path = tool_input.get("file_path", "")
+            if file_path:
+                for tech in _detect_from_file_path(file_path):
+                    seen.add(tech)
+            content = tool_input.get("content", "")
+            if content:
+                for tech in _detect_from_content(content):
+                    seen.add(tech)
+        elif block_type == "text":
             for tech in _detect_from_content(block.get("text", "")):
                 seen.add(tech)
-
-
-def _collect_techs_from_tool_block(
-    block: dict[str, Any],
-    seen: set[str],
-) -> None:
-    """Collect techs from a tool_use content block."""
-    tool_input = block.get("input", {})
-    file_path = tool_input.get("file_path", "")
-    if file_path:
-        for tech in _detect_from_file_path(file_path):
-            seen.add(tech)
-    content = tool_input.get("content", "")
-    if content:
-        for tech in _detect_from_content(content):
-            seen.add(tech)
-
-
-def _collect_techs_from_tool(
-    msg: dict[str, Any],
-    seen: set[str],
-) -> None:
-    """Collect technologies from a tool_use message."""
-    tool_input = _get_tool_input(msg)
-    file_path = tool_input.get("file_path", "")
-    if file_path:
-        for tech in _detect_from_file_path(file_path):
-            seen.add(tech)
-    content = tool_input.get("content", "")
-    if content:
-        for tech in _detect_from_content(content):
-            seen.add(tech)
 
 
 # ---------------------------------------------------------------------------
@@ -317,38 +248,16 @@ def _collect_techs_from_tool(
 # ---------------------------------------------------------------------------
 
 
-def _extract_tool_calls(messages: list[dict]) -> list[str]:
-    """Extract tool names from both top-level and nested tool_use."""
+def _extract_tool_calls(messages: list[NormalizedMessage]) -> list[str]:
+    """Extract tool names from normalized messages."""
     tools: list[str] = []
     for msg in messages:
-        tools.extend(_tools_from_message(msg))
+        for block in msg["content"]:
+            if block.get("type") == "tool_use":
+                name = block.get("name", "")
+                if name:
+                    tools.append(name)
     return tools
-
-
-def _tools_from_message(msg: dict[str, Any]) -> list[str]:
-    """Get tool names from a single message."""
-    if msg.get("type") == "tool_use":
-        name = msg.get("toolUse", {}).get("name", "")
-        return [name] if name else []
-    if msg.get("type") != "assistant":
-        return []
-    return _tools_from_assistant_content(msg)
-
-
-def _tools_from_assistant_content(
-    msg: dict[str, Any],
-) -> list[str]:
-    """Extract tool names from assistant message content blocks."""
-    content = msg.get("message", {}).get("content", [])
-    if not isinstance(content, list):
-        return []
-    return [
-        block.get("name", "")
-        for block in content
-        if isinstance(block, dict)
-        and block.get("type") == "tool_use"
-        and block.get("name")
-    ]
 
 
 def _truncate_snippet(text: str) -> str:
@@ -359,40 +268,44 @@ def _truncate_snippet(text: str) -> str:
     return text[:cutoff] + ELLIPSIS_SUFFIX
 
 
-def _extract_evidence_snippets(messages: list[dict]) -> list[str]:
+def _extract_evidence_snippets(messages: list[NormalizedMessage]) -> list[str]:
     """Extract short text summaries from assistant messages."""
     snippets: list[str] = []
     for msg in messages:
-        if msg.get("type") != "assistant":
+        if msg["role"] != "assistant":
             continue
-        text = _get_text_from_message(msg)
-        if text.strip():
-            snippets.append(_truncate_snippet(text.strip()))
+        parts: list[str] = []
+        for block in msg["content"]:
+            if block.get("type") == "text":
+                parts.append(block.get("text", ""))
+        text = " ".join(parts).strip()
+        if text:
+            snippets.append(_truncate_snippet(text))
     return snippets
 
 
-def _extract_session_id(messages: list[dict]) -> str:
+def _extract_session_id(messages: list[NormalizedMessage]) -> str:
     """Extract the session ID from the first message with one."""
     for msg in messages:
-        sid = msg.get("sessionId", "")
+        sid = msg["raw"].get("sessionId", "")
         if sid:
             return sid
     return "unknown"
 
 
-def _extract_timestamp(messages: list[dict]) -> str:
+def _extract_timestamp(messages: list[NormalizedMessage]) -> str:
     """Extract the earliest timestamp from messages."""
     for msg in messages:
-        ts = msg.get("timestamp", "")
+        ts = msg["raw"].get("timestamp", "")
         if ts:
             return ts
     return ""
 
 
-def _extract_project_hint(messages: list[dict]) -> str:
+def _extract_project_hint(messages: list[NormalizedMessage]) -> str:
     """Extract project hint from cwd field of messages."""
     for msg in messages:
-        cwd = msg.get("cwd", "")
+        cwd = msg["raw"].get("cwd", "")
         if cwd:
             return cwd.rsplit("/", maxsplit=1)[-1]
     return "unknown"
@@ -429,12 +342,13 @@ def extract_session_signals(content: str) -> SessionSignals:
     if not content.strip():
         return SessionSignals(session_id="unknown")
     lines = content.strip().splitlines()
-    messages = parse_session_lines(lines)
-    if not messages:
+    raw_messages = parse_session_lines(lines)
+    if not raw_messages:
         return SessionSignals(
             session_id="unknown",
             line_count=len(lines),
         )
+    messages = normalize_messages(raw_messages)
     technologies = extract_technologies(messages)
     tool_calls = _extract_tool_calls(messages)
     patterns = _detect_patterns(tool_calls, technologies)

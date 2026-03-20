@@ -69,6 +69,86 @@ async function handleGetAssessment(id) {
 	}
 }
 
+async function handleAssessPartial(payload) {
+	try {
+		const body = {
+			posting_text: payload.description || '',
+			company: payload.company || 'Unknown Company',
+			title: payload.title || 'Unknown Position',
+			posting_url: payload.url || null,
+		};
+		const data = await apiFetch('/api/assess/partial', {
+			method: 'POST',
+			body: JSON.stringify(body),
+		});
+		return { success: true, ...data };
+	} catch (err) {
+		return { success: false, error: err.message };
+	}
+}
+
+async function handleAssessFull(assessmentId) {
+	try {
+		const data = await apiFetch('/api/assess/full', {
+			method: 'POST',
+			body: JSON.stringify({ assessment_id: assessmentId }),
+		});
+		return { success: true, ...data };
+	} catch (err) {
+		return { success: false, error: err.message };
+	}
+}
+
+/**
+ * Fire-and-forget: start full assessment in background, store result when done.
+ * Survives popup close. Popup checks fullReportReady on reopen.
+ */
+async function handleStartFullAssess(assessmentId) {
+	// Clear any previous result
+	chrome.storage.local.remove('fullReportReady');
+
+	// Run in background — this continues even if popup closes
+	handleAssessFull(assessmentId).then(result => {
+		if (result.success && result.assessment_id && !result.error && result.deliverables) {
+			chrome.storage.local.set({
+				fullReportReady: {
+					assessmentId: result.assessment_id,
+					url: `http://localhost:7429/api/assessments/${result.assessment_id}`,
+					completedAt: Date.now(),
+				}
+			});
+		}
+	});
+
+	// Return immediately — don't wait for Claude
+	return { success: true, started: true };
+}
+
+async function handleOpenReport(url) {
+	try {
+		await chrome.tabs.create({ url });
+		return { success: true };
+	} catch (err) {
+		return { success: false, error: err.message };
+	}
+}
+
+async function handleExtractPosting(payload) {
+	try {
+		const data = await apiFetch('/api/extract-posting', {
+			method: 'POST',
+			body: JSON.stringify({
+				url: payload.url || '',
+				title: payload.title || '',
+				text: payload.text || '',
+			}),
+		});
+		return { success: true, ...data };
+	} catch (err) {
+		return { success: false, error: err.message };
+	}
+}
+
 async function handleAddToWatchlist(payload) {
 	try {
 		// Map extension fields to server API fields
@@ -103,6 +183,26 @@ chrome.runtime.onMessage.addListener(function (request, _sender, sendResponse) {
 
 		case 'assess':
 			promise = handleAssess(request.payload);
+			break;
+
+		case 'assessPartial':
+			promise = handleAssessPartial(request.payload);
+			break;
+
+		case 'assessFull':
+			promise = handleAssessFull(request.assessmentId);
+			break;
+
+		case 'startFullAssess':
+			promise = handleStartFullAssess(request.assessmentId);
+			break;
+
+		case 'openReport':
+			promise = handleOpenReport(request.url);
+			break;
+
+		case 'extractPosting':
+			promise = handleExtractPosting(request.payload);
 			break;
 
 		case 'getAssessment':
