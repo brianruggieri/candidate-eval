@@ -432,18 +432,13 @@ document.addEventListener('DOMContentLoaded', () => {
 	});
 
 	const btnBatch = el('btn-batch');
-	if (btnBatch) btnBatch.addEventListener('click', async () => {
+	if (btnBatch) btnBatch.addEventListener('click', () => {
 		btnBatch.disabled = true;
-		btnBatch.textContent = '⏳ Scanning tabs...';
-		const r = await sendToBackground({ action: 'batchAssess' });
-		if (r.success) {
-			// Open dashboard in new tab
-			chrome.tabs.create({ url: chrome.runtime.getURL('dashboard.html') });
-		} else {
-			btnBatch.textContent = r.error || 'Failed';
-			btnBatch.disabled = false;
-			setTimeout(() => { btnBatch.textContent = '⚡ Assess All Open Job Tabs'; }, 3000);
-		}
+		btnBatch.textContent = '⏳ Starting...';
+		// Fire-and-forget — background handles everything including opening dashboard
+		sendToBackground({ action: 'batchAssess' });
+		// Close popup after a beat to let the message send
+		setTimeout(() => window.close(), 300);
 	});
 
 	initialize();

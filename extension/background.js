@@ -172,19 +172,22 @@ async function handleAddToShortlist(payload) {
 async function handleBatchAssess() {
 	// Find all LinkedIn job posting tabs
 	const allTabs = await chrome.tabs.query({});
+	console.log(`[batch] Found ${allTabs.length} total tabs`);
 	const jobTabs = allTabs.filter(t =>
 		t.url && /linkedin\.com\/jobs\/view\//.test(t.url)
 	);
+	console.log(`[batch] Found ${jobTabs.length} LinkedIn job tabs`);
 
 	if (jobTabs.length === 0) {
 		return { success: false, error: 'No LinkedIn job posting tabs found. Open some job postings first.' };
 	}
 
-	// Clear previous batch results
+	// Clear previous batch results and open dashboard immediately
 	chrome.storage.local.set({
 		batchProgress: { total: jobTabs.length, done: 0, current: '' },
 		batchResults: [],
 	});
+	chrome.tabs.create({ url: chrome.runtime.getURL('dashboard.html') });
 
 	const results = [];
 
@@ -198,6 +201,7 @@ async function handleBatchAssess() {
 		});
 
 		try {
+			console.log(`[batch] Processing ${i+1}/${jobTabs.length}: ${tab.url}`);
 			// Inject content script and grab page text
 			await chrome.scripting.executeScript({
 				target: { tabId: tab.id },
@@ -260,6 +264,7 @@ async function handleBatchAssess() {
 				biggest_gap: assessment.biggest_gap || '',
 			});
 		} catch (err) {
+			console.error(`[batch] Error on ${tabUrl}:`, err.message);
 			results.push({ url: tabUrl, error: err.message });
 		}
 	}
@@ -317,7 +322,9 @@ chrome.runtime.onMessage.addListener(function (request, _sender, sendResponse) {
 			break;
 
 		case 'batchAssess':
-			promise = handleBatchAssess();
+			// Fire-and-forget — don't await, return immediately
+			handleBatchAssess().catch(err => console.error('Batch assess error:', err));
+			promise = Promise.resolve({ success: true, started: true });
 			break;
 
 		default:
