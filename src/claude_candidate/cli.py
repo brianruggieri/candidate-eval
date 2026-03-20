@@ -370,7 +370,10 @@ def _print_rich_card(assessment) -> None:
     table.add_column("Grade", width=6, justify="center")
     table.add_column("Bar", width=20)
 
-    for dim in [assessment.skill_match, assessment.mission_alignment, assessment.culture_fit]:
+    for dim in [assessment.skill_match, assessment.experience_match, assessment.education_match,
+                 assessment.mission_alignment, assessment.culture_fit]:
+        if dim is None:
+            continue
         bar = "█" * int(dim.score * 20) + "░" * (20 - int(dim.score * 20))
         dim_color = grade_colors.get(dim.grade, "white")
         label = dim.dimension.replace("_", " ").title()
@@ -427,8 +430,14 @@ def _print_plain_card(assessment) -> None:
     print(f"  {bar(assessment.overall_score)}")
     print()
     print(f"  Skills:  {bar(assessment.skill_match.score)} {assessment.skill_match.grade}")
-    print(f"  Mission: {bar(assessment.mission_alignment.score)} {assessment.mission_alignment.grade}")
-    print(f"  Culture: {bar(assessment.culture_fit.score)} {assessment.culture_fit.grade}")
+    if assessment.experience_match:
+        print(f"  Exper.:  {bar(assessment.experience_match.score)} {assessment.experience_match.grade}")
+    if assessment.education_match:
+        print(f"  Educ.:   {bar(assessment.education_match.score)} {assessment.education_match.grade}")
+    if assessment.mission_alignment:
+        print(f"  Mission: {bar(assessment.mission_alignment.score)} {assessment.mission_alignment.grade}")
+    if assessment.culture_fit:
+        print(f"  Culture: {bar(assessment.culture_fit.score)} {assessment.culture_fit.grade}")
     print()
     print(f"  ✓ {assessment.must_have_coverage}")
     print(f"  ★ Strongest: {assessment.strongest_match}")

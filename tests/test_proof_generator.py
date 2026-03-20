@@ -204,8 +204,25 @@ class TestGenerateProofPackage:
     def test_contains_dimension_scores(self):
         result = generate_proof_package(assessment=_make_assessment())
         assert "skill_match" in result or "Skill Match" in result
+        # mission_alignment and culture_fit are optional — present in _make_assessment
         assert "mission_alignment" in result or "Mission Alignment" in result
         assert "culture_fit" in result or "Culture Fit" in result
+
+    def test_skips_none_dimensions(self):
+        """When mission and culture are None, they don't appear in dimension scores."""
+        assessment = _make_assessment()
+        partial = FitAssessment(
+            **{
+                **assessment.model_dump(),
+                "mission_alignment": None,
+                "culture_fit": None,
+                "assessment_phase": "partial",
+            }
+        )
+        result = generate_proof_package(assessment=partial)
+        assert "skill_match" in result or "Skill Match" in result
+        assert "Mission Alignment" not in result
+        assert "Culture Fit" not in result
 
     def test_contains_manifest_hash(self):
         manifest = _make_manifest()

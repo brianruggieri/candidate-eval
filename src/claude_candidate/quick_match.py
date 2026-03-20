@@ -262,11 +262,13 @@ class SummaryInput:
 
     overall_score: float
     skill_dim: DimensionScore
-    mission_dim: DimensionScore
-    culture_dim: DimensionScore
     company: str
     title: str
     must_coverage: str
+    mission_dim: DimensionScore | None = None
+    culture_dim: DimensionScore | None = None
+    experience_dim: DimensionScore | None = None
+    education_dim: DimensionScore | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -667,15 +669,17 @@ def _compute_weights(
 
 def _compute_overall_score(
     skill_dim: DimensionScore,
-    mission_dim: DimensionScore,
-    culture_dim: DimensionScore,
+    mission_dim: DimensionScore | None = None,
+    culture_dim: DimensionScore | None = None,
+    experience_dim: DimensionScore | None = None,
+    education_dim: DimensionScore | None = None,
 ) -> float:
-    """Compute weighted overall score from three dimensions."""
-    return (
-        skill_dim.score * skill_dim.weight
-        + mission_dim.score * mission_dim.weight
-        + culture_dim.score * culture_dim.weight
-    )
+    """Compute weighted overall score from available dimensions."""
+    total = skill_dim.score * skill_dim.weight
+    for dim in (mission_dim, culture_dim, experience_dim, education_dim):
+        if dim is not None:
+            total += dim.score * dim.weight
+    return total
 
 
 def _must_have_coverage(details: list[SkillMatchDetail]) -> str:
@@ -780,45 +784,55 @@ class QuickMatchEngine:
     # -- orchestration ------------------------------------------------------
 
     def _run_assessment(self, inp: AssessmentInput) -> FitAssessment:
-        """Orchestrate the three dimensions and assemble the result."""
+        """Orchestrate scoring dimensions and assemble the result.
+
+        Partial assessment: scores skill_match (50%), experience_match (30%),
+        education_match (20%) — mission and culture are left as None.
+        """
         start_time = time.time()
         skill_dim, skill_details = self._score_skill_match(
             inp.requirements, inp.seniority,
         )
-        mission_dim = self._score_mission_alignment(
-            inp.company, inp.tech_stack or [], inp.company_profile,
+        experience_dim = self._score_experience_match(
+            inp.requirements, inp.seniority,
         )
-        culture_dim = self._score_culture_fit(
-            inp.culture_signals or [], inp.company_profile,
+        education_dim = self._score_education_match(
+            inp.requirements, inp.tech_stack or [],
         )
-        skill_w, mission_w, culture_w = _compute_weights(inp.company_profile)
 
-        # Redistribute culture weight to skill and mission when insufficient data
-        if culture_dim.insufficient_data:
-            skill_w, mission_w = _redistribute_culture_weight(
-                skill_w, mission_w, culture_w,
-            )
-            culture_w = 0.0
+        # Fixed partial-assessment weights: 50/30/20
+        skill_dim.weight = 0.50
+        experience_dim.weight = 0.30
+        education_dim.weight = 0.20
 
-        skill_dim.weight = skill_w
-        mission_dim.weight = mission_w
-        culture_dim.weight = culture_w
-        overall_score = _compute_overall_score(skill_dim, mission_dim, culture_dim)
+        overall_score = _compute_overall_score(
+            skill_dim,
+            experience_dim=experience_dim,
+            education_dim=education_dim,
+        )
+        partial_percentage = round(overall_score * 100, 1)
+
         elapsed = time.time() - start_time
         return self._build_assessment(
-            inp, skill_dim, mission_dim, culture_dim,
+            inp, skill_dim, None, None,
             skill_details, overall_score, elapsed,
+            experience_dim=experience_dim,
+            education_dim=education_dim,
+            partial_percentage=partial_percentage,
         )
 
     def _build_assessment(
         self,
         inp: AssessmentInput,
         skill_dim: DimensionScore,
-        mission_dim: DimensionScore,
-        culture_dim: DimensionScore,
+        mission_dim: DimensionScore | None,
+        culture_dim: DimensionScore | None,
         skill_details: list[SkillMatchDetail],
         overall_score: float,
         elapsed: float,
+        experience_dim: DimensionScore | None = None,
+        education_dim: DimensionScore | None = None,
+        partial_percentage: float | None = None,
     ) -> FitAssessment:
         """Assemble the final FitAssessment from scored dimensions."""
         must_cov = _must_have_coverage(skill_details)
@@ -833,16 +847,21 @@ class QuickMatchEngine:
         summary_inp = SummaryInput(
             overall_score=overall_score,
             skill_dim=skill_dim,
-            mission_dim=mission_dim,
-            culture_dim=culture_dim,
             company=inp.company,
             title=inp.title,
             must_coverage=must_cov,
+            mission_dim=mission_dim,
+            culture_dim=culture_dim,
+            experience_dim=experience_dim,
+            education_dim=education_dim,
         )
         return self._assemble_fit_assessment(
             inp, summary_inp, skill_dim, mission_dim, culture_dim,
             skill_details, strongest, biggest_gap, resume_gaps,
             resume_unverified, gaps, overall_score, elapsed,
+            experience_dim=experience_dim,
+            education_dim=education_dim,
+            partial_percentage=partial_percentage,
         )
 
     def _assemble_fit_assessment(
@@ -850,8 +869,8 @@ class QuickMatchEngine:
         inp: AssessmentInput,
         summary_inp: SummaryInput,
         skill_dim: DimensionScore,
-        mission_dim: DimensionScore,
-        culture_dim: DimensionScore,
+        mission_dim: DimensionScore | None,
+        culture_dim: DimensionScore | None,
         skill_details: list[SkillMatchDetail],
         strongest: str,
         biggest_gap: str,
@@ -860,8 +879,12 @@ class QuickMatchEngine:
         gaps: list[SkillMatchDetail],
         overall_score: float,
         elapsed: float,
+        experience_dim: DimensionScore | None = None,
+        education_dim: DimensionScore | None = None,
+        partial_percentage: float | None = None,
     ) -> FitAssessment:
         """Construct the FitAssessment pydantic model."""
+        is_partial = mission_dim is None and culture_dim is None
         return FitAssessment(
             assessment_id=str(uuid.uuid4()),
             assessed_at=datetime.now(),
@@ -869,10 +892,14 @@ class QuickMatchEngine:
             company_name=inp.company,
             posting_url=inp.posting_url,
             source=inp.source,
+            assessment_phase="partial" if is_partial else "full",
+            partial_percentage=partial_percentage,
             overall_score=round(overall_score, SCORE_PRECISION),
             overall_grade=score_to_grade(overall_score),
             overall_summary=self._generate_summary(summary_inp),
             skill_match=skill_dim,
+            experience_match=experience_dim,
+            education_match=education_dim,
             mission_alignment=mission_dim,
             culture_fit=culture_dim,
             skill_matches=skill_details,
@@ -1307,11 +1334,17 @@ class QuickMatchEngine:
         inp: SummaryInput,
     ) -> tuple[tuple[str, float], tuple[str, float]]:
         """Find the strongest and weakest dimension by score."""
-        dims = [
+        dims: list[tuple[str, float]] = [
             ("Skills", inp.skill_dim.score),
-            ("Mission", inp.mission_dim.score),
-            ("Culture", inp.culture_dim.score),
         ]
+        if inp.experience_dim is not None:
+            dims.append(("Experience", inp.experience_dim.score))
+        if inp.education_dim is not None:
+            dims.append(("Education", inp.education_dim.score))
+        if inp.mission_dim is not None:
+            dims.append(("Mission", inp.mission_dim.score))
+        if inp.culture_dim is not None:
+            dims.append(("Culture", inp.culture_dim.score))
         return max(dims, key=lambda x: x[1]), min(dims, key=lambda x: x[1])
 
     def _generate_action_items(

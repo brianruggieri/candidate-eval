@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from claude_candidate.schemas.merged_profile import EvidenceSource
 
@@ -100,15 +100,26 @@ class FitAssessment(BaseModel):
     posting_url: str | None = None
     source: str  # "linkedin", "greenhouse", "paste", etc.
 
+    # Phase tracking
+    assessment_phase: Literal["partial", "full"] = "partial"
+    partial_percentage: float | None = None  # 0-100 weighted %
+
     # Overall
     overall_score: float = Field(ge=0.0, le=1.0)
     overall_grade: str
     overall_summary: str
 
-    # Dimensions (equally weighted)
+    # Narrative verdict & receptivity (populated during full assessment)
+    narrative_verdict: str | None = None
+    receptivity_level: Literal["high", "medium", "low"] | None = None
+    receptivity_reason: str | None = None
+
+    # Dimensions
     skill_match: DimensionScore
-    mission_alignment: DimensionScore
-    culture_fit: DimensionScore
+    experience_match: DimensionScore | None = None
+    education_match: DimensionScore | None = None
+    mission_alignment: DimensionScore | None = None
+    culture_fit: DimensionScore | None = None
 
     # Skill detail
     skill_matches: list[SkillMatchDetail]
