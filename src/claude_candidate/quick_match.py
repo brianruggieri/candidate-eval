@@ -801,14 +801,21 @@ class QuickMatchEngine:
         )
 
         # Fixed partial-assessment weights: 50/30/20
-        skill_dim.weight = 0.50
-        experience_dim.weight = 0.30
-        education_dim.weight = 0.20
+        # Exclude insufficient-data dimensions and redistribute weight to skills
+        skill_weight = 0.50
+        exp_weight = 0.30 if not experience_dim.insufficient_data else 0.0
+        edu_weight = 0.20 if not education_dim.insufficient_data else 0.0
+        redistributed = (0.30 - exp_weight) + (0.20 - edu_weight)
+        skill_weight += redistributed
+
+        skill_dim.weight = skill_weight
+        experience_dim.weight = exp_weight
+        education_dim.weight = edu_weight
 
         overall_score = _compute_overall_score(
             skill_dim,
-            experience_dim=experience_dim,
-            education_dim=education_dim,
+            experience_dim=experience_dim if exp_weight > 0 else None,
+            education_dim=education_dim if edu_weight > 0 else None,
         )
         partial_percentage = round(overall_score * 100, 1)
 

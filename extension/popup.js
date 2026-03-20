@@ -115,10 +115,26 @@ function renderResults(data) {
 		el(detailId).textContent = dim.summary || '';
 	}
 
-	// Local dimensions (always shown)
+	// Local dimensions (skills always shown; experience/education hidden when insufficient)
 	setDim('skill_match', 'bar-skills', 'pct-skills', 'detail-skills');
-	setDim('experience_match', 'bar-experience', 'pct-experience', 'detail-experience');
-	setDim('education_match', 'bar-education', 'pct-education', 'detail-education');
+
+	const expDim = data.experience_match;
+	const expRow = el('dim-experience');
+	if (expDim && !expDim.insufficient_data) {
+		setDim('experience_match', 'bar-experience', 'pct-experience', 'detail-experience');
+		if (expRow) expRow.classList.remove('hidden');
+	} else if (expRow) {
+		expRow.classList.add('hidden');
+	}
+
+	const eduDim = data.education_match;
+	const eduRow = el('dim-education');
+	if (eduDim && !eduDim.insufficient_data) {
+		setDim('education_match', 'bar-education', 'pct-education', 'detail-education');
+		if (eduRow) eduRow.classList.remove('hidden');
+	} else if (eduRow) {
+		eduRow.classList.add('hidden');
+	}
 
 	// Full assessment dimensions (only shown when phase === 'full')
 	const fullDimsSection = el('section-full-dims');
@@ -304,6 +320,8 @@ async function initialize() {
 	}
 
 	if (!posting) {
+		const lt = el('loading-text');
+		if (lt) lt.textContent = 'Extracting job posting...';
 		const ext = await injectAndSend({ action: 'extractJobPosting' });
 		if (ext.success && ext.pageData) {
 			const extraction = await sendToBackground({

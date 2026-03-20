@@ -618,10 +618,10 @@ class TestPartialAssessmentWeights:
             priority=RequirementPriority.MUST_HAVE,
         )]
 
-    def test_partial_assessment_uses_fixed_weights(
+    def test_partial_assessment_redistributes_insufficient_weights(
         self, candidate_profile, resume_profile
     ):
-        """Partial assessment always uses 50/30/20 regardless of company profile."""
+        """When experience/education have no data, their weight goes to skills."""
         merged = merge_profiles(candidate_profile, resume_profile)
         engine = QuickMatchEngine(merged)
 
@@ -631,16 +631,39 @@ class TestPartialAssessmentWeights:
             title="Engineer",
         )
 
+        # Minimal requirements have no years or education — both insufficient
+        assert assessment.experience_match.insufficient_data is True
+        assert assessment.experience_match.weight == 0.0
+        assert assessment.education_match.insufficient_data is True
+        assert assessment.education_match.weight == 0.0
+        assert assessment.skill_match.weight == 1.0
+
+    def test_partial_assessment_uses_fixed_weights_with_data(
+        self, candidate_profile, resume_profile
+    ):
+        """When experience/education have data, uses 50/30/20 weights."""
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+
+        reqs = [QuickRequirement(
+            description="Python dev",
+            skill_mapping=["python"],
+            priority=RequirementPriority.MUST_HAVE,
+            years_experience=5,
+            education_level="bachelor",
+        )]
+        assessment = engine.assess(
+            requirements=reqs, company="Test Co", title="Engineer",
+        )
+
         assert assessment.skill_match.weight == 0.50
-        assert assessment.experience_match is not None
         assert assessment.experience_match.weight == 0.30
-        assert assessment.education_match is not None
         assert assessment.education_match.weight == 0.20
 
     def test_partial_assessment_weights_sum_to_one(
         self, candidate_profile, resume_profile
     ):
-        """Partial assessment weights (skill + experience + education) sum to 1.0."""
+        """Partial assessment weights always sum to 1.0."""
         merged = merge_profiles(candidate_profile, resume_profile)
         engine = QuickMatchEngine(merged)
 
