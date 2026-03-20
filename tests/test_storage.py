@@ -14,9 +14,20 @@ from claude_candidate.storage import AssessmentStore
 # Helpers
 # ---------------------------------------------------------------------------
 
+@pytest.fixture(autouse=True)
+def _event_loop():
+    """Create a fresh event loop for each test so aiosqlite connections
+    are always used on the loop that created them."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    yield loop
+    loop.close()
+
+
 def run(coro):
-    """Run an async coroutine from a synchronous test function."""
-    return asyncio.get_event_loop().run_until_complete(coro)
+    """Run an async coroutine on the current thread's event loop."""
+    loop = asyncio.get_event_loop()
+    return loop.run_until_complete(coro)
 
 
 # ---------------------------------------------------------------------------

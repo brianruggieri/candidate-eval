@@ -59,6 +59,33 @@ _DATAFOG_PLACEHOLDER_PATTERNS: list[tuple[re.Pattern[str], str]] = [
 ]
 
 # ---------------------------------------------------------------------------
+# Fallback regex patterns for PII types DataFog is expected to handle
+# ---------------------------------------------------------------------------
+# These ensure scrubbing works even if DataFog is unavailable or a no-op stub.
+
+# Phone numbers: (555) 123-4567, 555-123-4567, 555.123.4567, +1-555-123-4567
+_PHONE_PATTERN = re.compile(
+    r"(?:\+\d{1,3}[-.\s]?)?"            # optional international prefix
+    r"(?:\(\d{3}\)\s?|\d{3}[-.\s])"     # area code: (555) or 555- or 555.
+    r"\d{3}[-.\s]?\d{4}"                # subscriber number
+)
+
+# SSN: 123-45-6789
+_SSN_PATTERN = re.compile(
+    r"\b\d{3}-\d{2}-\d{4}\b"
+)
+
+# Credit card numbers: 4111-1111-1111-1111, 4111 1111 1111 1111, 4111111111111111
+_CREDIT_CARD_PATTERN = re.compile(
+    r"\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b"
+)
+
+# Email addresses: user@example.com
+_EMAIL_PATTERN = re.compile(
+    r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"
+)
+
+# ---------------------------------------------------------------------------
 # Supplemental regex patterns (what DataFog's regex tier does not cover)
 # ---------------------------------------------------------------------------
 
@@ -107,6 +134,21 @@ def _normalise_datafog_placeholders(text: str) -> str:
     return text
 
 
+def _apply_fallback_patterns(text: str) -> str:
+    """Apply regex fallbacks for PII types DataFog is expected to handle.
+
+    These catch phone numbers, SSNs, credit cards, and emails that DataFog
+    may have missed (e.g. when running with a stub/no-op backend).
+    Order matters: SSN before phone to avoid 3-2-4 patterns being consumed
+    by the phone regex; credit cards before phone for the same reason.
+    """
+    text = _CREDIT_CARD_PATTERN.sub(_PLACEHOLDER_CREDIT_CARD, text)
+    text = _SSN_PATTERN.sub(_PLACEHOLDER_SSN, text)
+    text = _PHONE_PATTERN.sub(_PLACEHOLDER_PHONE, text)
+    text = _EMAIL_PATTERN.sub(_PLACEHOLDER_EMAIL, text)
+    return text
+
+
 def _apply_supplemental_patterns(text: str) -> str:
     """Apply address and person-name regex patterns."""
     # Addresses first (longer match, reduces confusion with name patterns)
@@ -150,7 +192,11 @@ def scrub_deliverable(text: str) -> str:
     # Step 2: Normalise DataFog's numbered placeholders to our canonical form
     scrubbed = _normalise_datafog_placeholders(scrubbed)
 
-    # Step 3: Supplemental patterns for addresses and person names
+    # Step 3: Fallback regex for phone, SSN, credit card, email
+    # (catches anything DataFog missed, e.g. when running with a stub backend)
+    scrubbed = _apply_fallback_patterns(scrubbed)
+
+    # Step 4: Supplemental patterns for addresses and person names
     scrubbed = _apply_supplemental_patterns(scrubbed)
 
     return scrubbed
