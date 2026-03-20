@@ -479,6 +479,159 @@ class TestCultureFit:
         assert not assessment.culture_fit.insufficient_data
 
 
+class TestExperienceMatchScoring:
+    """Tests for _score_experience_match dimension."""
+
+    def test_experience_match_sufficient_years(self, candidate_profile, resume_profile):
+        """Candidate with enough years scores >= 0.7."""
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+
+        requirements = [QuickRequirement(
+            description="Python proficiency",
+            skill_mapping=["python"],
+            priority=RequirementPriority.MUST_HAVE,
+            years_experience=5,
+        )]
+
+        dim = engine._score_experience_match(requirements, "senior")
+        # Candidate has 8.5 years, requirement is 5 → should be >= 0.7
+        assert dim.dimension == "experience_match"
+        assert dim.score >= 0.7
+        assert not dim.insufficient_data
+        assert any("Met:" in d for d in dim.details)
+
+    def test_experience_match_insufficient_years(self, candidate_profile, resume_profile):
+        """Candidate with too few years scores < 0.7."""
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+
+        requirements = [QuickRequirement(
+            description="Senior ML engineering",
+            skill_mapping=["machine-learning"],
+            priority=RequirementPriority.MUST_HAVE,
+            years_experience=15,
+        )]
+
+        dim = engine._score_experience_match(requirements, "senior")
+        # Candidate has 8.5 years, requirement is 15 → below threshold
+        assert dim.dimension == "experience_match"
+        assert dim.score < 0.7
+        assert not dim.insufficient_data
+        assert any("Gap:" in d for d in dim.details)
+
+    def test_experience_match_no_years_specified(self, candidate_profile, resume_profile):
+        """No years requirements → neutral 0.5 with insufficient_data."""
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+
+        requirements = [QuickRequirement(
+            description="Python proficiency",
+            skill_mapping=["python"],
+            priority=RequirementPriority.MUST_HAVE,
+        )]
+
+        dim = engine._score_experience_match(requirements, "senior")
+        assert dim.dimension == "experience_match"
+        assert dim.score == 0.5
+        assert dim.insufficient_data is True
+
+    def test_experience_match_candidate_no_years(self, candidate_profile):
+        """Candidate with no total_years_experience → neutral with insufficient_data."""
+        merged = merge_candidate_only(candidate_profile)
+        engine = QuickMatchEngine(merged)
+
+        requirements = [QuickRequirement(
+            description="Python proficiency",
+            skill_mapping=["python"],
+            priority=RequirementPriority.MUST_HAVE,
+            years_experience=5,
+        )]
+
+        dim = engine._score_experience_match(requirements, "senior")
+        assert dim.score == 0.5
+        assert dim.insufficient_data is True
+
+
+class TestEducationMatchScoring:
+    """Tests for _score_education_match dimension."""
+
+    def test_education_match_degree_met(self, candidate_profile, resume_profile):
+        """Candidate with matching degree scores well."""
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+
+        requirements = [QuickRequirement(
+            description="CS degree required",
+            skill_mapping=["python"],
+            priority=RequirementPriority.MUST_HAVE,
+            education_level="bachelor",
+        )]
+
+        dim = engine._score_education_match(requirements, [])
+        # Candidate has "B.S. Computer Science" → meets bachelor requirement
+        assert dim.dimension == "education_match"
+        assert dim.score >= 0.7
+        assert not dim.insufficient_data
+        assert any("met" in d.lower() for d in dim.details)
+
+    def test_education_match_tech_stack_overlap(self, candidate_profile, resume_profile):
+        """Tech stack overlap produces a positive score."""
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+
+        requirements = [QuickRequirement(
+            description="Python proficiency",
+            skill_mapping=["python"],
+            priority=RequirementPriority.MUST_HAVE,
+        )]
+
+        dim = engine._score_education_match(
+            requirements, ["python", "typescript", "react"]
+        )
+        assert dim.dimension == "education_match"
+        assert dim.score > 0.5
+        assert not dim.insufficient_data
+        assert any("tech stack" in d.lower() for d in dim.details)
+
+    def test_education_match_no_requirements(self, candidate_profile, resume_profile):
+        """No education or tech stack requirements → neutral with insufficient_data."""
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+
+        requirements = [QuickRequirement(
+            description="Python proficiency",
+            skill_mapping=["python"],
+            priority=RequirementPriority.MUST_HAVE,
+        )]
+
+        dim = engine._score_education_match(requirements, [])
+        assert dim.dimension == "education_match"
+        assert dim.score == 0.5
+        assert dim.insufficient_data is True
+
+    def test_education_match_combined_signals(self, candidate_profile, resume_profile):
+        """Both education and tech stack produce an averaged score."""
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+
+        requirements = [QuickRequirement(
+            description="CS degree required",
+            skill_mapping=["python"],
+            priority=RequirementPriority.MUST_HAVE,
+            education_level="bachelor",
+        )]
+
+        dim = engine._score_education_match(
+            requirements, ["python", "typescript"]
+        )
+        assert dim.dimension == "education_match"
+        assert dim.score > 0.5
+        assert not dim.insufficient_data
+        # Should have details for both signals
+        assert len(dim.details) >= 2
+
+
 class TestCandidateOnlyAssessment:
     """Test assessment when only session data is available (no resume)."""
 

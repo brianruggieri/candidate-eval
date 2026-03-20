@@ -130,6 +130,10 @@ class MergedEvidenceProfile(BaseModel):
     projects: list[ProjectSummary]  # From sessions only
     roles: list[ResumeRole]  # From resume only
 
+    # Resume-level fields (propagated for scoring dimensions)
+    total_years_experience: float | None = None
+    education: list[str] = Field(default_factory=list)
+
     # Aggregate stats
     corroborated_skill_count: int = Field(ge=0)
     resume_only_skill_count: int = Field(ge=0)

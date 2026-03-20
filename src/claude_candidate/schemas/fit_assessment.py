@@ -18,7 +18,10 @@ from claude_candidate.schemas.merged_profile import EvidenceSource
 class DimensionScore(BaseModel):
     """Score for a single fit dimension."""
 
-    dimension: Literal["skill_match", "mission_alignment", "culture_fit"]
+    dimension: Literal[
+        "skill_match", "experience_match", "education_match",
+        "mission_alignment", "culture_fit",
+    ]
     score: float = Field(ge=0.0, le=1.0)
     grade: str  # "A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D", "F"
     weight: float = 0.333
