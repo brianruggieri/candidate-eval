@@ -745,6 +745,42 @@ class TestPartialAssessmentWeights:
         assert 0.0 <= assessment.partial_percentage <= 100.0
 
 
+def test_find_best_skill_related_fallback():
+    """When no direct match exists, related skills should give 'related' status."""
+    from claude_candidate.quick_match import _find_best_skill
+    from claude_candidate.schemas.job_requirements import QuickRequirement, RequirementPriority
+    from claude_candidate.schemas.merged_profile import MergedSkillEvidence, MergedEvidenceProfile, EvidenceSource
+    from claude_candidate.schemas.candidate_profile import DepthLevel
+
+    # Profile has "anthropic" but requirement asks for "openai" (related in taxonomy)
+    profile = MergedEvidenceProfile(
+        skills=[MergedSkillEvidence(
+            name="anthropic",
+            source=EvidenceSource.SESSIONS_ONLY,
+            session_depth=DepthLevel.EXPERT,
+            session_frequency=95,
+            effective_depth=DepthLevel.EXPERT,
+            confidence=0.85,
+            discovery_flag=True,
+        )],
+        patterns=[], projects=[], roles=[],
+        corroborated_skill_count=0, resume_only_skill_count=0,
+        sessions_only_skill_count=1, discovery_skills=[],
+        profile_hash="test", resume_hash="test",
+        candidate_profile_hash="test", merged_at="2026-01-01T00:00:00",
+    )
+
+    req = QuickRequirement(
+        description="Experience with OpenAI API",
+        skill_mapping=["openai"],
+        priority=RequirementPriority.MUST_HAVE,
+    )
+
+    match, status = _find_best_skill(req, profile, DepthLevel.APPLIED)
+    assert match is not None, "Should find anthropic as a related match"
+    assert status == "related"
+
+
 def test_find_skill_match_canonicalizes_hyphens():
     """Skill 'ci-cd' should match profile entry 'ci cd' via canonicalization."""
     from claude_candidate.quick_match import _find_skill_match

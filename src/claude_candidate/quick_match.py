@@ -74,13 +74,15 @@ STATUS_SCORE_EXCEEDS = 1.0
 STATUS_SCORE_STRONG = 0.85
 STATUS_SCORE_PARTIAL = 0.55
 STATUS_SCORE_ADJACENT = 0.3
+STATUS_SCORE_RELATED = 0.25
 STATUS_SCORE_NONE = 0.0
 
 # Status ranking for "best match" selection
-STATUS_RANK_EXCEEDS = 4
-STATUS_RANK_STRONG = 3
-STATUS_RANK_PARTIAL = 2
-STATUS_RANK_ADJACENT = 1
+STATUS_RANK_EXCEEDS = 5
+STATUS_RANK_STRONG = 4
+STATUS_RANK_PARTIAL = 3
+STATUS_RANK_ADJACENT = 2
+STATUS_RANK_RELATED = 1
 STATUS_RANK_NONE = 0
 
 # Mission alignment score adjustments
@@ -183,6 +185,7 @@ STATUS_SCORE: dict[str, float] = {
     "strong_match": STATUS_SCORE_STRONG,
     "partial_match": STATUS_SCORE_PARTIAL,
     "adjacent": STATUS_SCORE_ADJACENT,
+    "related": STATUS_SCORE_RELATED,
     "no_evidence": STATUS_SCORE_NONE,
 }
 
@@ -192,6 +195,7 @@ STATUS_RANK: dict[str, int] = {
     "strong_match": STATUS_RANK_STRONG,
     "partial_match": STATUS_RANK_PARTIAL,
     "adjacent": STATUS_RANK_ADJACENT,
+    "related": STATUS_RANK_RELATED,
     "no_evidence": STATUS_RANK_NONE,
 }
 
@@ -201,6 +205,7 @@ STATUS_MARKER: dict[str, str] = {
     "strong_match": "+",
     "partial_match": "~",
     "adjacent": "?",
+    "related": "~?",
     "no_evidence": "-",
 }
 
@@ -404,16 +409,32 @@ def _find_best_skill(
     depth_floor: DepthLevel,
 ) -> tuple[MergedSkillEvidence | None, str]:
     """Find the best matching skill for a requirement across all mappings."""
+    taxonomy = _get_taxonomy()
     best_match: MergedSkillEvidence | None = None
     best_status = "no_evidence"
+
     for skill_name in req.skill_mapping:
+        # Try direct match (exact, fuzzy, pattern)
         found = _find_skill_match(skill_name, profile)
-        if not found:
+        if found:
+            status = _assess_depth_match(found, depth_floor)
+            if STATUS_RANK.get(status, 0) > STATUS_RANK.get(best_status, 0):
+                best_match = found
+                best_status = status
             continue
-        status = _assess_depth_match(found, depth_floor)
-        if STATUS_RANK.get(status, 0) > STATUS_RANK.get(best_status, 0):
-            best_match = found
-            best_status = status
+
+        # Try related skill fallback
+        canonical = taxonomy.match(skill_name)
+        if not canonical:
+            continue
+        for profile_skill in profile.skills:
+            profile_canonical = taxonomy.canonicalize(profile_skill.name)
+            if taxonomy.are_related(canonical, profile_canonical):
+                if STATUS_RANK.get("related", 0) > STATUS_RANK.get(best_status, 0):
+                    best_match = profile_skill
+                    best_status = "related"
+                break  # Take first related match
+
     return best_match, best_status
 
 
