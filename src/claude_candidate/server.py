@@ -38,15 +38,18 @@ class AssessRequest(BaseModel):
     tech_stack: list[str] | None = None
 
 
-class WatchlistAddRequest(BaseModel):
+class ShortlistAddRequest(BaseModel):
     company_name: str
     job_title: str
     posting_url: str | None = None
     assessment_id: str | None = None
     notes: str | None = None
+    salary: str | None = None
+    location: str | None = None
+    overall_grade: str | None = None
 
 
-class WatchlistUpdateRequest(BaseModel):
+class ShortlistUpdateRequest(BaseModel):
     status: str | None = None
     notes: str | None = None
     assessment_id: str | None = None
@@ -434,57 +437,63 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
             )
 
     # ------------------------------------------------------------------
-    # Watchlist
+    # Shortlist
     # ------------------------------------------------------------------
 
-    @app.post("/api/watchlist", status_code=201)
-    async def add_watchlist(req: WatchlistAddRequest):
+    @app.post("/api/shortlist", status_code=201)
+    async def add_shortlist(req: ShortlistAddRequest):
         store = get_store()
-        wid = await store.add_to_watchlist(
+        sid = await store.add_to_shortlist(
             company_name=req.company_name,
             job_title=req.job_title,
             posting_url=req.posting_url,
             assessment_id=req.assessment_id,
             notes=req.notes,
+            salary=req.salary,
+            location=req.location,
+            overall_grade=req.overall_grade,
         )
         return {
-            "id": wid,
+            "id": sid,
             "company_name": req.company_name,
             "job_title": req.job_title,
             "posting_url": req.posting_url,
             "assessment_id": req.assessment_id,
             "notes": req.notes,
-            "status": "watching",
+            "status": "shortlisted",
+            "salary": req.salary,
+            "location": req.location,
+            "overall_grade": req.overall_grade,
         }
 
-    @app.get("/api/watchlist")
-    async def list_watchlist(
+    @app.get("/api/shortlist")
+    async def list_shortlist(
         status: str | None = Query(default=None),
         limit: int = Query(default=50, ge=1, le=200),
     ):
         store = get_store()
-        return await store.list_watchlist(status=status, limit=limit)
+        return await store.list_shortlist(status=status, limit=limit)
 
-    @app.patch("/api/watchlist/{watchlist_id}")
-    async def update_watchlist(watchlist_id: int, req: WatchlistUpdateRequest):
+    @app.patch("/api/shortlist/{shortlist_id}")
+    async def update_shortlist(shortlist_id: int, req: ShortlistUpdateRequest):
         store = get_store()
-        updated = await store.update_watchlist(
-            watchlist_id=watchlist_id,
+        updated = await store.update_shortlist(
+            shortlist_id=shortlist_id,
             status=req.status,
             notes=req.notes,
             assessment_id=req.assessment_id,
         )
         if not updated:
-            raise HTTPException(status_code=404, detail="Watchlist entry not found")
-        return {"updated": True, "id": watchlist_id}
+            raise HTTPException(status_code=404, detail="Shortlist entry not found")
+        return {"updated": True, "id": shortlist_id}
 
-    @app.delete("/api/watchlist/{watchlist_id}")
-    async def delete_watchlist(watchlist_id: int):
+    @app.delete("/api/shortlist/{shortlist_id}")
+    async def delete_shortlist(shortlist_id: int):
         store = get_store()
-        removed = await store.remove_from_watchlist(watchlist_id)
+        removed = await store.remove_from_shortlist(shortlist_id)
         if not removed:
-            raise HTTPException(status_code=404, detail="Watchlist entry not found")
-        return {"deleted": True, "id": watchlist_id}
+            raise HTTPException(status_code=404, detail="Shortlist entry not found")
+        return {"deleted": True, "id": shortlist_id}
 
     # ------------------------------------------------------------------
     # Extract posting

@@ -352,11 +352,11 @@ class TestAssessmentCRUD:
 
 
 # ---------------------------------------------------------------------------
-# Watchlist endpoints
+# Shortlist endpoints
 # ---------------------------------------------------------------------------
 
 
-SAMPLE_WATCHLIST_ITEM = {
+SAMPLE_SHORTLIST_ITEM = {
 	"company_name": "Startup Co",
 	"job_title": "Backend Engineer",
 	"posting_url": "https://startup.io/jobs/42",
@@ -364,94 +364,122 @@ SAMPLE_WATCHLIST_ITEM = {
 }
 
 
-class TestWatchlistEndpoints:
-	async def test_add_watchlist_item(self, client: AsyncClient):
-		resp = await client.post("/api/watchlist", json=SAMPLE_WATCHLIST_ITEM)
+class TestShortlistEndpoints:
+	async def test_add_shortlist_item(self, client: AsyncClient):
+		resp = await client.post("/api/shortlist", json=SAMPLE_SHORTLIST_ITEM)
 		assert resp.status_code == 201
 		data = resp.json()
 		assert "id" in data
 		assert data["company_name"] == "Startup Co"
-		assert data["status"] == "watching"
+		assert data["status"] == "shortlisted"
 
-	async def test_list_watchlist_empty(self, client: AsyncClient):
-		resp = await client.get("/api/watchlist")
+	async def test_list_shortlist_empty(self, client: AsyncClient):
+		resp = await client.get("/api/shortlist")
 		assert resp.status_code == 200
 		assert resp.json() == []
 
-	async def test_list_watchlist_returns_added(self, client: AsyncClient):
-		await client.post("/api/watchlist", json=SAMPLE_WATCHLIST_ITEM)
-		resp = await client.get("/api/watchlist")
+	async def test_list_shortlist_returns_added(self, client: AsyncClient):
+		await client.post("/api/shortlist", json=SAMPLE_SHORTLIST_ITEM)
+		resp = await client.get("/api/shortlist")
 		assert len(resp.json()) == 1
 
-	async def test_list_watchlist_filter_by_status(self, client: AsyncClient):
-		add_resp = await client.post("/api/watchlist", json=SAMPLE_WATCHLIST_ITEM)
-		wid = add_resp.json()["id"]
+	async def test_list_shortlist_filter_by_status(self, client: AsyncClient):
+		add_resp = await client.post("/api/shortlist", json=SAMPLE_SHORTLIST_ITEM)
+		sid = add_resp.json()["id"]
 
 		# Update to applied
-		await client.patch(f"/api/watchlist/{wid}", json={"status": "applied"})
+		await client.patch(f"/api/shortlist/{sid}", json={"status": "applied"})
 
-		watching = await client.get("/api/watchlist?status=watching")
-		applied = await client.get("/api/watchlist?status=applied")
-		assert len(watching.json()) == 0
+		shortlisted = await client.get("/api/shortlist?status=shortlisted")
+		applied = await client.get("/api/shortlist?status=applied")
+		assert len(shortlisted.json()) == 0
 		assert len(applied.json()) == 1
 
-	async def test_update_watchlist_status(self, client: AsyncClient):
-		add_resp = await client.post("/api/watchlist", json=SAMPLE_WATCHLIST_ITEM)
-		wid = add_resp.json()["id"]
+	async def test_update_shortlist_status(self, client: AsyncClient):
+		add_resp = await client.post("/api/shortlist", json=SAMPLE_SHORTLIST_ITEM)
+		sid = add_resp.json()["id"]
 
-		patch_resp = await client.patch(f"/api/watchlist/{wid}", json={"status": "applied"})
+		patch_resp = await client.patch(f"/api/shortlist/{sid}", json={"status": "applied"})
 		assert patch_resp.status_code == 200
 		assert patch_resp.json()["updated"] is True
 
-	async def test_update_watchlist_notes(self, client: AsyncClient):
-		add_resp = await client.post("/api/watchlist", json=SAMPLE_WATCHLIST_ITEM)
-		wid = add_resp.json()["id"]
+	async def test_update_shortlist_notes(self, client: AsyncClient):
+		add_resp = await client.post("/api/shortlist", json=SAMPLE_SHORTLIST_ITEM)
+		sid = add_resp.json()["id"]
 
-		await client.patch(f"/api/watchlist/{wid}", json={"notes": "Updated notes"})
+		await client.patch(f"/api/shortlist/{sid}", json={"notes": "Updated notes"})
 
-		items = await client.get("/api/watchlist")
-		entry = next(i for i in items.json() if i["id"] == wid)
+		items = await client.get("/api/shortlist")
+		entry = next(i for i in items.json() if i["id"] == sid)
 		assert entry["notes"] == "Updated notes"
 
-	async def test_update_nonexistent_watchlist(self, client: AsyncClient):
-		resp = await client.patch("/api/watchlist/99999", json={"status": "applied"})
+	async def test_update_nonexistent_shortlist(self, client: AsyncClient):
+		resp = await client.patch("/api/shortlist/99999", json={"status": "applied"})
 		assert resp.status_code == 404
 
-	async def test_delete_watchlist_item(self, client: AsyncClient):
-		add_resp = await client.post("/api/watchlist", json=SAMPLE_WATCHLIST_ITEM)
-		wid = add_resp.json()["id"]
+	async def test_delete_shortlist_item(self, client: AsyncClient):
+		add_resp = await client.post("/api/shortlist", json=SAMPLE_SHORTLIST_ITEM)
+		sid = add_resp.json()["id"]
 
-		del_resp = await client.delete(f"/api/watchlist/{wid}")
+		del_resp = await client.delete(f"/api/shortlist/{sid}")
 		assert del_resp.status_code == 200
 		assert del_resp.json()["deleted"] is True
 
 		# Confirm gone
-		items = await client.get("/api/watchlist")
-		assert all(i["id"] != wid for i in items.json())
+		items = await client.get("/api/shortlist")
+		assert all(i["id"] != sid for i in items.json())
 
-	async def test_delete_nonexistent_watchlist(self, client: AsyncClient):
-		resp = await client.delete("/api/watchlist/99999")
+	async def test_delete_nonexistent_shortlist(self, client: AsyncClient):
+		resp = await client.delete("/api/shortlist/99999")
 		assert resp.status_code == 404
 
-	async def test_add_watchlist_with_assessment_id(self, client_with_profile: AsyncClient):
+	async def test_add_shortlist_with_assessment_id(self, client_with_profile: AsyncClient):
 		# Create an assessment first
 		assess_resp = await client_with_profile.post("/api/assess", json=SAMPLE_ASSESS_PAYLOAD)
 		aid = assess_resp.json()["assessment_id"]
 
-		# Add to watchlist referencing the assessment
-		wl_payload = {**SAMPLE_WATCHLIST_ITEM, "assessment_id": aid}
-		resp = await client_with_profile.post("/api/watchlist", json=wl_payload)
+		# Add to shortlist referencing the assessment
+		sl_payload = {**SAMPLE_SHORTLIST_ITEM, "assessment_id": aid}
+		resp = await client_with_profile.post("/api/shortlist", json=sl_payload)
 		assert resp.status_code == 201
 		assert resp.json()["assessment_id"] == aid
 
-	async def test_list_watchlist_limit(self, client: AsyncClient):
+	async def test_list_shortlist_limit(self, client: AsyncClient):
 		for i in range(5):
-			await client.post("/api/watchlist", json={
+			await client.post("/api/shortlist", json={
 				"company_name": f"Company {i}",
 				"job_title": "Engineer",
 			})
-		resp = await client.get("/api/watchlist?limit=3")
+		resp = await client.get("/api/shortlist?limit=3")
 		assert len(resp.json()) == 3
+
+	async def test_add_shortlist_with_new_fields(self, client: AsyncClient):
+		payload = {
+			**SAMPLE_SHORTLIST_ITEM,
+			"salary": "$180k-$220k",
+			"location": "Remote",
+			"overall_grade": "A",
+		}
+		resp = await client.post("/api/shortlist", json=payload)
+		assert resp.status_code == 201
+		data = resp.json()
+		assert data["salary"] == "$180k-$220k"
+		assert data["location"] == "Remote"
+		assert data["overall_grade"] == "A"
+
+	async def test_new_fields_persisted_in_list(self, client: AsyncClient):
+		payload = {
+			**SAMPLE_SHORTLIST_ITEM,
+			"salary": "$150k",
+			"location": "NYC",
+			"overall_grade": "B+",
+		}
+		await client.post("/api/shortlist", json=payload)
+		resp = await client.get("/api/shortlist")
+		entry = resp.json()[0]
+		assert entry["salary"] == "$150k"
+		assert entry["location"] == "NYC"
+		assert entry["overall_grade"] == "B+"
 
 
 # ---------------------------------------------------------------------------

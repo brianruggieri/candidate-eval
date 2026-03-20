@@ -50,7 +50,7 @@ class TestInitialization:
     def test_creates_expected_tables(self, store: AssessmentStore):
         tables = run(store.list_tables())
         assert "assessments" in tables
-        assert "watchlist" in tables
+        assert "shortlist" in tables
         assert "profiles" in tables
 
     def test_idempotent_init(self, db_path: Path):
@@ -141,84 +141,106 @@ class TestAssessmentCRUD:
 
 
 # ---------------------------------------------------------------------------
-# Watchlist CRUD
+# Shortlist CRUD
 # ---------------------------------------------------------------------------
 
-class TestWatchlistCRUD:
-    def test_add_to_watchlist(self, store: AssessmentStore):
-        wid = run(store.add_to_watchlist(
+class TestShortlistCRUD:
+    def test_add_to_shortlist(self, store: AssessmentStore):
+        sid = run(store.add_to_shortlist(
             company_name="Startup Inc",
             job_title="Backend Engineer",
             posting_url="https://startup.io/jobs/be",
         ))
-        assert isinstance(wid, int)
-        assert wid > 0
+        assert isinstance(sid, int)
+        assert sid > 0
 
-    def test_list_watchlist_returns_entries(self, store: AssessmentStore):
-        run(store.add_to_watchlist("Company A", "SWE", notes="Looks good"))
-        run(store.add_to_watchlist("Company B", "Staff Eng"))
-        results = run(store.list_watchlist())
+    def test_list_shortlist_returns_entries(self, store: AssessmentStore):
+        run(store.add_to_shortlist("Company A", "SWE", notes="Looks good"))
+        run(store.add_to_shortlist("Company B", "Staff Eng"))
+        results = run(store.list_shortlist())
         assert len(results) == 2
 
-    def test_list_watchlist_filter_by_status(self, store: AssessmentStore):
-        wid = run(store.add_to_watchlist("Company A", "SWE"))
-        run(store.add_to_watchlist("Company B", "Staff Eng"))
+    def test_list_shortlist_filter_by_status(self, store: AssessmentStore):
+        sid = run(store.add_to_shortlist("Company A", "SWE"))
+        run(store.add_to_shortlist("Company B", "Staff Eng"))
         # Update one to 'applied'
-        run(store.update_watchlist(wid, status="applied"))
+        run(store.update_shortlist(sid, status="applied"))
 
-        watching = run(store.list_watchlist(status="watching"))
-        applied = run(store.list_watchlist(status="applied"))
-        assert len(watching) == 1
+        shortlisted = run(store.list_shortlist(status="shortlisted"))
+        applied = run(store.list_shortlist(status="applied"))
+        assert len(shortlisted) == 1
         assert len(applied) == 1
 
-    def test_update_watchlist_status(self, store: AssessmentStore):
-        wid = run(store.add_to_watchlist("Acme", "DevOps Eng"))
-        updated = run(store.update_watchlist(wid, status="applied"))
+    def test_update_shortlist_status(self, store: AssessmentStore):
+        sid = run(store.add_to_shortlist("Acme", "DevOps Eng"))
+        updated = run(store.update_shortlist(sid, status="applied"))
         assert updated is True
 
-        results = run(store.list_watchlist())
-        entry = next(r for r in results if r["id"] == wid)
+        results = run(store.list_shortlist())
+        entry = next(r for r in results if r["id"] == sid)
         assert entry["status"] == "applied"
 
-    def test_update_watchlist_notes(self, store: AssessmentStore):
-        wid = run(store.add_to_watchlist("Acme", "DevOps Eng"))
-        run(store.update_watchlist(wid, notes="Great culture"))
+    def test_update_shortlist_notes(self, store: AssessmentStore):
+        sid = run(store.add_to_shortlist("Acme", "DevOps Eng"))
+        run(store.update_shortlist(sid, notes="Great culture"))
 
-        results = run(store.list_watchlist())
-        entry = next(r for r in results if r["id"] == wid)
+        results = run(store.list_shortlist())
+        entry = next(r for r in results if r["id"] == sid)
         assert entry["notes"] == "Great culture"
 
-    def test_update_nonexistent_watchlist_returns_false(self, store: AssessmentStore):
-        result = run(store.update_watchlist(99999, status="applied"))
+    def test_update_nonexistent_shortlist_returns_false(self, store: AssessmentStore):
+        result = run(store.update_shortlist(99999, status="applied"))
         assert result is False
 
-    def test_remove_from_watchlist(self, store: AssessmentStore):
-        wid = run(store.add_to_watchlist("Gone Corp", "Temp Role"))
-        removed = run(store.remove_from_watchlist(wid))
+    def test_remove_from_shortlist(self, store: AssessmentStore):
+        sid = run(store.add_to_shortlist("Gone Corp", "Temp Role"))
+        removed = run(store.remove_from_shortlist(sid))
         assert removed is True
 
-        results = run(store.list_watchlist())
-        assert all(r["id"] != wid for r in results)
+        results = run(store.list_shortlist())
+        assert all(r["id"] != sid for r in results)
 
     def test_remove_nonexistent_returns_false(self, store: AssessmentStore):
-        result = run(store.remove_from_watchlist(99999))
+        result = run(store.remove_from_shortlist(99999))
         assert result is False
 
-    def test_watchlist_default_status_is_watching(self, store: AssessmentStore):
-        run(store.add_to_watchlist("NewCo", "Engineer"))
-        results = run(store.list_watchlist())
-        assert results[0]["status"] == "watching"
+    def test_shortlist_default_status_is_shortlisted(self, store: AssessmentStore):
+        run(store.add_to_shortlist("NewCo", "Engineer"))
+        results = run(store.list_shortlist())
+        assert results[0]["status"] == "shortlisted"
 
-    def test_add_to_watchlist_with_assessment_id(self, store: AssessmentStore):
+    def test_add_to_shortlist_with_assessment_id(self, store: AssessmentStore):
         run(store.save_assessment(SAMPLE_ASSESSMENT))
-        wid = run(store.add_to_watchlist(
+        sid = run(store.add_to_shortlist(
             company_name="Acme Corp",
             job_title="Senior Engineer",
             assessment_id="assess-001",
         ))
-        results = run(store.list_watchlist())
-        entry = next(r for r in results if r["id"] == wid)
+        results = run(store.list_shortlist())
+        entry = next(r for r in results if r["id"] == sid)
         assert entry["assessment_id"] == "assess-001"
+
+    def test_add_to_shortlist_with_new_fields(self, store: AssessmentStore):
+        sid = run(store.add_to_shortlist(
+            company_name="TechCo",
+            job_title="Staff Engineer",
+            salary="$200k-$250k",
+            location="San Francisco, CA",
+            overall_grade="A-",
+        ))
+        results = run(store.list_shortlist())
+        entry = next(r for r in results if r["id"] == sid)
+        assert entry["salary"] == "$200k-$250k"
+        assert entry["location"] == "San Francisco, CA"
+        assert entry["overall_grade"] == "A-"
+
+    def test_new_fields_default_to_none(self, store: AssessmentStore):
+        sid = run(store.add_to_shortlist("MinimalCo", "Engineer"))
+        results = run(store.list_shortlist())
+        entry = next(r for r in results if r["id"] == sid)
+        assert entry["salary"] is None
+        assert entry["location"] is None
+        assert entry["overall_grade"] is None
 
 
 # ---------------------------------------------------------------------------
