@@ -120,7 +120,7 @@
 			<h2 id="scores-heading" class="text-lg font-semibold text-gray-900 mb-4">Score Breakdown</h2>
 			<div class="bg-white rounded-xl border border-gray-200 shadow-sm divide-y divide-gray-100">
 
-				{% for dim in [assessment.skill_match, assessment.mission_alignment, assessment.culture_fit] %}
+				{% for dim in [assessment.skill_match, assessment.experience_match, assessment.education_match, assessment.mission_alignment, assessment.culture_fit] if dim %}
 				<div class="px-6 py-4">
 					<div class="flex items-center justify-between mb-2">
 						<div class="flex items-center gap-2">

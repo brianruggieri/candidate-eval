@@ -1,4 +1,4 @@
-"""SQLite-backed persistence for assessments, watchlist, and profiles."""
+"""SQLite-backed persistence for assessments, shortlist, and profiles."""
 
 from __future__ import annotations
 
@@ -23,16 +23,19 @@ CREATE TABLE IF NOT EXISTS assessments (
 );
 """
 
-_CREATE_WATCHLIST = """
-CREATE TABLE IF NOT EXISTS watchlist (
+_CREATE_SHORTLIST = """
+CREATE TABLE IF NOT EXISTS shortlist (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     company_name  TEXT NOT NULL,
     job_title     TEXT NOT NULL,
     posting_url   TEXT,
     assessment_id TEXT,
     notes         TEXT,
-    status        TEXT NOT NULL DEFAULT 'watching',
+    status        TEXT NOT NULL DEFAULT 'shortlisted',
     added_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    salary        TEXT,
+    location      TEXT,
+    overall_grade TEXT,
     FOREIGN KEY (assessment_id) REFERENCES assessments(assessment_id)
 );
 """
@@ -55,15 +58,24 @@ CREATE TABLE IF NOT EXISTS posting_cache (
 );
 """
 
+_CREATE_COMPANY_RESEARCH = """
+CREATE TABLE IF NOT EXISTS company_research (
+    company_key    TEXT PRIMARY KEY,
+    company_name   TEXT NOT NULL,
+    data           TEXT NOT NULL,
+    researched_at  TEXT DEFAULT (datetime('now'))
+);
+"""
+
 _CREATE_INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_assessments_company ON assessments(company_name);",
     "CREATE INDEX IF NOT EXISTS idx_assessments_score ON assessments(overall_score DESC);",
-    "CREATE INDEX IF NOT EXISTS idx_watchlist_status ON watchlist(status);",
+    "CREATE INDEX IF NOT EXISTS idx_shortlist_status ON shortlist(status);",
 ]
 
 
 class AssessmentStore:
-    """Async SQLite storage for assessments, watchlist, and profiles."""
+    """Async SQLite storage for assessments, shortlist, and profiles."""
 
     def __init__(self, db_path: Path | str) -> None:
         self._db_path = Path(db_path)
@@ -80,9 +92,27 @@ class AssessmentStore:
             self._conn.row_factory = aiosqlite.Row
 
         await self._conn.execute(_CREATE_ASSESSMENTS)
-        await self._conn.execute(_CREATE_WATCHLIST)
+
+        # Migrate existing watchlist table to shortlist
+        async with self._conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='watchlist'"
+        ) as cursor:
+            if await cursor.fetchone():
+                await self._conn.execute("ALTER TABLE watchlist RENAME TO shortlist")
+                for col in ["salary TEXT", "location TEXT", "overall_grade TEXT"]:
+                    try:
+                        await self._conn.execute(f"ALTER TABLE shortlist ADD COLUMN {col}")
+                    except Exception:
+                        pass  # Column already exists
+                await self._conn.execute(
+                    "UPDATE shortlist SET status = 'shortlisted' WHERE status = 'watching'"
+                )
+                await self._conn.commit()
+
+        await self._conn.execute(_CREATE_SHORTLIST)
         await self._conn.execute(_CREATE_PROFILES)
         await self._conn.execute(_CREATE_POSTING_CACHE)
+        await self._conn.execute(_CREATE_COMPANY_RESEARCH)
         for idx_sql in _CREATE_INDEXES:
             await self._conn.execute(idx_sql)
         await self._conn.commit()
@@ -183,57 +213,60 @@ class AssessmentStore:
         return d
 
     # ------------------------------------------------------------------
-    # Watchlist CRUD
+    # Shortlist CRUD
     # ------------------------------------------------------------------
 
-    async def add_to_watchlist(
+    async def add_to_shortlist(
         self,
         company_name: str,
         job_title: str,
         posting_url: str | None = None,
         assessment_id: str | None = None,
         notes: str | None = None,
+        salary: str | None = None,
+        location: str | None = None,
+        overall_grade: str | None = None,
     ) -> int:
-        """Insert a watchlist entry and return its auto-generated id."""
+        """Insert a shortlist entry and return its auto-generated id."""
         assert self._conn is not None, "Store not initialized"
         async with self._conn.execute(
             """
-            INSERT INTO watchlist (company_name, job_title, posting_url, assessment_id, notes)
-            VALUES (?, ?, ?, ?, ?);
+            INSERT INTO shortlist (company_name, job_title, posting_url, assessment_id, notes, salary, location, overall_grade)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?);
             """,
-            (company_name, job_title, posting_url, assessment_id, notes),
+            (company_name, job_title, posting_url, assessment_id, notes, salary, location, overall_grade),
         ) as cursor:
             row_id = cursor.lastrowid
         await self._conn.commit()
         return row_id  # type: ignore[return-value]
 
-    async def list_watchlist(
+    async def list_shortlist(
         self, status: str | None = None, limit: int = 50
     ) -> list[dict[str, Any]]:
-        """List watchlist entries, optionally filtered by status."""
+        """List shortlist entries, optionally filtered by status."""
         assert self._conn is not None, "Store not initialized"
         if status is not None:
             async with self._conn.execute(
-                "SELECT * FROM watchlist WHERE status = ? ORDER BY added_at DESC LIMIT ?;",
+                "SELECT * FROM shortlist WHERE status = ? ORDER BY added_at DESC LIMIT ?;",
                 (status, limit),
             ) as cursor:
                 rows = await cursor.fetchall()
         else:
             async with self._conn.execute(
-                "SELECT * FROM watchlist ORDER BY added_at DESC LIMIT ?;",
+                "SELECT * FROM shortlist ORDER BY added_at DESC LIMIT ?;",
                 (limit,),
             ) as cursor:
                 rows = await cursor.fetchall()
         return [dict(r) for r in rows]
 
-    async def update_watchlist(
+    async def update_shortlist(
         self,
-        watchlist_id: int,
+        shortlist_id: int,
         status: str | None = None,
         notes: str | None = None,
         assessment_id: str | None = None,
     ) -> bool:
-        """Update a watchlist entry's mutable fields. Returns True if updated."""
+        """Update a shortlist entry's mutable fields. Returns True if updated."""
         assert self._conn is not None, "Store not initialized"
         # Build SET clause only for provided fields
         fields: list[str] = []
@@ -251,23 +284,23 @@ class AssessmentStore:
         if not fields:
             # Nothing to update — check existence
             async with self._conn.execute(
-                "SELECT id FROM watchlist WHERE id = ?;", (watchlist_id,)
+                "SELECT id FROM shortlist WHERE id = ?;", (shortlist_id,)
             ) as cursor:
                 row = await cursor.fetchone()
             return row is not None
 
-        values.append(watchlist_id)
-        sql = f"UPDATE watchlist SET {', '.join(fields)} WHERE id = ?;"
+        values.append(shortlist_id)
+        sql = f"UPDATE shortlist SET {', '.join(fields)} WHERE id = ?;"
         async with self._conn.execute(sql, values) as cursor:
             updated = cursor.rowcount
         await self._conn.commit()
         return updated > 0
 
-    async def remove_from_watchlist(self, watchlist_id: int) -> bool:
-        """Delete a watchlist entry by id. Returns True if a row was deleted."""
+    async def remove_from_shortlist(self, shortlist_id: int) -> bool:
+        """Delete a shortlist entry by id. Returns True if a row was deleted."""
         assert self._conn is not None, "Store not initialized"
         async with self._conn.execute(
-            "DELETE FROM watchlist WHERE id = ?;", (watchlist_id,)
+            "DELETE FROM shortlist WHERE id = ?;", (shortlist_id,)
         ) as cursor:
             deleted = cursor.rowcount
         await self._conn.commit()
@@ -345,3 +378,42 @@ class AssessmentStore:
             (url_hash, url, json.dumps(data)),
         )
         await self._conn.commit()
+
+    # ------------------------------------------------------------------
+    # Company research cache
+    # ------------------------------------------------------------------
+
+    async def cache_company_research(self, company_name: str, data: dict) -> None:
+        """Insert or replace a company research cache entry."""
+        assert self._conn is not None, "Store not initialized"
+        key = company_name.strip().lower()
+        await self._conn.execute(
+            "INSERT OR REPLACE INTO company_research (company_key, company_name, data) VALUES (?, ?, ?);",
+            (key, company_name.strip(), json.dumps(data)),
+        )
+        await self._conn.commit()
+
+    async def get_cached_company_research(self, company_name: str) -> dict | None:
+        """Return cached company research if < 30 days old, else None (deletes expired row)."""
+        assert self._conn is not None, "Store not initialized"
+        key = company_name.strip().lower()
+        async with self._conn.execute(
+            "SELECT data, researched_at FROM company_research WHERE company_key = ?;",
+            (key,),
+        ) as cursor:
+            row = await cursor.fetchone()
+        if row is None:
+            return None
+        # 30 days = 30 * 86400 = 2592000 seconds
+        async with self._conn.execute(
+            "SELECT (julianday('now') - julianday(?)) * 86400 > 2592000;",
+            (row[1],),
+        ) as cursor:
+            expired_row = await cursor.fetchone()
+        if expired_row and expired_row[0]:
+            await self._conn.execute(
+                "DELETE FROM company_research WHERE company_key = ?;", (key,)
+            )
+            await self._conn.commit()
+            return None
+        return json.loads(row[0])

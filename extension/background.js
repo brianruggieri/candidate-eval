@@ -76,6 +76,8 @@ async function handleAssessPartial(payload) {
 			company: payload.company || 'Unknown Company',
 			title: payload.title || 'Unknown Position',
 			posting_url: payload.url || null,
+			requirements: payload.requirements || null,
+			seniority: payload.seniority || 'unknown',
 		};
 		const data = await apiFetch('/api/assess/partial', {
 			method: 'POST',
@@ -101,19 +103,19 @@ async function handleAssessFull(assessmentId) {
 
 /**
  * Fire-and-forget: start full assessment in background, store result when done.
- * Survives popup close. Popup checks fullReportReady on reopen.
+ * Survives popup close. Popup checks fullAssessmentReady on reopen.
  */
 async function handleStartFullAssess(assessmentId) {
 	// Clear any previous result
-	chrome.storage.local.remove('fullReportReady');
+	chrome.storage.local.remove('fullAssessmentReady');
 
 	// Run in background — this continues even if popup closes
 	handleAssessFull(assessmentId).then(result => {
-		if (result.success && result.assessment_id && !result.error && result.deliverables) {
+		if (result.success && result.assessment_phase === 'full') {
 			chrome.storage.local.set({
-				fullReportReady: {
+				fullAssessmentReady: {
 					assessmentId: result.assessment_id,
-					url: `http://localhost:7429/api/assessments/${result.assessment_id}`,
+					data: result,
 					completedAt: Date.now(),
 				}
 			});
@@ -122,15 +124,6 @@ async function handleStartFullAssess(assessmentId) {
 
 	// Return immediately — don't wait for Claude
 	return { success: true, started: true };
-}
-
-async function handleOpenReport(url) {
-	try {
-		await chrome.tabs.create({ url });
-		return { success: true };
-	} catch (err) {
-		return { success: false, error: err.message };
-	}
 }
 
 async function handleExtractPosting(payload) {
@@ -149,7 +142,7 @@ async function handleExtractPosting(payload) {
 	}
 }
 
-async function handleAddToWatchlist(payload) {
+async function handleAddToShortlist(payload) {
 	try {
 		// Map extension fields to server API fields
 		const body = {
@@ -157,9 +150,12 @@ async function handleAddToWatchlist(payload) {
 			job_title: payload.title || payload.job_title || '',
 			posting_url: payload.url || payload.posting_url || null,
 			assessment_id: payload.assessment_id || null,
+			salary: payload.salary || null,
+			location: payload.location || null,
+			overall_grade: payload.overall_grade || null,
 			notes: payload.notes || null,
 		};
-		const data = await apiFetch('/api/watchlist', {
+		const data = await apiFetch('/api/shortlist', {
 			method: 'POST',
 			body: JSON.stringify(body),
 		});
@@ -167,6 +163,129 @@ async function handleAddToWatchlist(payload) {
 	} catch (err) {
 		return { success: false, error: err.message };
 	}
+}
+
+/**
+ * Batch assess: find all LinkedIn job tabs, extract + assess each one.
+ * Sends progress updates via chrome.storage.local.
+ */
+async function handleBatchAssess() {
+	// Find all LinkedIn job posting tabs
+	const allTabs = await chrome.tabs.query({});
+	console.log(`[batch] Found ${allTabs.length} total tabs`);
+	const jobTabs = allTabs.filter(t =>
+		t.url && /linkedin\.com\/jobs\/view\//.test(t.url)
+	);
+	console.log(`[batch] Found ${jobTabs.length} LinkedIn job tabs`);
+
+	if (jobTabs.length === 0) {
+		return { success: false, error: 'No LinkedIn job posting tabs found. Open some job postings first.' };
+	}
+
+	// Clear previous batch results and open dashboard immediately
+	chrome.storage.local.set({
+		batchProgress: { total: jobTabs.length, done: 0, current: '' },
+		batchResults: [],
+	});
+	chrome.tabs.create({ url: chrome.runtime.getURL('dashboard.html') });
+
+	const results = [];
+
+	for (let i = 0; i < jobTabs.length; i++) {
+		const tab = jobTabs[i];
+		const tabUrl = tab.url;
+
+		// Update progress
+		chrome.storage.local.set({
+			batchProgress: { total: jobTabs.length, done: i, current: tab.title || tabUrl },
+		});
+
+		try {
+			console.log(`[batch] Processing ${i+1}/${jobTabs.length}: ${tab.url}`);
+			// Inject content script and grab page text
+			await chrome.scripting.executeScript({
+				target: { tabId: tab.id },
+				files: ['content.js'],
+			});
+			await new Promise(r => setTimeout(r, 200));
+
+			const pageData = await new Promise((resolve, reject) => {
+				chrome.tabs.sendMessage(tab.id, { action: 'extractJobPosting' }, resp => {
+					if (chrome.runtime.lastError) {
+						reject(new Error(chrome.runtime.lastError.message));
+					} else {
+						resolve(resp);
+					}
+				});
+			});
+
+			if (!pageData || !pageData.success || !pageData.pageData) {
+				results.push({ url: tabUrl, error: 'Could not extract page text' });
+				continue;
+			}
+
+			// Extract posting via server
+			const extraction = await apiFetch('/api/extract-posting', {
+				method: 'POST',
+				body: JSON.stringify({
+					url: pageData.pageData.url || tabUrl,
+					title: pageData.pageData.title || '',
+					text: pageData.pageData.text || '',
+				}),
+			});
+
+			if (!extraction || !extraction.description) {
+				results.push({ url: tabUrl, error: 'Extraction returned no description' });
+				continue;
+			}
+
+			// Run partial assessment
+			const assessment = await apiFetch('/api/assess/partial', {
+				method: 'POST',
+				body: JSON.stringify({
+					posting_text: extraction.description || '',
+					company: extraction.company || 'Unknown',
+					title: extraction.title || 'Unknown',
+					posting_url: tabUrl,
+					requirements: extraction.requirements || null,
+					seniority: extraction.seniority || 'unknown',
+				}),
+			});
+
+			results.push({
+				url: tabUrl,
+				company: extraction.company || 'Unknown',
+				title: extraction.title || 'Unknown',
+				location: extraction.location || '',
+				salary: extraction.salary || '',
+				percentage: assessment.partial_percentage || 0,
+				grade: assessment.overall_grade || '?',
+				strongest: assessment.strongest_match || '',
+				biggest_gap: assessment.biggest_gap || '',
+			});
+		} catch (err) {
+			console.error(`[batch] Error on ${tabUrl}:`, err.message);
+			results.push({ url: tabUrl, error: err.message });
+		}
+
+		// Update results incrementally so dashboard shows progress
+		const sorted = [...results].sort((a, b) => (b.percentage || 0) - (a.percentage || 0));
+		chrome.storage.local.set({
+			batchProgress: { total: jobTabs.length, done: i + 1, current: tab.title || tabUrl },
+			batchResults: sorted,
+		});
+	}
+
+	// Sort by percentage descending
+	results.sort((a, b) => (b.percentage || 0) - (a.percentage || 0));
+
+	// Store final results
+	chrome.storage.local.set({
+		batchProgress: { total: jobTabs.length, done: jobTabs.length, current: 'Done' },
+		batchResults: results,
+	});
+
+	return { success: true, total: jobTabs.length, results };
 }
 
 // ─── Message Listener ────────────────────────────────────────────────────────
@@ -197,10 +316,6 @@ chrome.runtime.onMessage.addListener(function (request, _sender, sendResponse) {
 			promise = handleStartFullAssess(request.assessmentId);
 			break;
 
-		case 'openReport':
-			promise = handleOpenReport(request.url);
-			break;
-
 		case 'extractPosting':
 			promise = handleExtractPosting(request.payload);
 			break;
@@ -209,8 +324,14 @@ chrome.runtime.onMessage.addListener(function (request, _sender, sendResponse) {
 			promise = handleGetAssessment(request.id);
 			break;
 
-		case 'addToWatchlist':
-			promise = handleAddToWatchlist(request.payload);
+		case 'addToShortlist':
+			promise = handleAddToShortlist(request.payload);
+			break;
+
+		case 'batchAssess':
+			// Fire-and-forget — don't await, return immediately
+			handleBatchAssess().catch(err => console.error('Batch assess error:', err));
+			promise = Promise.resolve({ success: true, started: true });
 			break;
 
 		default:

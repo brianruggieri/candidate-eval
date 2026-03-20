@@ -8,7 +8,27 @@
 
 	const MAX_TEXT_LENGTH = 15000;
 
+	function expandTruncatedContent() {
+		// LinkedIn "...more" buttons that expand truncated job descriptions
+		const selectors = [
+			'button.show-more-less-html__button--more',
+			'[data-tracking-control-name="public_jobs_show-more-html-btn"]',
+			'a.show-more-less-html__button',
+			'button[aria-label="Show more"]',
+			'footer button', // generic "see more" in cards
+		];
+		for (const sel of selectors) {
+			const btns = document.querySelectorAll(sel);
+			btns.forEach(btn => {
+				if (btn.offsetParent !== null) btn.click();
+			});
+		}
+	}
+
 	function grabPageText() {
+		// Expand any truncated sections first
+		expandTruncatedContent();
+
 		const text = (document.body.innerText || '').substring(0, MAX_TEXT_LENGTH);
 		return {
 			url: window.location.href,
@@ -47,8 +67,20 @@
 	chrome.runtime.onMessage.addListener(function (request, _sender, sendResponse) {
 		try {
 			if (request.action === 'extractJobPosting') {
-				const pageData = grabPageText();
-				sendResponse({ success: true, pageData });
+				// Expand first, wait for DOM to update, then grab
+				expandTruncatedContent();
+				// Try again after a beat in case first click didn't register
+				setTimeout(() => expandTruncatedContent(), 200);
+				setTimeout(() => {
+					const text = (document.body.innerText || '').substring(0, MAX_TEXT_LENGTH);
+					sendResponse({ success: true, pageData: {
+						url: window.location.href,
+						title: document.title,
+						text: text,
+						extractedAt: Date.now(),
+					}});
+				}, 600);
+				return true; // keep channel open for async response
 			} else if (request.action === 'extractFallback') {
 				const posting = heuristicFallback();
 				sendResponse({ success: true, posting });

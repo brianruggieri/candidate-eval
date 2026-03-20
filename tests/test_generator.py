@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from unittest.mock import patch
 
@@ -11,6 +12,7 @@ from claude_candidate.claude_cli import ClaudeCLIError
 from claude_candidate.generator import (
     generate_cover_letter,
     generate_interview_prep,
+    generate_narrative_verdict,
     generate_resume_bullets,
 )
 from claude_candidate.schemas.fit_assessment import (
@@ -332,3 +334,92 @@ class TestPIIScrubbing:
         with patch("claude_candidate.generator.call_claude", return_value=clean):
             letter = generate_cover_letter(assessment=assessment)
         assert letter == clean
+
+
+# ---------------------------------------------------------------------------
+# TestGenerateNarrativeVerdict
+# ---------------------------------------------------------------------------
+
+SAMPLE_ASSESSMENT_DATA = {
+    "company_name": "Acme Corp",
+    "job_title": "Senior Python Engineer",
+    "overall_grade": "B+",
+    "strongest_match": "Python proficiency",
+    "biggest_gap": "React experience",
+    "skill_matches": [
+        {
+            "requirement": "Python proficiency",
+            "match_status": "strong_match",
+            "candidate_evidence": "20 sessions, deep expertise",
+        },
+        {
+            "requirement": "REST APIs",
+            "match_status": "strong_match",
+            "candidate_evidence": "Built several production APIs",
+        },
+        {
+            "requirement": "Docker",
+            "match_status": "partial_match",
+            "candidate_evidence": "Used Docker in CI pipelines",
+        },
+    ],
+}
+
+SAMPLE_COMPANY_RESEARCH = {
+    "mission": "Making developer tools better",
+    "values": ["innovation", "quality"],
+    "culture_signals": ["collaborative", "remote-friendly"],
+    "tech_philosophy": "Python-first, test-driven",
+    "ai_native": False,
+    "product_domains": ["developer-tooling"],
+    "team_size_signal": "mid-size (50-500)",
+}
+
+SAMPLE_NARRATIVE_RESPONSE = json.dumps({
+    "narrative": "Strong Python fit with deep backend expertise. "
+                 "The candidate's API experience aligns well with Acme's developer tooling focus. "
+                 "React experience gap may surface in frontend-heavy sprints.",
+    "receptivity": "medium",
+    "receptivity_reason": "Acme values innovation but is not explicitly AI-native, "
+                          "so a transparent AI portfolio may intrigue but not guarantee traction.",
+})
+
+
+class TestGenerateNarrativeVerdict:
+    def test_returns_structured_data(self):
+        with patch("claude_candidate.generator.call_claude", return_value=SAMPLE_NARRATIVE_RESPONSE):
+            result = generate_narrative_verdict(SAMPLE_ASSESSMENT_DATA, SAMPLE_COMPANY_RESEARCH)
+        assert "narrative" in result
+        assert "receptivity" in result
+        assert "receptivity_reason" in result
+        assert result["receptivity"] in ("high", "medium", "low")
+        assert isinstance(result["narrative"], str)
+        assert len(result["narrative"]) > 0
+
+    def test_handles_code_fences(self):
+        fenced = f"```json\n{SAMPLE_NARRATIVE_RESPONSE}\n```"
+        with patch("claude_candidate.generator.call_claude", return_value=fenced):
+            result = generate_narrative_verdict(SAMPLE_ASSESSMENT_DATA, SAMPLE_COMPANY_RESEARCH)
+        assert result["receptivity"] == "medium"
+        assert "Strong Python fit" in result["narrative"]
+
+    def test_scrubs_pii_from_narrative(self):
+        response_with_pii = json.dumps({
+            "narrative": "Candidate is reachable at 555-123-4567 and has strong Python skills.",
+            "receptivity": "high",
+            "receptivity_reason": "AI-native company.",
+        })
+        with patch("claude_candidate.generator.call_claude", return_value=response_with_pii):
+            result = generate_narrative_verdict(SAMPLE_ASSESSMENT_DATA, SAMPLE_COMPANY_RESEARCH)
+        assert "555-123-4567" not in result["narrative"]
+        assert "[PHONE]" in result["narrative"]
+
+    def test_raises_on_invalid_json(self):
+        with patch("claude_candidate.generator.call_claude", return_value="not valid json"):
+            with pytest.raises(json.JSONDecodeError):
+                generate_narrative_verdict(SAMPLE_ASSESSMENT_DATA, SAMPLE_COMPANY_RESEARCH)
+
+    def test_handles_empty_research(self):
+        with patch("claude_candidate.generator.call_claude", return_value=SAMPLE_NARRATIVE_RESPONSE):
+            result = generate_narrative_verdict(SAMPLE_ASSESSMENT_DATA, {})
+        assert "narrative" in result

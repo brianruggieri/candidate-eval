@@ -156,7 +156,7 @@ def merge_profiles(
     merged_dict = {"resume": resume_hash, "candidate": candidate_hash}
     profile_hash = hash_json_stable(merged_dict)
 
-    return MergedEvidenceProfile(
+    merged = MergedEvidenceProfile(
         skills=merged_skills,
         patterns=candidate_profile.problem_solving_patterns,
         projects=candidate_profile.projects,
@@ -170,6 +170,9 @@ def merge_profiles(
         candidate_profile_hash=candidate_hash,
         merged_at=datetime.now(),
     )
+    merged.total_years_experience = resume_profile.total_years_experience
+    merged.education = resume_profile.education
+    return merged
 
 
 def merge_candidate_only(candidate_profile: CandidateProfile) -> MergedEvidenceProfile:
@@ -244,7 +247,7 @@ def merge_resume_only(resume_profile: ResumeProfile) -> MergedEvidenceProfile:
             seen[canonical_name] = entry
     merged_skills = list(seen.values())
 
-    return MergedEvidenceProfile(
+    merged = MergedEvidenceProfile(
         skills=merged_skills,
         patterns=[],
         projects=[],
@@ -258,3 +261,6 @@ def merge_resume_only(resume_profile: ResumeProfile) -> MergedEvidenceProfile:
         candidate_profile_hash="none",
         merged_at=datetime.now(),
     )
+    merged.total_years_experience = resume_profile.total_years_experience
+    merged.education = resume_profile.education
+    return merged

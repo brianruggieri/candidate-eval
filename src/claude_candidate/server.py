@@ -38,15 +38,18 @@ class AssessRequest(BaseModel):
     tech_stack: list[str] | None = None
 
 
-class WatchlistAddRequest(BaseModel):
+class ShortlistAddRequest(BaseModel):
     company_name: str
     job_title: str
     posting_url: str | None = None
     assessment_id: str | None = None
     notes: str | None = None
+    salary: str | None = None
+    location: str | None = None
+    overall_grade: str | None = None
 
 
-class WatchlistUpdateRequest(BaseModel):
+class ShortlistUpdateRequest(BaseModel):
     status: str | None = None
     notes: str | None = None
     assessment_id: str | None = None
@@ -81,6 +84,7 @@ class PostingExtraction(BaseModel):
     seniority: str | None = None
     remote: bool | None = None
     salary: str | None = None
+    requirements: list[dict] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -243,9 +247,16 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
         else:
             merged = merge_candidate_only(cp)
 
-        # Build requirements
+        # Build requirements — filter out invalid entries from Claude
         if req.requirements:
-            requirements = [QuickRequirement(**r) for r in req.requirements]
+            requirements = []
+            for r in req.requirements:
+                try:
+                    requirements.append(QuickRequirement(**r))
+                except Exception:
+                    continue  # Skip malformed requirements
+            if not requirements:
+                requirements = _extract_basic_requirements(req.posting_text)
         else:
             requirements = _extract_basic_requirements(req.posting_text)
 
@@ -296,20 +307,29 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
     @app.post("/api/assess/full")
     async def assess_full(req: AssessFullRequest):
         """
-        Generate all deliverables (resume bullets, cover letter, interview prep)
-        for an existing assessment via Claude.
+        Enrich a partial assessment with mission/culture scoring and company research.
 
-        Returns the assessment dict merged with a ``deliverables`` key containing
-        all three generated artifacts. If Claude is unavailable, returns the
-        assessment with an ``error`` field describing the failure.
+        Runs company research (cached per company), loads pre-computed AI
+        engineering scores from the candidate profile, computes mission and
+        culture dimensions locally, recomputes the overall score across all
+        five dimensions, and sets ``assessment_phase = "full"``.
+
+        Does NOT generate deliverables — use ``/api/generate`` for that.
         """
-        from claude_candidate.schemas.fit_assessment import FitAssessment
-        from claude_candidate.generator import (
-            ClaudeCLIError,
-            generate_resume_bullets,
-            generate_cover_letter,
-            generate_interview_prep,
+        import asyncio
+        from datetime import datetime
+
+        from claude_candidate.schemas.candidate_profile import CandidateProfile
+        from claude_candidate.schemas.company_profile import CompanyProfile
+        from claude_candidate.schemas.fit_assessment import (
+            DimensionScore,
+            FitAssessment,
+            score_to_grade,
+            score_to_verdict,
         )
+        from claude_candidate.schemas.resume_profile import ResumeProfile
+        from claude_candidate.merger import merge_profiles, merge_candidate_only
+        from claude_candidate.quick_match import QuickMatchEngine
 
         store = get_store()
         row = await store.get_assessment(req.assessment_id)
@@ -317,26 +337,173 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="Assessment not found")
 
         data = row["data"] if row.get("data") and isinstance(row["data"], dict) else row
-        assessment = FitAssessment.from_json(json.dumps(data))
+        company = data.get("company_name", "")
 
-        import asyncio
+        # 1. Company research (cached per company, best-effort)
+        research = None
+        if company:
+            cached = await store.get_cached_company_research(company)
+            if cached:
+                research = cached
+            else:
+                from claude_candidate.company_research import research_company
 
-        def _generate_all():
-            return {
-                "resume_bullets": generate_resume_bullets(assessment=assessment),
-                "cover_letter": generate_cover_letter(assessment=assessment),
-                "interview_prep": generate_interview_prep(assessment=assessment),
-            }
+                loop = asyncio.get_event_loop()
+                try:
+                    result = await loop.run_in_executor(
+                        None, lambda: research_company(company)
+                    )
+                    await store.cache_company_research(company, result)
+                    research = result
+                except Exception:
+                    pass  # Company research is best-effort
 
+        # 2. AI engineering scores from candidate profile (pre-computed)
+        profiles = get_profiles()
+        candidate_data = profiles.get("candidate")
+        ai_scores = None
+        if candidate_data:
+            ai_scores = candidate_data.get("ai_engineering_scores")
+
+        # 3. Build a CompanyProfile from research data (if available)
+        company_profile = None
+        if research:
+            # Determine enrichment quality based on available fields
+            field_count = sum(
+                1 for k in ("mission", "values", "culture_signals", "tech_philosophy", "product_domains")
+                if research.get(k)
+            )
+            if field_count >= 4:
+                quality = "rich"
+            elif field_count >= 2:
+                quality = "moderate"
+            else:
+                quality = "sparse"
+
+            company_profile = CompanyProfile(
+                company_name=company,
+                mission_statement=research.get("mission"),
+                product_description=research.get("mission") or f"{company} company",
+                product_domain=research.get("product_domains") or [],
+                tech_stack_public=research.get("tech_stack", []),
+                culture_keywords=research.get("culture_signals") or [],
+                company_size=research.get("team_size_signal"),
+                enriched_at=datetime.now(),
+                enrichment_quality=quality,
+            )
+
+        # 4. Build merged profile and engine to compute mission/culture
+        merged_profile = None
+        if candidate_data:
+            cp = CandidateProfile.model_validate(candidate_data)
+            resume_data = profiles.get("resume")
+            if resume_data:
+                rp = ResumeProfile.model_validate(resume_data)
+                merged_profile = merge_profiles(cp, rp)
+            else:
+                merged_profile = merge_candidate_only(cp)
+
+        mission_dim = None
+        culture_dim = None
+        if merged_profile:
+            engine = QuickMatchEngine(merged_profile)
+
+            # Extract tech_stack and culture_signals from the existing assessment data
+            tech_stack = data.get("skill_match", {}).get("details", [])
+            # Use culture signals from company research or empty list
+            culture_signals = research.get("culture_signals", []) if research else []
+
+            mission_dim = engine._score_mission_alignment(
+                company=company,
+                tech_stack=company_profile.tech_stack_public if company_profile else [],
+                company_profile=company_profile,
+            )
+            culture_dim = engine._score_culture_fit(
+                culture_signals=culture_signals,
+                company_profile=company_profile,
+            )
+
+        # 5. Recompute overall score with all five dimensions
+        # Parse existing dimension scores from the assessment data
+        skill_score = data.get("skill_match", {}).get("score", 0.5)
+        experience_score = (data.get("experience_match") or {}).get("score")
+        education_score = (data.get("education_match") or {}).get("score")
+        mission_score = mission_dim.score if mission_dim else 0.5
+        culture_score = culture_dim.score if culture_dim else 0.5
+
+        # Full assessment weights: skill 40%, experience 20%, education 10%,
+        # mission 15%, culture 15%
+        weighted_total = skill_score * 0.40
+        weighted_total += (experience_score if experience_score is not None else 0.5) * 0.20
+        weighted_total += (education_score if education_score is not None else 0.5) * 0.10
+        weighted_total += mission_score * 0.15
+        weighted_total += culture_score * 0.15
+
+        overall_score = round(min(max(weighted_total, 0.0), 1.0), 3)
+        overall_grade = score_to_grade(overall_score)
+
+        # Update dimension weights in the returned data
+        if mission_dim:
+            mission_dim.weight = 0.15
+        if culture_dim:
+            culture_dim.weight = 0.15
+
+        # 5b. Narrative verdict + receptivity signal (best-effort)
+        narrative_result = None
         try:
-            deliverables = await asyncio.get_event_loop().run_in_executor(None, _generate_all)
-        except ClaudeCLIError as exc:
-            return {**data, "error": str(exc)}
+            from claude_candidate.generator import generate_narrative_verdict
 
-        return {
-            **data,
-            "deliverables": deliverables,
+            loop = asyncio.get_event_loop()
+            # Build a snapshot of assessment context for the narrative prompt
+            _narrative_assessment = dict(data)
+            _narrative_assessment["overall_grade"] = overall_grade
+            narrative_result = await loop.run_in_executor(
+                None,
+                lambda: generate_narrative_verdict(_narrative_assessment, research or {}),
+            )
+        except Exception:
+            pass  # Narrative is best-effort
+
+        # 6. Merge into updated assessment data
+        updated = dict(data)
+        updated["assessment_phase"] = "full"
+        updated["overall_score"] = overall_score
+        updated["overall_grade"] = overall_grade
+        updated["should_apply"] = score_to_verdict(overall_score)
+        if mission_dim:
+            updated["mission_alignment"] = mission_dim.model_dump()
+        if culture_dim:
+            updated["culture_fit"] = culture_dim.model_dump()
+        if ai_scores:
+            updated["ai_engineering_scores"] = ai_scores
+        if narrative_result:
+            updated["narrative_verdict"] = narrative_result.get("narrative")
+            updated["receptivity_level"] = narrative_result.get("receptivity")
+            updated["receptivity_reason"] = narrative_result.get("receptivity_reason")
+
+        # Update skill/experience/education weights for consistency
+        if updated.get("skill_match"):
+            updated["skill_match"]["weight"] = 0.40
+        if updated.get("experience_match"):
+            updated["experience_match"]["weight"] = 0.20
+        if updated.get("education_match"):
+            updated["education_match"]["weight"] = 0.10
+
+        # 7. Save updated assessment to store
+        flat: dict[str, Any] = {
+            "assessment_id": data.get("assessment_id", req.assessment_id),
+            "assessed_at": data.get("assessed_at"),
+            "job_title": data.get("job_title"),
+            "company_name": company,
+            "posting_url": data.get("posting_url"),
+            "overall_score": overall_score,
+            "overall_grade": overall_grade,
+            "should_apply": updated["should_apply"],
+            "data": updated,
         }
+        await store.save_assessment(flat)
+
+        return updated
 
     # ------------------------------------------------------------------
     # Assessment list / detail / delete
@@ -433,57 +600,63 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
             )
 
     # ------------------------------------------------------------------
-    # Watchlist
+    # Shortlist
     # ------------------------------------------------------------------
 
-    @app.post("/api/watchlist", status_code=201)
-    async def add_watchlist(req: WatchlistAddRequest):
+    @app.post("/api/shortlist", status_code=201)
+    async def add_shortlist(req: ShortlistAddRequest):
         store = get_store()
-        wid = await store.add_to_watchlist(
+        sid = await store.add_to_shortlist(
             company_name=req.company_name,
             job_title=req.job_title,
             posting_url=req.posting_url,
             assessment_id=req.assessment_id,
             notes=req.notes,
+            salary=req.salary,
+            location=req.location,
+            overall_grade=req.overall_grade,
         )
         return {
-            "id": wid,
+            "id": sid,
             "company_name": req.company_name,
             "job_title": req.job_title,
             "posting_url": req.posting_url,
             "assessment_id": req.assessment_id,
             "notes": req.notes,
-            "status": "watching",
+            "status": "shortlisted",
+            "salary": req.salary,
+            "location": req.location,
+            "overall_grade": req.overall_grade,
         }
 
-    @app.get("/api/watchlist")
-    async def list_watchlist(
+    @app.get("/api/shortlist")
+    async def list_shortlist(
         status: str | None = Query(default=None),
         limit: int = Query(default=50, ge=1, le=200),
     ):
         store = get_store()
-        return await store.list_watchlist(status=status, limit=limit)
+        return await store.list_shortlist(status=status, limit=limit)
 
-    @app.patch("/api/watchlist/{watchlist_id}")
-    async def update_watchlist(watchlist_id: int, req: WatchlistUpdateRequest):
+    @app.patch("/api/shortlist/{shortlist_id}")
+    async def update_shortlist(shortlist_id: int, req: ShortlistUpdateRequest):
         store = get_store()
-        updated = await store.update_watchlist(
-            watchlist_id=watchlist_id,
+        updated = await store.update_shortlist(
+            shortlist_id=shortlist_id,
             status=req.status,
             notes=req.notes,
             assessment_id=req.assessment_id,
         )
         if not updated:
-            raise HTTPException(status_code=404, detail="Watchlist entry not found")
-        return {"updated": True, "id": watchlist_id}
+            raise HTTPException(status_code=404, detail="Shortlist entry not found")
+        return {"updated": True, "id": shortlist_id}
 
-    @app.delete("/api/watchlist/{watchlist_id}")
-    async def delete_watchlist(watchlist_id: int):
+    @app.delete("/api/shortlist/{shortlist_id}")
+    async def delete_shortlist(shortlist_id: int):
         store = get_store()
-        removed = await store.remove_from_watchlist(watchlist_id)
+        removed = await store.remove_from_shortlist(shortlist_id)
         if not removed:
-            raise HTTPException(status_code=404, detail="Watchlist entry not found")
-        return {"deleted": True, "id": watchlist_id}
+            raise HTTPException(status_code=404, detail="Shortlist entry not found")
+        return {"deleted": True, "id": shortlist_id}
 
     # ------------------------------------------------------------------
     # Extract posting
@@ -510,7 +683,18 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
             '- location: string or null\n'
             '- seniority: string or null (one of: junior, mid, senior, staff, principal, director)\n'
             '- remote: boolean or null\n'
-            '- salary: string or null\n\n'
+            '- salary: string or null\n'
+            '- requirements: array of objects, each with:\n'
+            '  - description: string (human-readable requirement)\n'
+            '  - skill_mapping: array of strings (normalized skill names, e.g. ["python", "django"])\n'
+            '  - priority: string (one of: must_have, strong_preference, nice_to_have, implied)\n'
+            '  - years_experience: integer or null (e.g. 5 for "5+ years")\n'
+            '  - education_level: string or null (e.g. "bachelor", "master", "phd")\n\n'
+            "For requirements, extract every qualification, skill, or experience mentioned in the posting. "
+            "Use must_have for requirements labeled required/must/essential, "
+            "strong_preference for strongly preferred/highly desired, "
+            "nice_to_have for preferred/bonus/plus, "
+            "and implied for unlabeled qualifications that are clearly expected.\n\n"
             "If this page does not contain a job posting, return all fields as null.\n\n"
             f"Page title: {title}\n"
             f"Page text:\n{truncated}"
@@ -562,6 +746,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
             seniority=parsed.get("seniority"),
             remote=parsed.get("remote"),
             salary=parsed.get("salary"),
+            requirements=parsed.get("requirements"),
         )
         result_dict = result.model_dump()
         await store.cache_posting(url_hash, req.url, result_dict)

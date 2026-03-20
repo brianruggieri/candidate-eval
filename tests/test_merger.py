@@ -147,6 +147,28 @@ class TestMergeResumeOnly:
         assert merged.projects == []
 
 
+class TestMergedProfilePropagation:
+    """Test that resume-level fields propagate to MergedEvidenceProfile."""
+
+    def test_total_years_experience_propagated(self, candidate_profile, resume_profile):
+        merged = merge_profiles(candidate_profile, resume_profile)
+        assert merged.total_years_experience == resume_profile.total_years_experience
+
+    def test_education_propagated(self, candidate_profile, resume_profile):
+        merged = merge_profiles(candidate_profile, resume_profile)
+        assert merged.education == resume_profile.education
+
+    def test_candidate_only_has_no_experience(self, candidate_profile):
+        merged = merge_candidate_only(candidate_profile)
+        assert merged.total_years_experience is None
+        assert merged.education == []
+
+    def test_resume_only_propagates_experience(self, resume_profile):
+        merged = merge_resume_only(resume_profile)
+        assert merged.total_years_experience == resume_profile.total_years_experience
+        assert merged.education == resume_profile.education
+
+
 def test_corroboration_with_name_variants(candidate_profile):
     """Skills with different names (React.js vs react) should still corroborate."""
     import json

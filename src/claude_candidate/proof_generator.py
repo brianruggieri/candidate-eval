@@ -210,9 +210,13 @@ def _dimension_scores_section(assessment: FitAssessment) -> str:
     lines = ["## Dimension Scores", ""]
     for dim in (
         assessment.skill_match,
+        assessment.experience_match,
+        assessment.education_match,
         assessment.mission_alignment,
         assessment.culture_fit,
     ):
+        if dim is None:
+            continue
         label = dim.dimension.replace("_", " ").title()
         lines.append(
             f"### {label}: {dim.score:.2f} ({_format_grade_badge(dim.grade)})"

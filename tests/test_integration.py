@@ -348,12 +348,12 @@ class TestGenerateCommand:
             return_value="- Led Python backend refactor\n- Built React dashboard",
         ):
             result = runner.invoke(main, [
-                "generate",
+                "generate-deliverable",
                 "--assessment", assessment_path,
                 "--type", "resume-bullets",
                 "--output", str(output),
             ])
-        assert result.exit_code == 0, f"generate failed: {result.output}"
+        assert result.exit_code == 0, f"generate-deliverable failed: {result.output}"
         assert output.exists()
         assert len(output.read_text()) > 0
 
@@ -367,12 +367,12 @@ class TestGenerateCommand:
             return_value="Dear Hiring Manager, I am excited to apply for this role...",
         ):
             result = runner.invoke(main, [
-                "generate",
+                "generate-deliverable",
                 "--assessment", assessment_path,
                 "--type", "cover-letter",
                 "--output", str(output),
             ])
-        assert result.exit_code == 0, f"generate failed: {result.output}"
+        assert result.exit_code == 0, f"generate-deliverable failed: {result.output}"
         assert output.exists()
         assert len(output.read_text()) > 0
 
@@ -386,12 +386,12 @@ class TestGenerateCommand:
             return_value="## Technical Discussion Points\n- Python: strong\n## Questions to Ask\n- ?",
         ):
             result = runner.invoke(main, [
-                "generate",
+                "generate-deliverable",
                 "--assessment", assessment_path,
                 "--type", "interview-prep",
                 "--output", str(output),
             ])
-        assert result.exit_code == 0, f"generate failed: {result.output}"
+        assert result.exit_code == 0, f"generate-deliverable failed: {result.output}"
         assert output.exists()
         assert len(output.read_text()) > 0
 
@@ -404,12 +404,61 @@ class TestGenerateCommand:
             return_value="Dear Hiring Manager, I am excited to apply for this role...",
         ):
             result = runner.invoke(main, [
-                "generate",
+                "generate-deliverable",
                 "--assessment", assessment_path,
                 "--type", "cover-letter",
             ])
-        assert result.exit_code == 0, f"generate failed: {result.output}"
+        assert result.exit_code == 0, f"generate-deliverable failed: {result.output}"
         assert len(result.output) > 0
+
+
+class TestShortlistCommand:
+    def test_shortlist_command_empty(self):
+        """Shortlist with no entries shows message."""
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            result = runner.invoke(main, ["shortlist", "--db", "test.db"])
+            assert result.exit_code == 0, f"CLI failed: {result.output}"
+            assert "No shortlisted jobs" in result.output
+
+    def test_shortlist_command_with_data(self):
+        """Shortlist with entries shows a formatted table."""
+        import asyncio
+        from claude_candidate.storage import AssessmentStore
+
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            db_path = "test.db"
+
+            # Pre-populate the database
+            async def _seed():
+                store = AssessmentStore(db_path)
+                await store.initialize()
+                await store.add_to_shortlist(
+                    company_name="Acme Corp",
+                    job_title="Senior Engineer",
+                    salary="$150k",
+                    location="Remote",
+                    overall_grade="A-",
+                )
+                await store.add_to_shortlist(
+                    company_name="Widget Inc",
+                    job_title="Staff Developer",
+                    overall_grade="B+",
+                )
+                await store.close()
+
+            asyncio.run(_seed())
+
+            result = runner.invoke(main, ["shortlist", "--db", db_path])
+            assert result.exit_code == 0, f"CLI failed: {result.output}"
+            assert "Acme Corp" in result.output
+            assert "Senior Engineer" in result.output
+            assert "$150k" in result.output
+            assert "Remote" in result.output
+            assert "A-" in result.output
+            assert "Widget Inc" in result.output
+            assert "B+" in result.output
 
 
 class TestSessionsScanCommand:

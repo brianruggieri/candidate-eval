@@ -27,7 +27,7 @@ def main(ctx: click.Context) -> None:
     """claude-candidate: Honest job fit assessment from your resume + Claude Code sessions."""
     ctx.ensure_object(dict)
     # Commands that require Claude CLI
-    needs_claude = {"assess", "generate", "job"}
+    needs_claude = {"assess", "generate", "generate-deliverable", "job"}
     if ctx.invoked_subcommand in needs_claude:
         from claude_candidate.claude_cli import check_claude_available
 
@@ -142,7 +142,7 @@ def proof(assessment: str, output: str | None) -> None:
         click.echo(proof_markdown)
 
 
-@main.command()
+@main.command("generate-deliverable")
 @click.option("--assessment", "-a", type=click.Path(exists=True), required=True,
               help="Path to assessment JSON file")
 @click.option("--type", "-t", "deliverable_type",
@@ -151,8 +151,8 @@ def proof(assessment: str, output: str | None) -> None:
               help="Type of deliverable to generate")
 @click.option("--output", "-o", type=click.Path(),
               help="Output path for generated deliverable")
-def generate(assessment: str, deliverable_type: str, output: str | None) -> None:
-    """Generate deliverables from an assessment."""
+def generate_deliverable(assessment: str, deliverable_type: str, output: str | None) -> None:
+    """Generate text deliverables (resume bullets, cover letter, interview prep) from an assessment."""
     from claude_candidate.schemas.fit_assessment import FitAssessment
     from claude_candidate.generator import (
         generate_resume_bullets,
@@ -180,6 +180,176 @@ def generate(assessment: str, deliverable_type: str, output: str | None) -> None
         click.echo(f"Deliverable written to {output}")
     else:
         click.echo(content)
+
+
+@main.command("generate")
+@click.option("--job", "shortlist_id", type=int, required=True, help="Shortlist ID to generate for")
+@click.option("--output-dir", default="site", help="Output directory")
+@click.option("--deploy/--no-deploy", default=True, help="Auto-deploy via wrangler")
+@click.option("--db", default=None, help="Database path")
+def generate_site(shortlist_id: int, output_dir: str, deploy: bool, db: str | None) -> None:
+    """Generate cover letter site page for a shortlisted job and deploy."""
+    import asyncio
+    import subprocess
+    import json as _json
+
+    from claude_candidate.storage import AssessmentStore
+    from claude_candidate.generator import generate_site_narrative
+    from claude_candidate.site_renderer import render_cover_letter_site
+
+    db_path = Path(db) if db else Path.home() / ".claude-candidate" / "assessments.db"
+
+    if not db_path.exists():
+        click.echo(f"Database not found at {db_path}", err=True)
+        raise SystemExit(1)
+
+    async def _load_data():
+        store = AssessmentStore(db_path)
+        await store.initialize()
+        try:
+            # Load shortlist entry
+            items = await store.list_shortlist()
+            entry = next((i for i in items if i["id"] == shortlist_id), None)
+            if entry is None:
+                return None, None, None
+
+            # Load assessment
+            assessment_id = entry.get("assessment_id")
+            assessment_record = None
+            if assessment_id:
+                assessment_record = await store.get_assessment(assessment_id)
+
+            # Load company research
+            company_name = entry.get("company_name", "")
+            research = await store.get_cached_company_research(company_name)
+
+            return entry, assessment_record, research or {}
+        finally:
+            await store.close()
+
+    entry, assessment_record, company_research = asyncio.run(_load_data())
+
+    if entry is None:
+        click.echo(f"Shortlist ID {shortlist_id} not found.", err=True)
+        raise SystemExit(1)
+
+    if assessment_record is None:
+        click.echo(
+            f"No assessment found for shortlist ID {shortlist_id}. "
+            "Run an assessment first.",
+            err=True,
+        )
+        raise SystemExit(1)
+
+    # The assessment data is in the 'data' field
+    assessment_data = assessment_record.get("data", {})
+    if isinstance(assessment_data, str):
+        assessment_data = _json.loads(assessment_data)
+
+    # Merge top-level record fields into assessment_data for convenience
+    for key in ("company_name", "job_title", "overall_grade", "assessment_id"):
+        if key not in assessment_data and key in assessment_record:
+            assessment_data[key] = assessment_record[key]
+
+    click.echo(f"Generating site page for {entry['company_name']} — {entry['job_title']}...")
+
+    # Generate narrative
+    click.echo("  Generating narrative...")
+    narrative = generate_site_narrative(assessment_data, company_research)
+
+    # Build evidence highlights from top matched skills
+    skill_matches = assessment_data.get("skill_matches", [])
+    positive_statuses = {"exceeds", "strong_match", "partial_match"}
+    top_matches = [
+        m for m in skill_matches
+        if m.get("match_status") in positive_statuses
+    ][:3]
+
+    evidence_highlights = []
+    for m in top_matches:
+        techs = []
+        req = m.get("requirement", "")
+        # Use the requirement as a technology tag
+        if req:
+            techs.append(req)
+        evidence_highlights.append({
+            "title": req,
+            "description": m.get("candidate_evidence", ""),
+            "technologies": techs,
+        })
+
+    # Render the page
+    click.echo("  Rendering HTML...")
+    output_path = render_cover_letter_site(
+        assessment=assessment_data,
+        narrative=narrative,
+        evidence_highlights=evidence_highlights,
+        output_dir=Path(output_dir),
+    )
+    click.echo(f"  Written: {output_path}")
+
+    # Deploy via wrangler
+    if deploy:
+        click.echo("  Deploying via wrangler...")
+        try:
+            result = subprocess.run(
+                ["wrangler", "pages", "deploy", output_dir, "--project-name=roojerry-com"],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if result.returncode == 0:
+                click.echo("  Deployed successfully.")
+                if result.stdout:
+                    click.echo(result.stdout)
+            else:
+                click.echo(f"  Deploy failed (exit {result.returncode}):", err=True)
+                if result.stderr:
+                    click.echo(result.stderr, err=True)
+        except FileNotFoundError:
+            click.echo(
+                "  wrangler not found. Install with: npm i -g wrangler\n"
+                "  You can deploy manually: wrangler pages deploy site/ --project-name=<project>",
+                err=True,
+            )
+        except subprocess.TimeoutExpired:
+            click.echo("  Deploy timed out after 120s.", err=True)
+
+
+@main.command()
+@click.option("--db", default=None, help="Database path")
+def shortlist(db: str | None) -> None:
+    """List shortlisted jobs with grades."""
+    import asyncio
+    from claude_candidate.storage import AssessmentStore
+
+    async def _list():
+        data_dir = Path(db).parent if db else Path.home() / ".claude-candidate"
+        db_path = Path(db) if db else data_dir / "assessments.db"
+        store = AssessmentStore(db_path)
+        await store.initialize()
+        items = await store.list_shortlist()
+        await store.close()
+        return items
+
+    items = asyncio.run(_list())
+
+    if not items:
+        click.echo("No shortlisted jobs.")
+        return
+
+    # Print table header
+    click.echo(f"{'Grade':<6} {'Company':<20} {'Title':<30} {'Location':<15} {'Salary':<15} {'Added':<12}")
+    click.echo("-" * 100)
+    for item in items:
+        click.echo(
+            f"{item.get('overall_grade', '--'):<6} "
+            f"{item['company_name'][:19]:<20} "
+            f"{item['job_title'][:29]:<30} "
+            f"{(item.get('location') or '--')[:14]:<15} "
+            f"{(item.get('salary') or '--')[:14]:<15} "
+            f"{item.get('added_at', '--')[:10]:<12}"
+        )
 
 
 def _extract_basic_requirements(text: str) -> list:
@@ -370,7 +540,10 @@ def _print_rich_card(assessment) -> None:
     table.add_column("Grade", width=6, justify="center")
     table.add_column("Bar", width=20)
 
-    for dim in [assessment.skill_match, assessment.mission_alignment, assessment.culture_fit]:
+    for dim in [assessment.skill_match, assessment.experience_match, assessment.education_match,
+                 assessment.mission_alignment, assessment.culture_fit]:
+        if dim is None:
+            continue
         bar = "█" * int(dim.score * 20) + "░" * (20 - int(dim.score * 20))
         dim_color = grade_colors.get(dim.grade, "white")
         label = dim.dimension.replace("_", " ").title()
@@ -427,8 +600,14 @@ def _print_plain_card(assessment) -> None:
     print(f"  {bar(assessment.overall_score)}")
     print()
     print(f"  Skills:  {bar(assessment.skill_match.score)} {assessment.skill_match.grade}")
-    print(f"  Mission: {bar(assessment.mission_alignment.score)} {assessment.mission_alignment.grade}")
-    print(f"  Culture: {bar(assessment.culture_fit.score)} {assessment.culture_fit.grade}")
+    if assessment.experience_match:
+        print(f"  Exper.:  {bar(assessment.experience_match.score)} {assessment.experience_match.grade}")
+    if assessment.education_match:
+        print(f"  Educ.:   {bar(assessment.education_match.score)} {assessment.education_match.grade}")
+    if assessment.mission_alignment:
+        print(f"  Mission: {bar(assessment.mission_alignment.score)} {assessment.mission_alignment.grade}")
+    if assessment.culture_fit:
+        print(f"  Culture: {bar(assessment.culture_fit.score)} {assessment.culture_fit.grade}")
     print()
     print(f"  ✓ {assessment.must_have_coverage}")
     print(f"  ★ Strongest: {assessment.strongest_match}")

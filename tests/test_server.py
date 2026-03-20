@@ -240,17 +240,22 @@ class TestAssessFullEndpoint:
 		)
 		assert resp.status_code == 404
 
-	async def test_assess_full_returns_deliverables(self, client_with_profile: AsyncClient):
+	async def test_assess_full_returns_full_phase(self, client_with_profile: AsyncClient):
+		"""Full assessment should set assessment_phase to 'full'."""
 		partial = await client_with_profile.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
 		aid = partial.json()["assessment_id"]
 
 		with patch(
-			"claude_candidate.generator.call_claude",
-			side_effect=[
-				"- Led Python backend refactor",
-				"Dear Hiring Manager, ...",
-				"## Technical Discussion Points",
-			],
+			"claude_candidate.company_research.research_company",
+			return_value={
+				"mission": "Making developer tools better",
+				"values": ["innovation", "quality"],
+				"culture_signals": ["collaborative", "remote-friendly"],
+				"tech_philosophy": "Python-first, test-driven",
+				"ai_native": False,
+				"product_domains": ["developer-tooling"],
+				"team_size_signal": "mid-size (50-500)",
+			},
 		):
 			resp = await client_with_profile.post(
 				"/api/assess/full", json={"assessment_id": aid}
@@ -258,16 +263,105 @@ class TestAssessFullEndpoint:
 
 		assert resp.status_code == 200
 		data = resp.json()
-		assert "deliverables" in data
-		assert "resume_bullets" in data["deliverables"]
-		assert "cover_letter" in data["deliverables"]
-		assert "interview_prep" in data["deliverables"]
+		assert data["assessment_phase"] == "full"
 
-	async def test_assess_full_preserves_assessment_fields(self, client_with_profile: AsyncClient):
+	async def test_assess_full_has_mission_and_culture(self, client_with_profile: AsyncClient):
+		"""Full assessment should populate mission_alignment and culture_fit."""
 		partial = await client_with_profile.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
 		aid = partial.json()["assessment_id"]
 
-		with patch("claude_candidate.generator.call_claude", return_value="stub"):
+		with patch(
+			"claude_candidate.company_research.research_company",
+			return_value={
+				"mission": "Building the future of work",
+				"values": ["transparency", "impact"],
+				"culture_signals": ["async communication", "documentation driven"],
+				"tech_philosophy": "Microservices, Python, Docker",
+				"ai_native": True,
+				"product_domains": ["enterprise-software"],
+				"team_size_signal": "startup (<50)",
+			},
+		):
+			resp = await client_with_profile.post(
+				"/api/assess/full", json={"assessment_id": aid}
+			)
+
+		data = resp.json()
+		assert data["mission_alignment"] is not None
+		assert "score" in data["mission_alignment"]
+		assert "grade" in data["mission_alignment"]
+		assert data["culture_fit"] is not None
+		assert "score" in data["culture_fit"]
+		assert "grade" in data["culture_fit"]
+
+	async def test_assess_full_no_deliverables(self, client_with_profile: AsyncClient):
+		"""Full assessment should NOT include a deliverables key."""
+		partial = await client_with_profile.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
+		aid = partial.json()["assessment_id"]
+
+		with patch(
+			"claude_candidate.company_research.research_company",
+			return_value={
+				"mission": "Test company",
+				"values": [],
+				"culture_signals": [],
+				"tech_philosophy": "",
+				"ai_native": False,
+				"product_domains": [],
+				"team_size_signal": "",
+			},
+		):
+			resp = await client_with_profile.post(
+				"/api/assess/full", json={"assessment_id": aid}
+			)
+
+		data = resp.json()
+		assert "deliverables" not in data
+
+	async def test_assess_full_has_letter_grade(self, client_with_profile: AsyncClient):
+		"""Full assessment should have an overall letter grade."""
+		partial = await client_with_profile.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
+		aid = partial.json()["assessment_id"]
+
+		with patch(
+			"claude_candidate.company_research.research_company",
+			return_value={
+				"mission": "AI research company",
+				"values": ["excellence"],
+				"culture_signals": ["fast-paced"],
+				"tech_philosophy": "LLMs and Python",
+				"ai_native": True,
+				"product_domains": ["ai-research"],
+				"team_size_signal": "mid-size (50-500)",
+			},
+		):
+			resp = await client_with_profile.post(
+				"/api/assess/full", json={"assessment_id": aid}
+			)
+
+		data = resp.json()
+		assert "overall_grade" in data
+		assert data["overall_grade"] in {
+			"A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D", "F"
+		}
+
+	async def test_assess_full_preserves_assessment_fields(self, client_with_profile: AsyncClient):
+		"""Full assessment should preserve core assessment fields from partial."""
+		partial = await client_with_profile.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
+		aid = partial.json()["assessment_id"]
+
+		with patch(
+			"claude_candidate.company_research.research_company",
+			return_value={
+				"mission": "Test company",
+				"values": [],
+				"culture_signals": [],
+				"tech_philosophy": "",
+				"ai_native": False,
+				"product_domains": [],
+				"team_size_signal": "",
+			},
+		):
 			resp = await client_with_profile.post(
 				"/api/assess/full", json={"assessment_id": aid}
 			)
@@ -276,27 +370,132 @@ class TestAssessFullEndpoint:
 		assert data["assessment_id"] == aid
 		assert "overall_score" in data
 		assert "should_apply" in data
+		assert "skill_match" in data
 
-	async def test_assess_full_returns_error_when_claude_unavailable(
-		self, client_with_profile: AsyncClient
-	):
-		from claude_candidate.claude_cli import ClaudeCLIError
-
+	async def test_assess_full_persists_updated_assessment(self, client_with_profile: AsyncClient):
+		"""Full assessment should save the updated data to the store."""
 		partial = await client_with_profile.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
 		aid = partial.json()["assessment_id"]
 
 		with patch(
-			"claude_candidate.generator.call_claude",
-			side_effect=ClaudeCLIError("claude not found"),
+			"claude_candidate.company_research.research_company",
+			return_value={
+				"mission": "Test company",
+				"values": [],
+				"culture_signals": [],
+				"tech_philosophy": "",
+				"ai_native": False,
+				"product_domains": [],
+				"team_size_signal": "",
+			},
+		):
+			await client_with_profile.post(
+				"/api/assess/full", json={"assessment_id": aid}
+			)
+
+		# Verify persistence via GET
+		get_resp = await client_with_profile.get(f"/api/assessments/{aid}")
+		assert get_resp.status_code == 200
+		stored = get_resp.json()
+		assert stored["assessment_phase"] == "full"
+
+	async def test_assess_full_works_when_company_research_fails(
+		self, client_with_profile: AsyncClient
+	):
+		"""Full assessment should succeed even if company research fails."""
+		partial = await client_with_profile.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
+		aid = partial.json()["assessment_id"]
+
+		with patch(
+			"claude_candidate.company_research.research_company",
+			side_effect=Exception("Claude unavailable"),
 		):
 			resp = await client_with_profile.post(
 				"/api/assess/full", json={"assessment_id": aid}
 			)
 
-		# Should still return 200 with an error field, not crash
+		# Should still succeed with best-effort mission/culture
 		assert resp.status_code == 200
 		data = resp.json()
-		assert "error" in data
+		assert data["assessment_phase"] == "full"
+
+	async def test_assess_full_includes_narrative(self, client_with_profile: AsyncClient):
+		"""Full assessment should include narrative verdict and receptivity when available."""
+		from unittest.mock import MagicMock
+
+		partial = await client_with_profile.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
+		aid = partial.json()["assessment_id"]
+
+		mock_narrative = MagicMock(return_value={
+			"narrative": "Strong backend fit with deep Python expertise.",
+			"receptivity": "high",
+			"receptivity_reason": "AI-native company values transparency.",
+		})
+
+		# Mock the generator module so the lazy import inside assess_full succeeds
+		mock_generator_module = MagicMock()
+		mock_generator_module.generate_narrative_verdict = mock_narrative
+
+		import sys
+		with (
+			patch(
+				"claude_candidate.company_research.research_company",
+				return_value={
+					"mission": "AI research company",
+					"values": ["excellence"],
+					"culture_signals": ["fast-paced"],
+					"tech_philosophy": "LLMs and Python",
+					"ai_native": True,
+					"product_domains": ["ai-research"],
+					"team_size_signal": "mid-size (50-500)",
+				},
+			),
+			patch.dict(sys.modules, {"claude_candidate.generator": mock_generator_module}),
+		):
+			resp = await client_with_profile.post(
+				"/api/assess/full", json={"assessment_id": aid}
+			)
+
+		assert resp.status_code == 200
+		data = resp.json()
+		assert data["narrative_verdict"] == "Strong backend fit with deep Python expertise."
+		assert data["receptivity_level"] == "high"
+		assert data["receptivity_reason"] == "AI-native company values transparency."
+
+	async def test_assess_full_succeeds_when_narrative_fails(self, client_with_profile: AsyncClient):
+		"""Full assessment should succeed even if narrative generation fails."""
+		from unittest.mock import MagicMock
+
+		partial = await client_with_profile.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
+		aid = partial.json()["assessment_id"]
+
+		mock_narrative = MagicMock(side_effect=Exception("Claude unavailable"))
+		mock_generator_module = MagicMock()
+		mock_generator_module.generate_narrative_verdict = mock_narrative
+
+		import sys
+		with (
+			patch(
+				"claude_candidate.company_research.research_company",
+				return_value={
+					"mission": "Test company",
+					"values": [],
+					"culture_signals": [],
+					"tech_philosophy": "",
+					"ai_native": False,
+					"product_domains": [],
+					"team_size_signal": "",
+				},
+			),
+			patch.dict(sys.modules, {"claude_candidate.generator": mock_generator_module}),
+		):
+			resp = await client_with_profile.post(
+				"/api/assess/full", json={"assessment_id": aid}
+			)
+
+		assert resp.status_code == 200
+		data = resp.json()
+		assert data["assessment_phase"] == "full"
 
 
 # ---------------------------------------------------------------------------
@@ -352,11 +551,11 @@ class TestAssessmentCRUD:
 
 
 # ---------------------------------------------------------------------------
-# Watchlist endpoints
+# Shortlist endpoints
 # ---------------------------------------------------------------------------
 
 
-SAMPLE_WATCHLIST_ITEM = {
+SAMPLE_SHORTLIST_ITEM = {
 	"company_name": "Startup Co",
 	"job_title": "Backend Engineer",
 	"posting_url": "https://startup.io/jobs/42",
@@ -364,94 +563,122 @@ SAMPLE_WATCHLIST_ITEM = {
 }
 
 
-class TestWatchlistEndpoints:
-	async def test_add_watchlist_item(self, client: AsyncClient):
-		resp = await client.post("/api/watchlist", json=SAMPLE_WATCHLIST_ITEM)
+class TestShortlistEndpoints:
+	async def test_add_shortlist_item(self, client: AsyncClient):
+		resp = await client.post("/api/shortlist", json=SAMPLE_SHORTLIST_ITEM)
 		assert resp.status_code == 201
 		data = resp.json()
 		assert "id" in data
 		assert data["company_name"] == "Startup Co"
-		assert data["status"] == "watching"
+		assert data["status"] == "shortlisted"
 
-	async def test_list_watchlist_empty(self, client: AsyncClient):
-		resp = await client.get("/api/watchlist")
+	async def test_list_shortlist_empty(self, client: AsyncClient):
+		resp = await client.get("/api/shortlist")
 		assert resp.status_code == 200
 		assert resp.json() == []
 
-	async def test_list_watchlist_returns_added(self, client: AsyncClient):
-		await client.post("/api/watchlist", json=SAMPLE_WATCHLIST_ITEM)
-		resp = await client.get("/api/watchlist")
+	async def test_list_shortlist_returns_added(self, client: AsyncClient):
+		await client.post("/api/shortlist", json=SAMPLE_SHORTLIST_ITEM)
+		resp = await client.get("/api/shortlist")
 		assert len(resp.json()) == 1
 
-	async def test_list_watchlist_filter_by_status(self, client: AsyncClient):
-		add_resp = await client.post("/api/watchlist", json=SAMPLE_WATCHLIST_ITEM)
-		wid = add_resp.json()["id"]
+	async def test_list_shortlist_filter_by_status(self, client: AsyncClient):
+		add_resp = await client.post("/api/shortlist", json=SAMPLE_SHORTLIST_ITEM)
+		sid = add_resp.json()["id"]
 
 		# Update to applied
-		await client.patch(f"/api/watchlist/{wid}", json={"status": "applied"})
+		await client.patch(f"/api/shortlist/{sid}", json={"status": "applied"})
 
-		watching = await client.get("/api/watchlist?status=watching")
-		applied = await client.get("/api/watchlist?status=applied")
-		assert len(watching.json()) == 0
+		shortlisted = await client.get("/api/shortlist?status=shortlisted")
+		applied = await client.get("/api/shortlist?status=applied")
+		assert len(shortlisted.json()) == 0
 		assert len(applied.json()) == 1
 
-	async def test_update_watchlist_status(self, client: AsyncClient):
-		add_resp = await client.post("/api/watchlist", json=SAMPLE_WATCHLIST_ITEM)
-		wid = add_resp.json()["id"]
+	async def test_update_shortlist_status(self, client: AsyncClient):
+		add_resp = await client.post("/api/shortlist", json=SAMPLE_SHORTLIST_ITEM)
+		sid = add_resp.json()["id"]
 
-		patch_resp = await client.patch(f"/api/watchlist/{wid}", json={"status": "applied"})
+		patch_resp = await client.patch(f"/api/shortlist/{sid}", json={"status": "applied"})
 		assert patch_resp.status_code == 200
 		assert patch_resp.json()["updated"] is True
 
-	async def test_update_watchlist_notes(self, client: AsyncClient):
-		add_resp = await client.post("/api/watchlist", json=SAMPLE_WATCHLIST_ITEM)
-		wid = add_resp.json()["id"]
+	async def test_update_shortlist_notes(self, client: AsyncClient):
+		add_resp = await client.post("/api/shortlist", json=SAMPLE_SHORTLIST_ITEM)
+		sid = add_resp.json()["id"]
 
-		await client.patch(f"/api/watchlist/{wid}", json={"notes": "Updated notes"})
+		await client.patch(f"/api/shortlist/{sid}", json={"notes": "Updated notes"})
 
-		items = await client.get("/api/watchlist")
-		entry = next(i for i in items.json() if i["id"] == wid)
+		items = await client.get("/api/shortlist")
+		entry = next(i for i in items.json() if i["id"] == sid)
 		assert entry["notes"] == "Updated notes"
 
-	async def test_update_nonexistent_watchlist(self, client: AsyncClient):
-		resp = await client.patch("/api/watchlist/99999", json={"status": "applied"})
+	async def test_update_nonexistent_shortlist(self, client: AsyncClient):
+		resp = await client.patch("/api/shortlist/99999", json={"status": "applied"})
 		assert resp.status_code == 404
 
-	async def test_delete_watchlist_item(self, client: AsyncClient):
-		add_resp = await client.post("/api/watchlist", json=SAMPLE_WATCHLIST_ITEM)
-		wid = add_resp.json()["id"]
+	async def test_delete_shortlist_item(self, client: AsyncClient):
+		add_resp = await client.post("/api/shortlist", json=SAMPLE_SHORTLIST_ITEM)
+		sid = add_resp.json()["id"]
 
-		del_resp = await client.delete(f"/api/watchlist/{wid}")
+		del_resp = await client.delete(f"/api/shortlist/{sid}")
 		assert del_resp.status_code == 200
 		assert del_resp.json()["deleted"] is True
 
 		# Confirm gone
-		items = await client.get("/api/watchlist")
-		assert all(i["id"] != wid for i in items.json())
+		items = await client.get("/api/shortlist")
+		assert all(i["id"] != sid for i in items.json())
 
-	async def test_delete_nonexistent_watchlist(self, client: AsyncClient):
-		resp = await client.delete("/api/watchlist/99999")
+	async def test_delete_nonexistent_shortlist(self, client: AsyncClient):
+		resp = await client.delete("/api/shortlist/99999")
 		assert resp.status_code == 404
 
-	async def test_add_watchlist_with_assessment_id(self, client_with_profile: AsyncClient):
+	async def test_add_shortlist_with_assessment_id(self, client_with_profile: AsyncClient):
 		# Create an assessment first
 		assess_resp = await client_with_profile.post("/api/assess", json=SAMPLE_ASSESS_PAYLOAD)
 		aid = assess_resp.json()["assessment_id"]
 
-		# Add to watchlist referencing the assessment
-		wl_payload = {**SAMPLE_WATCHLIST_ITEM, "assessment_id": aid}
-		resp = await client_with_profile.post("/api/watchlist", json=wl_payload)
+		# Add to shortlist referencing the assessment
+		sl_payload = {**SAMPLE_SHORTLIST_ITEM, "assessment_id": aid}
+		resp = await client_with_profile.post("/api/shortlist", json=sl_payload)
 		assert resp.status_code == 201
 		assert resp.json()["assessment_id"] == aid
 
-	async def test_list_watchlist_limit(self, client: AsyncClient):
+	async def test_list_shortlist_limit(self, client: AsyncClient):
 		for i in range(5):
-			await client.post("/api/watchlist", json={
+			await client.post("/api/shortlist", json={
 				"company_name": f"Company {i}",
 				"job_title": "Engineer",
 			})
-		resp = await client.get("/api/watchlist?limit=3")
+		resp = await client.get("/api/shortlist?limit=3")
 		assert len(resp.json()) == 3
+
+	async def test_add_shortlist_with_new_fields(self, client: AsyncClient):
+		payload = {
+			**SAMPLE_SHORTLIST_ITEM,
+			"salary": "$180k-$220k",
+			"location": "Remote",
+			"overall_grade": "A",
+		}
+		resp = await client.post("/api/shortlist", json=payload)
+		assert resp.status_code == 201
+		data = resp.json()
+		assert data["salary"] == "$180k-$220k"
+		assert data["location"] == "Remote"
+		assert data["overall_grade"] == "A"
+
+	async def test_new_fields_persisted_in_list(self, client: AsyncClient):
+		payload = {
+			**SAMPLE_SHORTLIST_ITEM,
+			"salary": "$150k",
+			"location": "NYC",
+			"overall_grade": "B+",
+		}
+		await client.post("/api/shortlist", json=payload)
+		resp = await client.get("/api/shortlist")
+		entry = resp.json()[0]
+		assert entry["salary"] == "$150k"
+		assert entry["location"] == "NYC"
+		assert entry["overall_grade"] == "B+"
 
 
 # ---------------------------------------------------------------------------
@@ -577,6 +804,32 @@ SAMPLE_CLAUDE_JSON = json.dumps({
     "seniority": "senior",
     "remote": True,
     "salary": "$180k-$220k",
+})
+
+SAMPLE_CLAUDE_JSON_WITH_REQUIREMENTS = json.dumps({
+    "company": "Acme Corp",
+    "title": "Senior Backend Engineer",
+    "description": "Build scalable services. Requirements: 5+ years Python, strong system design skills.",
+    "location": "San Francisco, CA",
+    "seniority": "senior",
+    "remote": True,
+    "salary": "$180k-$220k",
+    "requirements": [
+        {
+            "description": "5+ years of Python experience",
+            "skill_mapping": ["python"],
+            "priority": "must_have",
+            "years_experience": 5,
+            "education_level": None,
+        },
+        {
+            "description": "Strong system design skills",
+            "skill_mapping": ["system design", "architecture"],
+            "priority": "must_have",
+            "years_experience": None,
+            "education_level": None,
+        },
+    ],
 })
 
 
@@ -705,3 +958,74 @@ class TestExtractPostingEndpoint:
         assert data["description"] == ""
         assert data["location"] is None
         assert data["remote"] is None
+
+    async def test_extraction_includes_requirements(self, client: AsyncClient):
+        """Extraction response includes structured requirements from Claude."""
+        with (
+            patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
+            patch("claude_candidate.claude_cli.call_claude", return_value=SAMPLE_CLAUDE_JSON_WITH_REQUIREMENTS),
+        ):
+            resp = await client.post(
+                "/api/extract-posting",
+                json={
+                    "url": "https://acme.com/jobs/99",
+                    "title": "Senior Backend Engineer at Acme",
+                    "text": "Acme Corp is hiring. Requirements: 5+ years Python, system design.",
+                },
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "requirements" in data
+        assert isinstance(data["requirements"], list)
+        assert len(data["requirements"]) == 2
+        req0 = data["requirements"][0]
+        assert req0["description"] == "5+ years of Python experience"
+        assert req0["skill_mapping"] == ["python"]
+        assert req0["priority"] == "must_have"
+        assert req0["years_experience"] == 5
+
+    async def test_extraction_requirements_null_when_absent(self, client: AsyncClient):
+        """Requirements is null when Claude response omits it (backward compat)."""
+        with (
+            patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
+            patch("claude_candidate.claude_cli.call_claude", return_value=SAMPLE_CLAUDE_JSON),
+        ):
+            resp = await client.post(
+                "/api/extract-posting",
+                json={
+                    "url": "https://acme.com/jobs/100",
+                    "title": "Engineer",
+                    "text": "Some job posting text.",
+                },
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["requirements"] is None
+
+    async def test_extraction_prompt_asks_for_requirements(self, client: AsyncClient):
+        """The prompt sent to Claude asks for requirements extraction."""
+        captured_prompts: list[str] = []
+
+        def capture_call(prompt: str, **kwargs):
+            captured_prompts.append(prompt)
+            return SAMPLE_CLAUDE_JSON_WITH_REQUIREMENTS
+
+        with (
+            patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
+            patch("claude_candidate.claude_cli.call_claude", side_effect=capture_call),
+        ):
+            await client.post(
+                "/api/extract-posting",
+                json={
+                    "url": "https://acme.com/jobs/101",
+                    "title": "Engineer",
+                    "text": "Some job posting text.",
+                },
+            )
+        assert len(captured_prompts) == 1
+        prompt = captured_prompts[0]
+        assert "requirements" in prompt.lower()
+        assert "skill_mapping" in prompt
+        assert "must_have" in prompt
+        assert "years_experience" in prompt
+        assert "education_level" in prompt
