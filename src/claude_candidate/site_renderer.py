@@ -17,7 +17,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from claude_candidate.pii_gate import scrub_deliverable
-from claude_candidate.schemas.fit_assessment import FitAssessment
+from claude_candidate.schemas.fit_assessment import FitAssessment, SkillMatchDetail
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -118,3 +118,91 @@ def render_assessment_page(
     output_path = page_dir / "index.html"
     output_path.write_text(html, encoding="utf-8")
     return output_path
+
+
+def render_cover_letter_site(
+    assessment: FitAssessment | dict,
+    narrative: str,
+    evidence_highlights: list[dict],
+    output_dir: Path | str,
+    resume_pdf_path: str | None = None,
+) -> Path:
+    """Render the cover letter site page for a company.
+
+    Creates ``output_dir/apply/{slug}/index.html`` with a transparency-first
+    page showing fit score, skills match, narrative pitch, evidence highlights,
+    and a "How This Works" explainer.
+
+    If *assessment* is a dict (e.g. from the assessment store) it is wrapped
+    in a simple namespace so Jinja2 attribute access works unchanged.
+
+    PII scrubbing is applied to the rendered HTML before writing to disk.
+
+    Args:
+        assessment: FitAssessment model or a dict with equivalent keys.
+        narrative: 150-250 word pitch narrative for the "Why This Role" section.
+        evidence_highlights: List of dicts with ``title``, ``description``,
+            and ``technologies`` (list of str) keys.
+        output_dir: Root output directory (e.g. ``Path("site")``).
+        resume_pdf_path: Optional relative URL for a resume PDF download link.
+
+    Returns:
+        Path to the rendered ``index.html`` file.
+    """
+    # Normalise assessment to an object with attribute access
+    if isinstance(assessment, dict):
+        assessment = _DictNamespace(assessment)
+
+    company_name = (
+        assessment.company_name
+        if hasattr(assessment, "company_name")
+        else "company"
+    )
+    slug = _make_slug(company_name)
+    output_dir = Path(output_dir)
+    page_dir = output_dir / "apply" / slug
+    page_dir.mkdir(parents=True, exist_ok=True)
+
+    env = _build_env()
+    template = env.get_template("cover_letter_site.html")
+
+    html = template.render(
+        assessment=assessment,
+        narrative=narrative,
+        evidence_highlights=evidence_highlights,
+        resume_pdf_path=resume_pdf_path,
+    )
+
+    html = scrub_deliverable(html)
+
+    output_path = page_dir / "index.html"
+    output_path.write_text(html, encoding="utf-8")
+    return output_path
+
+
+class _DictNamespace:
+    """Lightweight wrapper that gives a dict attribute-style access.
+
+    Jinja2 templates use ``assessment.company_name`` etc., so when the caller
+    passes a plain dict we wrap it here to avoid changing the template syntax.
+    Nested dicts are also wrapped recursively on access.
+    """
+
+    def __init__(self, data: dict) -> None:
+        self._data = data
+
+    def __getattr__(self, name: str):
+        try:
+            val = self._data[name]
+        except KeyError:
+            raise AttributeError(name) from None
+        if isinstance(val, dict):
+            return _DictNamespace(val)
+        if isinstance(val, list):
+            return [
+                _DictNamespace(v) if isinstance(v, dict) else v for v in val
+            ]
+        return val
+
+    def __repr__(self) -> str:
+        return f"_DictNamespace({self._data!r})"

@@ -348,12 +348,12 @@ class TestGenerateCommand:
             return_value="- Led Python backend refactor\n- Built React dashboard",
         ):
             result = runner.invoke(main, [
-                "generate",
+                "generate-deliverable",
                 "--assessment", assessment_path,
                 "--type", "resume-bullets",
                 "--output", str(output),
             ])
-        assert result.exit_code == 0, f"generate failed: {result.output}"
+        assert result.exit_code == 0, f"generate-deliverable failed: {result.output}"
         assert output.exists()
         assert len(output.read_text()) > 0
 
@@ -367,12 +367,12 @@ class TestGenerateCommand:
             return_value="Dear Hiring Manager, I am excited to apply for this role...",
         ):
             result = runner.invoke(main, [
-                "generate",
+                "generate-deliverable",
                 "--assessment", assessment_path,
                 "--type", "cover-letter",
                 "--output", str(output),
             ])
-        assert result.exit_code == 0, f"generate failed: {result.output}"
+        assert result.exit_code == 0, f"generate-deliverable failed: {result.output}"
         assert output.exists()
         assert len(output.read_text()) > 0
 
@@ -386,12 +386,12 @@ class TestGenerateCommand:
             return_value="## Technical Discussion Points\n- Python: strong\n## Questions to Ask\n- ?",
         ):
             result = runner.invoke(main, [
-                "generate",
+                "generate-deliverable",
                 "--assessment", assessment_path,
                 "--type", "interview-prep",
                 "--output", str(output),
             ])
-        assert result.exit_code == 0, f"generate failed: {result.output}"
+        assert result.exit_code == 0, f"generate-deliverable failed: {result.output}"
         assert output.exists()
         assert len(output.read_text()) > 0
 
@@ -404,11 +404,11 @@ class TestGenerateCommand:
             return_value="Dear Hiring Manager, I am excited to apply for this role...",
         ):
             result = runner.invoke(main, [
-                "generate",
+                "generate-deliverable",
                 "--assessment", assessment_path,
                 "--type", "cover-letter",
             ])
-        assert result.exit_code == 0, f"generate failed: {result.output}"
+        assert result.exit_code == 0, f"generate-deliverable failed: {result.output}"
         assert len(result.output) > 0
 
 

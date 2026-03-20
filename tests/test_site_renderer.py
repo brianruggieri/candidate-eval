@@ -10,7 +10,7 @@ import pytest
 
 from claude_candidate.schemas.fit_assessment import DimensionScore, FitAssessment, SkillMatchDetail
 from claude_candidate.schemas.merged_profile import EvidenceSource
-from claude_candidate.site_renderer import _make_slug, render_assessment_page
+from claude_candidate.site_renderer import _make_slug, render_assessment_page, render_cover_letter_site
 
 
 # ---------------------------------------------------------------------------
@@ -432,3 +432,178 @@ class TestHTMLStructure:
         )
         html = result.read_text()
         assert "UTF-8" in html or "utf-8" in html
+
+
+# ---------------------------------------------------------------------------
+# Cover letter site page tests
+# ---------------------------------------------------------------------------
+
+SAMPLE_NARRATIVE = (
+    "My strongest contribution to this role is deep Python expertise "
+    "backed by 20+ sessions of real-world application. I bring production "
+    "experience with cloud infrastructure, Docker orchestration, and API "
+    "design that directly maps to your core requirements. The architecture "
+    "patterns I use — modular services, clear interface contracts, iterative "
+    "refinement — align with how your team builds software."
+)
+
+SAMPLE_EVIDENCE_HIGHLIGHTS = [
+    {
+        "title": "Python proficiency",
+        "description": "Corroborated across 20 sessions with deep application.",
+        "technologies": ["Python", "FastAPI", "asyncio"],
+    },
+    {
+        "title": "Cloud infrastructure",
+        "description": "Built and deployed containerised services on AWS.",
+        "technologies": ["Docker", "AWS", "Terraform"],
+    },
+]
+
+
+def _render_cover_letter_site(tmp_path: Path, **kwargs) -> str:
+    """Helper that renders a cover letter site page and returns the HTML."""
+    assessment = kwargs.pop("assessment", _make_assessment())
+    narrative = kwargs.pop("narrative", SAMPLE_NARRATIVE)
+    evidence_highlights = kwargs.pop("evidence_highlights", SAMPLE_EVIDENCE_HIGHLIGHTS)
+    resume_pdf_path = kwargs.pop("resume_pdf_path", None)
+
+    result = render_cover_letter_site(
+        assessment=assessment,
+        narrative=narrative,
+        evidence_highlights=evidence_highlights,
+        output_dir=tmp_path,
+        resume_pdf_path=resume_pdf_path,
+    )
+    return result.read_text()
+
+
+class TestCoverLetterSiteTransparency:
+    def test_cover_letter_site_has_transparency_badge(self, tmp_path: Path):
+        html = _render_cover_letter_site(tmp_path)
+        assert "claude-candidate" in html
+        assert "https://github.com/brianruggieri/claude-candidate" in html
+
+    def test_transparency_badge_is_in_hero(self, tmp_path: Path):
+        html = _render_cover_letter_site(tmp_path)
+        # The badge should appear near the title, not just in the footer
+        badge_pos = html.find("Built with claude-candidate")
+        assert badge_pos != -1, "Transparency badge not found"
+
+
+class TestCoverLetterSiteNoResume:
+    def test_cover_letter_site_has_no_resume_section(self, tmp_path: Path):
+        html = _render_cover_letter_site(tmp_path)
+        assert "Tailored Resume" not in html
+
+    def test_no_cover_letter_section_heading(self, tmp_path: Path):
+        """Cover letter site replaces the old cover letter section with a narrative."""
+        html = _render_cover_letter_site(tmp_path)
+        # Should NOT have the old "Cover Letter" heading (distinct from "Why This Role")
+        assert ">Cover Letter<" not in html
+
+
+class TestCoverLetterSiteNarrative:
+    def test_cover_letter_site_has_narrative(self, tmp_path: Path):
+        html = _render_cover_letter_site(tmp_path)
+        assert "My strongest contribution" in html
+
+    def test_narrative_section_heading(self, tmp_path: Path):
+        html = _render_cover_letter_site(tmp_path)
+        assert "Why This Role" in html
+
+
+class TestCoverLetterSiteSkillsTable:
+    def test_cover_letter_site_has_skills_table(self, tmp_path: Path):
+        html = _render_cover_letter_site(tmp_path)
+        assert "Skills Match" in html
+        assert "Python proficiency" in html
+
+    def test_skills_table_has_priority_and_match(self, tmp_path: Path):
+        html = _render_cover_letter_site(tmp_path)
+        assert "Must Have" in html
+        assert "Strong" in html  # match status badge
+
+
+class TestCoverLetterSiteHowItWorks:
+    def test_cover_letter_site_has_how_it_works(self, tmp_path: Path):
+        html = _render_cover_letter_site(tmp_path)
+        assert "How This Works" in html
+
+    def test_how_it_works_links_to_github(self, tmp_path: Path):
+        html = _render_cover_letter_site(tmp_path)
+        assert "https://github.com/brianruggieri/claude-candidate" in html
+
+    def test_how_it_works_mentions_evidence(self, tmp_path: Path):
+        html = _render_cover_letter_site(tmp_path)
+        assert "evidence" in html.lower()
+
+
+class TestCoverLetterSiteEvidenceHighlights:
+    def test_evidence_highlights_render(self, tmp_path: Path):
+        html = _render_cover_letter_site(tmp_path)
+        assert "Evidence Highlights" in html
+        assert "Cloud infrastructure" in html
+
+    def test_evidence_highlights_show_technologies(self, tmp_path: Path):
+        html = _render_cover_letter_site(tmp_path)
+        assert "FastAPI" in html
+        assert "Terraform" in html
+
+
+class TestCoverLetterSiteCTA:
+    def test_has_lets_talk(self, tmp_path: Path):
+        html = _render_cover_letter_site(tmp_path)
+        assert "Let" in html and "Talk" in html
+
+    def test_resume_pdf_link_when_provided(self, tmp_path: Path):
+        html = _render_cover_letter_site(tmp_path, resume_pdf_path="resume.pdf")
+        assert "resume.pdf" in html
+
+    def test_no_resume_pdf_link_when_omitted(self, tmp_path: Path):
+        html = _render_cover_letter_site(tmp_path)
+        assert "Download Resume" not in html
+
+
+class TestCoverLetterSiteFooter:
+    def test_has_private_page_notice(self, tmp_path: Path):
+        html = _render_cover_letter_site(tmp_path)
+        assert "Private page" in html
+
+    def test_has_noindex(self, tmp_path: Path):
+        html = _render_cover_letter_site(tmp_path)
+        assert "noindex" in html
+
+
+class TestCoverLetterSiteWithDict:
+    """Verify the renderer works when assessment is passed as a plain dict."""
+
+    def test_renders_from_dict(self, tmp_path: Path):
+        assessment_dict = {
+            "assessment_id": "dict-test-001",
+            "assessed_at": "2026-03-19T12:00:00",
+            "job_title": "Staff Engineer",
+            "company_name": "DictCo",
+            "posting_url": "https://example.com/jobs/456",
+            "overall_score": 0.75,
+            "overall_grade": "B",
+            "overall_summary": "Good overall fit.",
+            "skill_matches": [
+                {
+                    "requirement": "Go proficiency",
+                    "priority": "must_have",
+                    "match_status": "strong_match",
+                    "candidate_evidence": "Used Go in 5 sessions.",
+                },
+            ],
+        }
+        result = render_cover_letter_site(
+            assessment=assessment_dict,
+            narrative="Strong Go experience.",
+            evidence_highlights=[],
+            output_dir=tmp_path,
+        )
+        html = result.read_text()
+        assert "DictCo" in html
+        assert "Staff Engineer" in html
+        assert "Go proficiency" in html
