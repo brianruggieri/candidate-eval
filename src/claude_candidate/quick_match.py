@@ -143,6 +143,9 @@ MAX_GAP_NAMES = 2
 MAX_RESUME_ITEMS = 3
 MAX_ACTION_ITEMS = 6
 
+# Soft skill discount factor — reduces weight of soft skill requirements
+SOFT_SKILL_DISCOUNT = 0.3
+
 # Rounding precision
 SCORE_PRECISION = 3
 TIMING_PRECISION = 2
@@ -980,6 +983,18 @@ class QuickMatchEngine:
 
         for req in requirements:
             weight = PRIORITY_WEIGHT.get(req.priority, 1.0)
+
+            # Discount soft skill requirements
+            taxonomy = _get_taxonomy()
+            is_soft_skill = False
+            for skill_name in req.skill_mapping:
+                canonical = taxonomy.match(skill_name)
+                if canonical and taxonomy.get_category(canonical) == "soft_skill":
+                    is_soft_skill = True
+                    break
+            if is_soft_skill:
+                weight *= SOFT_SKILL_DISCOUNT
+
             total_weight += weight
             best_match, best_status = _find_best_skill(
                 req, self.profile, depth_floor,

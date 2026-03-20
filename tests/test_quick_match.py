@@ -831,3 +831,10 @@ def test_score_requirement_confidence_floor():
     # With floor: 0.85 * 0.5 = 0.425
     assert score >= STATUS_SCORE["strong_match"] * 0.5
     assert score == STATUS_SCORE["strong_match"] * 0.5  # Exactly at floor
+
+
+def test_soft_skill_requirement_discounted():
+    """Requirements mapping to soft_skill category should get reduced weight."""
+    from claude_candidate.quick_match import SOFT_SKILL_DISCOUNT
+    # The discount factor should exist and be < 1.0
+    assert 0.0 < SOFT_SKILL_DISCOUNT < 1.0

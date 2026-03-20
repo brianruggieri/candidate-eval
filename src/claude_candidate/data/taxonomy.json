@@ -189,5 +189,35 @@
     "related": ["llm", "machine-learning", "openai"],
     "parent": null,
     "content_patterns": ["langchain", "from langchain"]
+  },
+  "communication": {
+    "aliases": ["written communication", "verbal communication", "communication skills", "excellent communication"],
+    "category": "soft_skill",
+    "related": ["collaboration", "leadership"],
+    "parent": null
+  },
+  "collaboration": {
+    "aliases": ["teamwork", "team player", "collaborative", "cross-functional"],
+    "category": "soft_skill",
+    "related": ["communication", "leadership"],
+    "parent": null
+  },
+  "leadership": {
+    "aliases": ["technical leadership", "team lead", "mentorship", "people management"],
+    "category": "soft_skill",
+    "related": ["communication", "collaboration"],
+    "parent": null
+  },
+  "problem-solving": {
+    "aliases": ["analytical thinking", "critical thinking", "troubleshooting"],
+    "category": "soft_skill",
+    "related": [],
+    "parent": null
+  },
+  "adaptability": {
+    "aliases": ["flexibility", "fast learner", "quick learner", "self-starter"],
+    "category": "soft_skill",
+    "related": [],
+    "parent": null
   }
 }
