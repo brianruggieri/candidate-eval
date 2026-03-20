@@ -267,6 +267,13 @@ async function handleBatchAssess() {
 			console.error(`[batch] Error on ${tabUrl}:`, err.message);
 			results.push({ url: tabUrl, error: err.message });
 		}
+
+		// Update results incrementally so dashboard shows progress
+		const sorted = [...results].sort((a, b) => (b.percentage || 0) - (a.percentage || 0));
+		chrome.storage.local.set({
+			batchProgress: { total: jobTabs.length, done: i + 1, current: tab.title || tabUrl },
+			batchResults: sorted,
+		});
 	}
 
 	// Sort by percentage descending
