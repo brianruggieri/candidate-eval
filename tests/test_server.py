@@ -419,6 +419,84 @@ class TestAssessFullEndpoint:
 		data = resp.json()
 		assert data["assessment_phase"] == "full"
 
+	async def test_assess_full_includes_narrative(self, client_with_profile: AsyncClient):
+		"""Full assessment should include narrative verdict and receptivity when available."""
+		from unittest.mock import MagicMock
+
+		partial = await client_with_profile.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
+		aid = partial.json()["assessment_id"]
+
+		mock_narrative = MagicMock(return_value={
+			"narrative": "Strong backend fit with deep Python expertise.",
+			"receptivity": "high",
+			"receptivity_reason": "AI-native company values transparency.",
+		})
+
+		# Mock the generator module so the lazy import inside assess_full succeeds
+		mock_generator_module = MagicMock()
+		mock_generator_module.generate_narrative_verdict = mock_narrative
+
+		import sys
+		with (
+			patch(
+				"claude_candidate.company_research.research_company",
+				return_value={
+					"mission": "AI research company",
+					"values": ["excellence"],
+					"culture_signals": ["fast-paced"],
+					"tech_philosophy": "LLMs and Python",
+					"ai_native": True,
+					"product_domains": ["ai-research"],
+					"team_size_signal": "mid-size (50-500)",
+				},
+			),
+			patch.dict(sys.modules, {"claude_candidate.generator": mock_generator_module}),
+		):
+			resp = await client_with_profile.post(
+				"/api/assess/full", json={"assessment_id": aid}
+			)
+
+		assert resp.status_code == 200
+		data = resp.json()
+		assert data["narrative_verdict"] == "Strong backend fit with deep Python expertise."
+		assert data["receptivity_level"] == "high"
+		assert data["receptivity_reason"] == "AI-native company values transparency."
+
+	async def test_assess_full_succeeds_when_narrative_fails(self, client_with_profile: AsyncClient):
+		"""Full assessment should succeed even if narrative generation fails."""
+		from unittest.mock import MagicMock
+
+		partial = await client_with_profile.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
+		aid = partial.json()["assessment_id"]
+
+		mock_narrative = MagicMock(side_effect=Exception("Claude unavailable"))
+		mock_generator_module = MagicMock()
+		mock_generator_module.generate_narrative_verdict = mock_narrative
+
+		import sys
+		with (
+			patch(
+				"claude_candidate.company_research.research_company",
+				return_value={
+					"mission": "Test company",
+					"values": [],
+					"culture_signals": [],
+					"tech_philosophy": "",
+					"ai_native": False,
+					"product_domains": [],
+					"team_size_signal": "",
+				},
+			),
+			patch.dict(sys.modules, {"claude_candidate.generator": mock_generator_module}),
+		):
+			resp = await client_with_profile.post(
+				"/api/assess/full", json={"assessment_id": aid}
+			)
+
+		assert resp.status_code == 200
+		data = resp.json()
+		assert data["assessment_phase"] == "full"
+
 
 # ---------------------------------------------------------------------------
 # Assessment list / detail / delete

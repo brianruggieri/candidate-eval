@@ -18,6 +18,7 @@ __all__ = [
     "generate_resume_bullets",
     "generate_cover_letter",
     "generate_interview_prep",
+    "generate_narrative_verdict",
 ]
 
 CLAUDE_TIMEOUT_SECONDS = 120
@@ -169,3 +170,74 @@ def generate_interview_prep(
     """
     prompt = _build_interview_prompt(assessment, profile)
     return scrub_deliverable(_call_claude(prompt))
+
+
+# ---------------------------------------------------------------------------
+# Narrative verdict
+# ---------------------------------------------------------------------------
+
+NARRATIVE_TIMEOUT_SECONDS = 30
+
+
+def generate_narrative_verdict(assessment_data: dict, company_research: dict) -> dict:
+    """Generate narrative verdict and receptivity signal via Claude.
+
+    Returns dict with keys: narrative, receptivity, receptivity_reason
+    """
+    import json as _json
+
+    # Build context from assessment data
+    company = assessment_data.get("company_name", "Unknown")
+    title = assessment_data.get("job_title", "Unknown")
+    grade = assessment_data.get("overall_grade", "N/A")
+    strongest = assessment_data.get("strongest_match", "N/A")
+    biggest_gap = assessment_data.get("biggest_gap", "N/A")
+
+    # Top 5 skill matches
+    skill_matches = assessment_data.get("skill_matches", [])
+    top_skills = skill_matches[:5]
+    skills_text = "\n".join(
+        f"- {m.get('requirement', 'N/A')} ({m.get('match_status', 'N/A')}): "
+        f"{m.get('candidate_evidence', 'N/A')}"
+        for m in top_skills
+    )
+
+    # Company research context
+    research_text = "\n".join(
+        f"- {k}: {v}" for k, v in company_research.items() if v
+    )
+
+    prompt = (
+        "You are evaluating a candidate's fit for a specific role. "
+        "Return ONLY valid JSON with these three keys:\n"
+        '- "narrative": 2-3 sentences — why this is or isn\'t a good fit, '
+        "the candidate's strongest angle, and what gap is most likely to come up\n"
+        '- "receptivity": "high", "medium", or "low" — would this company '
+        "value a transparent AI-powered portfolio application?\n"
+        '- "receptivity_reason": one sentence explaining the receptivity rating\n\n'
+        f"Company: {company}\n"
+        f"Job title: {title}\n"
+        f"Overall grade: {grade}\n"
+        f"Strongest match: {strongest}\n"
+        f"Biggest gap: {biggest_gap}\n\n"
+        f"Top skill matches:\n{skills_text}\n\n"
+        f"Company research:\n{research_text}\n"
+    )
+
+    raw = call_claude(prompt, timeout=NARRATIVE_TIMEOUT_SECONDS)
+
+    # Strip code fences if present
+    cleaned = raw.strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned
+    if cleaned.endswith("```"):
+        cleaned = cleaned.rsplit("```", 1)[0]
+    cleaned = cleaned.strip()
+
+    parsed = _json.loads(cleaned)
+
+    # Scrub PII from the narrative text
+    if parsed.get("narrative"):
+        parsed["narrative"] = scrub_deliverable(parsed["narrative"])
+
+    return parsed

@@ -441,6 +441,22 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
         if culture_dim:
             culture_dim.weight = 0.15
 
+        # 5b. Narrative verdict + receptivity signal (best-effort)
+        narrative_result = None
+        try:
+            from claude_candidate.generator import generate_narrative_verdict
+
+            loop = asyncio.get_event_loop()
+            # Build a snapshot of assessment context for the narrative prompt
+            _narrative_assessment = dict(data)
+            _narrative_assessment["overall_grade"] = overall_grade
+            narrative_result = await loop.run_in_executor(
+                None,
+                lambda: generate_narrative_verdict(_narrative_assessment, research or {}),
+            )
+        except Exception:
+            pass  # Narrative is best-effort
+
         # 6. Merge into updated assessment data
         updated = dict(data)
         updated["assessment_phase"] = "full"
@@ -453,6 +469,10 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
             updated["culture_fit"] = culture_dim.model_dump()
         if ai_scores:
             updated["ai_engineering_scores"] = ai_scores
+        if narrative_result:
+            updated["narrative_verdict"] = narrative_result.get("narrative")
+            updated["receptivity_level"] = narrative_result.get("receptivity")
+            updated["receptivity_reason"] = narrative_result.get("receptivity_reason")
 
         # Update skill/experience/education weights for consistency
         if updated.get("skill_match"):
