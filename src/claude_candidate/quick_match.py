@@ -438,6 +438,10 @@ def _find_best_skill(
     return best_match, best_status
 
 
+# Confidence floor — prevent low-confidence skills from cratering scores
+CONFIDENCE_FLOOR = 0.5
+
+
 def _score_requirement(
     best_match: MergedSkillEvidence | None,
     best_status: str,
@@ -445,7 +449,8 @@ def _score_requirement(
     """Compute the score for one requirement given its best match."""
     req_score = STATUS_SCORE.get(best_status, STATUS_SCORE_NONE)
     if best_match:
-        req_score *= best_match.confidence
+        effective_confidence = max(best_match.confidence, CONFIDENCE_FLOOR)
+        req_score *= effective_confidence
     return req_score
 
 

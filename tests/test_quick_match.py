@@ -809,3 +809,25 @@ def test_find_skill_match_canonicalizes_hyphens():
     assert _find_skill_match("ci-cd", profile) is not None
     assert _find_skill_match("ci/cd", profile) is not None
     assert _find_skill_match("continuous-integration", profile) is not None
+
+
+def test_score_requirement_confidence_floor():
+    """Low-confidence skills should be floored at 0.5 to prevent cratering."""
+    from claude_candidate.quick_match import _score_requirement, STATUS_SCORE
+    from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
+    from claude_candidate.schemas.candidate_profile import DepthLevel
+
+    low_conf_skill = MergedSkillEvidence(
+        name="python",
+        source=EvidenceSource.RESUME_ONLY,
+        resume_depth=DepthLevel.DEEP,
+        resume_context="Listed",
+        effective_depth=DepthLevel.DEEP,
+        confidence=0.3,  # Very low confidence
+    )
+
+    score = _score_requirement(low_conf_skill, "strong_match")
+    # Without floor: 0.85 * 0.3 = 0.255
+    # With floor: 0.85 * 0.5 = 0.425
+    assert score >= STATUS_SCORE["strong_match"] * 0.5
+    assert score == STATUS_SCORE["strong_match"] * 0.5  # Exactly at floor
