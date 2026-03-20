@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -555,3 +556,152 @@ class TestGenerateEndpoint:
             json={"assessment_id": "nonexistent-id", "deliverable_type": "cover_letter"},
         )
         assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Extract posting endpoint
+# ---------------------------------------------------------------------------
+
+
+SAMPLE_EXTRACT_PAYLOAD = {
+    "url": "https://boards.greenhouse.io/acme/jobs/12345",
+    "title": "Senior Backend Engineer at Acme",
+    "text": "Acme Corp is hiring a Senior Backend Engineer. You will build scalable services. Requirements: 5+ years Python, strong system design skills. Location: San Francisco, CA. Remote friendly. Salary: $180k-$220k.",
+}
+
+SAMPLE_CLAUDE_JSON = json.dumps({
+    "company": "Acme Corp",
+    "title": "Senior Backend Engineer",
+    "description": "Build scalable services. Requirements: 5+ years Python, strong system design skills.",
+    "location": "San Francisco, CA",
+    "seniority": "senior",
+    "remote": True,
+    "salary": "$180k-$220k",
+})
+
+
+class TestExtractPostingEndpoint:
+    async def test_extracts_posting_via_claude(self, client: AsyncClient):
+        """Cache miss calls Claude and returns structured result."""
+        with (
+            patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
+            patch("claude_candidate.claude_cli.call_claude", return_value=SAMPLE_CLAUDE_JSON),
+        ):
+            resp = await client.post("/api/extract-posting", json=SAMPLE_EXTRACT_PAYLOAD)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["company"] == "Acme Corp"
+        assert data["title"] == "Senior Backend Engineer"
+        assert data["source"] == "greenhouse"
+        assert data["remote"] is True
+        assert data["salary"] == "$180k-$220k"
+
+    async def test_returns_cached_result(self, client: AsyncClient):
+        """Second call with same URL hits cache; Claude called only once."""
+        with (
+            patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
+            patch("claude_candidate.claude_cli.call_claude", return_value=SAMPLE_CLAUDE_JSON) as mock_claude,
+        ):
+            await client.post("/api/extract-posting", json=SAMPLE_EXTRACT_PAYLOAD)
+            resp2 = await client.post("/api/extract-posting", json=SAMPLE_EXTRACT_PAYLOAD)
+        assert resp2.status_code == 200
+        assert resp2.json()["company"] == "Acme Corp"
+        mock_claude.assert_called_once()
+
+    async def test_503_when_claude_unavailable(self, client: AsyncClient):
+        """Returns 503 when check_claude_available returns False."""
+        with patch("claude_candidate.claude_cli.check_claude_available", return_value=False):
+            resp = await client.post("/api/extract-posting", json=SAMPLE_EXTRACT_PAYLOAD)
+        assert resp.status_code == 503
+        assert "Claude CLI not available" in resp.json()["detail"]
+
+    async def test_502_on_malformed_claude_response(self, client: AsyncClient):
+        """Returns 502 when Claude returns non-JSON."""
+        with (
+            patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
+            patch("claude_candidate.claude_cli.call_claude", return_value="this is not json"),
+        ):
+            resp = await client.post("/api/extract-posting", json=SAMPLE_EXTRACT_PAYLOAD)
+        assert resp.status_code == 502
+        assert "invalid response" in resp.json()["detail"]
+
+    async def test_infers_source_from_url(self, client: AsyncClient):
+        """Source field matches URL hostname."""
+        for url, expected_source in [
+            ("https://boards.greenhouse.io/co/jobs/1", "greenhouse"),
+            ("https://jobs.lever.co/acme/xyz", "lever"),
+            ("https://www.linkedin.com/jobs/view/123", "linkedin"),
+            ("https://www.indeed.com/viewjob?jk=abc", "indeed"),
+            ("https://acme.com/careers/senior-engineer", "web"),
+        ]:
+            with (
+                patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
+                patch("claude_candidate.claude_cli.call_claude", return_value=SAMPLE_CLAUDE_JSON),
+            ):
+                resp = await client.post(
+                    "/api/extract-posting",
+                    json={"url": url, "title": "Engineer", "text": "job text"},
+                )
+            assert resp.status_code == 200, f"Failed for {url}"
+            assert resp.json()["source"] == expected_source, f"Wrong source for {url}"
+
+    async def test_truncates_long_text(self, client: AsyncClient):
+        """Text > 15k chars is truncated in the prompt sent to Claude."""
+        long_text = "x" * 20_000
+        captured_prompts: list[str] = []
+
+        def capture_call(prompt: str, **kwargs):
+            captured_prompts.append(prompt)
+            return SAMPLE_CLAUDE_JSON
+
+        with (
+            patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
+            patch("claude_candidate.claude_cli.call_claude", side_effect=capture_call),
+        ):
+            resp = await client.post(
+                "/api/extract-posting",
+                json={"url": "https://acme.com/jobs/1", "title": "Engineer", "text": long_text},
+            )
+        assert resp.status_code == 200
+        assert len(captured_prompts) == 1
+        # The truncated text (15k "x"s) should appear in the prompt, but not all 20k
+        assert "x" * 15_000 in captured_prompts[0]
+        assert "x" * 15_001 not in captured_prompts[0]
+
+    async def test_handles_code_fenced_json(self, client: AsyncClient):
+        """Claude response wrapped in ```json fences is parsed correctly."""
+        fenced_response = f"```json\n{SAMPLE_CLAUDE_JSON}\n```"
+        with (
+            patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
+            patch("claude_candidate.claude_cli.call_claude", return_value=fenced_response),
+        ):
+            resp = await client.post("/api/extract-posting", json=SAMPLE_EXTRACT_PAYLOAD)
+        assert resp.status_code == 200
+        assert resp.json()["company"] == "Acme Corp"
+
+    async def test_null_fields_for_non_job_page(self, client: AsyncClient):
+        """Returns 200 with empty strings for non-job pages where Claude returns nulls."""
+        null_response = json.dumps({
+            "company": None,
+            "title": None,
+            "description": None,
+            "location": None,
+            "seniority": None,
+            "remote": None,
+            "salary": None,
+        })
+        with (
+            patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
+            patch("claude_candidate.claude_cli.call_claude", return_value=null_response),
+        ):
+            resp = await client.post(
+                "/api/extract-posting",
+                json={"url": "https://acme.com/about", "title": "About Us", "text": "We are a company."},
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["company"] == ""
+        assert data["title"] == ""
+        assert data["description"] == ""
+        assert data["location"] is None
+        assert data["remote"] is None

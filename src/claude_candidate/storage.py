@@ -46,6 +46,15 @@ CREATE TABLE IF NOT EXISTS profiles (
 );
 """
 
+_CREATE_POSTING_CACHE = """
+CREATE TABLE IF NOT EXISTS posting_cache (
+    url_hash     TEXT PRIMARY KEY,
+    url          TEXT NOT NULL,
+    data         TEXT NOT NULL,
+    extracted_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+"""
+
 _CREATE_INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_assessments_company ON assessments(company_name);",
     "CREATE INDEX IF NOT EXISTS idx_assessments_score ON assessments(overall_score DESC);",
@@ -73,6 +82,7 @@ class AssessmentStore:
         await self._conn.execute(_CREATE_ASSESSMENTS)
         await self._conn.execute(_CREATE_WATCHLIST)
         await self._conn.execute(_CREATE_PROFILES)
+        await self._conn.execute(_CREATE_POSTING_CACHE)
         for idx_sql in _CREATE_INDEXES:
             await self._conn.execute(idx_sql)
         await self._conn.commit()
@@ -297,3 +307,41 @@ class AssessmentStore:
         if row is None:
             return None
         return json.loads(row[0])
+
+    # ------------------------------------------------------------------
+    # Posting cache
+    # ------------------------------------------------------------------
+
+    async def get_cached_posting(self, url_hash: str) -> dict[str, Any] | None:
+        """Return cached posting dict if < 7 days old, else None (deletes expired row)."""
+        assert self._conn is not None, "Store not initialized"
+        async with self._conn.execute(
+            "SELECT data, extracted_at FROM posting_cache WHERE url_hash = ?;",
+            (url_hash,),
+        ) as cursor:
+            row = await cursor.fetchone()
+        if row is None:
+            return None
+        async with self._conn.execute(
+            "SELECT (julianday('now') - julianday(?)) * 86400 > 604800;",
+            (row[1],),
+        ) as cursor:
+            expired_row = await cursor.fetchone()
+        if expired_row and expired_row[0]:
+            await self._conn.execute(
+                "DELETE FROM posting_cache WHERE url_hash = ?;", (url_hash,)
+            )
+            await self._conn.commit()
+            return None
+        return json.loads(row[0])
+
+    async def cache_posting(
+        self, url_hash: str, url: str, data: dict[str, Any]
+    ) -> None:
+        """Insert or replace a posting cache entry."""
+        assert self._conn is not None, "Store not initialized"
+        await self._conn.execute(
+            "INSERT OR REPLACE INTO posting_cache (url_hash, url, data) VALUES (?, ?, ?);",
+            (url_hash, url, json.dumps(data)),
+        )
+        await self._conn.commit()
