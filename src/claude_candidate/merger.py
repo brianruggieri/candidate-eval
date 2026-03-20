@@ -175,6 +175,133 @@ def merge_profiles(
     return merged
 
 
+def merge_with_curated(
+    candidate_profile: CandidateProfile,
+    curated_skills: list[dict],
+    total_years: float | None = None,
+    education: list[str] | None = None,
+) -> MergedEvidenceProfile:
+    """Merge CandidateProfile with curated resume skill data.
+
+    curated_skills is a list of dicts with keys: name, depth, duration, source_context.
+    This replaces merge_profiles() when curated data is available.
+    """
+    taxonomy = _get_taxonomy()
+
+    # Build session skill lookup
+    from claude_candidate.schemas.candidate_profile import SkillEntry
+    session_skills: dict[str, SkillEntry] = {}
+    for s in candidate_profile.skills:
+        canonical = taxonomy.canonicalize(s.name)
+        session_skills[canonical] = s
+
+    # Build curated resume lookup
+    curated_lookup: dict[str, dict] = {}
+    for cs in curated_skills:
+        canonical = taxonomy.canonicalize(cs["name"])
+        cs_depth_str = cs.get("depth", "mentioned")
+        cs_depth = DepthLevel(cs_depth_str) if cs_depth_str in [d.value for d in DepthLevel] else DepthLevel.MENTIONED
+        existing = curated_lookup.get(canonical)
+        if existing is None:
+            curated_lookup[canonical] = cs
+        else:
+            ex_depth_str = existing.get("depth", "mentioned")
+            ex_depth = DepthLevel(ex_depth_str) if ex_depth_str in [d.value for d in DepthLevel] else DepthLevel.MENTIONED
+            if DEPTH_RANK.get(cs_depth, 0) > DEPTH_RANK.get(ex_depth, 0):
+                curated_lookup[canonical] = cs
+
+    all_names = set(session_skills.keys()) | set(curated_lookup.keys())
+    merged_skills = []
+    counts = {"corroborated": 0, "resume_only": 0, "sessions_only": 0}
+    discovery_skills = []
+
+    for name in sorted(all_names):
+        s_skill = session_skills.get(name)
+        c_skill = curated_lookup.get(name)
+
+        in_sessions = s_skill is not None
+        in_resume = c_skill is not None
+
+        # Map curated depth string to DepthLevel
+        r_depth = None
+        if c_skill:
+            depth_str = c_skill.get("depth", "mentioned")
+            r_depth = DepthLevel(depth_str) if depth_str in [d.value for d in DepthLevel] else DepthLevel.MENTIONED
+
+        s_depth = s_skill.depth if s_skill else None
+
+        source = classify_evidence_source(in_resume, in_sessions, r_depth, s_depth)
+        effective_depth = MergedSkillEvidence.compute_effective_depth(source, r_depth, s_depth)
+        confidence = MergedSkillEvidence.compute_confidence(
+            source,
+            s_skill.frequency if s_skill else None,
+            c_skill.get("source_context") if c_skill else None,
+        )
+
+        is_discovery = (
+            source == EvidenceSource.SESSIONS_ONLY
+            and DEPTH_RANK.get(s_depth, 0) >= DEPTH_RANK[DepthLevel.APPLIED]
+        )
+
+        if source == EvidenceSource.CORROBORATED:
+            counts["corroborated"] += 1
+        elif source == EvidenceSource.RESUME_ONLY:
+            counts["resume_only"] += 1
+        elif source == EvidenceSource.SESSIONS_ONLY:
+            counts["sessions_only"] += 1
+
+        if is_discovery:
+            discovery_skills.append(name)
+
+        merged_skills.append(MergedSkillEvidence(
+            name=name,
+            source=source,
+            resume_depth=r_depth,
+            resume_context=c_skill.get("source_context") if c_skill else None,
+            resume_years=None,  # curated uses duration string instead
+            resume_duration=c_skill.get("duration") if c_skill else None,
+            session_depth=s_depth,
+            session_frequency=s_skill.frequency if s_skill else None,
+            session_evidence_count=len(s_skill.evidence) if s_skill else None,
+            session_recency=s_skill.recency if s_skill else None,
+            effective_depth=effective_depth,
+            confidence=confidence,
+            discovery_flag=is_discovery,
+        ))
+
+    # Sort by source priority then depth
+    source_order = {
+        EvidenceSource.CORROBORATED: 0,
+        EvidenceSource.SESSIONS_ONLY: 1,
+        EvidenceSource.RESUME_ONLY: 2,
+        EvidenceSource.CONFLICTING: 3,
+    }
+    merged_skills.sort(key=lambda s: (
+        source_order.get(s.source, 9),
+        -DEPTH_RANK.get(s.effective_depth, 0),
+    ))
+
+    profile_hash = hash_json_stable({"candidate": candidate_profile.manifest_hash, "curated": "curated"})
+
+    merged = MergedEvidenceProfile(
+        skills=merged_skills,
+        patterns=candidate_profile.problem_solving_patterns,
+        projects=candidate_profile.projects,
+        roles=[],
+        corroborated_skill_count=counts["corroborated"],
+        resume_only_skill_count=counts["resume_only"],
+        sessions_only_skill_count=counts["sessions_only"],
+        discovery_skills=discovery_skills,
+        profile_hash=profile_hash,
+        resume_hash="curated",
+        candidate_profile_hash=candidate_profile.manifest_hash,
+        merged_at=datetime.now(),
+    )
+    merged.total_years_experience = total_years
+    merged.education = education or []
+    return merged
+
+
 def merge_candidate_only(candidate_profile: CandidateProfile) -> MergedEvidenceProfile:
     """
     Create a MergedEvidenceProfile from sessions only (no resume).
