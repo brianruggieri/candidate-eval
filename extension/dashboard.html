@@ -248,7 +248,52 @@
 			});
 		}
 
-		// Start polling
+		// Load existing assessments from server API as baseline
+		async function loadFromServer() {
+			try {
+				const resp = await fetch('http://localhost:7429/api/assessments?limit=200');
+				if (!resp.ok) return;
+				const assessments = await resp.json();
+				if (!assessments || assessments.length === 0) return;
+
+				// Deduplicate by posting_url (keep highest score)
+				const byUrl = {};
+				for (const a of assessments) {
+					const d = a.data || a;
+					const url = d.posting_url || d.assessment_id;
+					const score = d.overall_score || 0;
+					if (!byUrl[url] || score > (byUrl[url].overall_score || 0)) {
+						byUrl[url] = d;
+					}
+				}
+
+				const serverResults = Object.values(byUrl).map(d => ({
+					url: d.posting_url || '',
+					company: d.company_name || 'Unknown',
+					title: d.job_title || 'Unknown',
+					percentage: (d.partial_percentage != null) ? d.partial_percentage : ((d.overall_score || 0) * 100),
+					grade: d.overall_grade || '?',
+					strongest: d.strongest_match || '',
+					biggest_gap: d.biggest_gap || '',
+				}));
+
+				if (serverResults.length > 0 && currentResults.length === 0) {
+					currentResults = serverResults;
+					sortResults(sortCol);
+					updateSummary(serverResults);
+					document.getElementById('results-table').classList.remove('hidden');
+					document.getElementById('summary-row').classList.remove('hidden');
+					document.getElementById('empty-state').classList.add('hidden');
+					document.getElementById('progress-section').classList.add('hidden');
+					document.getElementById('subtitle').textContent = `${serverResults.length} assessments loaded from history`;
+				}
+			} catch (e) {
+				console.log('Could not load from server:', e);
+			}
+		}
+
+		// Load server data first, then poll for live batch updates
+		loadFromServer();
 		pollResults();
 	</script>
 </body>
