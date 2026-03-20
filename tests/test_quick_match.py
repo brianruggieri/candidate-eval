@@ -743,3 +743,33 @@ class TestPartialAssessmentWeights:
 
         assert assessment.partial_percentage is not None
         assert 0.0 <= assessment.partial_percentage <= 100.0
+
+
+def test_find_skill_match_canonicalizes_hyphens():
+    """Skill 'ci-cd' should match profile entry 'ci cd' via canonicalization."""
+    from claude_candidate.quick_match import _find_skill_match
+    from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
+    from claude_candidate.schemas.candidate_profile import DepthLevel
+    from claude_candidate.schemas.merged_profile import MergedEvidenceProfile
+
+    profile = MergedEvidenceProfile(
+        skills=[MergedSkillEvidence(
+            name="ci-cd",  # canonical form from taxonomy
+            source=EvidenceSource.SESSIONS_ONLY,
+            session_depth=DepthLevel.DEEP,
+            session_frequency=15,
+            effective_depth=DepthLevel.DEEP,
+            confidence=0.75,
+            discovery_flag=True,
+        )],
+        patterns=[], projects=[], roles=[],
+        corroborated_skill_count=0, resume_only_skill_count=0,
+        sessions_only_skill_count=1, discovery_skills=[],
+        profile_hash="test", resume_hash="test",
+        candidate_profile_hash="test", merged_at="2026-01-01T00:00:00",
+    )
+
+    # These should all resolve to the same canonical skill
+    assert _find_skill_match("ci-cd", profile) is not None
+    assert _find_skill_match("ci/cd", profile) is not None
+    assert _find_skill_match("continuous-integration", profile) is not None

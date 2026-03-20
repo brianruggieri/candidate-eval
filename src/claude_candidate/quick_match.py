@@ -346,6 +346,15 @@ def _find_skill_match(
     profile: MergedEvidenceProfile,
 ) -> MergedSkillEvidence | None:
     """Find a skill in the merged profile via exact, fuzzy, or pattern match."""
+    taxonomy = _get_taxonomy()
+    # Canonicalize through taxonomy first (handles aliases like ci/cd -> ci-cd)
+    canonical = taxonomy.match(skill_name)
+    if canonical:
+        found = _find_exact_match(canonical.lower(), profile)
+        if found:
+            return found
+
+    # Fallback to original normalized form
     normalized = skill_name.lower().strip()
     return (
         _find_exact_match(normalized, profile)
