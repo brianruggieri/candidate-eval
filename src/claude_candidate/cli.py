@@ -182,6 +182,42 @@ def generate(assessment: str, deliverable_type: str, output: str | None) -> None
         click.echo(content)
 
 
+@main.command()
+@click.option("--db", default=None, help="Database path")
+def shortlist(db: str | None) -> None:
+    """List shortlisted jobs with grades."""
+    import asyncio
+    from claude_candidate.storage import AssessmentStore
+
+    async def _list():
+        data_dir = Path(db).parent if db else Path.home() / ".claude-candidate"
+        db_path = Path(db) if db else data_dir / "assessments.db"
+        store = AssessmentStore(db_path)
+        await store.initialize()
+        items = await store.list_shortlist()
+        await store.close()
+        return items
+
+    items = asyncio.run(_list())
+
+    if not items:
+        click.echo("No shortlisted jobs.")
+        return
+
+    # Print table header
+    click.echo(f"{'Grade':<6} {'Company':<20} {'Title':<30} {'Location':<15} {'Salary':<15} {'Added':<12}")
+    click.echo("-" * 100)
+    for item in items:
+        click.echo(
+            f"{item.get('overall_grade', '--'):<6} "
+            f"{item['company_name'][:19]:<20} "
+            f"{item['job_title'][:29]:<30} "
+            f"{(item.get('location') or '--')[:14]:<15} "
+            f"{(item.get('salary') or '--')[:14]:<15} "
+            f"{item.get('added_at', '--')[:10]:<12}"
+        )
+
+
 def _extract_basic_requirements(text: str) -> list:
     """
     Basic keyword-based requirement extraction for v0.1 PoC.
