@@ -69,6 +69,8 @@
 			if (request.action === 'extractJobPosting') {
 				// Expand first, wait for DOM to update, then grab
 				expandTruncatedContent();
+				// Try again after a beat in case first click didn't register
+				setTimeout(() => expandTruncatedContent(), 200);
 				setTimeout(() => {
 					const text = (document.body.innerText || '').substring(0, MAX_TEXT_LENGTH);
 					sendResponse({ success: true, pageData: {
@@ -77,7 +79,7 @@
 						text: text,
 						extractedAt: Date.now(),
 					}});
-				}, 300);
+				}, 600);
 				return true; // keep channel open for async response
 			} else if (request.action === 'extractFallback') {
 				const posting = heuristicFallback();
