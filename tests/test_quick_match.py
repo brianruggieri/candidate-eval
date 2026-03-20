@@ -838,3 +838,61 @@ def test_soft_skill_requirement_discounted():
     from claude_candidate.quick_match import SOFT_SKILL_DISCOUNT
     # The discount factor should exist and be < 1.0
     assert 0.0 < SOFT_SKILL_DISCOUNT < 1.0
+
+
+def test_compound_requirement_breadth_scoring():
+    """A requirement with 3 skill mappings where 2 match should score better than 0."""
+    from claude_candidate.quick_match import QuickMatchEngine
+    from claude_candidate.schemas.job_requirements import QuickRequirement, RequirementPriority
+    from claude_candidate.schemas.merged_profile import MergedSkillEvidence, MergedEvidenceProfile, EvidenceSource
+    from claude_candidate.schemas.candidate_profile import DepthLevel
+
+    # Profile has python (expert) and machine-learning (applied) but no data-science
+    profile = MergedEvidenceProfile(
+        skills=[
+            MergedSkillEvidence(
+                name="python",
+                source=EvidenceSource.CORROBORATED,
+                session_depth=DepthLevel.EXPERT,
+                session_frequency=89,
+                resume_depth=DepthLevel.DEEP,
+                effective_depth=DepthLevel.EXPERT,
+                confidence=0.9,
+            ),
+            MergedSkillEvidence(
+                name="machine-learning",
+                source=EvidenceSource.SESSIONS_ONLY,
+                session_depth=DepthLevel.APPLIED,
+                session_frequency=15,
+                effective_depth=DepthLevel.APPLIED,
+                confidence=0.65,
+                discovery_flag=True,
+            ),
+        ],
+        patterns=[], projects=[], roles=[],
+        corroborated_skill_count=1, resume_only_skill_count=0,
+        sessions_only_skill_count=1, discovery_skills=[],
+        profile_hash="test", resume_hash="test",
+        candidate_profile_hash="test", merged_at="2026-01-01T00:00:00",
+    )
+
+    engine = QuickMatchEngine(profile)
+
+    # Compound requirement: ["python", "data-science", "machine-learning"]
+    reqs = [QuickRequirement(
+        description="5+ years Python, data science, or ML",
+        skill_mapping=["python", "data-science", "machine-learning"],
+        priority=RequirementPriority.MUST_HAVE,
+    )]
+
+    assessment = engine.assess(
+        requirements=reqs,
+        company="Test",
+        title="Test",
+        seniority="senior",
+    )
+
+    # With compound scoring: avg of (python=high, data-science=0, ml=partial)
+    # should be considered alongside best single match
+    # The skill score should be > 0 since python and ml match
+    assert assessment.skill_match.score > 0

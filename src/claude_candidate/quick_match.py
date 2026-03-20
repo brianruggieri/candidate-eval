@@ -999,7 +999,22 @@ class QuickMatchEngine:
             best_match, best_status = _find_best_skill(
                 req, self.profile, depth_floor,
             )
-            weighted_score += _score_requirement(best_match, best_status) * weight
+            req_score = _score_requirement(best_match, best_status)
+
+            # Compound scoring: also check average of all constituent skills
+            if len(req.skill_mapping) > 1:
+                all_scores = []
+                for skill_name in req.skill_mapping:
+                    found = _find_skill_match(skill_name, self.profile)
+                    if found:
+                        status = _assess_depth_match(found, depth_floor)
+                        all_scores.append(STATUS_SCORE.get(status, 0.0) * max(found.confidence, CONFIDENCE_FLOOR))
+                    else:
+                        all_scores.append(0.0)
+                avg_score = sum(all_scores) / len(all_scores) if all_scores else 0.0
+                req_score = max(req_score, avg_score)
+
+            weighted_score += req_score * weight
             details.append(_build_skill_detail(req, best_match, best_status))
 
         score = weighted_score / total_weight if total_weight > 0 else 0.0
