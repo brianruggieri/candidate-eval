@@ -402,6 +402,20 @@ def _evidence_summary(skill: MergedSkillEvidence) -> str:
     return ". ".join(parts)
 
 
+def _parse_duration_years(duration: str | None) -> float | None:
+    """Parse duration string like '8 years', '2 months' into years."""
+    if not duration:
+        return None
+    match = re.match(r'(\d+)\s*(year|month|yr|mo)', duration.lower())
+    if not match:
+        return None
+    value = int(match.group(1))
+    unit = match.group(2)
+    if unit.startswith("mo"):
+        return value / 12.0
+    return float(value)
+
+
 # ---------------------------------------------------------------------------
 # Skill scoring helpers
 # ---------------------------------------------------------------------------
@@ -437,6 +451,28 @@ def _find_best_skill(
                     best_match = profile_skill
                     best_status = "related"
                 break  # Take first related match
+
+    # Years experience boost: if requirement specifies years and skill has duration data
+    if req.years_experience and best_match and best_match.resume_duration:
+        candidate_years = _parse_duration_years(best_match.resume_duration)
+        if candidate_years:
+            if candidate_years >= req.years_experience:
+                # Boost status by one tier if not already exceeds
+                if best_status == "partial_match":
+                    best_status = "strong_match"
+                elif best_status == "adjacent":
+                    best_status = "partial_match"
+
+    # Total years fallback: when no skill match but candidate has enough total experience
+    if req.years_experience and best_status == "no_evidence":
+        if profile.total_years_experience and profile.total_years_experience >= req.years_experience:
+            best_status = "related"
+            best_match = MergedSkillEvidence(
+                name="general_experience",
+                source=EvidenceSource.RESUME_ONLY,
+                effective_depth=DepthLevel.APPLIED,
+                confidence=0.5,
+            )
 
     return best_match, best_status
 

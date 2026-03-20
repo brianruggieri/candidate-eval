@@ -840,6 +840,16 @@ def test_soft_skill_requirement_discounted():
     assert 0.0 < SOFT_SKILL_DISCOUNT < 1.0
 
 
+def test_years_experience_boosts_match():
+    """When requirement has years_experience and skill has duration, score should improve."""
+    from claude_candidate.quick_match import _parse_duration_years
+    # Test the duration parser first
+    assert _parse_duration_years("8 years") == 8.0
+    assert _parse_duration_years("2 months") == 2.0 / 12.0
+    assert _parse_duration_years(None) is None
+    assert _parse_duration_years("") is None
+
+
 def test_compound_requirement_breadth_scoring():
     """A requirement with 3 skill mappings where 2 match should score better than 0."""
     from claude_candidate.quick_match import QuickMatchEngine
