@@ -253,3 +253,34 @@ class TestProfileStorage:
         resume = run(store.get_profile("resume"))
         assert candidate["type"] == "candidate"
         assert resume["type"] == "resume"
+
+
+# ---------------------------------------------------------------------------
+# Company research cache
+# ---------------------------------------------------------------------------
+
+class TestCompanyResearchCache:
+    def test_cache_roundtrip(self, store: AssessmentStore):
+        data = {"mission": "Build great things", "values": ["speed", "quality"]}
+        run(store.cache_company_research("Acme Corp", data))
+        result = run(store.get_cached_company_research("Acme Corp"))
+        assert result is not None
+        assert result["mission"] == "Build great things"
+        assert result["values"] == ["speed", "quality"]
+
+    def test_cache_miss_returns_none(self, store: AssessmentStore):
+        result = run(store.get_cached_company_research("Nonexistent Inc"))
+        assert result is None
+
+    def test_cache_key_is_case_insensitive(self, store: AssessmentStore):
+        data = {"mission": "Test"}
+        run(store.cache_company_research("Acme Corp", data))
+        result = run(store.get_cached_company_research("  acme corp  "))
+        assert result is not None
+        assert result["mission"] == "Test"
+
+    def test_cache_upsert(self, store: AssessmentStore):
+        run(store.cache_company_research("Acme", {"version": 1}))
+        run(store.cache_company_research("Acme", {"version": 2}))
+        result = run(store.get_cached_company_research("Acme"))
+        assert result["version"] == 2

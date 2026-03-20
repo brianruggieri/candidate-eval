@@ -55,6 +55,15 @@ CREATE TABLE IF NOT EXISTS posting_cache (
 );
 """
 
+_CREATE_COMPANY_RESEARCH = """
+CREATE TABLE IF NOT EXISTS company_research (
+    company_key    TEXT PRIMARY KEY,
+    company_name   TEXT NOT NULL,
+    data           TEXT NOT NULL,
+    researched_at  TEXT DEFAULT (datetime('now'))
+);
+"""
+
 _CREATE_INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_assessments_company ON assessments(company_name);",
     "CREATE INDEX IF NOT EXISTS idx_assessments_score ON assessments(overall_score DESC);",
@@ -83,6 +92,7 @@ class AssessmentStore:
         await self._conn.execute(_CREATE_WATCHLIST)
         await self._conn.execute(_CREATE_PROFILES)
         await self._conn.execute(_CREATE_POSTING_CACHE)
+        await self._conn.execute(_CREATE_COMPANY_RESEARCH)
         for idx_sql in _CREATE_INDEXES:
             await self._conn.execute(idx_sql)
         await self._conn.commit()
@@ -345,3 +355,42 @@ class AssessmentStore:
             (url_hash, url, json.dumps(data)),
         )
         await self._conn.commit()
+
+    # ------------------------------------------------------------------
+    # Company research cache
+    # ------------------------------------------------------------------
+
+    async def cache_company_research(self, company_name: str, data: dict) -> None:
+        """Insert or replace a company research cache entry."""
+        assert self._conn is not None, "Store not initialized"
+        key = company_name.strip().lower()
+        await self._conn.execute(
+            "INSERT OR REPLACE INTO company_research (company_key, company_name, data) VALUES (?, ?, ?);",
+            (key, company_name.strip(), json.dumps(data)),
+        )
+        await self._conn.commit()
+
+    async def get_cached_company_research(self, company_name: str) -> dict | None:
+        """Return cached company research if < 30 days old, else None (deletes expired row)."""
+        assert self._conn is not None, "Store not initialized"
+        key = company_name.strip().lower()
+        async with self._conn.execute(
+            "SELECT data, researched_at FROM company_research WHERE company_key = ?;",
+            (key,),
+        ) as cursor:
+            row = await cursor.fetchone()
+        if row is None:
+            return None
+        # 30 days = 30 * 86400 = 2592000 seconds
+        async with self._conn.execute(
+            "SELECT (julianday('now') - julianday(?)) * 86400 > 2592000;",
+            (row[1],),
+        ) as cursor:
+            expired_row = await cursor.fetchone()
+        if expired_row and expired_row[0]:
+            await self._conn.execute(
+                "DELETE FROM company_research WHERE company_key = ?;", (key,)
+            )
+            await self._conn.commit()
+            return None
+        return json.loads(row[0])
