@@ -240,17 +240,22 @@ class TestAssessFullEndpoint:
 		)
 		assert resp.status_code == 404
 
-	async def test_assess_full_returns_deliverables(self, client_with_profile: AsyncClient):
+	async def test_assess_full_returns_full_phase(self, client_with_profile: AsyncClient):
+		"""Full assessment should set assessment_phase to 'full'."""
 		partial = await client_with_profile.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
 		aid = partial.json()["assessment_id"]
 
 		with patch(
-			"claude_candidate.generator.call_claude",
-			side_effect=[
-				"- Led Python backend refactor",
-				"Dear Hiring Manager, ...",
-				"## Technical Discussion Points",
-			],
+			"claude_candidate.company_research.research_company",
+			return_value={
+				"mission": "Making developer tools better",
+				"values": ["innovation", "quality"],
+				"culture_signals": ["collaborative", "remote-friendly"],
+				"tech_philosophy": "Python-first, test-driven",
+				"ai_native": False,
+				"product_domains": ["developer-tooling"],
+				"team_size_signal": "mid-size (50-500)",
+			},
 		):
 			resp = await client_with_profile.post(
 				"/api/assess/full", json={"assessment_id": aid}
@@ -258,16 +263,105 @@ class TestAssessFullEndpoint:
 
 		assert resp.status_code == 200
 		data = resp.json()
-		assert "deliverables" in data
-		assert "resume_bullets" in data["deliverables"]
-		assert "cover_letter" in data["deliverables"]
-		assert "interview_prep" in data["deliverables"]
+		assert data["assessment_phase"] == "full"
 
-	async def test_assess_full_preserves_assessment_fields(self, client_with_profile: AsyncClient):
+	async def test_assess_full_has_mission_and_culture(self, client_with_profile: AsyncClient):
+		"""Full assessment should populate mission_alignment and culture_fit."""
 		partial = await client_with_profile.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
 		aid = partial.json()["assessment_id"]
 
-		with patch("claude_candidate.generator.call_claude", return_value="stub"):
+		with patch(
+			"claude_candidate.company_research.research_company",
+			return_value={
+				"mission": "Building the future of work",
+				"values": ["transparency", "impact"],
+				"culture_signals": ["async communication", "documentation driven"],
+				"tech_philosophy": "Microservices, Python, Docker",
+				"ai_native": True,
+				"product_domains": ["enterprise-software"],
+				"team_size_signal": "startup (<50)",
+			},
+		):
+			resp = await client_with_profile.post(
+				"/api/assess/full", json={"assessment_id": aid}
+			)
+
+		data = resp.json()
+		assert data["mission_alignment"] is not None
+		assert "score" in data["mission_alignment"]
+		assert "grade" in data["mission_alignment"]
+		assert data["culture_fit"] is not None
+		assert "score" in data["culture_fit"]
+		assert "grade" in data["culture_fit"]
+
+	async def test_assess_full_no_deliverables(self, client_with_profile: AsyncClient):
+		"""Full assessment should NOT include a deliverables key."""
+		partial = await client_with_profile.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
+		aid = partial.json()["assessment_id"]
+
+		with patch(
+			"claude_candidate.company_research.research_company",
+			return_value={
+				"mission": "Test company",
+				"values": [],
+				"culture_signals": [],
+				"tech_philosophy": "",
+				"ai_native": False,
+				"product_domains": [],
+				"team_size_signal": "",
+			},
+		):
+			resp = await client_with_profile.post(
+				"/api/assess/full", json={"assessment_id": aid}
+			)
+
+		data = resp.json()
+		assert "deliverables" not in data
+
+	async def test_assess_full_has_letter_grade(self, client_with_profile: AsyncClient):
+		"""Full assessment should have an overall letter grade."""
+		partial = await client_with_profile.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
+		aid = partial.json()["assessment_id"]
+
+		with patch(
+			"claude_candidate.company_research.research_company",
+			return_value={
+				"mission": "AI research company",
+				"values": ["excellence"],
+				"culture_signals": ["fast-paced"],
+				"tech_philosophy": "LLMs and Python",
+				"ai_native": True,
+				"product_domains": ["ai-research"],
+				"team_size_signal": "mid-size (50-500)",
+			},
+		):
+			resp = await client_with_profile.post(
+				"/api/assess/full", json={"assessment_id": aid}
+			)
+
+		data = resp.json()
+		assert "overall_grade" in data
+		assert data["overall_grade"] in {
+			"A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D", "F"
+		}
+
+	async def test_assess_full_preserves_assessment_fields(self, client_with_profile: AsyncClient):
+		"""Full assessment should preserve core assessment fields from partial."""
+		partial = await client_with_profile.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
+		aid = partial.json()["assessment_id"]
+
+		with patch(
+			"claude_candidate.company_research.research_company",
+			return_value={
+				"mission": "Test company",
+				"values": [],
+				"culture_signals": [],
+				"tech_philosophy": "",
+				"ai_native": False,
+				"product_domains": [],
+				"team_size_signal": "",
+			},
+		):
 			resp = await client_with_profile.post(
 				"/api/assess/full", json={"assessment_id": aid}
 			)
@@ -276,27 +370,54 @@ class TestAssessFullEndpoint:
 		assert data["assessment_id"] == aid
 		assert "overall_score" in data
 		assert "should_apply" in data
+		assert "skill_match" in data
 
-	async def test_assess_full_returns_error_when_claude_unavailable(
-		self, client_with_profile: AsyncClient
-	):
-		from claude_candidate.claude_cli import ClaudeCLIError
-
+	async def test_assess_full_persists_updated_assessment(self, client_with_profile: AsyncClient):
+		"""Full assessment should save the updated data to the store."""
 		partial = await client_with_profile.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
 		aid = partial.json()["assessment_id"]
 
 		with patch(
-			"claude_candidate.generator.call_claude",
-			side_effect=ClaudeCLIError("claude not found"),
+			"claude_candidate.company_research.research_company",
+			return_value={
+				"mission": "Test company",
+				"values": [],
+				"culture_signals": [],
+				"tech_philosophy": "",
+				"ai_native": False,
+				"product_domains": [],
+				"team_size_signal": "",
+			},
+		):
+			await client_with_profile.post(
+				"/api/assess/full", json={"assessment_id": aid}
+			)
+
+		# Verify persistence via GET
+		get_resp = await client_with_profile.get(f"/api/assessments/{aid}")
+		assert get_resp.status_code == 200
+		stored = get_resp.json()
+		assert stored["assessment_phase"] == "full"
+
+	async def test_assess_full_works_when_company_research_fails(
+		self, client_with_profile: AsyncClient
+	):
+		"""Full assessment should succeed even if company research fails."""
+		partial = await client_with_profile.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
+		aid = partial.json()["assessment_id"]
+
+		with patch(
+			"claude_candidate.company_research.research_company",
+			side_effect=Exception("Claude unavailable"),
 		):
 			resp = await client_with_profile.post(
 				"/api/assess/full", json={"assessment_id": aid}
 			)
 
-		# Should still return 200 with an error field, not crash
+		# Should still succeed with best-effort mission/culture
 		assert resp.status_code == 200
 		data = resp.json()
-		assert "error" in data
+		assert data["assessment_phase"] == "full"
 
 
 # ---------------------------------------------------------------------------

@@ -300,20 +300,29 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
     @app.post("/api/assess/full")
     async def assess_full(req: AssessFullRequest):
         """
-        Generate all deliverables (resume bullets, cover letter, interview prep)
-        for an existing assessment via Claude.
+        Enrich a partial assessment with mission/culture scoring and company research.
 
-        Returns the assessment dict merged with a ``deliverables`` key containing
-        all three generated artifacts. If Claude is unavailable, returns the
-        assessment with an ``error`` field describing the failure.
+        Runs company research (cached per company), loads pre-computed AI
+        engineering scores from the candidate profile, computes mission and
+        culture dimensions locally, recomputes the overall score across all
+        five dimensions, and sets ``assessment_phase = "full"``.
+
+        Does NOT generate deliverables — use ``/api/generate`` for that.
         """
-        from claude_candidate.schemas.fit_assessment import FitAssessment
-        from claude_candidate.generator import (
-            ClaudeCLIError,
-            generate_resume_bullets,
-            generate_cover_letter,
-            generate_interview_prep,
+        import asyncio
+        from datetime import datetime
+
+        from claude_candidate.schemas.candidate_profile import CandidateProfile
+        from claude_candidate.schemas.company_profile import CompanyProfile
+        from claude_candidate.schemas.fit_assessment import (
+            DimensionScore,
+            FitAssessment,
+            score_to_grade,
+            score_to_verdict,
         )
+        from claude_candidate.schemas.resume_profile import ResumeProfile
+        from claude_candidate.merger import merge_profiles, merge_candidate_only
+        from claude_candidate.quick_match import QuickMatchEngine
 
         store = get_store()
         row = await store.get_assessment(req.assessment_id)
@@ -321,26 +330,153 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="Assessment not found")
 
         data = row["data"] if row.get("data") and isinstance(row["data"], dict) else row
-        assessment = FitAssessment.from_json(json.dumps(data))
+        company = data.get("company_name", "")
 
-        import asyncio
+        # 1. Company research (cached per company, best-effort)
+        research = None
+        if company:
+            cached = await store.get_cached_company_research(company)
+            if cached:
+                research = cached
+            else:
+                from claude_candidate.company_research import research_company
 
-        def _generate_all():
-            return {
-                "resume_bullets": generate_resume_bullets(assessment=assessment),
-                "cover_letter": generate_cover_letter(assessment=assessment),
-                "interview_prep": generate_interview_prep(assessment=assessment),
-            }
+                loop = asyncio.get_event_loop()
+                try:
+                    result = await loop.run_in_executor(
+                        None, lambda: research_company(company)
+                    )
+                    await store.cache_company_research(company, result)
+                    research = result
+                except Exception:
+                    pass  # Company research is best-effort
 
-        try:
-            deliverables = await asyncio.get_event_loop().run_in_executor(None, _generate_all)
-        except ClaudeCLIError as exc:
-            return {**data, "error": str(exc)}
+        # 2. AI engineering scores from candidate profile (pre-computed)
+        profiles = get_profiles()
+        candidate_data = profiles.get("candidate")
+        ai_scores = None
+        if candidate_data:
+            ai_scores = candidate_data.get("ai_engineering_scores")
 
-        return {
-            **data,
-            "deliverables": deliverables,
+        # 3. Build a CompanyProfile from research data (if available)
+        company_profile = None
+        if research:
+            # Determine enrichment quality based on available fields
+            field_count = sum(
+                1 for k in ("mission", "values", "culture_signals", "tech_philosophy", "product_domains")
+                if research.get(k)
+            )
+            if field_count >= 4:
+                quality = "rich"
+            elif field_count >= 2:
+                quality = "moderate"
+            else:
+                quality = "sparse"
+
+            company_profile = CompanyProfile(
+                company_name=company,
+                mission_statement=research.get("mission"),
+                product_description=research.get("mission") or f"{company} company",
+                product_domain=research.get("product_domains") or [],
+                tech_stack_public=research.get("tech_stack", []),
+                culture_keywords=research.get("culture_signals") or [],
+                company_size=research.get("team_size_signal"),
+                enriched_at=datetime.now(),
+                enrichment_quality=quality,
+            )
+
+        # 4. Build merged profile and engine to compute mission/culture
+        merged_profile = None
+        if candidate_data:
+            cp = CandidateProfile.model_validate(candidate_data)
+            resume_data = profiles.get("resume")
+            if resume_data:
+                rp = ResumeProfile.model_validate(resume_data)
+                merged_profile = merge_profiles(cp, rp)
+            else:
+                merged_profile = merge_candidate_only(cp)
+
+        mission_dim = None
+        culture_dim = None
+        if merged_profile:
+            engine = QuickMatchEngine(merged_profile)
+
+            # Extract tech_stack and culture_signals from the existing assessment data
+            tech_stack = data.get("skill_match", {}).get("details", [])
+            # Use culture signals from company research or empty list
+            culture_signals = research.get("culture_signals", []) if research else []
+
+            mission_dim = engine._score_mission_alignment(
+                company=company,
+                tech_stack=company_profile.tech_stack_public if company_profile else [],
+                company_profile=company_profile,
+            )
+            culture_dim = engine._score_culture_fit(
+                culture_signals=culture_signals,
+                company_profile=company_profile,
+            )
+
+        # 5. Recompute overall score with all five dimensions
+        # Parse existing dimension scores from the assessment data
+        skill_score = data.get("skill_match", {}).get("score", 0.5)
+        experience_score = (data.get("experience_match") or {}).get("score")
+        education_score = (data.get("education_match") or {}).get("score")
+        mission_score = mission_dim.score if mission_dim else 0.5
+        culture_score = culture_dim.score if culture_dim else 0.5
+
+        # Full assessment weights: skill 40%, experience 20%, education 10%,
+        # mission 15%, culture 15%
+        weighted_total = skill_score * 0.40
+        weighted_total += (experience_score if experience_score is not None else 0.5) * 0.20
+        weighted_total += (education_score if education_score is not None else 0.5) * 0.10
+        weighted_total += mission_score * 0.15
+        weighted_total += culture_score * 0.15
+
+        overall_score = round(min(max(weighted_total, 0.0), 1.0), 3)
+        overall_grade = score_to_grade(overall_score)
+
+        # Update dimension weights in the returned data
+        if mission_dim:
+            mission_dim.weight = 0.15
+        if culture_dim:
+            culture_dim.weight = 0.15
+
+        # 6. Merge into updated assessment data
+        updated = dict(data)
+        updated["assessment_phase"] = "full"
+        updated["overall_score"] = overall_score
+        updated["overall_grade"] = overall_grade
+        updated["should_apply"] = score_to_verdict(overall_score)
+        if mission_dim:
+            updated["mission_alignment"] = mission_dim.model_dump()
+        if culture_dim:
+            updated["culture_fit"] = culture_dim.model_dump()
+        if ai_scores:
+            updated["ai_engineering_scores"] = ai_scores
+
+        # Update skill/experience/education weights for consistency
+        if updated.get("skill_match"):
+            updated["skill_match"]["weight"] = 0.40
+        if updated.get("experience_match"):
+            updated["experience_match"]["weight"] = 0.20
+        if updated.get("education_match"):
+            updated["education_match"]["weight"] = 0.10
+
+        # 7. Save updated assessment to store
+        flat: dict[str, Any] = {
+            "assessment_id": data.get("assessment_id", req.assessment_id),
+            "assessed_at": data.get("assessed_at"),
+            "job_title": data.get("job_title"),
+            "company_name": company,
+            "posting_url": data.get("posting_url"),
+            "overall_score": overall_score,
+            "overall_grade": overall_grade,
+            "should_apply": updated["should_apply"],
+            "data": updated,
         }
+        await store.save_assessment(flat)
+
+        return updated
 
     # ------------------------------------------------------------------
     # Assessment list / detail / delete
