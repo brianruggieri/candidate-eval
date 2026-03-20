@@ -430,7 +430,7 @@ class TestExperienceMatchScoring:
         assert any("Gap:" in d for d in dim.details)
 
     def test_experience_match_no_years_specified(self, candidate_profile, resume_profile):
-        """No years requirements → neutral 0.5 with insufficient_data."""
+        """No years requirements → effectively met (0.9) with insufficient_data."""
         merged = merge_profiles(candidate_profile, resume_profile)
         engine = QuickMatchEngine(merged)
 
@@ -442,7 +442,7 @@ class TestExperienceMatchScoring:
 
         dim = engine._score_experience_match(requirements, "senior")
         assert dim.dimension == "experience_match"
-        assert dim.score == 0.5
+        assert dim.score == 0.9
         assert dim.insufficient_data is True
 
     def test_experience_match_candidate_no_years(self, candidate_profile):
@@ -516,7 +516,7 @@ class TestEducationMatchScoring:
 
         dim = engine._score_education_match(requirements, [])
         assert dim.dimension == "education_match"
-        assert dim.score == 0.5
+        assert dim.score == 0.9
         assert dim.insufficient_data is True
 
     def test_education_match_combined_signals(self, candidate_profile, resume_profile):
@@ -618,10 +618,10 @@ class TestPartialAssessmentWeights:
             priority=RequirementPriority.MUST_HAVE,
         )]
 
-    def test_partial_assessment_redistributes_insufficient_weights(
+    def test_partial_assessment_uses_fixed_weights(
         self, candidate_profile, resume_profile
     ):
-        """When experience/education have no data, their weight goes to skills."""
+        """Partial assessment always uses 50/30/20 weights."""
         merged = merge_profiles(candidate_profile, resume_profile)
         engine = QuickMatchEngine(merged)
 
@@ -631,34 +631,27 @@ class TestPartialAssessmentWeights:
             title="Engineer",
         )
 
-        # Minimal requirements have no years or education — both insufficient
-        assert assessment.experience_match.insufficient_data is True
-        assert assessment.experience_match.weight == 0.0
-        assert assessment.education_match.insufficient_data is True
-        assert assessment.education_match.weight == 0.0
-        assert assessment.skill_match.weight == 1.0
-
-    def test_partial_assessment_uses_fixed_weights_with_data(
-        self, candidate_profile, resume_profile
-    ):
-        """When experience/education have data, uses 50/30/20 weights."""
-        merged = merge_profiles(candidate_profile, resume_profile)
-        engine = QuickMatchEngine(merged)
-
-        reqs = [QuickRequirement(
-            description="Python dev",
-            skill_mapping=["python"],
-            priority=RequirementPriority.MUST_HAVE,
-            years_experience=5,
-            education_level="bachelor",
-        )]
-        assessment = engine.assess(
-            requirements=reqs, company="Test Co", title="Engineer",
-        )
-
         assert assessment.skill_match.weight == 0.50
         assert assessment.experience_match.weight == 0.30
         assert assessment.education_match.weight == 0.20
+
+    def test_insufficient_data_scores_high(
+        self, candidate_profile, resume_profile
+    ):
+        """No requirement stated = effectively met (score ~0.9)."""
+        merged = merge_profiles(candidate_profile, resume_profile)
+        engine = QuickMatchEngine(merged)
+
+        assessment = engine.assess(
+            requirements=self._minimal_requirements(),
+            company="Test Co",
+            title="Engineer",
+        )
+
+        assert assessment.experience_match.insufficient_data is True
+        assert assessment.experience_match.score >= 0.85
+        assert assessment.education_match.insufficient_data is True
+        assert assessment.education_match.score >= 0.85
 
     def test_partial_assessment_weights_sum_to_one(
         self, candidate_profile, resume_profile

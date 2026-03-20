@@ -103,12 +103,14 @@ CULTURE_SCORE_MIN = 0.0
 CULTURE_SCORE_MAX = 1.0
 
 # Experience match score parameters
+EXPERIENCE_NO_REQUIREMENT_SCORE = 0.9  # No requirement stated = effectively met
 EXPERIENCE_NEUTRAL_SCORE = 0.5
 EXPERIENCE_MET_BASE = 0.7
 EXPERIENCE_EXCEED_BONUS = 0.3  # Bonus range for exceeding requirement
 EXPERIENCE_SCORE_MAX = 1.0
 
 # Education match score parameters
+EDUCATION_NO_REQUIREMENT_SCORE = 0.9  # No requirement stated = effectively met
 EDUCATION_NEUTRAL_SCORE = 0.5
 EDUCATION_MET_SCORE = 0.9
 EDUCATION_PARTIAL_SCORE = 0.5
@@ -801,21 +803,16 @@ class QuickMatchEngine:
         )
 
         # Fixed partial-assessment weights: 50/30/20
-        # Exclude insufficient-data dimensions and redistribute weight to skills
-        skill_weight = 0.50
-        exp_weight = 0.30 if not experience_dim.insufficient_data else 0.0
-        edu_weight = 0.20 if not education_dim.insufficient_data else 0.0
-        redistributed = (0.30 - exp_weight) + (0.20 - edu_weight)
-        skill_weight += redistributed
-
-        skill_dim.weight = skill_weight
-        experience_dim.weight = exp_weight
-        education_dim.weight = edu_weight
+        # Insufficient-data dimensions score 90% ("no requirement = effectively met")
+        # so they keep their weight and help the score
+        skill_dim.weight = 0.50
+        experience_dim.weight = 0.30
+        education_dim.weight = 0.20
 
         overall_score = _compute_overall_score(
             skill_dim,
-            experience_dim=experience_dim if exp_weight > 0 else None,
-            education_dim=education_dim if edu_weight > 0 else None,
+            experience_dim=experience_dim,
+            education_dim=education_dim,
         )
         partial_percentage = round(overall_score * 100, 1)
 
@@ -1132,10 +1129,10 @@ class QuickMatchEngine:
         if not years_reqs:
             return DimensionScore(
                 dimension="experience_match",
-                score=EXPERIENCE_NEUTRAL_SCORE,
-                grade=score_to_grade(EXPERIENCE_NEUTRAL_SCORE),
-                summary="No experience-years requirements specified",
-                details=["No requirements specify years of experience"],
+                score=EXPERIENCE_NO_REQUIREMENT_SCORE,
+                grade=score_to_grade(EXPERIENCE_NO_REQUIREMENT_SCORE),
+                summary="No specific experience-years required — effectively met",
+                details=["No years requirement stated; no bar to clear"],
                 insufficient_data=True,
             )
 
@@ -1216,10 +1213,10 @@ class QuickMatchEngine:
         if not scores:
             return DimensionScore(
                 dimension="education_match",
-                score=EDUCATION_NEUTRAL_SCORE,
-                grade=score_to_grade(EDUCATION_NEUTRAL_SCORE),
-                summary="No education or tech stack requirements specified",
-                details=["No education or tech stack requirements to evaluate"],
+                score=EDUCATION_NO_REQUIREMENT_SCORE,
+                grade=score_to_grade(EDUCATION_NO_REQUIREMENT_SCORE),
+                summary="No specific education or tech stack required — effectively met",
+                details=["No education or tech stack requirement stated; no bar to clear"],
                 insufficient_data=True,
             )
 
