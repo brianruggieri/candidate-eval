@@ -431,5 +431,20 @@ document.addEventListener('DOMContentLoaded', () => {
 		setTimeout(() => { btnCopy.textContent = '\u{1F4CB}'; }, 1500);
 	});
 
+	const btnBatch = el('btn-batch');
+	if (btnBatch) btnBatch.addEventListener('click', async () => {
+		btnBatch.disabled = true;
+		btnBatch.textContent = '⏳ Scanning tabs...';
+		const r = await sendToBackground({ action: 'batchAssess' });
+		if (r.success) {
+			// Open dashboard in new tab
+			chrome.tabs.create({ url: chrome.runtime.getURL('dashboard.html') });
+		} else {
+			btnBatch.textContent = r.error || 'Failed';
+			btnBatch.disabled = false;
+			setTimeout(() => { btnBatch.textContent = '⚡ Assess All Open Job Tabs'; }, 3000);
+		}
+	});
+
 	initialize();
 });

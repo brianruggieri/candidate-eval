@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>claude-candidate — Batch Results</title>
+	<style>
+		* { box-sizing: border-box; margin: 0; padding: 0; }
+		body {
+			font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+			background: #f8fafc; color: #1e293b; padding: 24px;
+		}
+		.container { max-width: 1100px; margin: 0 auto; }
+		h1 { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+		.subtitle { color: #64748b; font-size: 14px; margin-bottom: 24px; }
+		.progress-bar {
+			background: #e2e8f0; border-radius: 8px; height: 8px; margin-bottom: 8px; overflow: hidden;
+		}
+		.progress-fill {
+			background: #6366f1; height: 100%; border-radius: 8px;
+			transition: width 0.3s ease;
+		}
+		.progress-text { font-size: 12px; color: #64748b; margin-bottom: 20px; }
+		table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+		thead { background: #f1f5f9; }
+		th { padding: 12px 16px; text-align: left; font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; user-select: none; }
+		th:hover { color: #334155; }
+		th .sort-arrow { font-size: 10px; margin-left: 4px; }
+		td { padding: 12px 16px; font-size: 13px; border-top: 1px solid #f1f5f9; }
+		tr.clickable { cursor: pointer; transition: background 0.15s; }
+		tr.clickable:hover { background: #f8fafc; }
+		tr.error td { color: #94a3b8; font-style: italic; }
+		.grade-badge {
+			display: inline-flex; align-items: center; justify-content: center;
+			width: 36px; height: 36px; border-radius: 10px; font-weight: 800; font-size: 14px;
+			border: 2px solid;
+		}
+		.grade-A { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
+		.grade-B { background: #eff6ff; color: #1e40af; border-color: #bfdbfe; }
+		.grade-C { background: #fffbeb; color: #92400e; border-color: #fde68a; }
+		.grade-D, .grade-F { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+		.pct-cell { font-weight: 600; font-size: 14px; }
+		.pct-high { color: #059669; }
+		.pct-mid { color: #d97706; }
+		.pct-low { color: #dc2626; }
+		.strongest { color: #059669; font-size: 12px; }
+		.gap { color: #dc2626; font-size: 12px; }
+		.summary-row {
+			display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap;
+		}
+		.summary-card {
+			background: #fff; border-radius: 10px; padding: 16px 20px;
+			box-shadow: 0 1px 3px rgba(0,0,0,0.08); flex: 1; min-width: 150px;
+		}
+		.summary-card .label { font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em; }
+		.summary-card .value { font-size: 24px; font-weight: 700; margin-top: 4px; }
+		.empty-state { text-align: center; padding: 60px 20px; color: #94a3b8; }
+		.empty-state h2 { font-size: 18px; margin-bottom: 8px; color: #64748b; }
+		@keyframes pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+		.loading { animation: pulse 1.5s ease-in-out infinite; }
+	</style>
+</head>
+<body>
+	<div class="container">
+		<h1>Batch Assessment Results</h1>
+		<p class="subtitle" id="subtitle">Loading...</p>
+
+		<div id="progress-section">
+			<div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width: 0%"></div></div>
+			<p class="progress-text loading" id="progress-text">Starting...</p>
+		</div>
+
+		<div class="summary-row hidden" id="summary-row">
+			<div class="summary-card">
+				<div class="label">Jobs Assessed</div>
+				<div class="value" id="stat-total">0</div>
+			</div>
+			<div class="summary-card">
+				<div class="label">Top Match</div>
+				<div class="value" id="stat-top" style="font-size: 16px;">--</div>
+			</div>
+			<div class="summary-card">
+				<div class="label">Average Score</div>
+				<div class="value" id="stat-avg">--</div>
+			</div>
+			<div class="summary-card">
+				<div class="label">A/B Grades</div>
+				<div class="value" id="stat-ab">0</div>
+			</div>
+		</div>
+
+		<table class="hidden" id="results-table">
+			<thead>
+				<tr>
+					<th data-sort="grade">Grade <span class="sort-arrow"></span></th>
+					<th data-sort="percentage">Match % <span class="sort-arrow"></span></th>
+					<th data-sort="company">Company <span class="sort-arrow"></span></th>
+					<th data-sort="title">Title <span class="sort-arrow"></span></th>
+					<th>Strongest</th>
+					<th>Biggest Gap</th>
+				</tr>
+			</thead>
+			<tbody id="results-body"></tbody>
+		</table>
+
+		<div class="empty-state hidden" id="empty-state">
+			<h2>No results yet</h2>
+			<p>Open LinkedIn job posting tabs and click "Assess All Open Job Tabs" in the extension popup.</p>
+		</div>
+	</div>
+
+	<script>
+		let currentResults = [];
+		let sortCol = 'percentage';
+		let sortDir = -1; // -1 = descending
+
+		function gradeClass(grade) {
+			if (!grade) return 'grade-F';
+			const letter = grade.charAt(0);
+			if (letter === 'A') return 'grade-A';
+			if (letter === 'B') return 'grade-B';
+			if (letter === 'C') return 'grade-C';
+			return 'grade-D';
+		}
+
+		function pctClass(pct) {
+			if (pct >= 70) return 'pct-high';
+			if (pct >= 50) return 'pct-mid';
+			return 'pct-low';
+		}
+
+		function renderTable(results) {
+			const tbody = document.getElementById('results-body');
+			tbody.innerHTML = '';
+
+			results.forEach(r => {
+				const tr = document.createElement('tr');
+				if (r.error) {
+					tr.className = 'error';
+					tr.innerHTML = `
+						<td colspan="6">⚠ ${r.url ? r.url.substring(0, 60) : 'Unknown'} — ${r.error}</td>
+					`;
+				} else {
+					tr.className = 'clickable';
+					tr.onclick = () => window.open(r.url, '_blank');
+					tr.innerHTML = `
+						<td><span class="grade-badge ${gradeClass(r.grade)}">${r.grade || '?'}</span></td>
+						<td class="pct-cell ${pctClass(r.percentage)}">${(r.percentage || 0).toFixed(1)}%</td>
+						<td><strong>${r.company || 'Unknown'}</strong></td>
+						<td>${r.title || 'Unknown'}</td>
+						<td class="strongest">${r.strongest || '--'}</td>
+						<td class="gap">${r.biggest_gap || '--'}</td>
+					`;
+				}
+				tbody.appendChild(tr);
+			});
+		}
+
+		function updateSummary(results) {
+			const successful = results.filter(r => !r.error);
+			document.getElementById('stat-total').textContent = successful.length;
+
+			if (successful.length > 0) {
+				const top = successful[0];
+				document.getElementById('stat-top').textContent = `${top.company} (${top.grade})`;
+
+				const avg = successful.reduce((s, r) => s + (r.percentage || 0), 0) / successful.length;
+				document.getElementById('stat-avg').textContent = avg.toFixed(0) + '%';
+
+				const ab = successful.filter(r => r.grade && (r.grade.startsWith('A') || r.grade.startsWith('B'))).length;
+				document.getElementById('stat-ab').textContent = ab;
+			}
+		}
+
+		function sortResults(col) {
+			if (sortCol === col) {
+				sortDir *= -1;
+			} else {
+				sortCol = col;
+				sortDir = col === 'percentage' ? -1 : 1;
+			}
+
+			const successful = currentResults.filter(r => !r.error);
+			const errors = currentResults.filter(r => r.error);
+
+			successful.sort((a, b) => {
+				let va = a[col] || '';
+				let vb = b[col] || '';
+				if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * sortDir;
+				return String(va).localeCompare(String(vb)) * sortDir;
+			});
+
+			currentResults = [...successful, ...errors];
+			renderTable(currentResults);
+
+			// Update sort arrows
+			document.querySelectorAll('th[data-sort]').forEach(th => {
+				const arrow = th.querySelector('.sort-arrow');
+				if (th.dataset.sort === col) {
+					arrow.textContent = sortDir > 0 ? '▲' : '▼';
+				} else {
+					arrow.textContent = '';
+				}
+			});
+		}
+
+		// Column header click to sort
+		document.querySelectorAll('th[data-sort]').forEach(th => {
+			th.addEventListener('click', () => sortResults(th.dataset.sort));
+		});
+
+		// Poll for results
+		function pollResults() {
+			chrome.storage.local.get(['batchProgress', 'batchResults'], (data) => {
+				const progress = data.batchProgress;
+				const results = data.batchResults;
+
+				if (progress) {
+					const pct = progress.total > 0 ? (progress.done / progress.total * 100) : 0;
+					document.getElementById('progress-fill').style.width = pct + '%';
+					document.getElementById('progress-text').textContent =
+						progress.done >= progress.total
+							? `Completed — ${progress.total} jobs assessed`
+							: `Assessing ${progress.done + 1}/${progress.total}: ${progress.current || '...'}`;
+
+					if (progress.done >= progress.total) {
+						document.getElementById('progress-text').classList.remove('loading');
+					}
+
+					document.getElementById('subtitle').textContent =
+						`${progress.done}/${progress.total} jobs processed`;
+				}
+
+				if (results && results.length > 0) {
+					currentResults = results;
+					sortResults(sortCol);
+					updateSummary(results);
+
+					document.getElementById('results-table').classList.remove('hidden');
+					document.getElementById('summary-row').classList.remove('hidden');
+					document.getElementById('empty-state').classList.add('hidden');
+				}
+
+				// Keep polling until done
+				if (!progress || progress.done < progress.total) {
+					setTimeout(pollResults, 1000);
+				}
+			});
+		}
+
+		// Start polling
+		pollResults();
+	</script>
+</body>
+</html>

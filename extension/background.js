@@ -165,6 +165,117 @@ async function handleAddToShortlist(payload) {
 	}
 }
 
+/**
+ * Batch assess: find all LinkedIn job tabs, extract + assess each one.
+ * Sends progress updates via chrome.storage.local.
+ */
+async function handleBatchAssess() {
+	// Find all LinkedIn job posting tabs
+	const allTabs = await chrome.tabs.query({});
+	const jobTabs = allTabs.filter(t =>
+		t.url && /linkedin\.com\/jobs\/view\//.test(t.url)
+	);
+
+	if (jobTabs.length === 0) {
+		return { success: false, error: 'No LinkedIn job posting tabs found. Open some job postings first.' };
+	}
+
+	// Clear previous batch results
+	chrome.storage.local.set({
+		batchProgress: { total: jobTabs.length, done: 0, current: '' },
+		batchResults: [],
+	});
+
+	const results = [];
+
+	for (let i = 0; i < jobTabs.length; i++) {
+		const tab = jobTabs[i];
+		const tabUrl = tab.url;
+
+		// Update progress
+		chrome.storage.local.set({
+			batchProgress: { total: jobTabs.length, done: i, current: tab.title || tabUrl },
+		});
+
+		try {
+			// Inject content script and grab page text
+			await chrome.scripting.executeScript({
+				target: { tabId: tab.id },
+				files: ['content.js'],
+			});
+			await new Promise(r => setTimeout(r, 200));
+
+			const pageData = await new Promise((resolve, reject) => {
+				chrome.tabs.sendMessage(tab.id, { action: 'extractJobPosting' }, resp => {
+					if (chrome.runtime.lastError) {
+						reject(new Error(chrome.runtime.lastError.message));
+					} else {
+						resolve(resp);
+					}
+				});
+			});
+
+			if (!pageData || !pageData.success || !pageData.pageData) {
+				results.push({ url: tabUrl, error: 'Could not extract page text' });
+				continue;
+			}
+
+			// Extract posting via server
+			const extraction = await apiFetch('/api/extract-posting', {
+				method: 'POST',
+				body: JSON.stringify({
+					url: pageData.pageData.url || tabUrl,
+					title: pageData.pageData.title || '',
+					text: pageData.pageData.text || '',
+				}),
+			});
+
+			if (!extraction || !extraction.description) {
+				results.push({ url: tabUrl, error: 'Extraction returned no description' });
+				continue;
+			}
+
+			// Run partial assessment
+			const assessment = await apiFetch('/api/assess/partial', {
+				method: 'POST',
+				body: JSON.stringify({
+					posting_text: extraction.description || '',
+					company: extraction.company || 'Unknown',
+					title: extraction.title || 'Unknown',
+					posting_url: tabUrl,
+					requirements: extraction.requirements || null,
+					seniority: extraction.seniority || 'unknown',
+				}),
+			});
+
+			results.push({
+				url: tabUrl,
+				company: extraction.company || 'Unknown',
+				title: extraction.title || 'Unknown',
+				location: extraction.location || '',
+				salary: extraction.salary || '',
+				percentage: assessment.partial_percentage || 0,
+				grade: assessment.overall_grade || '?',
+				strongest: assessment.strongest_match || '',
+				biggest_gap: assessment.biggest_gap || '',
+			});
+		} catch (err) {
+			results.push({ url: tabUrl, error: err.message });
+		}
+	}
+
+	// Sort by percentage descending
+	results.sort((a, b) => (b.percentage || 0) - (a.percentage || 0));
+
+	// Store final results
+	chrome.storage.local.set({
+		batchProgress: { total: jobTabs.length, done: jobTabs.length, current: 'Done' },
+		batchResults: results,
+	});
+
+	return { success: true, total: jobTabs.length, results };
+}
+
 // ─── Message Listener ────────────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener(function (request, _sender, sendResponse) {
@@ -203,6 +314,10 @@ chrome.runtime.onMessage.addListener(function (request, _sender, sendResponse) {
 
 		case 'addToShortlist':
 			promise = handleAddToShortlist(request.payload);
+			break;
+
+		case 'batchAssess':
+			promise = handleBatchAssess();
 			break;
 
 		default:
