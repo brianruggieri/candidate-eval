@@ -721,6 +721,7 @@ def _build_skill_detail(
             best_match.source if best_match else EvidenceSource.RESUME_ONLY
         ),
         confidence=best_match.confidence if best_match else 0.0,
+        matched_skill=best_match.name if best_match else None,
     )
 
 
