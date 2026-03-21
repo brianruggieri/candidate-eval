@@ -375,3 +375,103 @@ def write_fit_page(
 def _today_iso() -> str:
 	from datetime import date
 	return date.today().isoformat()
+
+
+# ── Export Orchestrator ──
+
+
+def export_fit_assessment(
+	assessment_data: dict[str, Any],
+	merged_profile_path: Path,
+	candidate_profile_path: Path,
+	output_dir: Path,
+	*,
+	cal_link: str = _DEFAULT_CAL_LINK,
+) -> Path:
+	"""Full export pipeline: load data, select content, write Hugo markdown.
+
+	Args:
+		assessment_data: Assessment dict from storage. The 'data' field contains the
+			full FitAssessment payload — already parsed as a dict by storage._decode_assessment().
+		merged_profile_path: Path to merged_profile.json.
+		candidate_profile_path: Path to candidate_profile.json.
+		output_dir: Directory to write the markdown file.
+		cal_link: Cal.com booking link.
+
+	Returns:
+		Path to the written file.
+	"""
+	import json
+
+	# Extract the nested assessment payload.
+	# storage.get_assessment() returns a row dict where 'data' is already JSON-parsed.
+	# Top-level 'should_apply' is coerced to bool by storage —
+	# always read from the nested 'data' dict for original string values.
+	raw_data = assessment_data.get("data", {})
+	if isinstance(raw_data, str):
+		full_data = json.loads(raw_data)
+	else:
+		full_data = raw_data
+
+	# Load profiles
+	merged_profile = json.loads(merged_profile_path.read_text())
+	candidate_profile = json.loads(candidate_profile_path.read_text())
+
+	# Extract fields
+	title = full_data.get("job_title", "Engineer")
+	company = full_data.get("company_name", "Unknown")
+	slug = generate_slug(title, company)
+
+	skill_matches_raw = full_data.get("skill_matches", [])
+	action_items = full_data.get("action_items", [])
+
+	# Build merged skill lookup for depth/sessions/discovery
+	merged_skills = {s["name"].lower(): s for s in merged_profile.get("skills", [])}
+
+	# Select and enrich skill matches
+	selected_matches = select_skill_matches(skill_matches_raw)
+	enriched_matches = []
+	for match in selected_matches:
+		req = match["requirement"]
+		merged = merged_skills.get(req.lower(), {})
+		enriched_matches.append({
+			"skill": req,
+			"status": match.get("match_status", "no_evidence"),
+			"priority": match.get("priority", "implied"),
+			"depth": (merged.get("effective_depth") or "Unknown").replace("_", " ").title(),
+			"sessions": merged.get("session_evidence_count", 0),
+			"source": str(match.get("evidence_source", "resume_only")),
+			"discovery": bool(merged.get("discovery_flag", False)),
+		})
+
+	# Select other content
+	evidence = select_evidence_highlights(
+		skill_matches_raw,
+		candidate_profile.get("skills", []),
+	)
+	patterns = select_patterns(merged_profile.get("patterns", []))
+
+	# Collect tech stack from job for project relevance
+	job_techs = [m.get("requirement", "") for m in skill_matches_raw]
+	projects = select_projects(merged_profile.get("projects", []), job_techs)
+	gaps = select_gaps(skill_matches_raw, action_items)
+
+	# Assemble front matter data
+	page_data = {
+		"title": title,
+		"company": company,
+		"slug": slug,
+		"description": f"Evidence-backed fit assessment for {title} at {company}",
+		"posting_url": full_data.get("posting_url"),
+		"overall_grade": full_data.get("overall_grade", "?"),
+		"overall_score": full_data.get("overall_score", 0.0),
+		"should_apply": full_data.get("should_apply", "maybe"),
+		"overall_summary": full_data.get("overall_summary", ""),
+		"skill_matches": enriched_matches,
+		"evidence_highlights": evidence,
+		"patterns": patterns,
+		"projects": projects,
+		"gaps": gaps,
+	}
+
+	return write_fit_page(page_data, output_dir=output_dir, cal_link=cal_link)

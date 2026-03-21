@@ -1,3 +1,5 @@
+import json
+
 import yaml
 
 from claude_candidate.fit_exporter import (
@@ -8,6 +10,7 @@ from claude_candidate.fit_exporter import (
 	select_projects,
 	select_gaps,
 	write_fit_page,
+	export_fit_assessment,
 )
 
 
@@ -203,3 +206,128 @@ def test_write_fit_page_defaults(tmp_path):
 	parsed = yaml.safe_load(result.read_text().split("---\n", 2)[1])
 	assert parsed["public"] is False
 	assert "cal_link" in parsed
+
+
+# ── Integration Test ──
+
+
+def test_export_fit_assessment_end_to_end(tmp_path):
+	"""Integration test: full export pipeline with mock data files."""
+	# Create mock merged profile
+	merged = {
+		"skills": [
+			{
+				"name": "python",
+				"source": "corroborated",
+				"effective_depth": "EXPERT",
+				"session_evidence_count": 551,
+				"discovery_flag": False,
+				"confidence": 0.95,
+			},
+			{
+				"name": "react",
+				"source": "sessions_only",
+				"effective_depth": "APPLIED",
+				"session_evidence_count": 229,
+				"discovery_flag": True,
+				"confidence": 0.8,
+			},
+		],
+		"patterns": [
+			{"pattern_type": "architecture_first", "strength": "exceptional", "frequency": "dominant"},
+			{"pattern_type": "testing_instinct", "strength": "strong", "frequency": "common"},
+		],
+		"projects": [
+			{
+				"project_name": "claude-candidate",
+				"description": "Evidence-backed job fit engine",
+				"complexity": "ambitious",
+				"technologies": ["Python", "FastAPI"],
+				"session_count": 42,
+				"date_range_start": "2026-01-01",
+				"date_range_end": "2026-03-20",
+				"key_decisions": ["Designed fuzzy skill taxonomy"],
+			},
+		],
+	}
+	merged_path = tmp_path / "merged_profile.json"
+	merged_path.write_text(json.dumps(merged))
+
+	# Create mock candidate profile
+	candidate = {
+		"skills": [
+			{
+				"name": "python",
+				"evidence": [
+					{
+						"session_id": "test-session",
+						"session_date": "2026-03-01T00:00:00",
+						"project_context": "claude-candidate",
+						"evidence_snippet": "Built async pipeline with aiosqlite",
+						"evidence_type": "direct_usage",
+						"confidence": 0.95,
+					},
+				],
+			},
+		],
+	}
+	candidate_path = tmp_path / "candidate_profile.json"
+	candidate_path.write_text(json.dumps(candidate))
+
+	# Create mock assessment data matching what storage.get_assessment() returns.
+	# storage._decode_assessment() already JSON-parses the 'data' field,
+	# so 'data' is a dict here. Top-level 'should_apply' is coerced to bool.
+	assessment = {
+		"assessment_id": "test-123",
+		"should_apply": True,
+		"data": {
+			"job_title": "Staff Engineer",
+			"company_name": "Anthropic",
+			"posting_url": "https://example.com/jobs/123",
+			"overall_grade": "A+",
+			"overall_score": 0.97,
+			"should_apply": "strong_yes",
+			"overall_summary": "Exceptional fit.",
+			"skill_matches": [
+				{
+					"requirement": "python",
+					"priority": "must_have",
+					"match_status": "strong_match",
+					"candidate_evidence": "Expert Python developer",
+					"evidence_source": "corroborated",
+					"confidence": 0.95,
+				},
+				{
+					"requirement": "kubernetes",
+					"priority": "must_have",
+					"match_status": "no_evidence",
+					"candidate_evidence": "Adjacent experience with Docker",
+					"evidence_source": "resume_only",
+					"confidence": 0.1,
+				},
+			],
+			"action_items": ["Learn Kubernetes for container orchestration"],
+		},
+	}
+
+	output_dir = tmp_path / "content" / "fit"
+	output_dir.mkdir(parents=True)
+
+	result = export_fit_assessment(
+		assessment,
+		merged_profile_path=merged_path,
+		candidate_profile_path=candidate_path,
+		output_dir=output_dir,
+	)
+
+	assert result.exists()
+	assert result.name == "staff-engineer-anthropic.md"
+
+	content = result.read_text()
+	parsed = yaml.safe_load(content.split("---\n", 2)[1])
+	assert parsed["overall_grade"] == "A+"
+	assert parsed["company"] == "Anthropic"
+	assert len(parsed["skill_matches"]) >= 1
+	assert parsed["skill_matches"][0]["skill"] == "python"
+	assert len(parsed["gaps"]) >= 1
+	assert parsed["gaps"][0]["requirement"] == "kubernetes"

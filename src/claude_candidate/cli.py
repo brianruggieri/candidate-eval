@@ -352,6 +352,75 @@ def shortlist(db: str | None) -> None:
         )
 
 
+@main.command("export-fit")
+@click.argument("assessment_id")
+@click.option(
+    "--output-dir", "-o",
+    type=click.Path(exists=True, file_okay=False),
+    required=True,
+    help="Directory to write the Hugo markdown file (e.g., ../roojerry/content/fit/)",
+)
+@click.option(
+    "--db",
+    type=click.Path(),
+    default=None,
+    help="Path to assessments.db (default: ~/.claude-candidate/assessments.db)",
+)
+@click.option(
+    "--cal-link",
+    default="https://cal.com/brianruggieri/30min",
+    help="Cal.com booking link for the CTA button.",
+)
+def export_fit(assessment_id: str, output_dir: str, db: str | None, cal_link: str) -> None:
+    """Export a FitAssessment as a Hugo markdown file for the fit landing page."""
+    import asyncio
+    from claude_candidate.fit_exporter import export_fit_assessment
+    from claude_candidate.storage import AssessmentStore
+
+    data_dir = Path.home() / ".claude-candidate"
+    db_path = Path(db) if db else data_dir / "assessments.db"
+    merged_path = data_dir / "merged_profile.json"
+    candidate_path = data_dir / "candidate_profile.json"
+
+    # Validate paths
+    if not db_path.exists():
+        click.echo(f"Error: Database not found at {db_path}", err=True)
+        raise SystemExit(1)
+    if not merged_path.exists():
+        click.echo(f"Error: Merged profile not found at {merged_path}", err=True)
+        raise SystemExit(1)
+    if not candidate_path.exists():
+        click.echo(f"Error: Candidate profile not found at {candidate_path}", err=True)
+        raise SystemExit(1)
+
+    # Load assessment from DB
+    async def _load():
+        store = AssessmentStore(db_path)
+        await store.initialize()
+        try:
+            return await store.get_assessment(assessment_id)
+        finally:
+            await store.close()
+
+    assessment = asyncio.run(_load())
+    if not assessment:
+        click.echo(f"Error: Assessment '{assessment_id}' not found.", err=True)
+        raise SystemExit(1)
+
+    # Export
+    result_path = export_fit_assessment(
+        assessment,
+        merged_profile_path=merged_path,
+        candidate_profile_path=candidate_path,
+        output_dir=Path(output_dir),
+        cal_link=cal_link,
+    )
+
+    slug = result_path.stem
+    click.echo(f"Exported: {result_path}")
+    click.echo(f"URL:      roojerry.com/fit/{slug}")
+
+
 def _extract_basic_requirements(text: str) -> list:
     """
     Basic keyword-based requirement extraction for v0.1 PoC.
