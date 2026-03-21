@@ -72,8 +72,8 @@ DEPTH_EXCEEDS_OFFSET = 1
 # Skill match status scores
 STATUS_SCORE_EXCEEDS = 1.0
 STATUS_SCORE_STRONG = 0.90
-STATUS_SCORE_PARTIAL = 0.6
-STATUS_SCORE_ADJACENT = 0.45
+STATUS_SCORE_PARTIAL = 0.65
+STATUS_SCORE_ADJACENT = 0.50
 STATUS_SCORE_RELATED = 0.35
 # No evidence floor: an experienced engineer has transferable skills
 # even in areas not directly in their profile. 0.0 was too punitive.
@@ -643,11 +643,20 @@ def _score_requirement(
     best_match: MergedSkillEvidence | None,
     best_status: str,
 ) -> float:
-    """Compute the score for one requirement given its best match."""
+    """Compute the score for one requirement given its best match.
+
+    Match status drives the score. Confidence applies as a minor adjustment
+    (±10%) rather than a multiplicative penalty, since match status already
+    encodes quality and the old confidence × status multiplication created
+    an artificial ceiling around A-.
+    """
     req_score = STATUS_SCORE.get(best_status, STATUS_SCORE_NONE)
-    if best_match:
+    if best_match and best_status != "no_evidence":
         effective_confidence = max(best_match.confidence, CONFIDENCE_FLOOR)
-        req_score *= effective_confidence
+        # Scale confidence to a 0.90–1.0 range: high confidence gets full score,
+        # low confidence gets at most a 10% penalty.
+        adjustment = 0.90 + 0.10 * effective_confidence
+        req_score *= adjustment
     return req_score
 
 
@@ -1202,7 +1211,9 @@ class QuickMatchEngine:
                     found = _find_skill_match(skill_name, self.profile)
                     if found:
                         status = _assess_depth_match(found, depth_floor)
-                        all_scores.append(STATUS_SCORE.get(status, 0.0) * max(found.confidence, CONFIDENCE_FLOOR))
+                        conf = max(found.confidence, CONFIDENCE_FLOOR)
+                        adj = 0.90 + 0.10 * conf
+                        all_scores.append(STATUS_SCORE.get(status, 0.0) * adj)
                     else:
                         all_scores.append(0.0)
                 avg_score = sum(all_scores) / len(all_scores) if all_scores else 0.0

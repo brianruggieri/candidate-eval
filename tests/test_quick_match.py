@@ -828,10 +828,11 @@ def test_score_requirement_confidence_floor():
     )
 
     score = _score_requirement(low_conf_skill, "strong_match")
-    # Without floor: 0.85 * 0.3 = 0.255
-    # With floor at 0.85: 0.85 * 0.85 = 0.7225
-    assert score >= STATUS_SCORE["strong_match"] * 0.85
-    assert score == STATUS_SCORE["strong_match"] * 0.85  # Exactly at floor
+    # Confidence adjustment: 0.90 + 0.10 * max(0.3, 0.85) = 0.90 + 0.085 = 0.985
+    # Score = 0.90 * 0.985 = 0.8865
+    expected_adj = 0.90 + 0.10 * max(0.3, 0.85)  # CONFIDENCE_FLOOR = 0.85
+    expected = STATUS_SCORE["strong_match"] * expected_adj
+    assert abs(score - expected) < 0.001
 
 
 def test_soft_skill_requirement_discounted():
