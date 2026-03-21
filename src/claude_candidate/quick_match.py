@@ -530,12 +530,40 @@ def _best_available_depth(skill: MergedSkillEvidence) -> DepthLevel:
     return best
 
 
+def _related_corroboration_boost(
+    skill: MergedSkillEvidence,
+    profile: MergedEvidenceProfile,
+) -> int:
+    """Boost depth rank by 1 if 2+ related skills exist at deep+ depth.
+
+    If a candidate has shallow depth on a skill but deep expertise in
+    closely related areas, their capability is likely underestimated.
+    E.g., agentic-workflows at "applied" + llm at "deep" + langchain at
+    "deep" suggests true agentic depth is higher than "applied".
+    """
+    taxonomy = _get_taxonomy()
+    related = taxonomy.get_related(skill.name)
+    if not related:
+        return 0
+    deep_count = 0
+    for ps in profile.skills:
+        canon = taxonomy.canonicalize(ps.name)
+        if canon in related:
+            ps_depth = DEPTH_RANK.get(_best_available_depth(ps), 0)
+            if ps_depth >= DEPTH_RANK[DepthLevel.DEEP]:
+                deep_count += 1
+    return 1 if deep_count >= 2 else 0
+
+
 def _assess_depth_match(
     skill: MergedSkillEvidence,
     required_depth: DepthLevel,
+    profile: MergedEvidenceProfile | None = None,
 ) -> str:
     """Assess how well a skill's depth matches a requirement."""
     actual_rank = DEPTH_RANK.get(_best_available_depth(skill), 0)
+    if profile:
+        actual_rank += _related_corroboration_boost(skill, profile)
     required_rank = DEPTH_RANK.get(required_depth, 0)
 
     if actual_rank >= required_rank + DEPTH_EXCEEDS_OFFSET:
@@ -593,7 +621,7 @@ def _find_best_skill(
         # Try direct match (exact, fuzzy, pattern)
         found = _find_skill_match(skill_name, profile)
         if found:
-            status = _assess_depth_match(found, depth_floor)
+            status = _assess_depth_match(found, depth_floor, profile)
             if STATUS_RANK.get(status, 0) > STATUS_RANK.get(best_status, 0):
                 best_match = found
                 best_status = status
@@ -1224,7 +1252,7 @@ class QuickMatchEngine:
                 for skill_name in req.skill_mapping:
                     found = _find_skill_match(skill_name, self.profile)
                     if found:
-                        status = _assess_depth_match(found, depth_floor)
+                        status = _assess_depth_match(found, depth_floor, self.profile)
                         conf = max(found.confidence, CONFIDENCE_FLOOR)
                         adj = 0.90 + 0.10 * conf
                         all_scores.append(STATUS_SCORE.get(status, 0.0) * adj)
