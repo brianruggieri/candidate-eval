@@ -187,5 +187,6 @@
       "years_experience": null,
       "education_level": null
     }
-  ]
+  ],
+  "expected_grade": "B-"
 }
