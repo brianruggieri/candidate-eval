@@ -114,13 +114,13 @@
     "parent": null
   },
   "machine-learning": {
-    "aliases": ["ml", "deep-learning", "deep learning", "machine learning"],
+    "aliases": ["ml", "deep-learning", "deep learning", "machine learning", "multimodal-ai", "multimodal ai", "computer-vision", "voice-ai"],
     "category": "domain",
     "related": ["python", "llm", "rag", "prompt-engineering", "pytorch", "tensorflow", "data-science"],
     "parent": null
   },
   "llm": {
-    "aliases": ["large-language-model", "large language model", "language model", "llms", "large language models"],
+    "aliases": ["large-language-model", "large language model", "language model", "llms", "large language models", "model-routing", "model routing", "llm-evaluation", "llm evaluation"],
     "category": "domain",
     "related": ["machine-learning", "rag", "prompt-engineering", "python", "agentic-workflows", "ai-orchestration"],
     "parent": "machine-learning",
@@ -133,7 +133,7 @@
     "parent": null
   },
   "rag": {
-    "aliases": ["retrieval-augmented-generation", "retrieval augmented generation"],
+    "aliases": ["retrieval-augmented-generation", "retrieval augmented generation", "semantic-retrieval", "semantic retrieval", "vector-databases", "vector databases", "memory-systems", "memory systems"],
     "category": "domain",
     "related": ["llm", "machine-learning", "prompt-engineering"],
     "parent": "machine-learning"
@@ -248,7 +248,7 @@
     "content_patterns": ["three.js", "THREE.", "import * as THREE"]
   },
   "agentic-workflows": {
-    "aliases": ["agentic-ai", "agentic ai", "ai-agents", "ai agents", "ai_agents", "agent-framework", "agent framework", "agent frameworks", "agentic", "agentic workflows", "agentic_workflows", "multi-agent", "multi agent", "agent orchestration", "agent-orchestration", "ai-orchestration", "ai-augmented-development", "ai-augmented development", "human-in-the-loop", "human in the loop"],
+    "aliases": ["agentic-ai", "agentic ai", "ai-agents", "ai agents", "ai_agents", "agent-framework", "agent framework", "agent frameworks", "agentic", "agentic workflows", "agentic_workflows", "multi-agent", "multi agent", "agent orchestration", "agent-orchestration", "ai-orchestration", "ai-augmented-development", "ai-augmented development", "human-in-the-loop", "human in the loop", "agent-runtime", "agent runtime", "llm-orchestration", "llm orchestration", "ai-planning", "ai planning", "autonomous-agents", "autonomous agents", "task-scheduling", "workflow-automation", "llm-applications", "llm applications"],
     "category": "domain",
     "related": ["llm", "langchain", "prompt-engineering", "rag"],
     "parent": "llm",
@@ -381,7 +381,7 @@
     "parent": null
   },
   "performance-optimization": {
-    "aliases": ["performance optimization", "performance-tuning", "optimization", "scalability", "scaling", "performance engineering"],
+    "aliases": ["performance optimization", "performance-tuning", "optimization", "scalability", "scaling", "performance engineering", "high-scale-systems", "high scale systems", "performance_profiling", "profiling_tools"],
     "category": "practice",
     "related": ["software-engineering", "system-design", "distributed-systems"],
     "parent": null
@@ -423,7 +423,7 @@
     "parent": null
   },
   "metrics": {
-    "aliases": ["kpis", "key performance indicators", "observability", "monitoring", "instrumentation", "ab_testing", "a/b testing", "ab testing", "a-b-testing", "experimentation", "dashboards", "data_visualization", "data visualization", "data-visualization"],
+    "aliases": ["kpis", "key performance indicators", "observability", "monitoring", "instrumentation", "ab_testing", "a/b testing", "ab testing", "a-b-testing", "experimentation", "dashboards", "data_visualization", "data visualization", "data-visualization", "ai-evaluation", "ai evaluation"],
     "category": "practice",
     "related": ["data-science", "product-development", "devops"],
     "parent": null
