@@ -290,28 +290,31 @@ def test_export_fit_assessment_end_to_end(tmp_path):
 			"overall_summary": "Exceptional fit.",
 			"skill_matches": [
 				{
-					"requirement": "python",
+					"requirement": "Strong experience with Python and backend systems",
 					"priority": "must_have",
 					"match_status": "strong_match",
 					"candidate_evidence": "Expert Python developer",
 					"evidence_source": "corroborated",
 					"confidence": 0.95,
+					"matched_skill": "python",
 				},
 				{
-					"requirement": "react",
-					"priority": "must_have",
-					"match_status": "strong_match",
-					"candidate_evidence": "React expert",
-					"evidence_source": "sessions_only",
-					"confidence": 0.85,
-				},
-				{
-					"requirement": "typescript",
+					"requirement": "Modern React development with hooks and context",
 					"priority": "must_have",
 					"match_status": "exceeds",
-					"candidate_evidence": "8yr TypeScript expert",
-					"evidence_source": "corroborated",
+					"candidate_evidence": "React expert with 27 sessions",
+					"evidence_source": "sessions_only",
+					"confidence": 0.85,
+					"matched_skill": "react",
+				},
+				{
+					"requirement": "Experience with FastAPI or similar frameworks",
+					"priority": "strong_preference",
+					"match_status": "strong_match",
+					"candidate_evidence": "Expert FastAPI developer",
+					"evidence_source": "sessions_only",
 					"confidence": 0.90,
+					"matched_skill": "fastapi",
 				},
 				{
 					"requirement": "kubernetes",
@@ -320,6 +323,7 @@ def test_export_fit_assessment_end_to_end(tmp_path):
 					"candidate_evidence": "Adjacent experience with Docker",
 					"evidence_source": "resume_only",
 					"confidence": 0.1,
+					"matched_skill": None,
 				},
 			],
 			"action_items": ["Learn Kubernetes for container orchestration"],
@@ -344,9 +348,15 @@ def test_export_fit_assessment_end_to_end(tmp_path):
 	assert parsed["overall_grade"] == "A+"
 	assert parsed["company"] == "Anthropic"
 	assert len(parsed["skill_matches"]) >= 1
-	assert parsed["skill_matches"][0]["skill"] == "python"
+	# Requirement is a sentence, but matched_skill="python" enables the join
+	assert parsed["skill_matches"][0]["skill"] == "Strong experience with Python and backend systems"
+	assert parsed["skill_matches"][0]["depth"] == "Expert"  # enriched via matched_skill join
+	assert parsed["skill_matches"][0]["sessions"] == 551
 	assert len(parsed["gaps"]) >= 1
 	assert parsed["gaps"][0]["requirement"] == "Kubernetes"
+	# Evidence highlights should now find python via matched_skill
+	assert len(parsed["evidence_highlights"]) >= 1
+	assert parsed["evidence_highlights"][0]["quote"] == "Built async pipeline with aiosqlite"
 
 
 # ── Empty company / title edge cases ──

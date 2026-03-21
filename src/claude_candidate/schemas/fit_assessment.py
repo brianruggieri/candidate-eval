@@ -40,6 +40,7 @@ class SkillMatchDetail(BaseModel):
     candidate_evidence: str
     evidence_source: EvidenceSource
     confidence: float = Field(ge=0.0, le=1.0)
+    matched_skill: str | None = None  # Canonical skill name that resolved this requirement
 
 
 def score_to_grade(score: float) -> str:

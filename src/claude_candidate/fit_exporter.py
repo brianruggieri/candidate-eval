@@ -273,10 +273,10 @@ def select_evidence_highlights(
 		if evidence:
 			skill_evidence[name] = evidence
 
-	# Prefer corroborated strong matches
+	# Prefer corroborated strong matches, also include exceeds
 	strong = [
 		m for m in skill_matches
-		if m.get("match_status") == "strong_match"
+		if m.get("match_status") in ("strong_match", "exceeds")
 	]
 	strong.sort(
 		key=lambda m: (
@@ -289,8 +289,9 @@ def select_evidence_highlights(
 	for match in strong:
 		if len(result) >= limit:
 			break
-		requirement = match["requirement"].lower()
-		evidence_list = skill_evidence.get(requirement, [])
+		# Use matched_skill (canonical name) for lookup, fall back to requirement
+		lookup_key = (match.get("matched_skill") or match["requirement"]).lower()
+		evidence_list = skill_evidence.get(lookup_key, [])
 		if not evidence_list:
 			continue
 
@@ -438,7 +439,9 @@ def export_fit_assessment(
 	enriched_matches = []
 	for match in selected_matches:
 		req = match["requirement"]
-		merged = merged_skills.get(req.lower(), {})
+		# Use matched_skill (canonical name) for the join, fall back to requirement
+		join_key = (match.get("matched_skill") or req).lower()
+		merged = merged_skills.get(join_key, {})
 		enriched_matches.append({
 			"skill": req,
 			"status": match.get("match_status", "no_evidence"),
