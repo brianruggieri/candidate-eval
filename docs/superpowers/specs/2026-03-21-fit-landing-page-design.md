@@ -38,10 +38,14 @@ The audience is a hiring manager or recruiter evaluating a senior software engin
 | `layouts/fit/list.html` | Public assessment index (only `public: true` pages) |
 | `static/css/fit.css` | Fit-specific styles (grade badge, status colors, amber token) |
 
+### Template Strategy
+
+`layouts/fit/single.html` is a **fully standalone template** — it does NOT extend `baseof.html`. This avoids loading the canvas background, physics field, coin flip, jQuery, Bootstrap JS, and other portfolio-specific resources (~200KB of JS the fit page doesn't need). The fit template provides its own `<html>`, `<head>`, and `<body>` with only the CSS and fonts it needs.
+
 ### No Changes To
 
-- `baseof.html` — fit pages extend it, override nav block
-- `design-system.css` — reuse existing variables (only add `--color-amber: #F59E0B`)
+- `baseof.html` — untouched, fit pages don't extend it
+- `design-system.css` — reuse existing variables via `@import` in `fit.css`
 - `hugo.toml` sections array — fit is NOT a homepage section
 - Existing layouts, partials, JS — untouched
 
@@ -54,6 +58,7 @@ Each assessment is `content/fit/<slug>.md` with all data in front matter:
 title: "Staff Engineer"
 company: "Anthropic"
 slug: "staff-engineer-anthropic"
+description: "Evidence-backed fit assessment for Staff Engineer at Anthropic"
 posting_url: "https://linkedin.com/jobs/..."
 date: 2026-03-20
 public: false
@@ -111,9 +116,49 @@ gaps:
 ---
 ```
 
+### Data Mapping (CLI Export → Front Matter)
+
+The export command joins data from `FitAssessment` (via `SkillMatchDetail`) and `MergedEvidenceProfile` (via `MergedSkillEvidence`). The join key is the canonical skill name: `SkillMatchDetail.requirement` ↔ `MergedSkillEvidence.name`.
+
+**skill_matches:**
+
+| Front matter field | Source model | Source field | Transform |
+|---|---|---|---|
+| `skill` | `SkillMatchDetail` | `requirement` | Direct |
+| `status` | `SkillMatchDetail` | `match_status` | Direct (enum value) |
+| `priority` | `SkillMatchDetail` | `priority` | Direct (enum value) |
+| `depth` | `MergedSkillEvidence` | `effective_depth` | Title case (`EXPERT` → `"Expert"`) |
+| `sessions` | `MergedSkillEvidence` | `session_evidence_count` | Direct (int) |
+| `source` | `SkillMatchDetail` | `evidence_source` | Direct (enum value) |
+| `discovery` | `MergedSkillEvidence` | `discovery_flag` | Direct (bool) |
+
+**evidence_highlights:**
+
+Select the top 3 `SkillMatchDetail` entries with `match_status='strong_match'`, preferring `evidence_source='corroborated'` then `'sessions_only'`. For each, look up the matching skill in `MergedEvidenceProfile.skills` by name, then find the highest-confidence `SessionReference` in that skill's evidence list:
+
+| Front matter field | Source |
+|---|---|
+| `heading` | `SkillMatchDetail.requirement` (title cased) |
+| `quote` | `SessionReference.evidence_snippet` |
+| `project` | `SessionReference.project_context` |
+| `date` | `SessionReference.session_date` (formatted as "Mon YYYY") |
+| `tags` | Technologies from the parent `ProjectSummary` if available, else `[requirement]` |
+
+**patterns:**
+
+From `MergedEvidenceProfile.patterns`:
+
+| Front matter field | Source field | Transform |
+|---|---|---|
+| `name` | `pattern_type` | Snake case → Title Case (`architecture_first` → `"Architecture First"`) |
+| `strength` | `strength` | Capitalize (`exceptional` → `"Exceptional"`) |
+| `frequency` | `frequency` | Capitalize |
+
+**projects and gaps:** Direct mapping from `MergedEvidenceProfile.projects` and `FitAssessment` gap-related fields respectively.
+
 ### Template Layout (single.html)
 
-Seven sections, top to bottom:
+Eight sections, top to bottom:
 
 **1. Sticky Nav Bar**
 - Glassmorphic: `rgba(45,74,82,0.85)` + `backdrop-filter: blur(12px)`
@@ -128,7 +173,7 @@ Seven sections, top to bottom:
 - Must-have coverage stat (derived: count skill_matches where priority=must_have AND status!=gap)
 - Grade badge (right side): circular, ~16rem, ring border colored by grade range
   - A-range: `#89C45A` (accent green)
-  - B-range: `#F59E0B` (amber)
+  - B-range: `#f0b429` (amber — existing `--status-amber`)
   - C and below: `#64748B` (slate)
 - Grade letter in center: Saira Extra Condensed, 700, ~5rem
 
@@ -136,8 +181,9 @@ Seven sections, top to bottom:
 - 3-column responsive grid (3 → 2 → 1 on mobile)
 - Glassmorphic cards with 3px left accent stripe
 - Stripe color by status:
-  - `strong_match` / `exceeds`: `#89C45A` (green)
-  - `partial_match`: `#F59E0B` (amber)
+  - `strong_match`: `#89C45A` (green)
+  - `exceeds`: `#23759E` (brand blue — distinct from strong match)
+  - `partial_match`: `#f0b429` (amber — existing `--status-amber`)
   - `adjacent`: `#8BBAC1` (cyan)
   - `gap`: `#64748B` (slate)
 - Card content: skill name (bold), status tag (pill, status color bg), priority label (small caps), depth + session count, source badge
@@ -187,13 +233,12 @@ In `list.html`, only render cards where `public: true`:
 
 Add to `static/robots.txt` or Hugo-generated robots.txt:
 ```
-# Unlisted fit pages are noindexed individually
-# This is belt-and-suspenders for crawlers that ignore meta tags
+# Unlisted fit pages are noindexed individually via meta tags
+# This disallow is belt-and-suspenders for crawlers that ignore meta tags
 User-agent: *
 Disallow: /fit/
-Allow: /fit/$
 ```
-Note: `Allow: /fit/$` permits crawling the index page itself (which only shows public entries).
+Note: The `/fit/` index page is also disallowed by this rule, but since it only renders public entries and those entries link to their own pages, discoverability comes from direct links shared with recruiters, not search engines. This is intentional — the fit section is not meant to be browsed organically.
 
 ### Design Token Mapping
 
@@ -212,9 +257,9 @@ Note: `Allow: /fit/$` permits crawling the index page itself (which only shows p
 | Role | Value | Source |
 |------|-------|--------|
 | Strong match / positive | `#89C45A` | Existing accent green |
-| Partial match / moderate | `#F59E0B` | **New** — add as `--color-amber` |
+| Partial match / moderate | `#f0b429` | Existing `--status-amber` |
 | Adjacent / neutral | `#8BBAC1` | Existing cyan |
-| Gap / growing | `#64748B` | New — slate gray |
+| Gap / growing | `#64748B` | New — add as `--color-slate` in `fit.css` |
 | Exceeds | `#23759E` | Existing brand blue |
 | Headings | `#2D4A52` | Existing brand dark |
 | Body text | `#6E6C70` | Existing muted gray |
@@ -234,6 +279,14 @@ Note: `Allow: /fit/$` permits crawling the index page itself (which only shows p
 - Status tags: pill with status color bg, white text
 - Priority labels: Saira Extra Condensed, 600, small caps
 
+### Accessibility
+
+- All hover transitions (card lift, shadow enhance) respect `@media (prefers-reduced-motion: reduce)` — set transition duration to 0
+- Grade badge has `aria-label` (e.g., `aria-label="Overall grade: A plus"`)
+- Sticky nav section anchors are keyboard-navigable with visible focus outlines (`2px solid var(--color-accent)`)
+- Status color tags include text labels (not color-only) — already the case since tags show "Strong Match", "Partial", etc.
+- Sufficient color contrast: all text on glass cards meets WCAG AA (dark text on light semi-transparent bg)
+
 ### List Page (list.html)
 
 A simple card grid at `/fit/` showing only public assessments:
@@ -247,15 +300,15 @@ A simple card grid at `/fit/` showing only public assessments:
 
 ### New Command
 
-`cli.py export-fit <posting-id> [--output-dir PATH]`
+`cli.py export-fit <assessment-id> [--output-dir PATH]`
 
 **Location:** Add to existing `cli.py` Click group.
 
-**Dependencies:** Reads from `assessments.db` (FitAssessment) and merged profile (MergedEvidenceProfile).
+**Dependencies:** Reads from `assessments.db` (FitAssessment by `assessment_id` primary key) and merged profile (MergedEvidenceProfile from `~/.claude-candidate/merged_profile.json`).
 
 ### Behavior
 
-1. Load FitAssessment from DB by posting ID
+1. Load FitAssessment from DB by `assessment_id`
 2. Load MergedEvidenceProfile for pattern + project data
 3. Generate slug:
    - Drop seniority prefixes except highest-level (Sr. Staff → Staff)
@@ -270,7 +323,7 @@ A simple card grid at `/fit/` showing only public assessments:
    - Top 4-5 behavioral patterns (by strength desc)
    - Top 3-4 projects (prefer those with technology overlap with job requirements)
    - 2-3 gaps (must_have or strong_preference with no_evidence or adjacent status)
-5. Write markdown file to `--output-dir` (default: `../roojerry/content/fit/`)
+5. Write markdown file to `--output-dir` (required — no default; validate directory exists before writing)
 6. Print: slug, file path, and the URL it will be at
 
 ### Slug Generation
@@ -301,7 +354,7 @@ YAML front matter matching the content file structure defined in Repo 1 above. N
 
 ```
 1. Run assessment:     .venv/bin/python -m claude_candidate.cli assess <posting-url>
-2. Export fit page:    .venv/bin/python -m claude_candidate.cli export-fit <posting-id>
+2. Export fit page:    .venv/bin/python -m claude_candidate.cli export-fit <assessment-id> --output-dir ../roojerry/content/fit/
 3. Review markdown:    cat ../roojerry/content/fit/<slug>.md
 4. (Optional) Set:     public: true
 5. Build site:         cd ../roojerry && npm run build
