@@ -196,9 +196,10 @@ class TestSkillMatchScoring:
 
         # Both should be low (missing skill), but must_have weights it more heavily
         # in overall scoring. Since both have only one requirement, the raw scores
-        # for the skill dimension should be the same (0.0), but verify it doesn't crash.
-        assert a_must.skill_match.score == 0.0
-        assert a_nice.skill_match.score == 0.0
+        # for the skill dimension should be the same (STATUS_SCORE_NONE floor).
+        from claude_candidate.quick_match import STATUS_SCORE_NONE
+        assert a_must.skill_match.score == STATUS_SCORE_NONE
+        assert a_nice.skill_match.score == STATUS_SCORE_NONE
 
 
 class TestMissionAlignment:

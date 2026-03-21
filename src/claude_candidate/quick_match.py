@@ -71,11 +71,13 @@ DEPTH_EXCEEDS_OFFSET = 1
 
 # Skill match status scores
 STATUS_SCORE_EXCEEDS = 1.0
-STATUS_SCORE_STRONG = 0.85
+STATUS_SCORE_STRONG = 0.90
 STATUS_SCORE_PARTIAL = 0.6
 STATUS_SCORE_ADJACENT = 0.45
 STATUS_SCORE_RELATED = 0.35
-STATUS_SCORE_NONE = 0.0
+# No evidence floor: an experienced engineer has transferable skills
+# even in areas not directly in their profile. 0.0 was too punitive.
+STATUS_SCORE_NONE = 0.10
 
 # Status ranking for "best match" selection
 STATUS_RANK_EXCEEDS = 5
@@ -392,6 +394,11 @@ VIRTUAL_SKILL_RULES: list[tuple[str, list[str], int, DepthLevel]] = [
                              "ci-cd", "api-design", "ownership"], 2, DepthLevel.APPLIED),
     # metrics: analytics tools + data skills
     ("metrics", ["metabase", "sql", "data-science", "postgresql"], 1, DepthLevel.APPLIED),
+    # developer-tools: builds tools for developers
+    ("developer-tools", ["ci-cd", "git", "testing", "software-engineering",
+                          "api-design", "llm"], 2, DepthLevel.DEEP),
+    # open-source: git + collaborative development
+    ("open-source", ["git", "ci-cd", "software-engineering", "collaboration"], 2, DepthLevel.APPLIED),
 ]
 
 # Maps behavioral pattern types to taxonomy skills they imply.
