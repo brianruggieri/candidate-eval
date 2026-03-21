@@ -642,6 +642,7 @@ CONFIDENCE_FLOOR = 0.85
 def _score_requirement(
     best_match: MergedSkillEvidence | None,
     best_status: str,
+    priority: RequirementPriority = RequirementPriority.MUST_HAVE,
 ) -> float:
     """Compute the score for one requirement given its best match.
 
@@ -649,9 +650,18 @@ def _score_requirement(
     (±10%) rather than a multiplicative penalty, since match status already
     encodes quality and the old confidence × status multiplication created
     an artificial ceiling around A-.
+
+    No-evidence scoring is priority-dependent:
+    - must_have/strong_preference: 0.0 (hard gaps should hurt)
+    - nice_to_have/implied: STATUS_SCORE_NONE floor (transferable skills)
     """
+    if best_status == "no_evidence":
+        if priority in (RequirementPriority.MUST_HAVE, RequirementPriority.STRONG_PREFERENCE):
+            return 0.0
+        return STATUS_SCORE_NONE
+
     req_score = STATUS_SCORE.get(best_status, STATUS_SCORE_NONE)
-    if best_match and best_status != "no_evidence":
+    if best_match:
         effective_confidence = max(best_match.confidence, CONFIDENCE_FLOOR)
         # Scale confidence to a 0.90–1.0 range: high confidence gets full score,
         # low confidence gets at most a 10% penalty.
@@ -1202,7 +1212,7 @@ class QuickMatchEngine:
             best_match, best_status = _find_best_skill(
                 req, self.profile, depth_floor,
             )
-            req_score = _score_requirement(best_match, best_status)
+            req_score = _score_requirement(best_match, best_status, req.priority)
 
             # Compound scoring: also check average of all constituent skills
             if len(req.skill_mapping) > 1:

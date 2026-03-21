@@ -194,11 +194,10 @@ class TestSkillMatchScoring:
         a_must = engine.assess(requirements=reqs_must, company="T", title="T")
         a_nice = engine.assess(requirements=reqs_nice, company="T", title="T")
 
-        # Both should be low (missing skill), but must_have weights it more heavily
-        # in overall scoring. Since both have only one requirement, the raw scores
-        # for the skill dimension should be the same (STATUS_SCORE_NONE floor).
+        # must_have no_evidence scores 0.0 (hard gap), nice_to_have gets
+        # STATUS_SCORE_NONE floor (transferable skills).
         from claude_candidate.quick_match import STATUS_SCORE_NONE
-        assert a_must.skill_match.score == STATUS_SCORE_NONE
+        assert a_must.skill_match.score == 0.0
         assert a_nice.skill_match.score == STATUS_SCORE_NONE
 
 
