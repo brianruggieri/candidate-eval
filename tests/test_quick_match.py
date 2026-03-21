@@ -621,7 +621,7 @@ class TestPartialAssessmentWeights:
     def test_partial_assessment_uses_fixed_weights(
         self, candidate_profile, resume_profile
     ):
-        """Partial assessment always uses 50/30/20 weights."""
+        """Partial assessment always uses 65/25/10 weights."""
         merged = merge_profiles(candidate_profile, resume_profile)
         engine = QuickMatchEngine(merged)
 
@@ -631,9 +631,9 @@ class TestPartialAssessmentWeights:
             title="Engineer",
         )
 
-        assert assessment.skill_match.weight == 0.50
-        assert assessment.experience_match.weight == 0.30
-        assert assessment.education_match.weight == 0.20
+        assert assessment.skill_match.weight == 0.65
+        assert assessment.experience_match.weight == 0.25
+        assert assessment.education_match.weight == 0.10
 
     def test_insufficient_data_scores_high(
         self, candidate_profile, resume_profile
@@ -828,9 +828,9 @@ def test_score_requirement_confidence_floor():
 
     score = _score_requirement(low_conf_skill, "strong_match")
     # Without floor: 0.85 * 0.3 = 0.255
-    # With floor: 0.85 * 0.5 = 0.425
-    assert score >= STATUS_SCORE["strong_match"] * 0.5
-    assert score == STATUS_SCORE["strong_match"] * 0.5  # Exactly at floor
+    # With floor at 0.85: 0.85 * 0.85 = 0.7225
+    assert score >= STATUS_SCORE["strong_match"] * 0.85
+    assert score == STATUS_SCORE["strong_match"] * 0.85  # Exactly at floor
 
 
 def test_soft_skill_requirement_discounted():

@@ -72,9 +72,9 @@ DEPTH_EXCEEDS_OFFSET = 1
 # Skill match status scores
 STATUS_SCORE_EXCEEDS = 1.0
 STATUS_SCORE_STRONG = 0.85
-STATUS_SCORE_PARTIAL = 0.55
-STATUS_SCORE_ADJACENT = 0.3
-STATUS_SCORE_RELATED = 0.25
+STATUS_SCORE_PARTIAL = 0.6
+STATUS_SCORE_ADJACENT = 0.45
+STATUS_SCORE_RELATED = 0.35
 STATUS_SCORE_NONE = 0.0
 
 # Status ranking for "best match" selection
@@ -625,8 +625,11 @@ def _find_best_skill(
     return best_match, best_status
 
 
-# Confidence floor — prevent low-confidence skills from cratering scores
-CONFIDENCE_FLOOR = 0.5
+# Confidence floor — prevent low-confidence skills from cratering scores.
+# Resume-only skills default to 0.5 confidence but are still legitimate
+# evidence. Floor at 0.85 ensures match status drives scoring, with
+# confidence providing only a minor adjustment.
+CONFIDENCE_FLOOR = 0.85
 
 
 def _score_requirement(
@@ -1024,12 +1027,12 @@ class QuickMatchEngine:
             inp.requirements, inp.tech_stack or [],
         )
 
-        # Fixed partial-assessment weights: 50/30/20
-        # Insufficient-data dimensions score 90% ("no requirement = effectively met")
-        # so they keep their weight and help the score
-        skill_dim.weight = 0.50
-        experience_dim.weight = 0.30
-        education_dim.weight = 0.20
+        # Partial-assessment weights: skill-heavy so unmatched technical
+        # requirements properly suppress scores. Experience/education default
+        # to 0.9 when not stated, so lower their weight to avoid inflating.
+        skill_dim.weight = 0.65
+        experience_dim.weight = 0.25
+        education_dim.weight = 0.10
 
         overall_score = _compute_overall_score(
             skill_dim,
