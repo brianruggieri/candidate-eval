@@ -356,6 +356,12 @@
     "related": ["c", "rust"],
     "parent": null
   },
+  "csharp": {
+    "aliases": ["c#", "c-sharp", "dotnet", ".net"],
+    "category": "language",
+    "related": ["unity", "java"],
+    "parent": null
+  },
   "c": {
     "aliases": ["c-language"],
     "category": "language",
