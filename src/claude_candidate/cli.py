@@ -368,13 +368,13 @@ def shortlist(db: str | None) -> None:
 )
 @click.option(
     "--cal-link",
-    default="https://cal.com/brianruggieri/30min",
-    help="Cal.com booking link for the CTA button.",
+    default=None,
+    help="Cal.com booking link (default: from fit_exporter module).",
 )
-def export_fit(assessment_id: str, output_dir: str, db: str | None, cal_link: str) -> None:
+def export_fit(assessment_id: str, output_dir: str, db: str | None, cal_link: str | None) -> None:
     """Export a FitAssessment as a Hugo markdown file for the fit landing page."""
     import asyncio
-    from claude_candidate.fit_exporter import export_fit_assessment
+    from claude_candidate.fit_exporter import export_fit_assessment, _DEFAULT_CAL_LINK
     from claude_candidate.storage import AssessmentStore
 
     data_dir = Path.home() / ".claude-candidate"
@@ -413,7 +413,7 @@ def export_fit(assessment_id: str, output_dir: str, db: str | None, cal_link: st
         merged_profile_path=merged_path,
         candidate_profile_path=candidate_path,
         output_dir=Path(output_dir),
-        cal_link=cal_link,
+        cal_link=cal_link or _DEFAULT_CAL_LINK,
     )
 
     slug = result_path.stem
