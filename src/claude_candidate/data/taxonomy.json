@@ -127,7 +127,7 @@
     "content_patterns": ["llm", "large language model", "language model"]
   },
   "prompt-engineering": {
-    "aliases": ["prompt engineering", "prompt design", "prompt-design"],
+    "aliases": ["prompt engineering", "prompt design", "prompt-design", "prompt"],
     "category": "practice",
     "related": ["llm", "machine-learning", "rag", "agentic-workflows"],
     "parent": null
@@ -297,7 +297,7 @@
     "parent": null
   },
   "api-design": {
-    "aliases": ["api design", "api_design", "rest-api", "rest api", "restful", "api development", "api-development", "graphql"],
+    "aliases": ["api design", "api_design", "rest-api", "rest api", "rest apis", "restful", "api development", "api-development", "graphql"],
     "category": "practice",
     "related": ["software-engineering", "backend-development", "fastapi"],
     "parent": null
@@ -441,7 +441,7 @@
     "parent": null
   },
   "creative-tools": {
-    "aliases": ["creative tools", "creative-technology", "creative technology", "visual-authoring", "visual authoring", "playcanvas"],
+    "aliases": ["creative tools", "creative tooling", "creative-technology", "creative technology", "visual-authoring", "visual authoring", "playcanvas"],
     "category": "domain",
     "related": ["unity", "webgl", "three-js", "game-development"],
     "parent": null

@@ -349,11 +349,126 @@ def _find_pattern_match(
     return None
 
 
+# ---------------------------------------------------------------------------
+# Virtual skill inference: synthesize compound skills from constituents
+# ---------------------------------------------------------------------------
+
+# Maps a virtual skill name to (required_any, min_count, inferred_depth).
+# If the profile contains >= min_count skills from required_any, the virtual
+# skill is inferred at inferred_depth.
+VIRTUAL_SKILL_RULES: list[tuple[str, list[str], int, DepthLevel]] = [
+    # full-stack: need frontend + backend evidence
+    ("full-stack", ["react", "vue", "angular", "nextjs", "frontend-development",
+                    "node.js", "python", "fastapi", "api-design", "backend-development"], 2, DepthLevel.DEEP),
+    # software-engineering: need multiple programming skills
+    ("software-engineering", ["python", "typescript", "javascript", "react", "node.js",
+                              "ci-cd", "git", "testing", "api-design"], 3, DepthLevel.DEEP),
+    # frontend-development: need a frontend framework
+    ("frontend-development", ["react", "vue", "angular", "nextjs", "html-css"], 1, DepthLevel.DEEP),
+    # backend-development: need a backend stack
+    ("backend-development", ["python", "node.js", "fastapi", "api-design", "postgresql", "sql"], 2, DepthLevel.DEEP),
+    # system-design: architecture pattern or multiple system skills
+    ("system-design", ["api-design", "distributed-systems", "cloud-infrastructure",
+                        "software-engineering", "postgresql", "docker", "kubernetes"], 2, DepthLevel.APPLIED),
+    # testing: testing pattern or pytest
+    ("testing", ["pytest", "ci-cd"], 1, DepthLevel.DEEP),
+    # devops: container/infra tooling
+    ("devops", ["docker", "kubernetes", "ci-cd", "terraform", "aws", "gcp", "azure"], 2, DepthLevel.APPLIED),
+    # cloud-infrastructure: cloud providers
+    ("cloud-infrastructure", ["aws", "gcp", "azure", "docker", "kubernetes", "terraform"], 2, DepthLevel.APPLIED),
+    # data-science: analytics background
+    ("data-science", ["sql", "python", "metabase", "postgresql"], 2, DepthLevel.APPLIED),
+    # computer-science: implied by deep engineering experience
+    ("computer-science", ["python", "typescript", "javascript", "sql", "api-design",
+                           "software-engineering"], 3, DepthLevel.APPLIED),
+]
+
+# Maps behavioral pattern types to taxonomy skills they imply.
+PATTERN_TO_SKILL: dict[str, list[tuple[str, DepthLevel]]] = {
+    "architecture_first": [("system-design", DepthLevel.DEEP), ("software-engineering", DepthLevel.DEEP)],
+    "testing_instinct": [("testing", DepthLevel.DEEP)],
+    "modular_thinking": [("software-engineering", DepthLevel.DEEP)],
+    "iterative_refinement": [("agile", DepthLevel.APPLIED), ("prototyping", DepthLevel.APPLIED)],
+}
+
+# Minimum total years for leadership/software-engineering inference
+YEARS_LEADERSHIP_THRESHOLD = 8.0
+YEARS_SOFTWARE_ENG_THRESHOLD = 5.0
+
+
+def _infer_virtual_skill(
+    skill_name: str,
+    profile: MergedEvidenceProfile,
+) -> MergedSkillEvidence | None:
+    """Synthesize a virtual skill if the profile has constituent evidence.
+
+    Checks three sources:
+    1. Skill combination rules (VIRTUAL_SKILL_RULES)
+    2. Behavioral pattern mappings (PATTERN_TO_SKILL)
+    3. Years-of-experience thresholds for broad skills
+    """
+    taxonomy = _get_taxonomy()
+    canonical = taxonomy.match(skill_name)
+    target = (canonical or skill_name).lower().strip()
+    profile_names = {s.name.lower() for s in profile.skills}
+
+    # Check virtual skill rules
+    for rule_name, constituents, min_count, depth in VIRTUAL_SKILL_RULES:
+        if rule_name != target:
+            continue
+        # Count how many constituents the profile has
+        matched = sum(1 for c in constituents if c in profile_names)
+        if matched >= min_count:
+            return MergedSkillEvidence(
+                name=rule_name,
+                source=EvidenceSource.SESSIONS_ONLY,
+                session_depth=depth,
+                effective_depth=depth,
+                confidence=min(0.7, 0.4 + matched * 0.1),
+                discovery_flag=False,
+            )
+
+    # Check behavioral pattern mappings
+    for pattern in profile.patterns:
+        mappings = PATTERN_TO_SKILL.get(pattern.pattern_type.value, [])
+        for mapped_name, mapped_depth in mappings:
+            if mapped_name == target:
+                return MergedSkillEvidence(
+                    name=mapped_name,
+                    source=EvidenceSource.SESSIONS_ONLY,
+                    session_depth=mapped_depth,
+                    effective_depth=mapped_depth,
+                    confidence=0.7,
+                    discovery_flag=False,
+                )
+
+    # Years-based inference for broad skills
+    total = profile.total_years_experience or 0
+    if target == "leadership" and total >= YEARS_LEADERSHIP_THRESHOLD:
+        return MergedSkillEvidence(
+            name="leadership",
+            source=EvidenceSource.RESUME_ONLY,
+            resume_depth=DepthLevel.DEEP,
+            effective_depth=DepthLevel.DEEP,
+            confidence=0.6,
+        )
+    if target == "software-engineering" and total >= YEARS_SOFTWARE_ENG_THRESHOLD:
+        return MergedSkillEvidence(
+            name="software-engineering",
+            source=EvidenceSource.RESUME_ONLY,
+            resume_depth=DepthLevel.DEEP,
+            effective_depth=DepthLevel.DEEP,
+            confidence=0.6,
+        )
+
+    return None
+
+
 def _find_skill_match(
     skill_name: str,
     profile: MergedEvidenceProfile,
 ) -> MergedSkillEvidence | None:
-    """Find a skill in the merged profile via exact, fuzzy, or pattern match."""
+    """Find a skill in the merged profile via exact, fuzzy, pattern, or inference."""
     taxonomy = _get_taxonomy()
     # Canonicalize through taxonomy first (handles aliases like ci/cd -> ci-cd)
     canonical = taxonomy.match(skill_name)
@@ -368,7 +483,25 @@ def _find_skill_match(
         _find_exact_match(normalized, profile)
         or _find_fuzzy_match(normalized, profile)
         or _find_pattern_match(normalized, profile)
+        or _infer_virtual_skill(skill_name, profile)
     )
+
+
+def _best_available_depth(skill: MergedSkillEvidence) -> DepthLevel:
+    """Return the most favorable depth for matching.
+
+    For CONFLICTING skills (resume and session depths diverge by 2+ levels),
+    the merger conservatively uses session_depth as effective_depth. But when
+    the resume claims a higher depth, we use it for matching — the resume is
+    human-curated and the session extractor may under-detect skills.
+    """
+    best = skill.effective_depth
+    if skill.source == EvidenceSource.CONFLICTING and skill.resume_depth:
+        resume_rank = DEPTH_RANK.get(skill.resume_depth, 0)
+        effective_rank = DEPTH_RANK.get(best, 0)
+        if resume_rank > effective_rank:
+            best = skill.resume_depth
+    return best
 
 
 def _assess_depth_match(
@@ -376,7 +509,7 @@ def _assess_depth_match(
     required_depth: DepthLevel,
 ) -> str:
     """Assess how well a skill's depth matches a requirement."""
-    actual_rank = DEPTH_RANK.get(skill.effective_depth, 0)
+    actual_rank = DEPTH_RANK.get(_best_available_depth(skill), 0)
     required_rank = DEPTH_RANK.get(required_depth, 0)
 
     if actual_rank >= required_rank + DEPTH_EXCEEDS_OFFSET:
