@@ -460,21 +460,25 @@ def _infer_virtual_skill(
                     discovery_flag=False,
                 )
 
-    # Years-based inference for broad skills and soft skills
+    # Years-based inference for broad skills and soft skills.
+    # Depth scales with experience: senior professionals (10+ years)
+    # get DEEP depth so they don't get partial_match on behavioral reqs.
     total = profile.total_years_experience or 0
-    years_inferred: dict[str, tuple[float, DepthLevel]] = {
-        "leadership": (YEARS_LEADERSHIP_THRESHOLD, DepthLevel.DEEP),
-        "software-engineering": (YEARS_SOFTWARE_ENG_THRESHOLD, DepthLevel.DEEP),
-        "communication": (3.0, DepthLevel.APPLIED),
-        "collaboration": (3.0, DepthLevel.APPLIED),
-        "adaptability": (5.0, DepthLevel.APPLIED),
-        "problem-solving": (3.0, DepthLevel.APPLIED),
-        "ownership": (5.0, DepthLevel.APPLIED),
-        "technical-writing": (5.0, DepthLevel.APPLIED),
+    # (min_years_for_applied, min_years_for_deep)
+    years_inferred: dict[str, tuple[float, float]] = {
+        "leadership": (YEARS_LEADERSHIP_THRESHOLD, YEARS_LEADERSHIP_THRESHOLD),
+        "software-engineering": (YEARS_SOFTWARE_ENG_THRESHOLD, YEARS_SOFTWARE_ENG_THRESHOLD),
+        "communication": (3.0, 8.0),
+        "collaboration": (3.0, 8.0),
+        "adaptability": (5.0, 10.0),
+        "problem-solving": (3.0, 8.0),
+        "ownership": (5.0, 10.0),
+        "technical-writing": (5.0, 10.0),
     }
     if target in years_inferred:
-        min_years, depth = years_inferred[target]
-        if total >= min_years:
+        min_applied, min_deep = years_inferred[target]
+        depth = DepthLevel.DEEP if total >= min_deep else DepthLevel.APPLIED
+        if total >= min_applied:
             return MergedSkillEvidence(
                 name=target,
                 source=EvidenceSource.RESUME_ONLY,
