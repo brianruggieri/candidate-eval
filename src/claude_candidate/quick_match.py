@@ -695,8 +695,10 @@ def _score_requirement(
     req_score = STATUS_SCORE.get(best_status, STATUS_SCORE_NONE)
     if best_match:
         effective_confidence = max(best_match.confidence, CONFIDENCE_FLOOR)
-        # Scale confidence to a 0.90–1.0 range: high confidence gets full score,
-        # low confidence gets at most a 10% penalty.
+        # Scale confidence to a ~0.985–1.0 range (with floor at 0.85):
+        # high confidence gets full score, low confidence gets at most
+        # ~1.5% penalty. The floor prevents confidence from being a
+        # significant scoring factor — match status drives scoring.
         adjustment = 0.90 + 0.10 * effective_confidence
         req_score *= adjustment
     return req_score
@@ -1231,12 +1233,12 @@ class QuickMatchEngine:
         details: list[SkillMatchDetail] = []
         weighted_score = 0.0
         total_weight = 0.0
+        taxonomy = _get_taxonomy()
 
         for req in requirements:
             weight = PRIORITY_WEIGHT.get(req.priority, 1.0)
 
             # Discount soft skill requirements
-            taxonomy = _get_taxonomy()
             is_soft_skill = False
             for skill_name in req.skill_mapping:
                 canonical = taxonomy.match(skill_name)
