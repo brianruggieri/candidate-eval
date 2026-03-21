@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import Any
+
+import yaml
 
 # Seniority prefixes in ascending order. Keep only the highest.
 _SENIORITY_PREFIXES = [
@@ -304,3 +307,71 @@ def select_evidence_highlights(
 		})
 
 	return result
+
+
+# ── YAML Front Matter Writer ──
+
+_DEFAULT_CAL_LINK = "https://cal.com/brianruggieri/30min"
+
+
+def write_fit_page(
+	data: dict[str, Any],
+	*,
+	output_dir: Path,
+	cal_link: str = _DEFAULT_CAL_LINK,
+) -> Path:
+	"""Write a Hugo-compatible markdown file with YAML front matter.
+
+	Args:
+		data: Dict containing all front matter fields.
+		output_dir: Directory to write the markdown file to.
+		cal_link: Default Cal.com booking link.
+
+	Returns:
+		Path to the written file.
+	"""
+	output_dir = Path(output_dir)
+	if not output_dir.is_dir():
+		raise FileNotFoundError(f"Output directory does not exist: {output_dir}")
+
+	slug = data["slug"]
+	front_matter = {
+		"title": data["title"],
+		"company": data["company"],
+		"slug": slug,
+		"description": data.get(
+			"description",
+			f"Evidence-backed fit assessment for {data['title']} at {data['company']}",
+		),
+		"date": data.get("date", _today_iso()),
+		"public": data.get("public", False),
+		"cal_link": data.get("cal_link", cal_link),
+		"posting_url": data.get("posting_url"),
+		"overall_grade": data["overall_grade"],
+		"overall_score": data["overall_score"],
+		"should_apply": data["should_apply"],
+		"overall_summary": data["overall_summary"],
+		"skill_matches": data.get("skill_matches", []),
+		"evidence_highlights": data.get("evidence_highlights", []),
+		"patterns": data.get("patterns", []),
+		"projects": data.get("projects", []),
+		"gaps": data.get("gaps", []),
+	}
+
+	yaml_str = yaml.dump(
+		front_matter,
+		default_flow_style=False,
+		allow_unicode=True,
+		sort_keys=False,
+		width=120,
+	)
+	content = f"---\n{yaml_str}---\n"
+
+	output_path = output_dir / f"{slug}.md"
+	output_path.write_text(content, encoding="utf-8")
+	return output_path
+
+
+def _today_iso() -> str:
+	from datetime import date
+	return date.today().isoformat()

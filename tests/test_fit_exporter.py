@@ -1,3 +1,5 @@
+import yaml
+
 from claude_candidate.fit_exporter import (
 	generate_slug,
 	select_skill_matches,
@@ -5,6 +7,7 @@ from claude_candidate.fit_exporter import (
 	select_patterns,
 	select_projects,
 	select_gaps,
+	write_fit_page,
 )
 
 
@@ -120,3 +123,83 @@ def test_select_patterns_limits_to_5():
 	patterns = [{"pattern_type": f"pattern_{i}", "strength": "strong", "frequency": "common"} for i in range(8)]
 	result = select_patterns(patterns)
 	assert len(result) <= 5
+
+
+# ── YAML Front Matter Writer Tests ──
+
+
+def test_write_fit_page_creates_file(tmp_path):
+	data = {
+		"title": "Staff Engineer",
+		"company": "Anthropic",
+		"slug": "staff-engineer-anthropic",
+		"description": "Evidence-backed fit assessment for Staff Engineer at Anthropic",
+		"overall_grade": "A+",
+		"overall_score": 0.97,
+		"should_apply": "strong_yes",
+		"overall_summary": "Exceptional fit.",
+		"skill_matches": [],
+		"evidence_highlights": [],
+		"patterns": [],
+		"projects": [],
+		"gaps": [],
+	}
+	result = write_fit_page(data, output_dir=tmp_path)
+	assert result.exists()
+	assert result.name == "staff-engineer-anthropic.md"
+
+
+def test_write_fit_page_valid_yaml(tmp_path):
+	data = {
+		"title": "Staff Engineer",
+		"company": "Anthropic",
+		"slug": "staff-engineer-anthropic",
+		"description": "Test",
+		"overall_grade": "A+",
+		"overall_score": 0.97,
+		"should_apply": "strong_yes",
+		"overall_summary": "Great fit.",
+		"skill_matches": [
+			{"skill": "Python", "status": "strong_match", "priority": "must_have",
+			 "depth": "Expert", "sessions": 551, "source": "corroborated", "discovery": False},
+		],
+		"evidence_highlights": [],
+		"patterns": [{"name": "Architecture First", "strength": "Exceptional", "frequency": "Dominant"}],
+		"projects": [],
+		"gaps": [],
+	}
+	result = write_fit_page(data, output_dir=tmp_path)
+	content = result.read_text()
+
+	# Verify YAML front matter is valid
+	assert content.startswith("---\n")
+	parts = content.split("---\n", 2)
+	assert len(parts) >= 3  # before ---, yaml content, after ---
+	parsed = yaml.safe_load(parts[1])
+	assert parsed["title"] == "Staff Engineer"
+	assert parsed["company"] == "Anthropic"
+	assert parsed["overall_grade"] == "A+"
+	assert len(parsed["skill_matches"]) == 1
+	assert parsed["skill_matches"][0]["skill"] == "Python"
+
+
+def test_write_fit_page_defaults(tmp_path):
+	data = {
+		"title": "Engineer",
+		"company": "Test",
+		"slug": "engineer-test",
+		"description": "Test",
+		"overall_grade": "B+",
+		"overall_score": 0.80,
+		"should_apply": "yes",
+		"overall_summary": "Solid fit.",
+		"skill_matches": [],
+		"evidence_highlights": [],
+		"patterns": [],
+		"projects": [],
+		"gaps": [],
+	}
+	result = write_fit_page(data, output_dir=tmp_path)
+	parsed = yaml.safe_load(result.read_text().split("---\n", 2)[1])
+	assert parsed["public"] is False
+	assert "cal_link" in parsed
