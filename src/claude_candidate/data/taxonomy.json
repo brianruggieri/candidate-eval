@@ -221,7 +221,7 @@
     "parent": null
   },
   "adaptability": {
-    "aliases": ["flexibility", "fast learner", "quick learner", "self-starter", "autonomy", "self-directed", "initiative", "ambiguity tolerance", "bias for action"],
+    "aliases": ["flexibility", "fast learner", "quick learner", "self-starter", "autonomy", "self-directed", "initiative", "ambiguity tolerance", "bias for action", "ai-research", "ai research", "curiosity"],
     "category": "soft_skill",
     "related": [],
     "parent": null
@@ -321,7 +321,7 @@
     "parent": null
   },
   "security": {
-    "aliases": ["cybersecurity", "application-security", "appsec", "information security", "infosec", "security engineering"],
+    "aliases": ["cybersecurity", "application-security", "appsec", "information security", "infosec", "security engineering", "compliance", "safety", "responsible_ai", "responsible-ai", "responsible ai", "ai-safety", "ai safety"],
     "category": "practice",
     "related": ["software-engineering", "devops"],
     "parent": null
