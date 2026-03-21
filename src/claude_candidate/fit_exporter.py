@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import re
+import sys
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -107,7 +110,13 @@ def generate_slug(title: str, company: str) -> str:
 	title_parts.extend(remaining)
 
 	# Company: first word, strip special chars (split on non-alphanumeric for "Change.org")
-	company_word = re.split(r"[^a-zA-Z0-9]", company.strip().split()[0])[0].lower()
+	company_parts = company.strip().split()
+	if not company_parts:
+		company_word = "company"
+	else:
+		company_word = re.split(r"[^a-zA-Z0-9]", company_parts[0])[0].lower()
+	if not company_word:
+		company_word = "company"
 
 	# Join and clean
 	slug = "-".join(title_parts + [company_word])
@@ -160,7 +169,7 @@ def select_gaps(
 		requirement = gap["requirement"]
 		best_action = _match_action_item(requirement, action_items)
 		result.append({
-			"requirement": requirement,
+			"requirement": requirement.title(),
 			"status": gap.get("candidate_evidence", "No direct experience"),
 			"action": best_action,
 		})
@@ -289,7 +298,6 @@ def select_evidence_highlights(
 		best = max(evidence_list, key=lambda e: e.get("confidence", 0))
 		session_date = best.get("session_date", "")
 		if session_date:
-			from datetime import datetime
 			try:
 				dt = datetime.fromisoformat(str(session_date).replace("Z", "+00:00"))
 				formatted_date = dt.strftime("%b %Y")
@@ -373,7 +381,6 @@ def write_fit_page(
 
 
 def _today_iso() -> str:
-	from datetime import date
 	return date.today().isoformat()
 
 
@@ -401,8 +408,6 @@ def export_fit_assessment(
 	Returns:
 		Path to the written file.
 	"""
-	import json
-
 	# Extract the nested assessment payload.
 	# storage.get_assessment() returns a row dict where 'data' is already JSON-parsed.
 	# Top-level 'should_apply' is coerced to bool by storage —
@@ -455,6 +460,36 @@ def export_fit_assessment(
 	job_techs = [m.get("requirement", "") for m in skill_matches_raw]
 	projects = select_projects(merged_profile.get("projects", []), job_techs)
 	gaps = select_gaps(skill_matches_raw, action_items)
+
+	# Validate minimum content thresholds
+	threshold_errors = []
+	if len(enriched_matches) < 3:
+		threshold_errors.append(
+			f"Skill matches: {len(enriched_matches)} found, minimum 3 required"
+		)
+	if len(projects) < 1:
+		threshold_errors.append(
+			"Projects: 0 found, minimum 1 required"
+		)
+	if threshold_errors:
+		raise ValueError(
+			"Export failed — insufficient content for a credible fit page:\n  - "
+			+ "\n  - ".join(threshold_errors)
+		)
+
+	# Warn about hidden optional sections
+	hidden = []
+	if not evidence:
+		hidden.append("Evidence Highlights")
+	if not patterns:
+		hidden.append("Behavioral Patterns")
+	if not gaps:
+		hidden.append("Gap Transparency")
+	if hidden:
+		print(
+			f"Note: {', '.join(hidden)} section(s) will be hidden (no content available)",
+			file=sys.stderr,
+		)
 
 	# Assemble front matter data
 	page_data = {
