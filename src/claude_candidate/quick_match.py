@@ -381,6 +381,12 @@ VIRTUAL_SKILL_RULES: list[tuple[str, list[str], int, DepthLevel]] = [
     # computer-science: implied by deep engineering experience
     ("computer-science", ["python", "typescript", "javascript", "sql", "api-design",
                            "software-engineering"], 3, DepthLevel.APPLIED),
+    # product-development: full-stack + shipping evidence
+    ("product-development", ["react", "node.js", "python", "prototyping", "api-design",
+                              "ci-cd", "full-stack"], 2, DepthLevel.APPLIED),
+    # production-systems: deployment + testing + infra
+    ("production-systems", ["ci-cd", "docker", "testing", "aws", "gcp", "azure",
+                             "postgresql", "devops"], 2, DepthLevel.APPLIED),
 ]
 
 # Maps behavioral pattern types to taxonomy skills they imply.
@@ -442,24 +448,28 @@ def _infer_virtual_skill(
                     discovery_flag=False,
                 )
 
-    # Years-based inference for broad skills
+    # Years-based inference for broad skills and soft skills
     total = profile.total_years_experience or 0
-    if target == "leadership" and total >= YEARS_LEADERSHIP_THRESHOLD:
-        return MergedSkillEvidence(
-            name="leadership",
-            source=EvidenceSource.RESUME_ONLY,
-            resume_depth=DepthLevel.DEEP,
-            effective_depth=DepthLevel.DEEP,
-            confidence=0.6,
-        )
-    if target == "software-engineering" and total >= YEARS_SOFTWARE_ENG_THRESHOLD:
-        return MergedSkillEvidence(
-            name="software-engineering",
-            source=EvidenceSource.RESUME_ONLY,
-            resume_depth=DepthLevel.DEEP,
-            effective_depth=DepthLevel.DEEP,
-            confidence=0.6,
-        )
+    years_inferred: dict[str, tuple[float, DepthLevel]] = {
+        "leadership": (YEARS_LEADERSHIP_THRESHOLD, DepthLevel.DEEP),
+        "software-engineering": (YEARS_SOFTWARE_ENG_THRESHOLD, DepthLevel.DEEP),
+        "communication": (3.0, DepthLevel.APPLIED),
+        "collaboration": (3.0, DepthLevel.APPLIED),
+        "adaptability": (5.0, DepthLevel.APPLIED),
+        "problem-solving": (3.0, DepthLevel.APPLIED),
+        "ownership": (5.0, DepthLevel.APPLIED),
+        "technical-writing": (5.0, DepthLevel.APPLIED),
+    }
+    if target in years_inferred:
+        min_years, depth = years_inferred[target]
+        if total >= min_years:
+            return MergedSkillEvidence(
+                name=target,
+                source=EvidenceSource.RESUME_ONLY,
+                resume_depth=depth,
+                effective_depth=depth,
+                confidence=0.6,
+            )
 
     return None
 

@@ -197,7 +197,7 @@
     "content_patterns": ["langchain", "from langchain"]
   },
   "communication": {
-    "aliases": ["written communication", "verbal communication", "communication skills", "excellent communication"],
+    "aliases": ["written communication", "verbal communication", "communication skills", "excellent communication", "client-facing", "client facing", "presentation", "consulting"],
     "category": "soft_skill",
     "related": ["collaboration", "leadership"],
     "parent": null
@@ -209,19 +209,19 @@
     "parent": null
   },
   "leadership": {
-    "aliases": ["technical leadership", "technical-leadership", "team lead", "mentorship", "people management", "tech lead", "engineering management", "mentoring"],
+    "aliases": ["technical leadership", "technical-leadership", "team lead", "mentorship", "people management", "tech lead", "engineering management", "mentoring", "stakeholder_management", "stakeholder-management", "stakeholder management", "executive-communication"],
     "category": "soft_skill",
     "related": ["communication", "collaboration"],
     "parent": null
   },
   "problem-solving": {
-    "aliases": ["analytical thinking", "critical thinking", "troubleshooting", "problem solving", "analytical-thinking", "critical-thinking"],
+    "aliases": ["analytical thinking", "critical thinking", "troubleshooting", "problem solving", "analytical-thinking", "critical-thinking", "debugging", "systems thinking", "attention-to-detail", "attention to detail"],
     "category": "soft_skill",
     "related": ["system-design"],
     "parent": null
   },
   "adaptability": {
-    "aliases": ["flexibility", "fast learner", "quick learner", "self-starter", "autonomy", "self-directed", "initiative"],
+    "aliases": ["flexibility", "fast learner", "quick learner", "self-starter", "autonomy", "self-directed", "initiative", "ambiguity tolerance", "bias for action"],
     "category": "soft_skill",
     "related": [],
     "parent": null
@@ -248,14 +248,14 @@
     "content_patterns": ["three.js", "THREE.", "import * as THREE"]
   },
   "agentic-workflows": {
-    "aliases": ["agentic-ai", "agentic ai", "ai-agents", "ai agents", "ai_agents", "agent-framework", "agent framework", "agent frameworks", "agentic", "agentic workflows", "agentic_workflows", "multi-agent", "multi agent", "agent orchestration", "agent-orchestration", "ai-orchestration"],
+    "aliases": ["agentic-ai", "agentic ai", "ai-agents", "ai agents", "ai_agents", "agent-framework", "agent framework", "agent frameworks", "agentic", "agentic workflows", "agentic_workflows", "multi-agent", "multi agent", "agent orchestration", "agent-orchestration", "ai-orchestration", "ai-augmented-development", "ai-augmented development", "human-in-the-loop", "human in the loop"],
     "category": "domain",
     "related": ["llm", "langchain", "prompt-engineering", "rag"],
     "parent": "llm",
     "content_patterns": ["agent", "agentic", "orchestrat", "multi-agent"]
   },
   "developer-tools": {
-    "aliases": ["dev-tools", "devtools", "developer tools", "developer-tools", "dev tools", "tooling"],
+    "aliases": ["dev-tools", "devtools", "developer tools", "developer-tools", "dev tools", "tooling", "developer-productivity", "developer productivity", "engineering-metrics"],
     "category": "domain",
     "related": ["software-engineering", "ci-cd", "testing"],
     "parent": null
@@ -267,7 +267,7 @@
     "parent": null
   },
   "frontend-development": {
-    "aliases": ["frontend", "front-end", "front end", "frontend development", "front-end development", "ui-development", "ui development"],
+    "aliases": ["frontend", "front-end", "front end", "frontend development", "front-end development", "ui-development", "ui development", "web_development", "web development", "web-development", "responsive_design", "responsive design", "responsive-design", "mobile_web_development"],
     "category": "practice",
     "related": ["react", "javascript", "typescript", "html-css", "full-stack"],
     "parent": null
@@ -303,7 +303,7 @@
     "parent": null
   },
   "testing": {
-    "aliases": ["test-driven-development", "tdd", "unit-testing", "unit testing", "integration-testing", "integration testing", "automated testing", "automated-testing", "qa", "quality assurance", "test automation"],
+    "aliases": ["test-driven-development", "tdd", "unit-testing", "unit testing", "integration-testing", "integration testing", "automated testing", "automated-testing", "qa", "quality assurance", "test automation", "code_quality", "code-quality", "code quality", "code-review", "code review"],
     "category": "practice",
     "related": ["software-engineering", "ci-cd", "pytest"],
     "parent": null
@@ -339,7 +339,7 @@
     "parent": null
   },
   "prototyping": {
-    "aliases": ["rapid prototyping", "rapid-prototyping", "proof of concept", "poc", "mvp", "minimum viable product"],
+    "aliases": ["rapid prototyping", "rapid-prototyping", "proof of concept", "poc", "mvp", "minimum viable product", "greenfield-development", "greenfield development", "innovation"],
     "category": "practice",
     "related": ["software-engineering", "full-stack", "developer-tools"],
     "parent": null
@@ -393,7 +393,7 @@
     "parent": null
   },
   "product-development": {
-    "aliases": ["product development", "product_development", "product engineering", "product-engineering", "product management", "product-management", "product ownership", "product thinking"],
+    "aliases": ["product development", "product_development", "product engineering", "product-engineering", "product management", "product-management", "product ownership", "product thinking", "product sense", "process-design", "process design"],
     "category": "practice",
     "related": ["software-engineering", "full-stack", "agile"],
     "parent": null
@@ -423,7 +423,7 @@
     "parent": null
   },
   "metrics": {
-    "aliases": ["kpis", "key performance indicators", "observability", "monitoring", "instrumentation", "ab_testing", "a/b testing", "ab testing", "a-b-testing", "experimentation"],
+    "aliases": ["kpis", "key performance indicators", "observability", "monitoring", "instrumentation", "ab_testing", "a/b testing", "ab testing", "a-b-testing", "experimentation", "dashboards", "data_visualization", "data visualization", "data-visualization"],
     "category": "practice",
     "related": ["data-science", "product-development", "devops"],
     "parent": null
@@ -447,7 +447,7 @@
     "parent": null
   },
   "production-systems": {
-    "aliases": ["production systems", "production_systems", "production-grade", "production grade", "production engineering"],
+    "aliases": ["production systems", "production_systems", "production-grade", "production grade", "production engineering", "software_delivery", "software delivery", "software-delivery"],
     "category": "practice",
     "related": ["software-engineering", "devops", "system-design", "distributed-systems"],
     "parent": null
