@@ -134,7 +134,7 @@ The export command joins data from `FitAssessment` (via `SkillMatchDetail`) and 
 
 **evidence_highlights:**
 
-Select the top 3 `SkillMatchDetail` entries with `match_status='strong_match'`, preferring `evidence_source='corroborated'` then `'sessions_only'`. For each, look up the matching skill in `MergedEvidenceProfile.skills` by name, then find the highest-confidence `SessionReference` in that skill's evidence list:
+Select the top 3 `SkillMatchDetail` entries with `match_status='strong_match'`, preferring `evidence_source='corroborated'` then `'sessions_only'`. For each, look up the matching `SkillEntry` in `CandidateProfile.skills` by name (not `MergedEvidenceProfile` — session references live on `CandidateProfile.SkillEntry.evidence[]`), then find the highest-confidence `SessionReference`:
 
 | Front matter field | Source |
 |---|---|
@@ -154,7 +154,29 @@ From `MergedEvidenceProfile.patterns`:
 | `strength` | `strength` | Capitalize (`exceptional` → `"Exceptional"`) |
 | `frequency` | `frequency` | Capitalize |
 
-**projects and gaps:** Direct mapping from `MergedEvidenceProfile.projects` and `FitAssessment` gap-related fields respectively.
+**projects:**
+
+From `MergedEvidenceProfile.projects` (type `ProjectSummary`):
+
+| Front matter field | Source field | Transform |
+|---|---|---|
+| `name` | `project_name` | Direct |
+| `description` | `description` | Direct |
+| `complexity` | `complexity` | Capitalize |
+| `technologies` | `technologies` | Direct (list) |
+| `sessions` | `session_count` | Direct (int) |
+| `date_range` | `date_range_start` + `date_range_end` | Format as "YYYY" or "YYYY — YYYY" |
+| `callout` | `key_decisions[0]` | First key decision as the callout quote |
+
+**gaps:**
+
+Constructed from `FitAssessment.skill_matches` — select entries where `match_status` is `no_evidence` or `adjacent` AND `priority` is `must_have` or `strong_preference`. For each:
+
+| Front matter field | Source | Transform |
+|---|---|---|
+| `requirement` | `SkillMatchDetail.requirement` | Title case |
+| `status` | `SkillMatchDetail.candidate_evidence` | Direct — this field contains the "Adjacent experience with..." narrative |
+| `action` | `FitAssessment.action_items` | Match the most relevant action item by keyword overlap with the requirement |
 
 ### Template Layout (single.html)
 
@@ -304,7 +326,10 @@ A simple card grid at `/fit/` showing only public assessments:
 
 **Location:** Add to existing `cli.py` Click group.
 
-**Dependencies:** Reads from `assessments.db` (FitAssessment by `assessment_id` primary key) and merged profile (MergedEvidenceProfile from `~/.claude-candidate/merged_profile.json`).
+**Dependencies:** Reads from three data sources:
+1. `assessments.db` — `FitAssessment` by `assessment_id` primary key (skill matches, grades, action items)
+2. `~/.claude-candidate/merged_profile.json` — `MergedEvidenceProfile` (patterns, projects, skill depth/source)
+3. `~/.claude-candidate/candidate_profile.json` — `CandidateProfile` (session references for evidence highlights)
 
 ### Behavior
 
