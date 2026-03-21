@@ -12,7 +12,7 @@
     "parent": null
   },
   "javascript": {
-    "aliases": ["js", "ecmascript", "es6"],
+    "aliases": ["js", "ecmascript", "es6", "jquery"],
     "category": "language",
     "related": ["typescript", "react", "node.js", "vue", "nextjs", "html-css"],
     "parent": null
@@ -248,7 +248,7 @@
     "content_patterns": ["three.js", "THREE.", "import * as THREE"]
   },
   "agentic-workflows": {
-    "aliases": ["agentic-ai", "agentic ai", "ai-agents", "ai agents", "ai_agents", "agent-framework", "agent framework", "agent frameworks", "agentic", "agentic workflows", "agentic_workflows", "multi-agent", "multi agent", "agent orchestration", "agent-orchestration", "ai-orchestration", "ai-augmented-development", "ai-augmented development", "human-in-the-loop", "human in the loop", "agent-runtime", "agent runtime", "llm-orchestration", "llm orchestration", "ai-planning", "ai planning", "autonomous-agents", "autonomous agents", "task-scheduling", "workflow-automation", "llm-applications", "llm applications"],
+    "aliases": ["agentic-ai", "agentic ai", "ai-agents", "ai agents", "ai_agents", "agent-framework", "agent framework", "agent frameworks", "agentic", "agentic workflows", "agentic_workflows", "multi-agent", "multi agent", "agent orchestration", "agent-orchestration", "ai-orchestration", "ai-augmented-development", "ai-augmented development", "human-in-the-loop", "human in the loop", "agent-runtime", "agent runtime", "llm-orchestration", "llm orchestration", "ai-planning", "ai planning", "autonomous-agents", "autonomous agents", "task-scheduling", "workflow-automation", "llm-applications", "llm applications", "mcp", "model-context-protocol"],
     "category": "domain",
     "related": ["llm", "langchain", "prompt-engineering", "rag"],
     "parent": "llm",
@@ -267,7 +267,7 @@
     "parent": null
   },
   "frontend-development": {
-    "aliases": ["frontend", "front-end", "front end", "frontend development", "front-end development", "ui-development", "ui development", "web_development", "web development", "web-development", "responsive_design", "responsive design", "responsive-design", "mobile_web_development"],
+    "aliases": ["frontend", "front-end", "front end", "frontend development", "front-end development", "ui-development", "ui development", "web_development", "web development", "web-development", "responsive_design", "responsive design", "responsive-design", "mobile_web_development", "frontend_architecture", "frontend-architecture", "frontend architecture", "micro_frontends", "micro-frontends", "microfrontends"],
     "category": "practice",
     "related": ["react", "javascript", "typescript", "html-css", "full-stack"],
     "parent": null
@@ -285,7 +285,7 @@
     "parent": null
   },
   "system-design": {
-    "aliases": ["system design", "system_design", "system-architecture", "system architecture", "systems design", "systems architecture", "architecture-design", "software architecture", "software-architecture"],
+    "aliases": ["system design", "system_design", "system-architecture", "system architecture", "systems design", "systems architecture", "architecture-design", "software architecture", "software-architecture", "monorepo", "bff", "backend-for-frontend"],
     "category": "practice",
     "related": ["software-engineering", "distributed-systems", "api-design"],
     "parent": null
