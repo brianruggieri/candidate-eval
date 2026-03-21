@@ -238,3 +238,17 @@ def test_are_related_self(taxonomy: SkillTaxonomy) -> None:
     # This just checks it doesn't crash; result depends on taxonomy data
     result = taxonomy.are_related("python", "python")
     assert isinstance(result, bool)
+
+
+# ---------------------------------------------------------------------------
+# Soft skill category
+# ---------------------------------------------------------------------------
+
+def test_soft_skill_category(taxonomy: SkillTaxonomy) -> None:
+    """Soft skill entries should have category 'soft_skill'."""
+    assert taxonomy.get_category("communication") == "soft_skill"
+    assert taxonomy.get_category("collaboration") == "soft_skill"
+    assert taxonomy.get_category("leadership") == "soft_skill"
+    # Aliases should resolve
+    assert taxonomy.match("excellent communication") == "communication"
+    assert taxonomy.match("team player") == "collaboration"

@@ -40,6 +40,7 @@ class MergedSkillEvidence(BaseModel):
     resume_depth: DepthLevel | None = None
     resume_context: str | None = None
     resume_years: float | None = None
+    resume_duration: str | None = None  # e.g. "8 years", "2 months" from curated resume
 
     # Session evidence
     session_depth: DepthLevel | None = None

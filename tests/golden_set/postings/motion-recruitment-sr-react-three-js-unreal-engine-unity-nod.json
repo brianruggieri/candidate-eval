@@ -1,0 +1,68 @@
+{
+  "company": "Motion Recruitment",
+  "title": "Sr. React, Three.js / Unreal Engine / Unity / Node / WebGL",
+  "description": "Sr. React, Three.js, Unreal Engine, Unity, Node, WebGL position located onsite in Glendale/Montrose, CA. Full-time role with salary range $145K/yr - $190K/yr. Responses managed off LinkedIn.",
+  "url": "https://www.linkedin.com/jobs/view/4371651471/",
+  "source": "linkedin",
+  "location": "Montrose, CA",
+  "seniority": "senior",
+  "remote": false,
+  "salary": "$145K/yr - $190K/yr",
+  "requirements": [
+    {
+      "description": "React experience",
+      "skill_mapping": [
+        "react"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Three.js experience",
+      "skill_mapping": [
+        "three.js",
+        "webgl"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Unreal Engine experience",
+      "skill_mapping": [
+        "unreal_engine"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Unity experience",
+      "skill_mapping": [
+        "unity"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Node.js experience",
+      "skill_mapping": [
+        "node.js"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "WebGL experience",
+      "skill_mapping": [
+        "webgl"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    }
+  ]
+}

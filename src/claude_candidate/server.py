@@ -735,6 +735,11 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
                 status_code=502, detail="Extraction failed: invalid response from Claude",
             ) from exc
 
+        # Normalize skill mappings through taxonomy
+        if "requirements" in parsed and isinstance(parsed["requirements"], list):
+            from claude_candidate.requirement_parser import normalize_skill_mappings
+            normalize_skill_mappings(parsed["requirements"])
+
         source = _infer_source(req.url)
         result = PostingExtraction(
             company=parsed.get("company") or "",

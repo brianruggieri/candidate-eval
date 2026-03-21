@@ -1,0 +1,159 @@
+{
+  "company": "Arcadia",
+  "title": "Senior Software Engineer (AI Agents)",
+  "description": "About the Role\n\nA fast-moving AI startup in the logistics space is hiring a Senior Software Engineer (AI Agents) to build the core systems behind an intelligent automation platform used in highly complex, operations-heavy industries. You'll design and ship production-grade LLM systems, contribute across the stack, and play a key role in evolving both the product and technical architecture.\n\nThis is a high-ownership, high-impact role where you'll collaborate closely with the founding team, contribute to major architectural decisions, and build technology that solves real-world operational problems at scale.\n\nWhat You'll Do\n\n\u2022 Build and scale the core automation and AI agent systems that power the platform\n\u2022 Work across the stack: backend APIs, data pipelines, orchestration layers, and frontend workflows\n\u2022 Design and deploy agent-based LLM components for reasoning, extraction, and decision-making\n\u2022 Collaborate directly with users to understand workflows and ship high-impact solutions\n\u2022 Contribute to architecture discussions and help drive key technical decisions\n\u2022 Write clean, reliable, maintainable code with strong engineering fundamentals\n\u2022 Support roadmap execution and help elevate engineering standards as the team grows\n\nWho You Are\n\n\u2022 A senior-level engineer with experience in high-growth or startup environments\n\u2022 Comfortable owning projects end-to-end with minimal oversight\n\u2022 Strong in 0\u21921 product development and able to operate in ambiguous problem spaces\n\u2022 Genuinely interested in applied AI and complex operational workflows\n\u2022 Pragmatic, execution-focused, and thoughtful about long-term system design\n\nWhat We're Looking For\n\n\u2022 6+ years of professional software engineering experience\n\u2022 Strong full-stack capabilities (React, TypeScript, Go, Node.js, or Python)\n\u2022 Experience designing and shipping production backend systems and APIs\n\u2022 Hands-on experience building or integrating LLM-powered or agent-based systems\n\u2022 Ability to design scalable services and data pipelines\n\u2022 Strong technical judgment and ability to make sound tradeoffs\n\u2022 Clear communicator who can collaborate cross-functionally and with customers\n\nBonus Points\n\n\u2022 Experience with retrieval pipelines, orchestration frameworks, or structured data extraction\n\u2022 Background in logistics, operations, or other data-intensive domains\n\u2022 Prior experience at an early-stage startup\n\nWhy You'll Love This Role\n\n\u2022 Meaningful equity and ownership at a high-growth startup\n\u2022 Opportunity to help shape the core architecture of a category-defining AI platform\n\u2022 Direct collaboration with founders on product and technical strategy\n\u2022 High-trust environment with real autonomy\n\u2022 The chance to modernize a critical global industry with automation and intelligent systems",
+  "url": "https://www.linkedin.com/jobs/view/4378612584/",
+  "source": "linkedin",
+  "location": "San Francisco, CA",
+  "seniority": "senior",
+  "remote": false,
+  "salary": "$225K/yr - $250K/yr",
+  "requirements": [
+    {
+      "description": "6+ years of professional software engineering experience",
+      "skill_mapping": [
+        "software_engineering"
+      ],
+      "priority": "must_have",
+      "years_experience": 6,
+      "education_level": null
+    },
+    {
+      "description": "Strong full-stack capabilities (React, TypeScript, Go, Node.js, or Python)",
+      "skill_mapping": [
+        "react",
+        "typescript",
+        "go",
+        "node.js",
+        "python",
+        "full_stack"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience designing and shipping production backend systems and APIs",
+      "skill_mapping": [
+        "backend_development",
+        "api_design",
+        "system_design"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Hands-on experience building or integrating LLM-powered or agent-based systems",
+      "skill_mapping": [
+        "llm",
+        "ai_agents",
+        "machine-learning"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Ability to design scalable services and data pipelines",
+      "skill_mapping": [
+        "distributed_systems",
+        "data_pipelines",
+        "scalability"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Strong technical judgment and ability to make sound tradeoffs",
+      "skill_mapping": [
+        "technical_leadership",
+        "architecture"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Clear communicator who can collaborate cross-functionally and with customers",
+      "skill_mapping": [
+        "communication",
+        "cross_functional_collaboration"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Senior-level engineer with experience in high-growth or startup environments",
+      "skill_mapping": [
+        "startup_experience"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Comfortable owning projects end-to-end with minimal oversight",
+      "skill_mapping": [
+        "project_ownership",
+        "autonomy"
+      ],
+      "priority": "implied",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Strong in 0\u21921 product development and able to operate in ambiguous problem spaces",
+      "skill_mapping": [
+        "product_development",
+        "zero_to_one"
+      ],
+      "priority": "implied",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Genuinely interested in applied AI and complex operational workflows",
+      "skill_mapping": [
+        "applied_ai",
+        "operations"
+      ],
+      "priority": "implied",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience with retrieval pipelines, orchestration frameworks, or structured data extraction",
+      "skill_mapping": [
+        "rag",
+        "orchestration",
+        "data_extraction"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Background in logistics, operations, or other data-intensive domains",
+      "skill_mapping": [
+        "logistics",
+        "operations",
+        "domain_expertise"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Prior experience at an early-stage startup",
+      "skill_mapping": [
+        "early_stage_startup"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    }
+  ]
+}

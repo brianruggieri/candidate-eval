@@ -18,6 +18,7 @@ ENV/
 .vscode/
 *.swp
 *.swo
+*.zed/
 
 # OS
 .DS_Store
@@ -29,6 +30,7 @@ Thumbs.db
 htmlcov/
 .mypy_cache/
 .ruff_cache/
+.hypothesis/
 
 # Claude Code
 .claude/
@@ -39,9 +41,18 @@ htmlcov/
 # Superpowers brainstorm artifacts
 .superpowers/
 
-# Local data
+# Local data — never commit user profiles, databases, or credentials
 *.tar.gz
 *.zip
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment / secrets
+.env
+.env.*
+*.pem
+*.key
 
 # Generated static site
 site/

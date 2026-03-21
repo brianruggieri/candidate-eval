@@ -71,16 +71,20 @@ DEPTH_EXCEEDS_OFFSET = 1
 
 # Skill match status scores
 STATUS_SCORE_EXCEEDS = 1.0
-STATUS_SCORE_STRONG = 0.85
-STATUS_SCORE_PARTIAL = 0.55
-STATUS_SCORE_ADJACENT = 0.3
-STATUS_SCORE_NONE = 0.0
+STATUS_SCORE_STRONG = 0.90
+STATUS_SCORE_PARTIAL = 0.65
+STATUS_SCORE_ADJACENT = 0.50
+STATUS_SCORE_RELATED = 0.35
+# No evidence floor: an experienced engineer has transferable skills
+# even in areas not directly in their profile. 0.0 was too punitive.
+STATUS_SCORE_NONE = 0.10
 
 # Status ranking for "best match" selection
-STATUS_RANK_EXCEEDS = 4
-STATUS_RANK_STRONG = 3
-STATUS_RANK_PARTIAL = 2
-STATUS_RANK_ADJACENT = 1
+STATUS_RANK_EXCEEDS = 5
+STATUS_RANK_STRONG = 4
+STATUS_RANK_PARTIAL = 3
+STATUS_RANK_ADJACENT = 2
+STATUS_RANK_RELATED = 1
 STATUS_RANK_NONE = 0
 
 # Mission alignment score adjustments
@@ -141,6 +145,9 @@ MAX_GAP_NAMES = 2
 MAX_RESUME_ITEMS = 3
 MAX_ACTION_ITEMS = 6
 
+# Soft skill discount factor — reduces weight of soft skill requirements
+SOFT_SKILL_DISCOUNT = 0.3
+
 # Rounding precision
 SCORE_PRECISION = 3
 TIMING_PRECISION = 2
@@ -183,6 +190,7 @@ STATUS_SCORE: dict[str, float] = {
     "strong_match": STATUS_SCORE_STRONG,
     "partial_match": STATUS_SCORE_PARTIAL,
     "adjacent": STATUS_SCORE_ADJACENT,
+    "related": STATUS_SCORE_RELATED,
     "no_evidence": STATUS_SCORE_NONE,
 }
 
@@ -192,6 +200,7 @@ STATUS_RANK: dict[str, int] = {
     "strong_match": STATUS_RANK_STRONG,
     "partial_match": STATUS_RANK_PARTIAL,
     "adjacent": STATUS_RANK_ADJACENT,
+    "related": STATUS_RANK_RELATED,
     "no_evidence": STATUS_RANK_NONE,
 }
 
@@ -201,6 +210,7 @@ STATUS_MARKER: dict[str, str] = {
     "strong_match": "+",
     "partial_match": "~",
     "adjacent": "?",
+    "related": "~?",
     "no_evidence": "-",
 }
 
@@ -341,25 +351,219 @@ def _find_pattern_match(
     return None
 
 
+# ---------------------------------------------------------------------------
+# Virtual skill inference: synthesize compound skills from constituents
+# ---------------------------------------------------------------------------
+
+# Maps a virtual skill name to (required_any, min_count, inferred_depth).
+# If the profile contains >= min_count skills from required_any, the virtual
+# skill is inferred at inferred_depth.
+VIRTUAL_SKILL_RULES: list[tuple[str, list[str], int, DepthLevel]] = [
+    # full-stack: need frontend + backend evidence
+    ("full-stack", ["react", "vue", "angular", "nextjs", "frontend-development",
+                    "node.js", "python", "fastapi", "api-design", "backend-development"], 2, DepthLevel.DEEP),
+    # software-engineering: need multiple programming skills
+    ("software-engineering", ["python", "typescript", "javascript", "react", "node.js",
+                              "ci-cd", "git", "testing", "api-design"], 3, DepthLevel.DEEP),
+    # frontend-development: need a frontend framework
+    ("frontend-development", ["react", "vue", "angular", "nextjs", "html-css"], 1, DepthLevel.DEEP),
+    # backend-development: need a backend stack
+    ("backend-development", ["python", "node.js", "fastapi", "api-design", "postgresql", "sql"], 2, DepthLevel.DEEP),
+    # system-design: architecture pattern or multiple system skills
+    ("system-design", ["api-design", "distributed-systems", "cloud-infrastructure",
+                        "software-engineering", "postgresql", "docker", "kubernetes"], 2, DepthLevel.APPLIED),
+    # testing: testing pattern or pytest
+    ("testing", ["pytest", "ci-cd"], 1, DepthLevel.DEEP),
+    # devops: container/infra tooling
+    ("devops", ["docker", "kubernetes", "ci-cd", "terraform", "aws", "gcp", "azure"], 2, DepthLevel.APPLIED),
+    # cloud-infrastructure: cloud providers
+    ("cloud-infrastructure", ["aws", "gcp", "azure", "docker", "kubernetes", "terraform"], 2, DepthLevel.APPLIED),
+    # data-science: analytics background
+    ("data-science", ["sql", "python", "metabase", "postgresql"], 2, DepthLevel.APPLIED),
+    # computer-science: implied by deep engineering experience
+    ("computer-science", ["python", "typescript", "javascript", "sql", "api-design",
+                           "software-engineering"], 3, DepthLevel.APPLIED),
+    # product-development: full-stack + shipping evidence
+    ("product-development", ["react", "node.js", "python", "prototyping", "api-design",
+                              "ci-cd", "full-stack"], 2, DepthLevel.APPLIED),
+    # production-systems: deployment + testing + infra
+    ("production-systems", ["ci-cd", "docker", "testing", "aws", "gcp", "azure",
+                             "postgresql", "devops"], 2, DepthLevel.APPLIED),
+    # startup-experience: prototyping + shipping evidence
+    ("startup-experience", ["prototyping", "full-stack", "product-development",
+                             "ci-cd", "api-design", "ownership"], 2, DepthLevel.APPLIED),
+    # metrics: analytics tools + data skills
+    ("metrics", ["metabase", "sql", "data-science", "postgresql"], 1, DepthLevel.APPLIED),
+    # developer-tools: builds tools for developers
+    ("developer-tools", ["ci-cd", "git", "testing", "software-engineering",
+                          "api-design", "llm"], 2, DepthLevel.DEEP),
+    # open-source: git + collaborative development
+    ("open-source", ["git", "ci-cd", "software-engineering", "collaboration"], 2, DepthLevel.APPLIED),
+]
+
+# Maps behavioral pattern types to taxonomy skills they imply.
+PATTERN_TO_SKILL: dict[str, list[tuple[str, DepthLevel]]] = {
+    "architecture_first": [("system-design", DepthLevel.DEEP), ("software-engineering", DepthLevel.DEEP)],
+    "testing_instinct": [("testing", DepthLevel.DEEP)],
+    "modular_thinking": [("software-engineering", DepthLevel.DEEP)],
+    "iterative_refinement": [("agile", DepthLevel.APPLIED), ("prototyping", DepthLevel.APPLIED)],
+}
+
+# Minimum total years for leadership/software-engineering inference
+YEARS_LEADERSHIP_THRESHOLD = 8.0
+YEARS_SOFTWARE_ENG_THRESHOLD = 5.0
+
+
+def _infer_virtual_skill(
+    skill_name: str,
+    profile: MergedEvidenceProfile,
+) -> MergedSkillEvidence | None:
+    """Synthesize a virtual skill if the profile has constituent evidence.
+
+    Checks three sources:
+    1. Skill combination rules (VIRTUAL_SKILL_RULES)
+    2. Behavioral pattern mappings (PATTERN_TO_SKILL)
+    3. Years-of-experience thresholds for broad skills
+    """
+    taxonomy = _get_taxonomy()
+    canonical = taxonomy.match(skill_name)
+    target = (canonical or skill_name).lower().strip()
+    profile_names = {s.name.lower() for s in profile.skills}
+
+    # Check virtual skill rules
+    for rule_name, constituents, min_count, depth in VIRTUAL_SKILL_RULES:
+        if rule_name != target:
+            continue
+        # Count how many constituents the profile has
+        matched = sum(1 for c in constituents if c in profile_names)
+        if matched >= min_count:
+            return MergedSkillEvidence(
+                name=rule_name,
+                source=EvidenceSource.SESSIONS_ONLY,
+                session_depth=depth,
+                effective_depth=depth,
+                confidence=min(0.7, 0.4 + matched * 0.1),
+                discovery_flag=False,
+            )
+
+    # Check behavioral pattern mappings
+    for pattern in profile.patterns:
+        mappings = PATTERN_TO_SKILL.get(pattern.pattern_type.value, [])
+        for mapped_name, mapped_depth in mappings:
+            if mapped_name == target:
+                return MergedSkillEvidence(
+                    name=mapped_name,
+                    source=EvidenceSource.SESSIONS_ONLY,
+                    session_depth=mapped_depth,
+                    effective_depth=mapped_depth,
+                    confidence=0.7,
+                    discovery_flag=False,
+                )
+
+    # Years-based inference for broad skills and soft skills.
+    # Depth scales with experience: senior professionals (10+ years)
+    # get DEEP depth so they don't get partial_match on behavioral reqs.
+    total = profile.total_years_experience or 0
+    # (min_years_for_applied, min_years_for_deep)
+    years_inferred: dict[str, tuple[float, float]] = {
+        "leadership": (YEARS_LEADERSHIP_THRESHOLD, YEARS_LEADERSHIP_THRESHOLD),
+        "software-engineering": (YEARS_SOFTWARE_ENG_THRESHOLD, YEARS_SOFTWARE_ENG_THRESHOLD),
+        "communication": (3.0, 8.0),
+        "collaboration": (3.0, 8.0),
+        "adaptability": (5.0, 10.0),
+        "problem-solving": (3.0, 8.0),
+        "ownership": (5.0, 10.0),
+        "technical-writing": (5.0, 10.0),
+    }
+    if target in years_inferred:
+        min_applied, min_deep = years_inferred[target]
+        depth = DepthLevel.DEEP if total >= min_deep else DepthLevel.APPLIED
+        if total >= min_applied:
+            return MergedSkillEvidence(
+                name=target,
+                source=EvidenceSource.RESUME_ONLY,
+                resume_depth=depth,
+                effective_depth=depth,
+                confidence=0.6,
+            )
+
+    return None
+
+
 def _find_skill_match(
     skill_name: str,
     profile: MergedEvidenceProfile,
 ) -> MergedSkillEvidence | None:
-    """Find a skill in the merged profile via exact, fuzzy, or pattern match."""
+    """Find a skill in the merged profile via exact, fuzzy, pattern, or inference."""
+    taxonomy = _get_taxonomy()
+    # Canonicalize through taxonomy first (handles aliases like ci/cd -> ci-cd)
+    canonical = taxonomy.match(skill_name)
+    if canonical:
+        found = _find_exact_match(canonical.lower(), profile)
+        if found:
+            return found
+
+    # Fallback to original normalized form
     normalized = skill_name.lower().strip()
     return (
         _find_exact_match(normalized, profile)
         or _find_fuzzy_match(normalized, profile)
         or _find_pattern_match(normalized, profile)
+        or _infer_virtual_skill(skill_name, profile)
     )
+
+
+def _best_available_depth(skill: MergedSkillEvidence) -> DepthLevel:
+    """Return the most favorable depth for matching.
+
+    For CONFLICTING skills (resume and session depths diverge by 2+ levels),
+    the merger conservatively uses session_depth as effective_depth. But when
+    the resume claims a higher depth, we use it for matching — the resume is
+    human-curated and the session extractor may under-detect skills.
+    """
+    best = skill.effective_depth
+    if skill.source == EvidenceSource.CONFLICTING and skill.resume_depth:
+        resume_rank = DEPTH_RANK.get(skill.resume_depth, 0)
+        effective_rank = DEPTH_RANK.get(best, 0)
+        if resume_rank > effective_rank:
+            best = skill.resume_depth
+    return best
+
+
+def _related_corroboration_boost(
+    skill: MergedSkillEvidence,
+    profile: MergedEvidenceProfile,
+) -> int:
+    """Boost depth rank by 1 if 2+ related skills exist at deep+ depth.
+
+    If a candidate has shallow depth on a skill but deep expertise in
+    closely related areas, their capability is likely underestimated.
+    E.g., agentic-workflows at "applied" + llm at "deep" + langchain at
+    "deep" suggests true agentic depth is higher than "applied".
+    """
+    taxonomy = _get_taxonomy()
+    related = taxonomy.get_related(skill.name)
+    if not related:
+        return 0
+    deep_count = 0
+    for ps in profile.skills:
+        canon = taxonomy.canonicalize(ps.name)
+        if canon in related:
+            ps_depth = DEPTH_RANK.get(_best_available_depth(ps), 0)
+            if ps_depth >= DEPTH_RANK[DepthLevel.DEEP]:
+                deep_count += 1
+    return 1 if deep_count >= 2 else 0
 
 
 def _assess_depth_match(
     skill: MergedSkillEvidence,
     required_depth: DepthLevel,
+    profile: MergedEvidenceProfile | None = None,
 ) -> str:
     """Assess how well a skill's depth matches a requirement."""
-    actual_rank = DEPTH_RANK.get(skill.effective_depth, 0)
+    actual_rank = DEPTH_RANK.get(_best_available_depth(skill), 0)
+    if profile:
+        actual_rank += _related_corroboration_boost(skill, profile)
     required_rank = DEPTH_RANK.get(required_depth, 0)
 
     if actual_rank >= required_rank + DEPTH_EXCEEDS_OFFSET:
@@ -385,6 +589,20 @@ def _evidence_summary(skill: MergedSkillEvidence) -> str:
     return ". ".join(parts)
 
 
+def _parse_duration_years(duration: str | None) -> float | None:
+    """Parse duration string like '8 years', '2 months' into years."""
+    if not duration:
+        return None
+    match = re.match(r'(\d+)\s*(year|month|yr|mo)', duration.lower())
+    if not match:
+        return None
+    value = int(match.group(1))
+    unit = match.group(2)
+    if unit.startswith("mo"):
+        return value / 12.0
+    return float(value)
+
+
 # ---------------------------------------------------------------------------
 # Skill scoring helpers
 # ---------------------------------------------------------------------------
@@ -395,27 +613,94 @@ def _find_best_skill(
     depth_floor: DepthLevel,
 ) -> tuple[MergedSkillEvidence | None, str]:
     """Find the best matching skill for a requirement across all mappings."""
+    taxonomy = _get_taxonomy()
     best_match: MergedSkillEvidence | None = None
     best_status = "no_evidence"
+
     for skill_name in req.skill_mapping:
+        # Try direct match (exact, fuzzy, pattern)
         found = _find_skill_match(skill_name, profile)
-        if not found:
+        if found:
+            status = _assess_depth_match(found, depth_floor, profile)
+            if STATUS_RANK.get(status, 0) > STATUS_RANK.get(best_status, 0):
+                best_match = found
+                best_status = status
             continue
-        status = _assess_depth_match(found, depth_floor)
-        if STATUS_RANK.get(status, 0) > STATUS_RANK.get(best_status, 0):
-            best_match = found
-            best_status = status
+
+        # Try related skill fallback
+        canonical = taxonomy.match(skill_name)
+        if not canonical:
+            continue
+        for profile_skill in profile.skills:
+            profile_canonical = taxonomy.canonicalize(profile_skill.name)
+            if taxonomy.are_related(canonical, profile_canonical):
+                if STATUS_RANK.get("related", 0) > STATUS_RANK.get(best_status, 0):
+                    best_match = profile_skill
+                    best_status = "related"
+                break  # Take first related match
+
+    # Years experience boost: if requirement specifies years and skill has duration data
+    if req.years_experience and best_match and best_match.resume_duration:
+        candidate_years = _parse_duration_years(best_match.resume_duration)
+        if candidate_years:
+            if candidate_years >= req.years_experience:
+                # Boost status by one tier if not already exceeds
+                if best_status == "partial_match":
+                    best_status = "strong_match"
+                elif best_status == "adjacent":
+                    best_status = "partial_match"
+
+    # Total years fallback: when no skill match but candidate has enough total experience
+    if req.years_experience and best_status == "no_evidence":
+        if profile.total_years_experience and profile.total_years_experience >= req.years_experience:
+            best_status = "related"
+            best_match = MergedSkillEvidence(
+                name="general_experience",
+                source=EvidenceSource.RESUME_ONLY,
+                effective_depth=DepthLevel.APPLIED,
+                confidence=0.5,
+            )
+
     return best_match, best_status
+
+
+# Confidence floor — prevent low-confidence skills from cratering scores.
+# Resume-only skills default to 0.5 confidence but are still legitimate
+# evidence. Floor at 0.85 ensures match status drives scoring, with
+# confidence providing only a minor adjustment.
+CONFIDENCE_FLOOR = 0.85
 
 
 def _score_requirement(
     best_match: MergedSkillEvidence | None,
     best_status: str,
+    priority: RequirementPriority = RequirementPriority.MUST_HAVE,
 ) -> float:
-    """Compute the score for one requirement given its best match."""
+    """Compute the score for one requirement given its best match.
+
+    Match status drives the score. Confidence applies as a minor adjustment
+    (±10%) rather than a multiplicative penalty, since match status already
+    encodes quality and the old confidence × status multiplication created
+    an artificial ceiling around A-.
+
+    No-evidence scoring is priority-dependent:
+    - must_have/strong_preference: 0.0 (hard gaps should hurt)
+    - nice_to_have/implied: STATUS_SCORE_NONE floor (transferable skills)
+    """
+    if best_status == "no_evidence":
+        if priority in (RequirementPriority.MUST_HAVE, RequirementPriority.STRONG_PREFERENCE):
+            return 0.0
+        return STATUS_SCORE_NONE
+
     req_score = STATUS_SCORE.get(best_status, STATUS_SCORE_NONE)
     if best_match:
-        req_score *= best_match.confidence
+        effective_confidence = max(best_match.confidence, CONFIDENCE_FLOOR)
+        # Scale confidence to a ~0.985–1.0 range (with floor at 0.85):
+        # high confidence gets full score, low confidence gets at most
+        # ~1.5% penalty. The floor prevents confidence from being a
+        # significant scoring factor — match status drives scoring.
+        adjustment = 0.90 + 0.10 * effective_confidence
+        req_score *= adjustment
     return req_score
 
 
@@ -802,12 +1087,18 @@ class QuickMatchEngine:
             inp.requirements, inp.tech_stack or [],
         )
 
-        # Fixed partial-assessment weights: 50/30/20
-        # Insufficient-data dimensions score 90% ("no requirement = effectively met")
-        # so they keep their weight and help the score
-        skill_dim.weight = 0.50
-        experience_dim.weight = 0.30
-        education_dim.weight = 0.20
+        # Partial-assessment weights: skill-heavy so unmatched technical
+        # requirements properly suppress scores. Experience/education default
+        # to 0.9 when not stated, so lower their weight to avoid inflating.
+        skill_dim.weight = 0.65
+        experience_dim.weight = 0.25
+        education_dim.weight = 0.10
+
+        # Cap experience/education scores when skill match is weak.
+        # Prevents generic experience from rescuing a poor technical fit.
+        if skill_dim.score < 0.55:
+            experience_dim.score = min(experience_dim.score, skill_dim.score + 0.2)
+            education_dim.score = min(education_dim.score, skill_dim.score + 0.2)
 
         overall_score = _compute_overall_score(
             skill_dim,
@@ -942,14 +1233,43 @@ class QuickMatchEngine:
         details: list[SkillMatchDetail] = []
         weighted_score = 0.0
         total_weight = 0.0
+        taxonomy = _get_taxonomy()
 
         for req in requirements:
             weight = PRIORITY_WEIGHT.get(req.priority, 1.0)
+
+            # Discount soft skill requirements
+            is_soft_skill = False
+            for skill_name in req.skill_mapping:
+                canonical = taxonomy.match(skill_name)
+                if canonical and taxonomy.get_category(canonical) == "soft_skill":
+                    is_soft_skill = True
+                    break
+            if is_soft_skill:
+                weight *= SOFT_SKILL_DISCOUNT
+
             total_weight += weight
             best_match, best_status = _find_best_skill(
                 req, self.profile, depth_floor,
             )
-            weighted_score += _score_requirement(best_match, best_status) * weight
+            req_score = _score_requirement(best_match, best_status, req.priority)
+
+            # Compound scoring: also check average of all constituent skills
+            if len(req.skill_mapping) > 1:
+                all_scores = []
+                for skill_name in req.skill_mapping:
+                    found = _find_skill_match(skill_name, self.profile)
+                    if found:
+                        status = _assess_depth_match(found, depth_floor, self.profile)
+                        conf = max(found.confidence, CONFIDENCE_FLOOR)
+                        adj = 0.90 + 0.10 * conf
+                        all_scores.append(STATUS_SCORE.get(status, 0.0) * adj)
+                    else:
+                        all_scores.append(0.0)
+                avg_score = sum(all_scores) / len(all_scores) if all_scores else 0.0
+                req_score = max(req_score, avg_score)
+
+            weighted_score += req_score * weight
             details.append(_build_skill_detail(req, best_match, best_status))
 
         score = weighted_score / total_weight if total_weight > 0 else 0.0

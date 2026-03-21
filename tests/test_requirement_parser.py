@@ -148,6 +148,50 @@ class TestParseRequirementsFallback:
         assert results[0].priority == RequirementPriority.MUST_HAVE
 
 
+class TestNormalizeSkillMappings:
+    """Tests for normalize_skill_mappings taxonomy normalization."""
+
+    def test_canonicalizes_known_aliases(self):
+        """normalize_skill_mappings should canonicalize known skills through taxonomy."""
+        from claude_candidate.requirement_parser import normalize_skill_mappings
+
+        reqs = [
+            {"skill_mapping": ["python3", "django", "system design"]},
+            {"skill_mapping": ["k8s", "docker-compose"]},
+        ]
+        normalize_skill_mappings(reqs)
+        # python3 -> python (via alias), django stays (not in taxonomy as direct entry)
+        assert "python" in reqs[0]["skill_mapping"]
+        # k8s -> kubernetes, docker-compose -> docker
+        assert "kubernetes" in reqs[1]["skill_mapping"]
+        assert "docker" in reqs[1]["skill_mapping"]
+
+    def test_preserves_unmatched_skills(self):
+        """Skills not in the taxonomy should be preserved as-is."""
+        from claude_candidate.requirement_parser import normalize_skill_mappings
+
+        reqs = [{"skill_mapping": ["some-obscure-tool", "another-unknown"]}]
+        normalize_skill_mappings(reqs)
+        assert reqs[0]["skill_mapping"] == ["some-obscure-tool", "another-unknown"]
+
+    def test_deduplicates_after_normalization(self):
+        """If two aliases resolve to the same canonical, deduplicate."""
+        from claude_candidate.requirement_parser import normalize_skill_mappings
+
+        reqs = [{"skill_mapping": ["python3", "python", "py"]}]
+        normalize_skill_mappings(reqs)
+        assert reqs[0]["skill_mapping"].count("python") == 1
+
+    def test_handles_empty_skill_mapping(self):
+        """Requirements with empty or missing skill_mapping should not error."""
+        from claude_candidate.requirement_parser import normalize_skill_mappings
+
+        reqs = [{"skill_mapping": []}, {"description": "no mapping key"}]
+        normalize_skill_mappings(reqs)
+        assert reqs[0]["skill_mapping"] == []
+        assert reqs[1]["skill_mapping"] == []
+
+
 class TestParseRequirementsWithClaude:
     """Tests for the top-level Claude CLI integration."""
 

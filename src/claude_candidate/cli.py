@@ -1254,8 +1254,11 @@ def _process_sessions(sessions_found: list[SessionInfo]) -> list[SessionSignals]
     from claude_candidate.sanitizer import sanitize_text
     from claude_candidate.extractor import extract_session_signals
 
+    total = len(sessions_found)
     signals_list: list[SessionSignals] = []
-    for info in sessions_found:
+    for i, info in enumerate(sessions_found, 1):
+        if i % 100 == 0 or i == total:
+            click.echo(f"  Processing sessions... {i}/{total} ({i*100//total}%)", nl=True)
         raw_content = info.path.read_text(errors="replace")
         sanitized = sanitize_text(raw_content)
         signals = extract_session_signals(sanitized.sanitized)

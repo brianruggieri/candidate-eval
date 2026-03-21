@@ -169,6 +169,37 @@ class TestMergedProfilePropagation:
         assert merged.education == resume_profile.education
 
 
+def test_merge_with_curated_resume(candidate_profile):
+    """Merger should use curated_skills depths when available."""
+    from claude_candidate.merger import merge_with_curated
+    cp = candidate_profile
+
+    # Curated resume data (as would be loaded from curated_resume.json)
+    curated_skills = [
+        {"name": "typescript", "depth": "expert", "duration": "8 years",
+         "source_context": "Listed in skills section", "curated": True},
+        {"name": "python", "depth": "deep", "duration": "2 years",
+         "source_context": "Listed in skills section", "curated": True},
+    ]
+
+    merged = merge_with_curated(cp, curated_skills, total_years=12.4, education=["B.S. Computer Science"])
+
+    # typescript is in curated but NOT in candidate_profile.skills (which has python, claude-api, fastapi, etc)
+    # So it should be resume_only
+    ts_skill = merged.get_skill("typescript")
+    assert ts_skill is not None
+    assert ts_skill.resume_duration == "8 years"
+
+    # python IS in candidate_profile.skills, so it should be corroborated
+    py_skill = merged.get_skill("python")
+    assert py_skill is not None
+    assert py_skill.resume_duration == "2 years"
+
+    # Verify total_years and education propagated
+    assert merged.total_years_experience == 12.4
+    assert "B.S. Computer Science" in merged.education
+
+
 def test_corroboration_with_name_variants(candidate_profile):
     """Skills with different names (React.js vs react) should still corroborate."""
     import json

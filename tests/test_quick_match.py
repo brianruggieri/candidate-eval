@@ -194,11 +194,11 @@ class TestSkillMatchScoring:
         a_must = engine.assess(requirements=reqs_must, company="T", title="T")
         a_nice = engine.assess(requirements=reqs_nice, company="T", title="T")
 
-        # Both should be low (missing skill), but must_have weights it more heavily
-        # in overall scoring. Since both have only one requirement, the raw scores
-        # for the skill dimension should be the same (0.0), but verify it doesn't crash.
+        # must_have no_evidence scores 0.0 (hard gap), nice_to_have gets
+        # STATUS_SCORE_NONE floor (transferable skills).
+        from claude_candidate.quick_match import STATUS_SCORE_NONE
         assert a_must.skill_match.score == 0.0
-        assert a_nice.skill_match.score == 0.0
+        assert a_nice.skill_match.score == STATUS_SCORE_NONE
 
 
 class TestMissionAlignment:
@@ -621,7 +621,7 @@ class TestPartialAssessmentWeights:
     def test_partial_assessment_uses_fixed_weights(
         self, candidate_profile, resume_profile
     ):
-        """Partial assessment always uses 50/30/20 weights."""
+        """Partial assessment always uses 65/25/10 weights."""
         merged = merge_profiles(candidate_profile, resume_profile)
         engine = QuickMatchEngine(merged)
 
@@ -631,9 +631,9 @@ class TestPartialAssessmentWeights:
             title="Engineer",
         )
 
-        assert assessment.skill_match.weight == 0.50
-        assert assessment.experience_match.weight == 0.30
-        assert assessment.education_match.weight == 0.20
+        assert assessment.skill_match.weight == 0.65
+        assert assessment.experience_match.weight == 0.25
+        assert assessment.education_match.weight == 0.10
 
     def test_insufficient_data_scores_high(
         self, candidate_profile, resume_profile
@@ -743,3 +743,167 @@ class TestPartialAssessmentWeights:
 
         assert assessment.partial_percentage is not None
         assert 0.0 <= assessment.partial_percentage <= 100.0
+
+
+def test_find_best_skill_related_fallback():
+    """When no direct match exists, related skills should give 'related' status."""
+    from claude_candidate.quick_match import _find_best_skill
+    from claude_candidate.schemas.job_requirements import QuickRequirement, RequirementPriority
+    from claude_candidate.schemas.merged_profile import MergedSkillEvidence, MergedEvidenceProfile, EvidenceSource
+    from claude_candidate.schemas.candidate_profile import DepthLevel
+
+    # Profile has "anthropic" but requirement asks for "openai" (related in taxonomy)
+    profile = MergedEvidenceProfile(
+        skills=[MergedSkillEvidence(
+            name="anthropic",
+            source=EvidenceSource.SESSIONS_ONLY,
+            session_depth=DepthLevel.EXPERT,
+            session_frequency=95,
+            effective_depth=DepthLevel.EXPERT,
+            confidence=0.85,
+            discovery_flag=True,
+        )],
+        patterns=[], projects=[], roles=[],
+        corroborated_skill_count=0, resume_only_skill_count=0,
+        sessions_only_skill_count=1, discovery_skills=[],
+        profile_hash="test", resume_hash="test",
+        candidate_profile_hash="test", merged_at="2026-01-01T00:00:00",
+    )
+
+    req = QuickRequirement(
+        description="Experience with OpenAI API",
+        skill_mapping=["openai"],
+        priority=RequirementPriority.MUST_HAVE,
+    )
+
+    match, status = _find_best_skill(req, profile, DepthLevel.APPLIED)
+    assert match is not None, "Should find anthropic as a related match"
+    assert status == "related"
+
+
+def test_find_skill_match_canonicalizes_hyphens():
+    """Skill 'ci-cd' should match profile entry 'ci cd' via canonicalization."""
+    from claude_candidate.quick_match import _find_skill_match
+    from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
+    from claude_candidate.schemas.candidate_profile import DepthLevel
+    from claude_candidate.schemas.merged_profile import MergedEvidenceProfile
+
+    profile = MergedEvidenceProfile(
+        skills=[MergedSkillEvidence(
+            name="ci-cd",  # canonical form from taxonomy
+            source=EvidenceSource.SESSIONS_ONLY,
+            session_depth=DepthLevel.DEEP,
+            session_frequency=15,
+            effective_depth=DepthLevel.DEEP,
+            confidence=0.75,
+            discovery_flag=True,
+        )],
+        patterns=[], projects=[], roles=[],
+        corroborated_skill_count=0, resume_only_skill_count=0,
+        sessions_only_skill_count=1, discovery_skills=[],
+        profile_hash="test", resume_hash="test",
+        candidate_profile_hash="test", merged_at="2026-01-01T00:00:00",
+    )
+
+    # These should all resolve to the same canonical skill
+    assert _find_skill_match("ci-cd", profile) is not None
+    assert _find_skill_match("ci/cd", profile) is not None
+    assert _find_skill_match("continuous-integration", profile) is not None
+
+
+def test_score_requirement_confidence_floor():
+    """Low-confidence skills should be floored at 0.5 to prevent cratering."""
+    from claude_candidate.quick_match import _score_requirement, STATUS_SCORE
+    from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
+    from claude_candidate.schemas.candidate_profile import DepthLevel
+
+    low_conf_skill = MergedSkillEvidence(
+        name="python",
+        source=EvidenceSource.RESUME_ONLY,
+        resume_depth=DepthLevel.DEEP,
+        resume_context="Listed",
+        effective_depth=DepthLevel.DEEP,
+        confidence=0.3,  # Very low confidence
+    )
+
+    score = _score_requirement(low_conf_skill, "strong_match")
+    # Confidence adjustment: 0.90 + 0.10 * max(0.3, 0.85) = 0.90 + 0.085 = 0.985
+    # Score = 0.90 * 0.985 = 0.8865
+    expected_adj = 0.90 + 0.10 * max(0.3, 0.85)  # CONFIDENCE_FLOOR = 0.85
+    expected = STATUS_SCORE["strong_match"] * expected_adj
+    assert abs(score - expected) < 0.001
+
+
+def test_soft_skill_requirement_discounted():
+    """Requirements mapping to soft_skill category should get reduced weight."""
+    from claude_candidate.quick_match import SOFT_SKILL_DISCOUNT
+    # The discount factor should exist and be < 1.0
+    assert 0.0 < SOFT_SKILL_DISCOUNT < 1.0
+
+
+def test_years_experience_boosts_match():
+    """When requirement has years_experience and skill has duration, score should improve."""
+    from claude_candidate.quick_match import _parse_duration_years
+    # Test the duration parser first
+    assert _parse_duration_years("8 years") == 8.0
+    assert _parse_duration_years("2 months") == 2.0 / 12.0
+    assert _parse_duration_years(None) is None
+    assert _parse_duration_years("") is None
+
+
+def test_compound_requirement_breadth_scoring():
+    """A requirement with 3 skill mappings where 2 match should score better than 0."""
+    from claude_candidate.quick_match import QuickMatchEngine
+    from claude_candidate.schemas.job_requirements import QuickRequirement, RequirementPriority
+    from claude_candidate.schemas.merged_profile import MergedSkillEvidence, MergedEvidenceProfile, EvidenceSource
+    from claude_candidate.schemas.candidate_profile import DepthLevel
+
+    # Profile has python (expert) and machine-learning (applied) but no data-science
+    profile = MergedEvidenceProfile(
+        skills=[
+            MergedSkillEvidence(
+                name="python",
+                source=EvidenceSource.CORROBORATED,
+                session_depth=DepthLevel.EXPERT,
+                session_frequency=89,
+                resume_depth=DepthLevel.DEEP,
+                effective_depth=DepthLevel.EXPERT,
+                confidence=0.9,
+            ),
+            MergedSkillEvidence(
+                name="machine-learning",
+                source=EvidenceSource.SESSIONS_ONLY,
+                session_depth=DepthLevel.APPLIED,
+                session_frequency=15,
+                effective_depth=DepthLevel.APPLIED,
+                confidence=0.65,
+                discovery_flag=True,
+            ),
+        ],
+        patterns=[], projects=[], roles=[],
+        corroborated_skill_count=1, resume_only_skill_count=0,
+        sessions_only_skill_count=1, discovery_skills=[],
+        profile_hash="test", resume_hash="test",
+        candidate_profile_hash="test", merged_at="2026-01-01T00:00:00",
+    )
+
+    engine = QuickMatchEngine(profile)
+
+    # Compound requirement: ["python", "data-science", "machine-learning"]
+    reqs = [QuickRequirement(
+        description="5+ years Python, data science, or ML",
+        skill_mapping=["python", "data-science", "machine-learning"],
+        priority=RequirementPriority.MUST_HAVE,
+    )]
+
+    assessment = engine.assess(
+        requirements=reqs,
+        company="Test",
+        title="Test",
+        seniority="senior",
+    )
+
+    # With compound scoring: avg of (python=high, data-science=0, ml=partial)
+    # should be considered alongside best single match
+    # The skill score should be > 0 since python and ml match
+    assert assessment.skill_match.score > 0

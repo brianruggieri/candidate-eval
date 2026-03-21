@@ -1,0 +1,243 @@
+{
+  "company": "Adobe",
+  "title": "Senior Customer Facing Applied AI Engineer",
+  "description": "The Team:\n\nYou will be joining the newly formed Forward Deployment Engineering (FDE) team within Adobe's Digital Experience organization. As part of a key innovation initiative, our mandate is to bridge the gap between product engineering and real-world implementation. We are a team of world-class AI and traditional engineers dedicated to solving the most complex challenges for the world's largest companies, ensuring they extract maximum value from the Adobe ecosystem.\n\nThe Opportunity:\n\nThis is an opportunity to be a technical ambassador for Adobe. You will split your time between deep technical work and on-site collaboration with the engineering teams of global industry leaders. If you are passionate about customer empathy and technical excellence, this role offers the best of both worlds: the excitement of a startup-style environment with the resources and scale of Adobe. Come help us build the future of digital experiences, one customer success story at a time.\n\nWhat You'll Do:\n\nImplement A2A integration patterns (APIs, webhooks, event streams, connectors) so customers can plug our AI capabilities into their existing applications and workflows.\nCreate reusable SDKs, templates, and reference implementations that reduce friction for customers adopting our AI features.\nAct like a data analyst for model behavior:\nQuery logs and metrics (SQL, notebooks, dashboards) to understand how models and prompts are performing in production.\nInvestigate failure modes, edge cases, and drift (e.g., low-quality responses, latency spikes, low adoption).\nSegment metrics by customer, cohort, use case, or configuration to find patterns and opportunities.\nDesign and maintain evaluation pipelines for AI features:\nDefine success metrics and guardrails.\nSet up offline and online evaluation (test sets, acceptance thresholds, user rating flows, A/B tests).\nInstrument AI features with strong observability and testing:\nLogging of inputs/outputs with privacy in mind.\nTraces/timelines of model calls, retrieval steps, and downstream effects.\nDashboards and alerts for quality, performance, and usage.\nDesign and implement AI-backed services and APIs in Python using PyTorch or similar frameworks.\n\nWork with customer-facing teams (Customer Success, Solutions, Forward Deployed) to:\nTurn customer feedback and production data into prioritized improvements.\nProvide clear, data-backed insights on what's working, what's not, and why.\nJoin customer calls and workshops to:\nUnderstand their systems, integration constraints, and success criteria.\nGuide them on how best to use our APIs, SDKs, and observability tools.\nAct as a bridge between customer needs and internal product/engineering, ensuring what we build is usable, measurable, and scalable across many customers.",
+  "url": "https://www.linkedin.com/jobs/view/4326486658/",
+  "source": "linkedin",
+  "location": "San Jose, CA",
+  "seniority": "senior",
+  "remote": false,
+  "salary": "$139,000 - $257,550/yr",
+  "requirements": [
+    {
+      "description": "5+ years of software engineering experience",
+      "skill_mapping": [
+        "software_engineering"
+      ],
+      "priority": "must_have",
+      "years_experience": 5,
+      "education_level": null
+    },
+    {
+      "description": "1+ years working with ML/AI or LLM-based applications",
+      "skill_mapping": [
+        "machine-learning",
+        "artificial_intelligence",
+        "llm"
+      ],
+      "priority": "must_have",
+      "years_experience": 1,
+      "education_level": null
+    },
+    {
+      "description": "Strong programming skills in Python, including hands-on work with PyTorch or similar frameworks (TensorFlow, JAX, etc.)",
+      "skill_mapping": [
+        "python",
+        "pytorch",
+        "tensorflow",
+        "jax"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Familiarity with A2A (application-to-application) integration patterns: REST/gRPC APIs, webhooks, queues, or event-driven systems",
+      "skill_mapping": [
+        "rest_apis",
+        "grpc",
+        "webhooks",
+        "event_driven_architecture",
+        "message_queues"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Authentication, rate limits, and basic reliability patterns",
+      "skill_mapping": [
+        "authentication",
+        "api_design",
+        "reliability_engineering"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Comfortable with data-analyst-style work: writing SQL and working with analytics tools/notebooks",
+      "skill_mapping": [
+        "sql",
+        "data_analysis",
+        "jupyter_notebooks"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Building or interpreting dashboards (e.g., metrics for model quality, latency, usage)",
+      "skill_mapping": [
+        "dashboards",
+        "data_visualization",
+        "metrics"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Turning data into clear, actionable recommendations",
+      "skill_mapping": [
+        "data_analysis",
+        "communication"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Current understanding of the state of AI and aggressively keeping up on the latest developments; able to articulate benefits of different architectural options",
+      "skill_mapping": [
+        "artificial_intelligence",
+        "system_design"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Build-first mentality that seeks answers in practical application",
+      "skill_mapping": [
+        "prototyping",
+        "problem-solving"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Willingness to dive into implementation with a customer to maximize their use of AI",
+      "skill_mapping": [
+        "customer_engagement",
+        "technical_consulting"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience with at least one cloud platform (AWS / GCP / Azure)",
+      "skill_mapping": [
+        "aws",
+        "gcp",
+        "azure",
+        "cloud_computing"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Standard dev tooling (Git, CI/CD, Docker)",
+      "skill_mapping": [
+        "git",
+        "ci-cd",
+        "docker"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Proven track record of shipping production features and iterating based on real-world feedback",
+      "skill_mapping": [
+        "production_systems",
+        "software_delivery"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Strong communication skills with ability to explain technical details and data insights to customers and non-ML stakeholders",
+      "skill_mapping": [
+        "communication",
+        "stakeholder_management",
+        "technical_writing"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Comfortable with 10%-25% travel to build relationships with customers",
+      "skill_mapping": [
+        "travel",
+        "customer_engagement"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Exposure to LLM applications (RAG, agents, prompt pipelines) and their evaluation",
+      "skill_mapping": [
+        "llm",
+        "rag",
+        "ai_agents",
+        "prompt-engineering"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience with logging/observability stacks (e.g., OpenTelemetry, Prometheus/Grafana, Datadog, etc.)",
+      "skill_mapping": [
+        "observability",
+        "opentelemetry",
+        "prometheus",
+        "grafana",
+        "datadog"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Prior work in customer-facing technical roles or close collaboration with Customer Success / Solutions / Forward Deployed Engineering teams",
+      "skill_mapping": [
+        "solutions_engineering",
+        "customer_success",
+        "technical_consulting"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Familiarity with MLOps/LLMOps concepts: evaluation harnesses, prompt/version management, feature flags, or canary rollouts",
+      "skill_mapping": [
+        "mlops",
+        "llmops",
+        "feature_flags",
+        "canary_deployments"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Proficiency in Java/Scala along with associated frameworks",
+      "skill_mapping": [
+        "java",
+        "scala"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    }
+  ]
+}
