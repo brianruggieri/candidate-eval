@@ -56,7 +56,7 @@
       "education_level": null
     },
     {
-      "description": "Autonomous quality ownership: writing tests, deploying with confidence, building monitoring \u2014 no QA or ops team",
+      "description": "Autonomous quality ownership: writing tests, deploying with confidence, building monitoring — no QA or ops team",
       "skill_mapping": [
         "testing",
         "ci-cd",
@@ -120,5 +120,6 @@
       "years_experience": null,
       "education_level": null
     }
-  ]
+  ],
+  "expected_grade": "A"
 }
