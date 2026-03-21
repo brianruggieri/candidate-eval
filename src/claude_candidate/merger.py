@@ -281,7 +281,14 @@ def merge_with_curated(
         -DEPTH_RANK.get(s.effective_depth, 0),
     ))
 
-    profile_hash = hash_json_stable({"candidate": candidate_profile.manifest_hash, "curated": "curated"})
+    profile_hash = hash_json_stable({
+        "candidate": candidate_profile.manifest_hash,
+        "curated": {
+            "skills": curated_skills,
+            "total_years": total_years,
+            "education": education or [],
+        },
+    })
 
     merged = MergedEvidenceProfile(
         skills=merged_skills,

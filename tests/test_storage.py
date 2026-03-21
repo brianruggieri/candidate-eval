@@ -22,6 +22,7 @@ def _event_loop():
     asyncio.set_event_loop(loop)
     yield loop
     loop.close()
+    asyncio.set_event_loop(None)
 
 
 def run(coro):

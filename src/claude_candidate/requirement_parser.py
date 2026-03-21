@@ -151,6 +151,17 @@ def _infer_priority(lines: list[str], keywords: list[str]) -> RequirementPriorit
     return RequirementPriority.NICE_TO_HAVE
 
 
+_taxonomy_singleton = None
+
+
+def _get_taxonomy():
+    global _taxonomy_singleton
+    if _taxonomy_singleton is None:
+        from claude_candidate.skill_taxonomy import SkillTaxonomy
+        _taxonomy_singleton = SkillTaxonomy.load_default()
+    return _taxonomy_singleton
+
+
 def normalize_skill_mappings(requirements: list[dict], taxonomy=None) -> list[dict]:
     """Normalize skill_mapping entries through the taxonomy.
 
@@ -159,8 +170,7 @@ def normalize_skill_mappings(requirements: list[dict], taxonomy=None) -> list[di
     Returns modified requirements list (mutates in place).
     """
     if taxonomy is None:
-        from claude_candidate.skill_taxonomy import SkillTaxonomy
-        taxonomy = SkillTaxonomy.load_default()
+        taxonomy = _get_taxonomy()
 
     for req in requirements:
         normalized = []

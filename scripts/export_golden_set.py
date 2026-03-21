@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Export cached postings from assessments.db into golden set fixtures."""
 
+import hashlib
 import json
 import re
 import sqlite3
@@ -10,11 +11,17 @@ from claude_candidate.skill_taxonomy import SkillTaxonomy
 from claude_candidate.requirement_parser import normalize_skill_mappings
 
 
-def slugify(company: str, title: str) -> str:
-    """Generate a filename slug from company and title."""
+def slugify(company: str, title: str, url: str = "") -> str:
+    """Generate a filename slug from company and title.
+
+    Appends a short URL hash to avoid collisions when titles share a long prefix.
+    """
     combined = f"{company}-{title}".lower()
-    combined = re.sub(r'[^a-z0-9]+', '-', combined)
-    return combined.strip('-')[:60]
+    combined = re.sub(r'[^a-z0-9]+', '-', combined).strip('-')[:60]
+    if url:
+        url_hash = hashlib.sha256(url.encode()).hexdigest()[:6]
+        combined = f"{combined}-{url_hash}"
+    return combined
 
 
 def export():
@@ -36,7 +43,7 @@ def export():
         data = json.loads(row["data"])
         company = data.get("company", "Unknown")
         title = data.get("title", "Unknown")
-        slug = slugify(company, title)
+        slug = slugify(company, title, row["url"])
 
         # Skip postings with 0 requirements
         reqs = data.get("requirements", [])
