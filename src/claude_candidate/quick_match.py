@@ -1092,6 +1092,12 @@ class QuickMatchEngine:
         experience_dim.weight = 0.25
         education_dim.weight = 0.10
 
+        # Cap experience/education scores when skill match is weak.
+        # Prevents generic experience from rescuing a poor technical fit.
+        if skill_dim.score < 0.55:
+            experience_dim.score = min(experience_dim.score, skill_dim.score + 0.2)
+            education_dim.score = min(education_dim.score, skill_dim.score + 0.2)
+
         overall_score = _compute_overall_score(
             skill_dim,
             experience_dim=experience_dim,
