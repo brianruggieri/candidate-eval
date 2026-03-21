@@ -279,7 +279,7 @@
     "parent": null
   },
   "software-engineering": {
-    "aliases": ["software engineering", "software_engineering", "software development", "software-development", "swe"],
+    "aliases": ["software engineering", "software_engineering", "software development", "software-development", "swe", "generalist-engineering", "generalist engineering"],
     "category": "practice",
     "related": ["full-stack", "system-design", "testing", "developer-tools"],
     "parent": null
@@ -297,7 +297,7 @@
     "parent": null
   },
   "api-design": {
-    "aliases": ["api design", "api_design", "rest-api", "rest api", "rest apis", "restful", "api development", "api-development", "graphql"],
+    "aliases": ["api design", "api_design", "rest-api", "rest api", "rest apis", "restful", "api development", "api-development", "graphql", "api-integration", "api integration", "platform-integration", "platform integration"],
     "category": "practice",
     "related": ["software-engineering", "backend-development", "fastapi"],
     "parent": null
@@ -339,7 +339,7 @@
     "parent": null
   },
   "prototyping": {
-    "aliases": ["rapid prototyping", "rapid-prototyping", "proof of concept", "poc", "mvp", "minimum viable product", "greenfield-development", "greenfield development", "innovation"],
+    "aliases": ["rapid prototyping", "rapid-prototyping", "proof of concept", "poc", "mvp", "minimum viable product", "greenfield-development", "greenfield development", "innovation", "rapid-iteration", "rapid iteration"],
     "category": "practice",
     "related": ["software-engineering", "full-stack", "developer-tools"],
     "parent": null

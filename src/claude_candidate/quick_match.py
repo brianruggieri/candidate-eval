@@ -387,6 +387,11 @@ VIRTUAL_SKILL_RULES: list[tuple[str, list[str], int, DepthLevel]] = [
     # production-systems: deployment + testing + infra
     ("production-systems", ["ci-cd", "docker", "testing", "aws", "gcp", "azure",
                              "postgresql", "devops"], 2, DepthLevel.APPLIED),
+    # startup-experience: prototyping + shipping evidence
+    ("startup-experience", ["prototyping", "full-stack", "product-development",
+                             "ci-cd", "api-design", "ownership"], 2, DepthLevel.APPLIED),
+    # metrics: analytics tools + data skills
+    ("metrics", ["metabase", "sql", "data-science", "postgresql"], 1, DepthLevel.APPLIED),
 ]
 
 # Maps behavioral pattern types to taxonomy skills they imply.
