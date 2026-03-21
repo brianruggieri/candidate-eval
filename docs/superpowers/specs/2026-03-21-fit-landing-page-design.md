@@ -308,6 +308,67 @@ Note: The `/fit/` index page is also disallowed by this rule, but since it only 
 - Sticky nav section anchors are keyboard-navigable with visible focus outlines (`2px solid var(--color-accent)`)
 - Status color tags include text labels (not color-only) — already the case since tags show "Strong Match", "Partial", etc.
 - Sufficient color contrast: all text on glass cards meets WCAG AA (dark text on light semi-transparent bg)
+- Landmark roles: `<nav>` for sticky nav, `<main>` for content, `<section aria-label="...">` for each section
+- Skip-to-content link: hidden link before nav, visible on keyboard focus → jumps to `#match-summary`
+- Touch targets: nav links and CTA buttons minimum 44px tap area on mobile
+
+### Responsive Breakpoints
+
+Desktop-first, with intentional layout changes per viewport.
+
+**Desktop (>1024px):** Full layout as described above. 3-column skill grid. Horizontal pattern row. Timeline projects.
+
+**Tablet (768–1024px):**
+- Skill grid: 2 columns
+- Hero grade badge: reduce from 16rem to 12rem
+- Pattern cards: 2×2 grid instead of horizontal row
+- Nav: keep section anchors, reduce font size
+
+**Mobile (<768px):**
+- Skill grid: single column
+- Hero grade badge: reduce to 8rem, stack below heading (not beside it)
+- Sticky nav: hide section anchors, show only "Brian Ruggieri" + "Let's Talk" CTA
+- Typography: h1 scales from ~3rem to ~2rem, body stays 1rem
+- Evidence cards: full width, reduce padding
+- Projects timeline: remove left border, stack vertically as simple cards
+- Pattern cards: single column
+- Footer CTA: full-width button
+
+### Print Stylesheet
+
+`@media print` rules in `fit.css`:
+- Hide sticky nav entirely
+- White background (no glassmorphic effects)
+- No box shadows
+- Grade badge: solid border instead of colored ring
+- Full-width single-column layout
+- Page break avoidance on cards (`break-inside: avoid`)
+- Show URLs after links (`a[href]:after { content: " (" attr(href) ")"; }`)
+- Hide CTA buttons (Cal.com links not useful in print)
+
+### Export Minimum Thresholds
+
+The CLI `export-fit` command enforces minimum content thresholds. If a section doesn't meet its minimum, the export fails with a descriptive error telling the user what's missing.
+
+| Section | Minimum | Rationale |
+|---------|---------|-----------|
+| Skill matches | 3 | Fewer than 3 means the assessment is too sparse to present |
+| Evidence highlights | 0 (optional) | Section hidden if empty — extractor may not have quotes |
+| Behavioral patterns | 0 (optional) | Section hidden if empty |
+| Projects | 1 | At least one project needed for credibility |
+| Gaps | 0 (optional) | Section hidden if 0 gaps (celebrated, not shown) |
+
+Sections with 0 items are omitted from the page entirely (template uses `{{ with }}` guards). The CLI warns: "Note: Evidence Highlights section will be hidden (no session quotes available)."
+
+### Hero Credibility Subtitle
+
+Below the role title, a single line of derived stats provides instant context:
+
+`13 years engineering · 995 TypeScript sessions · Evidence-backed fit assessment`
+
+Format: `{total_years} years engineering · {top_skill_sessions} {top_skill} sessions · Evidence-backed fit assessment`
+
+Where `top_skill` is the skill with the highest `session_evidence_count` in the merged profile. This line uses Open Sans 400, muted gray (`#6E6C70`), smaller than the summary text.
 
 ### List Page (list.html)
 
