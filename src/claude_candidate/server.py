@@ -121,6 +121,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
             "candidate": _data_dir / "candidate_profile.json",
             "resume": _data_dir / "resume_profile.json",
             "merged": _data_dir / "merged_profile.json",
+            "curated_resume": _data_dir / "curated_resume.json",
         }
         for profile_type, profile_path in profile_files.items():
             if profile_path.exists():
@@ -169,6 +170,47 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
             json.dumps(data, sort_keys=True).encode()
         ).hexdigest()[:16]
 
+    def _build_merged_profile():
+        """Build a MergedEvidenceProfile using the best available resume data.
+
+        Precedence (mirrors CLI's ``_merge_profile``):
+          1. curated_resume.json with ``curated_skills`` → merge_with_curated()
+          2. resume_profile.json → merge_profiles()
+          3. No resume at all → merge_candidate_only()
+
+        Returns None when no candidate profile is loaded.
+        """
+        from claude_candidate.schemas.candidate_profile import CandidateProfile
+        from claude_candidate.schemas.resume_profile import ResumeProfile
+        from claude_candidate.merger import (
+            merge_profiles,
+            merge_candidate_only,
+            merge_with_curated,
+        )
+
+        profiles = get_profiles()
+        candidate_data = profiles.get("candidate")
+        if not candidate_data:
+            return None
+
+        cp = CandidateProfile.model_validate(candidate_data)
+
+        curated_data = profiles.get("curated_resume")
+        if curated_data and curated_data.get("curated_skills"):
+            return merge_with_curated(
+                cp,
+                curated_data["curated_skills"],
+                total_years=curated_data.get("total_years_experience"),
+                education=curated_data.get("education", []),
+            )
+
+        resume_data = profiles.get("resume")
+        if resume_data:
+            rp = ResumeProfile.model_validate(resume_data)
+            return merge_profiles(cp, rp)
+
+        return merge_candidate_only(cp)
+
     # ------------------------------------------------------------------
     # Health
     # ------------------------------------------------------------------
@@ -195,6 +237,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
         candidate_data = profiles.get("candidate")
         resume_data = profiles.get("resume")
         merged_data = profiles.get("merged")
+        curated_data = profiles.get("curated_resume")
 
         if candidate_data:
             hashes["candidate"] = _profile_hash(candidate_data)
@@ -202,11 +245,14 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
             hashes["resume"] = _profile_hash(resume_data)
         if merged_data:
             hashes["merged"] = _profile_hash(merged_data)
+        if curated_data:
+            hashes["curated_resume"] = _profile_hash(curated_data)
 
         return {
             "has_candidate_profile": candidate_data is not None,
             "has_resume_profile": resume_data is not None,
             "has_merged_profile": merged_data is not None,
+            "has_curated_resume": curated_data is not None,
             "hashes": hashes,
         }
 
@@ -220,32 +266,18 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 
         Returns the assessment dict. Raises HTTPException on missing profile.
         """
-        from claude_candidate.schemas.candidate_profile import CandidateProfile
-        from claude_candidate.schemas.resume_profile import ResumeProfile
         from claude_candidate.schemas.job_requirements import QuickRequirement
-        from claude_candidate.merger import merge_profiles, merge_candidate_only
         from claude_candidate.quick_match import QuickMatchEngine
         from claude_candidate.cli import _extract_basic_requirements
 
-        profiles = get_profiles()
         store = get_store()
 
-        candidate_data = profiles.get("candidate")
-        resume_data = profiles.get("resume")
-
-        if not candidate_data:
+        merged = _build_merged_profile()
+        if merged is None:
             raise HTTPException(
                 status_code=422,
                 detail="No candidate profile loaded. Place candidate_profile.json in the data directory.",
             )
-
-        # Build merged profile
-        cp = CandidateProfile.model_validate(candidate_data)
-        if resume_data:
-            rp = ResumeProfile.model_validate(resume_data)
-            merged = merge_profiles(cp, rp)
-        else:
-            merged = merge_candidate_only(cp)
 
         # Build requirements — filter out invalid entries from Claude
         if req.requirements:
@@ -319,16 +351,11 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
         import asyncio
         from datetime import datetime
 
-        from claude_candidate.schemas.candidate_profile import CandidateProfile
         from claude_candidate.schemas.company_profile import CompanyProfile
         from claude_candidate.schemas.fit_assessment import (
-            DimensionScore,
-            FitAssessment,
             score_to_grade,
             score_to_verdict,
         )
-        from claude_candidate.schemas.resume_profile import ResumeProfile
-        from claude_candidate.merger import merge_profiles, merge_candidate_only
         from claude_candidate.quick_match import QuickMatchEngine
 
         store = get_store()
@@ -393,15 +420,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
             )
 
         # 4. Build merged profile and engine to compute mission/culture
-        merged_profile = None
-        if candidate_data:
-            cp = CandidateProfile.model_validate(candidate_data)
-            resume_data = profiles.get("resume")
-            if resume_data:
-                rp = ResumeProfile.model_validate(resume_data)
-                merged_profile = merge_profiles(cp, rp)
-            else:
-                merged_profile = merge_candidate_only(cp)
+        merged_profile = _build_merged_profile()
 
         mission_dim = None
         culture_dim = None
