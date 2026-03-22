@@ -47,6 +47,13 @@ _PHASE_KEYWORDS = re.compile(
 )
 
 
+def _trunc(text: str, max_len: int = 497) -> str:
+	"""Truncate text to fit within SkillSignal.evidence_snippet max_length=500."""
+	if len(text) <= max_len:
+		return text
+	return text[:max_len] + "..."
+
+
 def _get_tool_use_blocks(msg: NormalizedMessage) -> list[ContentBlock]:
 	"""Extract all tool_use content blocks from a message."""
 	return [b for b in msg.get("content", []) if b.get("type") == "tool_use"]
@@ -301,7 +308,7 @@ class BehaviorSignalExtractor:
 				session_ids=[session_id],
 				confidence=0.7,
 				description="Documentation updated alongside code changes",
-				evidence_snippet=f"Edited docs: {', '.join(md_edits[:3])}",
+				evidence_snippet=_trunc(f"Edited docs: {', '.join(md_edits[:3])}"),
 				metadata={"doc_file_count": len(md_edits)},
 			))
 
@@ -343,7 +350,7 @@ class BehaviorSignalExtractor:
 				session_ids=[session_id],
 				confidence=0.5,
 				description="Session management via /clear or /compact commands",
-				evidence_snippet=f"Commands: {', '.join(clear_commands[:3])}",
+				evidence_snippet=_trunc(f"Commands: {', '.join(clear_commands[:3])}"),
 			))
 
 		# NOTE: COMMUNICATION_CLARITY is NOT detected by BehaviorSignalExtractor.
@@ -412,7 +419,7 @@ class BehaviorSignalExtractor:
 				source="git_workflow",
 				confidence=0.9,
 				depth_hint=DepthLevel.DEEP,
-				evidence_snippet=f"git worktree: {worktree_commands[0][:200]}",
+				evidence_snippet=_trunc(f"git worktree: {worktree_commands[0]}"),
 				evidence_type="direct_usage",
 				metadata={"worktree_commands": worktree_commands},
 			)
@@ -426,7 +433,7 @@ class BehaviorSignalExtractor:
 				source="git_workflow",
 				confidence=0.7,
 				depth_hint=DepthLevel.USED,
-				evidence_snippet=f"PR workflow: {gh_pr_commands[0][:200]}",
+				evidence_snippet=_trunc(f"PR workflow: {gh_pr_commands[0]}"),
 				evidence_type="direct_usage",
 				metadata={"pr_commands": gh_pr_commands},
 			)
@@ -444,7 +451,7 @@ class BehaviorSignalExtractor:
 				source="quality_signal",
 				confidence=0.6,
 				depth_hint=DepthLevel.USED,
-				evidence_snippet=f"Edited security-related files: {', '.join(security_files[:3])}",
+				evidence_snippet=_trunc(f"Edited security-related files: {', '.join(security_files[:3])}"),
 				evidence_type="direct_usage",
 			)
 			skills.setdefault("security", []).append(sec_signal)
@@ -474,7 +481,7 @@ class BehaviorSignalExtractor:
 				source="quality_signal",
 				confidence=0.6,
 				depth_hint=DepthLevel.USED,
-				evidence_snippet=f"Review commands: {', '.join(review_commands[:3])}",
+				evidence_snippet=_trunc(f"Review commands: {', '.join(review_commands[:3])}"),
 				evidence_type="review",
 			)
 			skills.setdefault("code-review", []).append(review_signal)
@@ -610,7 +617,7 @@ class BehaviorSignalExtractor:
 					session_ids=[session_id],
 					confidence=0.7,
 					description="Task creation with phased/dependency-aware naming",
-					evidence_snippet=f"TaskCreate: {desc[:200]}",
+					evidence_snippet=_trunc(f"TaskCreate: {desc}"),
 					metadata={"task_subject": tc.get("subject", "")},
 				)
 		return None
