@@ -715,35 +715,111 @@ def _build_working_style(
     return f"Working style includes: {', '.join(names)}."
 
 
+# Reverse map: technology name -> file extension for synthetic file paths
+_TECH_TO_EXTENSION: dict[str, str] = {}
+for _ext, _techs in FILE_EXTENSION_MAP.items():
+    for _tech in _techs:
+        if _tech not in _TECH_TO_EXTENSION:
+            _TECH_TO_EXTENSION[_tech] = _ext
+
+
+def _signals_to_normalized_session(signals: SessionSignals) -> NormalizedSession:
+    """Convert a SessionSignals object to a NormalizedSession.
+
+    Transitional shim: SessionSignals has already aggregated the raw data,
+    so we reconstruct synthetic NormalizedMessages from what's available.
+    The extractors will find skills from:
+    - CodeSignalExtractor: file extensions from technologies, content patterns
+      in evidence_snippets
+    - BehaviorSignalExtractor: tool names in tool_calls
+    - CommSignalExtractor: limited (no raw user messages in SessionSignals)
+    """
+    from claude_candidate.message_format import NormalizedMessage
+
+    messages: list[NormalizedMessage] = []
+    raw_base: dict = {
+        "sessionId": signals.session_id,
+        "timestamp": signals.timestamp,
+        "cwd": "",
+        "gitBranch": "",
+    }
+
+    # Reconstruct tool_use messages from tool_calls
+    for tool_name in signals.tool_calls:
+        messages.append(NormalizedMessage(
+            role="tool_use",
+            content=[{"type": "tool_use", "name": tool_name, "input": {}}],
+            raw=dict(raw_base),
+        ))
+
+    # Reconstruct synthetic Write tool_use messages from technologies
+    # so CodeSignalExtractor can detect them via file extensions
+    for tech in signals.technologies:
+        ext = _TECH_TO_EXTENSION.get(tech)
+        if ext:
+            messages.append(NormalizedMessage(
+                role="tool_use",
+                content=[{
+                    "type": "tool_use",
+                    "name": "Write",
+                    "input": {"file_path": f"/synthetic/file{ext}", "content": ""},
+                }],
+                raw=dict(raw_base),
+            ))
+
+    # Reconstruct assistant text messages from evidence_snippets
+    for snippet in signals.evidence_snippets:
+        messages.append(NormalizedMessage(
+            role="assistant",
+            content=[{"type": "text", "text": snippet}],
+            raw=dict(raw_base),
+        ))
+
+    return NormalizedSession(
+        session_id=signals.session_id,
+        timestamp=_parse_timestamp(signals.timestamp),
+        cwd="",
+        project_context=_sanitize_project_hint(signals.project_hint),
+        git_branch=None,
+        messages=messages,
+    )
+
+
 def build_candidate_profile(
     *,
     signals_list: list[SessionSignals],
     manifest_hash: str,
 ) -> CandidateProfile:
-    """Build a complete CandidateProfile from extracted session signals."""
+    """Build a complete CandidateProfile from extracted session signals.
+
+    Uses the three-extractor pipeline (CodeSignalExtractor,
+    BehaviorSignalExtractor, CommSignalExtractor) + SignalMerger.
+    """
+    from claude_candidate.extractors.code_signals import CodeSignalExtractor
+    from claude_candidate.extractors.behavior_signals import BehaviorSignalExtractor
+    from claude_candidate.extractors.comm_signals import CommSignalExtractor
+    from claude_candidate.extractors.signal_merger import SignalMerger
+
     if not signals_list:
         return _build_empty_profile(manifest_hash)
-    skills = _build_skill_entries(signals_list)
-    patterns = _build_patterns(signals_list)
-    projects = _build_projects(signals_list)
-    date_start, date_end = _compute_date_range(signals_list)
-    return CandidateProfile(
-        generated_at=datetime.now(),
-        session_count=len(signals_list),
-        date_range_start=date_start,
-        date_range_end=date_end,
-        manifest_hash=manifest_hash,
-        skills=skills,
-        primary_languages=_top_languages(skills),
-        primary_domains=_top_domains(skills),
-        problem_solving_patterns=patterns,
-        working_style_summary=_build_working_style(patterns),
-        projects=projects,
-        communication_style="Technical and detail-oriented",
-        documentation_tendency=_assess_documentation_tendency(signals_list),
-        extraction_notes=f"Extracted from {len(signals_list)} session(s)",
-        confidence_assessment=_assess_confidence(signals_list),
-    )
+
+    # Convert SessionSignals to NormalizedSessions
+    sessions = [_signals_to_normalized_session(s) for s in signals_list]
+
+    # Run three extractors
+    code_ext = CodeSignalExtractor()
+    behavior_ext = BehaviorSignalExtractor()
+    comm_ext = CommSignalExtractor()
+
+    all_results = []
+    for session in sessions:
+        all_results.append(code_ext.extract_session(session))
+        all_results.append(behavior_ext.extract_session(session))
+        all_results.append(comm_ext.extract_session(session))
+
+    # Merge and build profile
+    merger = SignalMerger()
+    return merger.merge(all_results, manifest_hash=manifest_hash)
 
 
 def _build_empty_profile(manifest_hash: str) -> CandidateProfile:
