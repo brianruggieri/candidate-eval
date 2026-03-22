@@ -855,6 +855,86 @@ def build_candidate_profile(
     return profile
 
 
+def build_profile_from_signal_results(
+    *,
+    results: list,
+    manifest_hash: str,
+) -> CandidateProfile:
+    """Build a CandidateProfile directly from pre-computed SignalResult objects.
+
+    This is the preferred path — extractors run on full NormalizedSession data
+    (no lossy SessionSignals intermediate). Used by the CLI when processing
+    raw JSONL files.
+    """
+    from claude_candidate.extractors.signal_merger import SignalMerger
+
+    if not results:
+        return _build_empty_profile(manifest_hash)
+
+    merger = SignalMerger()
+    profile = merger.merge(results, manifest_hash=manifest_hash)
+
+    # Optional ML enrichment
+    from claude_candidate.enrichment import enrichment_available
+    if enrichment_available():
+        try:
+            from claude_candidate.enrichment.embedding_matcher import EmbeddingMatcher
+            pass
+        except Exception:
+            pass
+
+    return profile
+
+
+def extract_session_to_signals(content: str, session_id: str = "", project_hint: str = "") -> list:
+    """Extract SignalResults directly from raw JSONL content.
+
+    Parses JSONL, normalizes messages, builds NormalizedSession, and runs
+    all three extractors. Returns list of 3 SignalResult objects.
+    This bypasses the lossy SessionSignals intermediate.
+    """
+    from claude_candidate.extractors.code_signals import CodeSignalExtractor
+    from claude_candidate.extractors.behavior_signals import BehaviorSignalExtractor
+    from claude_candidate.extractors.comm_signals import CommSignalExtractor
+
+    if not content.strip():
+        return []
+
+    lines = content.strip().splitlines()
+    raw_messages = parse_session_lines(lines)
+    if not raw_messages:
+        return []
+
+    messages = normalize_messages(raw_messages)
+
+    # Extract session metadata from messages
+    sid = session_id or _extract_session_id(messages)
+    cwd = next((m["raw"].get("cwd", "") for m in messages if m["raw"].get("cwd")), "")
+    project = project_hint or _extract_project_hint(messages)
+    git_branch = _extract_git_branch(messages)
+    timestamp = _parse_timestamp(_extract_timestamp(messages))
+
+    session = NormalizedSession(
+        session_id=sid,
+        timestamp=timestamp,
+        cwd=cwd,
+        project_context=_sanitize_project_hint(project),
+        git_branch=git_branch,
+        messages=messages,
+    )
+
+    # Run all three extractors
+    code_ext = CodeSignalExtractor()
+    behavior_ext = BehaviorSignalExtractor()
+    comm_ext = CommSignalExtractor()
+
+    return [
+        code_ext.extract_session(session),
+        behavior_ext.extract_session(session),
+        comm_ext.extract_session(session),
+    ]
+
+
 def _build_empty_profile(manifest_hash: str) -> CandidateProfile:
     """Build a minimal profile when no signals are available."""
     now = datetime.now()
