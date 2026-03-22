@@ -3,19 +3,22 @@
     "aliases": ["py", "python3", "cpython"],
     "category": "language",
     "related": ["fastapi", "pydantic", "pytest", "machine-learning"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["import ", "from ", "def ", "class ", ".py"]
   },
   "typescript": {
     "aliases": ["ts", "tsx"],
     "category": "language",
     "related": ["javascript", "react", "node.js", "nextjs"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["import {", "export ", ": string", ": number", ".ts"]
   },
   "javascript": {
     "aliases": ["js", "ecmascript", "es6", "jquery"],
     "category": "language",
     "related": ["typescript", "react", "node.js", "vue", "nextjs", "html-css"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["require(", "module.exports", "const ", ".js"]
   },
   "react": {
     "aliases": ["react.js", "reactjs"],
@@ -28,13 +31,15 @@
     "aliases": ["node", "nodejs"],
     "category": "runtime",
     "related": ["javascript", "typescript", "react", "nextjs"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["require(", "module.exports", "process.env", "express("]
   },
   "kubernetes": {
     "aliases": ["k8s", "kube"],
     "category": "platform",
     "related": ["docker", "terraform", "ci-cd", "distributed-systems", "devops"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["kubectl ", "apiVersion:", "kind: Deployment", "k8s"]
   },
   "docker": {
     "aliases": ["dockerfile", "docker-compose"],
@@ -47,7 +52,8 @@
     "aliases": ["pg", "postgres", "psql"],
     "category": "tool",
     "related": ["sql", "redis"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["psql", "pg_dump", "Create Table", "postgres"]
   },
   "fastapi": {
     "aliases": ["fast-api"],
@@ -60,31 +66,36 @@
     "aliases": ["vue.js", "vuejs"],
     "category": "framework",
     "related": ["javascript", "typescript", "node.js", "frontend-development"],
-    "parent": "javascript"
+    "parent": "javascript",
+    "content_patterns": ["<template>", "defineComponent", "v-bind", "v-model"]
   },
   "nextjs": {
     "aliases": ["next.js", "next"],
     "category": "framework",
     "related": ["react", "javascript", "typescript", "node.js"],
-    "parent": "react"
+    "parent": "react",
+    "content_patterns": ["next/", "getServerSideProps", "getStaticProps", "NextResponse"]
   },
   "aws": {
     "aliases": ["amazon-web-services", "amazon web services"],
     "category": "platform",
     "related": ["gcp", "azure", "terraform", "kubernetes", "docker", "cloud-infrastructure"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["aws ", "boto3", "from aws_cdk", "s3://"]
   },
   "gcp": {
     "aliases": ["google-cloud", "google cloud platform", "google cloud"],
     "category": "platform",
     "related": ["aws", "azure", "terraform", "kubernetes", "docker", "cloud-infrastructure"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["gcloud ", "from google.cloud", "gs://"]
   },
   "azure": {
     "aliases": ["microsoft-azure", "microsoft azure", "azure-cloud"],
     "category": "platform",
     "related": ["aws", "gcp", "terraform", "kubernetes", "cloud-infrastructure"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["az ", "azure-", "from azure"]
   },
   "pydantic": {
     "aliases": [],
@@ -111,13 +122,15 @@
     "aliases": ["ci/cd", "continuous-integration", "github-actions", "continuous-delivery", "continuous deployment"],
     "category": "practice",
     "related": ["git", "docker", "kubernetes", "terraform", "devops"],
-    "parent": null
+    "parent": null,
+    "content_patterns": [".github/workflows", "pipeline", "deploy", "ci/cd"]
   },
   "machine-learning": {
     "aliases": ["ml", "deep-learning", "deep learning", "machine learning", "multimodal-ai", "multimodal ai", "computer-vision", "voice-ai"],
     "category": "domain",
     "related": ["python", "llm", "rag", "prompt-engineering", "pytorch", "tensorflow", "data-science"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["model training", "neural network", "gradient", "epoch"]
   },
   "llm": {
     "aliases": ["large-language-model", "large language model", "language model", "llms", "large language models", "model-routing", "model routing", "llm-evaluation", "llm evaluation"],
@@ -130,43 +143,50 @@
     "aliases": ["prompt engineering", "prompt design", "prompt-design", "prompt"],
     "category": "practice",
     "related": ["llm", "machine-learning", "rag", "agentic-workflows"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["prompt", "system prompt", "few-shot", "chain of thought"]
   },
   "rag": {
     "aliases": ["retrieval-augmented-generation", "retrieval augmented generation", "semantic-retrieval", "semantic retrieval", "vector-databases", "vector databases", "memory-systems", "memory systems"],
     "category": "domain",
     "related": ["llm", "machine-learning", "prompt-engineering"],
-    "parent": "machine-learning"
+    "parent": "machine-learning",
+    "content_patterns": ["retrieval augmented", "vector store", "embedding", "semantic search"]
   },
   "sql": {
     "aliases": [],
     "category": "language",
     "related": ["postgresql", "redis"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["Select ", "Insert Into", "Create Table", "Alter Table"]
   },
   "redis": {
     "aliases": [],
     "category": "tool",
     "related": ["postgresql", "sql"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["redis-cli", "redis_url", "redis.Redis"]
   },
   "terraform": {
     "aliases": ["tf", "hcl"],
     "category": "tool",
     "related": ["aws", "gcp", "kubernetes", "docker", "ci-cd", "cloud-infrastructure"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["terraform ", "resource \"", "provider \""]
   },
   "rust": {
     "aliases": ["rs"],
     "category": "language",
     "related": [],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["fn ", "let mut", "impl ", "use ", ".rs"]
   },
   "go": {
     "aliases": ["golang"],
     "category": "language",
     "related": ["kubernetes", "docker", "distributed-systems"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["func ", "package ", "import (", ".go"]
   },
   "sqlalchemy": {
     "aliases": [],
@@ -200,31 +220,36 @@
     "aliases": ["written communication", "verbal communication", "communication skills", "excellent communication", "client-facing", "client facing", "presentation", "consulting"],
     "category": "soft_skill",
     "related": ["collaboration", "leadership"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["explain", "clarify", "document", "present"]
   },
   "collaboration": {
     "aliases": ["teamwork", "team player", "collaborative", "cross-functional", "cross-functional collaboration", "cross_functional_collaboration", "cross-functional-collaboration"],
     "category": "soft_skill",
     "related": ["communication", "leadership"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["pair", "code review", "team", "merge request"]
   },
   "leadership": {
     "aliases": ["technical leadership", "technical-leadership", "team lead", "mentorship", "people management", "tech lead", "engineering management", "mentoring", "stakeholder_management", "stakeholder-management", "stakeholder management", "executive-communication"],
     "category": "soft_skill",
     "related": ["communication", "collaboration"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["mentoring", "onboard", "delegate", "architecture decision"]
   },
   "problem-solving": {
     "aliases": ["analytical thinking", "critical thinking", "troubleshooting", "problem solving", "analytical-thinking", "critical-thinking", "debugging", "systems thinking", "attention-to-detail", "attention to detail"],
     "category": "soft_skill",
     "related": ["system-design"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["debug", "root cause", "hypothesis", "investigate"]
   },
   "adaptability": {
     "aliases": ["flexibility", "fast learner", "quick learner", "self-starter", "autonomy", "self-directed", "initiative", "ambiguity tolerance", "bias for action", "ai-research", "ai research", "curiosity"],
     "category": "soft_skill",
     "related": [],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["pivot", "new approach", "learn", "unfamiliar"]
   },
   "unity": {
     "aliases": ["unity3d", "unity-engine", "unity engine"],
@@ -245,7 +270,7 @@
     "category": "framework",
     "related": ["webgl", "unity", "javascript", "react"],
     "parent": "javascript",
-    "content_patterns": ["three.js", "THREE.", "import * as THREE"]
+    "content_patterns": ["three.js", "Three.", "import * as THREE"]
   },
   "agentic-workflows": {
     "aliases": ["agentic-ai", "agentic ai", "ai-agents", "ai agents", "ai_agents", "agent-framework", "agent framework", "agent frameworks", "agentic", "agentic workflows", "agentic_workflows", "multi-agent", "multi agent", "agent orchestration", "agent-orchestration", "ai-orchestration", "ai-augmented-development", "ai-augmented development", "human-in-the-loop", "human in the loop", "agent-runtime", "agent runtime", "llm-orchestration", "llm orchestration", "ai-planning", "ai planning", "autonomous-agents", "autonomous agents", "task-scheduling", "workflow-automation", "llm-applications", "llm applications", "mcp", "model-context-protocol"],
@@ -258,228 +283,266 @@
     "aliases": ["dev-tools", "devtools", "developer tools", "developer-tools", "dev tools", "tooling", "developer-productivity", "developer productivity", "engineering-metrics"],
     "category": "domain",
     "related": ["software-engineering", "ci-cd", "testing"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["CLI", "plugin", "extension", "SDK"]
   },
   "full-stack": {
     "aliases": ["fullstack", "full stack", "full-stack development", "full-stack-development", "fullstack development"],
     "category": "practice",
     "related": ["frontend-development", "backend-development", "react", "node.js", "python"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["frontend", "backend", "fullstack", "full-stack"]
   },
   "frontend-development": {
     "aliases": ["frontend", "front-end", "front end", "frontend development", "front-end development", "ui-development", "ui development", "web_development", "web development", "web-development", "responsive_design", "responsive design", "responsive-design", "mobile_web_development", "frontend_architecture", "frontend-architecture", "frontend architecture", "micro_frontends", "micro-frontends", "microfrontends"],
     "category": "practice",
     "related": ["react", "javascript", "typescript", "html-css", "full-stack"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["useState", "component", "CSS", "responsive"]
   },
   "backend-development": {
     "aliases": ["backend", "back-end", "back end", "backend development", "back-end development", "server-side"],
     "category": "practice",
     "related": ["python", "node.js", "api-design", "full-stack"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["endpoint", "middleware", "ORM", "migration"]
   },
   "software-engineering": {
     "aliases": ["software engineering", "software_engineering", "software development", "software-development", "swe", "generalist-engineering", "generalist engineering"],
     "category": "practice",
     "related": ["full-stack", "system-design", "testing", "developer-tools"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["refactor", "code review", "pull request", "technical debt"]
   },
   "system-design": {
     "aliases": ["system design", "system_design", "system-architecture", "system architecture", "systems design", "systems architecture", "architecture-design", "software architecture", "software-architecture", "monorepo", "bff", "backend-for-frontend"],
     "category": "practice",
     "related": ["software-engineering", "distributed-systems", "api-design"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["architecture", "scalab", "load balanc", "microservice"]
   },
   "distributed-systems": {
     "aliases": ["distributed systems", "distributed-computing", "distributed computing", "microservices", "micro-services"],
     "category": "domain",
     "related": ["kubernetes", "system-design", "cloud-infrastructure", "scalability"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["consensus", "partition tolerance", "sharding", "replication"]
   },
   "api-design": {
     "aliases": ["api design", "api_design", "rest-api", "rest api", "rest apis", "restful", "api development", "api-development", "graphql", "api-integration", "api integration", "platform-integration", "platform integration"],
     "category": "practice",
     "related": ["software-engineering", "backend-development", "fastapi"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["endpoint", "REST", "GraphQL", "OpenAPI", "/api/"]
   },
   "testing": {
     "aliases": ["test-driven-development", "tdd", "unit-testing", "unit testing", "integration-testing", "integration testing", "automated testing", "automated-testing", "qa", "quality assurance", "test automation", "code_quality", "code-quality", "code quality", "code-review", "code review"],
     "category": "practice",
     "related": ["software-engineering", "ci-cd", "pytest"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["def test_", "describe(", "it(", "expect(", "assert"]
   },
   "devops": {
     "aliases": ["dev-ops", "site-reliability", "sre", "site reliability engineering", "infrastructure"],
     "category": "practice",
     "related": ["docker", "kubernetes", "ci-cd", "terraform", "cloud-infrastructure"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["Dockerfile", "docker-compose", "nginx", "systemctl"]
   },
   "cloud-infrastructure": {
     "aliases": ["cloud infrastructure", "cloud-computing", "cloud computing", "cloud services", "cloud platforms", "cloud"],
     "category": "domain",
     "related": ["aws", "gcp", "azure", "kubernetes", "terraform", "devops"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["EC2", "Lambda", "load balancer", "auto-scaling"]
   },
   "security": {
     "aliases": ["cybersecurity", "application-security", "appsec", "information security", "infosec", "security engineering", "compliance", "safety", "responsible_ai", "responsible-ai", "responsible ai", "ai-safety", "ai safety"],
     "category": "practice",
     "related": ["software-engineering", "devops"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["sanitiz", "XSS", "CORS", "RBAC", "encrypt"]
   },
   "agile": {
     "aliases": ["scrum", "kanban", "sprint", "agile-methodology", "agile methodology"],
     "category": "practice",
     "related": ["software-engineering", "collaboration"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["sprint", "standup", "backlog", "user story"]
   },
   "data-science": {
     "aliases": ["data science", "data_science", "data analysis", "data_analysis", "analytics", "data analytics", "data-analysis", "statistics", "statistical analysis"],
     "category": "domain",
     "related": ["python", "machine-learning", "sql"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["dataframe", "pandas", "matplotlib", "jupyter"]
   },
   "prototyping": {
     "aliases": ["rapid prototyping", "rapid-prototyping", "proof of concept", "poc", "mvp", "minimum viable product", "greenfield-development", "greenfield development", "innovation", "rapid-iteration", "rapid iteration"],
     "category": "practice",
     "related": ["software-engineering", "full-stack", "developer-tools"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["prototype", "proof of concept", "MVP", "spike"]
   },
   "java": {
     "aliases": ["jvm", "java-se", "java se"],
     "category": "language",
     "related": ["kotlin", "spring"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["public class", "import java", "void ", ".java"]
   },
   "cpp": {
     "aliases": ["c++", "cplusplus"],
     "category": "language",
     "related": ["c", "rust"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["#include <", "std::", "namespace ", "template<"]
   },
   "csharp": {
     "aliases": ["c#", "c-sharp", "dotnet", ".net"],
     "category": "language",
     "related": ["unity", "java"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["using System", "namespace ", "public class", ".cs"]
   },
   "c": {
     "aliases": ["c-language"],
     "category": "language",
     "related": ["cpp", "rust"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["#include ", "int main", "printf(", "malloc("]
   },
   "pytorch": {
     "aliases": ["torch"],
     "category": "framework",
     "related": ["machine-learning", "python", "tensorflow"],
-    "parent": "python"
+    "parent": "python",
+    "content_patterns": ["import torch", "torch.nn", "torch.tensor", "backward()"]
   },
   "tensorflow": {
     "aliases": ["tf-ml", "keras"],
     "category": "framework",
     "related": ["machine-learning", "python", "pytorch"],
-    "parent": "python"
+    "parent": "python",
+    "content_patterns": ["import tensorflow", "tf.keras", "tf.constant"]
   },
   "html-css": {
     "aliases": ["html", "css", "html/css", "html5", "css3", "web-standards"],
     "category": "language",
     "related": ["javascript", "frontend-development", "react"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["<!doctype", "<html", "<div", "<body"]
   },
   "performance-optimization": {
     "aliases": ["performance optimization", "performance-tuning", "optimization", "scalability", "scaling", "performance engineering", "high-scale-systems", "high scale systems", "performance_profiling", "profiling_tools"],
     "category": "practice",
     "related": ["software-engineering", "system-design", "distributed-systems"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["profil", "latency", "throughput", "benchmark"]
   },
   "game-development": {
     "aliases": ["game development", "game-dev", "gamedev", "game design", "game engine", "unreal-engine", "unreal engine", "unreal"],
     "category": "domain",
     "related": ["unity", "webgl", "three-js", "cpp"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["game loop", "sprite", "physics engine", "collision"]
   },
   "product-development": {
     "aliases": ["product development", "product_development", "product engineering", "product-engineering", "product management", "product-management", "product ownership", "product thinking", "product sense", "process-design", "process design"],
     "category": "practice",
     "related": ["software-engineering", "full-stack", "agile"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["user story", "feature flag", "A/B test", "roadmap"]
   },
   "edtech": {
     "aliases": ["education technology", "ed-tech", "education-technology", "learning technology", "learning-technology"],
     "category": "domain",
     "related": ["product-development", "full-stack"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["curriculum", "assessment", "learning management", "student"]
   },
   "ownership": {
     "aliases": ["end-to-end ownership", "project ownership", "technical ownership", "owning outcomes"],
     "category": "soft_skill",
     "related": ["leadership", "adaptability"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["end-to-end", "ship", "maintain", "on-call"]
   },
   "open-source": {
     "aliases": ["open source", "open-source-software", "oss", "open source contributions"],
     "category": "practice",
     "related": ["software-engineering", "git", "collaboration"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["open source", "MIT license", "contributing", "changelog"]
   },
   "mlops": {
     "aliases": ["ml-ops", "ml ops", "model deployment", "model-deployment", "ml engineering", "ml-engineering", "machine learning operations"],
     "category": "practice",
     "related": ["machine-learning", "devops", "ci-cd", "python"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["model serving", "feature store", "ML pipeline", "model registry"]
   },
   "metrics": {
     "aliases": ["kpis", "key performance indicators", "observability", "monitoring", "instrumentation", "ab_testing", "a/b testing", "ab testing", "a-b-testing", "experimentation", "dashboards", "data_visualization", "data visualization", "data-visualization", "ai-evaluation", "ai evaluation"],
     "category": "practice",
     "related": ["data-science", "product-development", "devops"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["KPI", "dashboard", "analytics", "tracking"]
   },
   "computer-science": {
     "aliases": ["computer science", "computer_science", "cs", "algorithms", "data structures", "data-structures", "algorithms and data structures"],
     "category": "domain",
     "related": ["software-engineering", "system-design"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["algorithm", "data structure", "complexity", "recursion"]
   },
   "startup-experience": {
     "aliases": ["startup experience", "startup_experience", "startup", "early-stage", "early stage", "0-to-1", "zero to one"],
     "category": "practice",
     "related": ["product-development", "full-stack", "ownership"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["MVP", "pivot", "product-market fit", "launch"]
   },
   "creative-tools": {
     "aliases": ["creative tools", "creative tooling", "creative-technology", "creative technology", "visual-authoring", "visual authoring", "playcanvas"],
     "category": "domain",
     "related": ["unity", "webgl", "three-js", "game-development"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["canvas", "rendering", "3D", "animation"]
   },
   "production-systems": {
     "aliases": ["production systems", "production_systems", "production-grade", "production grade", "production engineering", "software_delivery", "software delivery", "software-delivery"],
     "category": "practice",
     "related": ["software-engineering", "devops", "system-design", "distributed-systems"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["production", "monitoring", "incident", "SLA"]
   },
   "kotlin": {
     "aliases": [],
     "category": "language",
     "related": ["java"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["fun ", "val ", "var ", ".kt"]
   },
   "spring": {
     "aliases": ["spring-boot", "spring boot", "spring-framework"],
     "category": "framework",
     "related": ["java", "kotlin"],
-    "parent": "java"
+    "parent": "java",
+    "content_patterns": ["@SpringBoot", "@RestController", "@Autowired"]
   },
   "technical-writing": {
     "aliases": ["technical writing", "technical_writing", "documentation", "docs"],
     "category": "practice",
     "related": ["software-engineering", "communication"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["documentation", "readme", "docstring", "API docs"]
   },
   "authentication": {
     "aliases": ["auth", "oauth", "oauth2", "authentication-systems", "identity management", "iam"],
     "category": "domain",
     "related": ["security", "api-design", "backend-development"],
-    "parent": null
+    "parent": null,
+    "content_patterns": ["OAuth", "JWT", "session token", "SAML"]
   }
 }
