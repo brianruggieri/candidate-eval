@@ -36,11 +36,15 @@ def classify_evidence_source(
 ) -> EvidenceSource:
     """Classify the evidence source for a skill."""
     if in_resume and in_sessions:
-        # Check for conflict: if depths differ by 2+ levels, it's conflicting
+        # Check for conflict: if depths differ by 2+ levels, it's conflicting.
+        # Skip conflict check if either side is MENTIONED — that means "no depth
+        # data available", not "low skill". Common in resumes that list skills
+        # without depth information.
         if resume_depth and session_depth:
             r_rank = DEPTH_RANK.get(resume_depth, 0)
             s_rank = DEPTH_RANK.get(session_depth, 0)
-            if abs(r_rank - s_rank) >= 2:
+            both_have_depth = r_rank > 0 and s_rank > 0
+            if both_have_depth and abs(r_rank - s_rank) >= 2:
                 return EvidenceSource.CONFLICTING
         return EvidenceSource.CORROBORATED
     elif in_resume:

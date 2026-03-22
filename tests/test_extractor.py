@@ -901,7 +901,10 @@ class TestAiSkillDepthInProfile:
         )
         openai_skill = profile.get_skill("openai")
         assert openai_skill is not None
-        assert openai_skill.depth == DepthLevel.EXPERT
+        # New three-extractor pipeline uses frequency + cross-extractor
+        # corroboration for depth (AI score override removed in v2).
+        # frequency=2 with content_pattern source -> USED
+        assert openai_skill.depth == DepthLevel.USED
 
     def test_low_ai_score_yields_low_depth(
         self, ai_signals_low: list[SessionSignals]

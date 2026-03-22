@@ -16,7 +16,11 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+import ahocorasick
+import orjson
+
 from claude_candidate.ai_scoring import compute_ai_engineering_score
+from claude_candidate.extractors import NormalizedSession
 from claude_candidate.message_format import NormalizedMessage, normalize_messages
 from claude_candidate.skill_taxonomy import SkillTaxonomy
 from claude_candidate.schemas.candidate_profile import (
@@ -65,6 +69,23 @@ DOCKERFILE_NAMES: set[str] = {"Dockerfile", "dockerfile"}
 def _get_content_patterns() -> dict[str, list[str]]:
     """Lazy-load content patterns from the taxonomy (cached after first call)."""
     return SkillTaxonomy.load_default().get_content_patterns()
+
+
+@functools.cache
+def _get_content_automaton() -> ahocorasick.Automaton:
+    """Build Aho-Corasick automaton from taxonomy content patterns."""
+    patterns = _get_content_patterns()
+    automaton = ahocorasick.Automaton()
+    # Multiple skills can share the same pattern string, so store lists
+    pattern_to_skills: dict[str, list[str]] = {}
+    for skill, pattern_list in patterns.items():
+        for p in pattern_list:
+            key = p.lower()
+            pattern_to_skills.setdefault(key, []).append(skill)
+    for key, skills in pattern_to_skills.items():
+        automaton.add_word(key, skills)
+    automaton.make_automaton()
+    return automaton
 
 CATEGORY_MAP: dict[str, str] = {
     "python": "language",
@@ -166,9 +187,9 @@ def _is_valid_json_line(line: str) -> bool:
     if not stripped:
         return False
     try:
-        json.loads(stripped)
+        orjson.loads(stripped)
         return True
-    except (json.JSONDecodeError, ValueError):
+    except (orjson.JSONDecodeError, ValueError):
         return False
 
 
@@ -180,8 +201,8 @@ def parse_session_lines(lines: list[str]) -> list[dict]:
         if not stripped:
             continue
         try:
-            results.append(json.loads(stripped))
-        except (json.JSONDecodeError, ValueError):
+            results.append(orjson.loads(stripped))
+        except (orjson.JSONDecodeError, ValueError):
             continue
     return results
 
@@ -204,13 +225,14 @@ def _detect_from_file_path(path: str) -> list[str]:
 
 
 def _detect_from_content(content: str) -> list[str]:
-    """Detect technologies from content keywords and patterns."""
-    lower = content.lower()
-    found: list[str] = []
-    for tech, patterns in _get_content_patterns().items():
-        if any(p.lower() in lower for p in patterns):
-            found.append(tech)
-    return found
+    """Detect technologies from content using Aho-Corasick multi-pattern matching."""
+    automaton = _get_content_automaton()
+    found: set[str] = set()
+    content_lower = content.lower()
+    for _, skills in automaton.iter(content_lower):
+        for skill in skills:
+            found.add(skill)
+    return list(found)
 
 
 def extract_technologies(messages: list[NormalizedMessage]) -> list[str]:
@@ -311,6 +333,15 @@ def _extract_project_hint(messages: list[NormalizedMessage]) -> str:
     return "unknown"
 
 
+def _extract_git_branch(messages: list[NormalizedMessage]) -> str | None:
+    """Extract git branch from the first message that has one."""
+    for msg in messages:
+        branch = msg["raw"].get("gitBranch", "")
+        if branch:
+            return branch
+    return None
+
+
 def _detect_patterns(
     tool_calls: list[str],
     technologies: list[str],
@@ -349,6 +380,15 @@ def extract_session_signals(content: str) -> SessionSignals:
             line_count=len(lines),
         )
     messages = normalize_messages(raw_messages)
+    cwd = next((m["raw"].get("cwd", "") for m in messages if m["raw"].get("cwd")), "")
+    session = NormalizedSession(  # noqa: F841 — used in Task 9
+        session_id=_extract_session_id(messages),
+        timestamp=_parse_timestamp(_extract_timestamp(messages)),
+        cwd=cwd,
+        project_context=_extract_project_hint(messages),
+        git_branch=_extract_git_branch(messages),
+        messages=messages,
+    )
     technologies = extract_technologies(messages)
     tool_calls = _extract_tool_calls(messages)
     patterns = _detect_patterns(tool_calls, technologies)
@@ -696,35 +736,204 @@ def _build_working_style(
     return f"Working style includes: {', '.join(names)}."
 
 
+# Reverse map: technology name -> file extension for synthetic file paths
+_TECH_TO_EXTENSION: dict[str, str] = {}
+for _ext, _techs in FILE_EXTENSION_MAP.items():
+    for _tech in _techs:
+        if _tech not in _TECH_TO_EXTENSION:
+            _TECH_TO_EXTENSION[_tech] = _ext
+
+
+def _signals_to_normalized_session(signals: SessionSignals) -> NormalizedSession:
+    """Convert a SessionSignals object to a NormalizedSession.
+
+    Transitional shim: SessionSignals has already aggregated the raw data,
+    so we reconstruct synthetic NormalizedMessages from what's available.
+    The extractors will find skills from:
+    - CodeSignalExtractor: file extensions from technologies, content patterns
+      in evidence_snippets
+    - BehaviorSignalExtractor: tool names in tool_calls
+    - CommSignalExtractor: limited (no raw user messages in SessionSignals)
+    """
+    from claude_candidate.message_format import NormalizedMessage
+
+    messages: list[NormalizedMessage] = []
+    raw_base: dict = {
+        "sessionId": signals.session_id,
+        "timestamp": signals.timestamp,
+        "cwd": "",
+        "gitBranch": "",
+    }
+
+    # Reconstruct tool_use messages from tool_calls
+    # NormalizedMessage is a TypedDict — use plain dict literals for clarity.
+    for tool_name in signals.tool_calls:
+        messages.append({
+            "role": "tool_use",
+            "content": [{"type": "tool_use", "name": tool_name, "input": {}}],
+            "raw": dict(raw_base),
+        })
+
+    # Reconstruct synthetic Write tool_use messages from technologies
+    # so CodeSignalExtractor can detect them via file extensions
+    for tech in signals.technologies:
+        ext = _TECH_TO_EXTENSION.get(tech)
+        if ext:
+            messages.append({
+                "role": "tool_use",
+                "content": [{
+                    "type": "tool_use",
+                    "name": "Write",
+                    "input": {"file_path": f"/synthetic/file{ext}", "content": ""},
+                }],
+                "raw": dict(raw_base),
+            })
+
+    # Reconstruct assistant text messages from evidence_snippets
+    for snippet in signals.evidence_snippets:
+        messages.append({
+            "role": "assistant",
+            "content": [{"type": "text", "text": snippet}],
+            "raw": dict(raw_base),
+        })
+
+    return NormalizedSession(
+        session_id=signals.session_id,
+        timestamp=_parse_timestamp(signals.timestamp),
+        cwd="",
+        project_context=_sanitize_project_hint(signals.project_hint),
+        git_branch=None,
+        messages=messages,
+    )
+
+
 def build_candidate_profile(
     *,
     signals_list: list[SessionSignals],
     manifest_hash: str,
 ) -> CandidateProfile:
-    """Build a complete CandidateProfile from extracted session signals."""
+    """Build a complete CandidateProfile from extracted session signals.
+
+    Uses the three-extractor pipeline (CodeSignalExtractor,
+    BehaviorSignalExtractor, CommSignalExtractor) + SignalMerger.
+    """
+    from claude_candidate.extractors.code_signals import CodeSignalExtractor
+    from claude_candidate.extractors.behavior_signals import BehaviorSignalExtractor
+    from claude_candidate.extractors.comm_signals import CommSignalExtractor
+    from claude_candidate.extractors.signal_merger import SignalMerger
+
     if not signals_list:
         return _build_empty_profile(manifest_hash)
-    skills = _build_skill_entries(signals_list)
-    patterns = _build_patterns(signals_list)
-    projects = _build_projects(signals_list)
-    date_start, date_end = _compute_date_range(signals_list)
-    return CandidateProfile(
-        generated_at=datetime.now(),
-        session_count=len(signals_list),
-        date_range_start=date_start,
-        date_range_end=date_end,
-        manifest_hash=manifest_hash,
-        skills=skills,
-        primary_languages=_top_languages(skills),
-        primary_domains=_top_domains(skills),
-        problem_solving_patterns=patterns,
-        working_style_summary=_build_working_style(patterns),
-        projects=projects,
-        communication_style="Technical and detail-oriented",
-        documentation_tendency=_assess_documentation_tendency(signals_list),
-        extraction_notes=f"Extracted from {len(signals_list)} session(s)",
-        confidence_assessment=_assess_confidence(signals_list),
+
+    # Convert SessionSignals to NormalizedSessions
+    sessions = [_signals_to_normalized_session(s) for s in signals_list]
+
+    # Run three extractors
+    code_ext = CodeSignalExtractor()
+    behavior_ext = BehaviorSignalExtractor()
+    comm_ext = CommSignalExtractor()
+
+    all_results = []
+    for session in sessions:
+        all_results.append(code_ext.extract_session(session))
+        all_results.append(behavior_ext.extract_session(session))
+        all_results.append(comm_ext.extract_session(session))
+
+    # Merge and build profile
+    merger = SignalMerger()
+    profile = merger.merge(all_results, manifest_hash=manifest_hash)
+
+    # Optional ML enrichment
+    from claude_candidate.enrichment import enrichment_available
+    if enrichment_available():
+        try:
+            from claude_candidate.enrichment.embedding_matcher import EmbeddingMatcher
+            # Future: apply enrichment passes here
+            pass
+        except Exception:
+            pass  # Graceful degradation
+
+    return profile
+
+
+def build_profile_from_signal_results(
+    *,
+    results: list,
+    manifest_hash: str,
+) -> CandidateProfile:
+    """Build a CandidateProfile directly from pre-computed SignalResult objects.
+
+    This is the preferred path — extractors run on full NormalizedSession data
+    (no lossy SessionSignals intermediate). Used by the CLI when processing
+    raw JSONL files.
+    """
+    from claude_candidate.extractors.signal_merger import SignalMerger
+
+    if not results:
+        return _build_empty_profile(manifest_hash)
+
+    merger = SignalMerger()
+    profile = merger.merge(results, manifest_hash=manifest_hash)
+
+    # Optional ML enrichment
+    from claude_candidate.enrichment import enrichment_available
+    if enrichment_available():
+        try:
+            from claude_candidate.enrichment.embedding_matcher import EmbeddingMatcher
+            pass
+        except Exception:
+            pass
+
+    return profile
+
+
+def extract_session_to_signals(content: str, session_id: str = "", project_hint: str = "") -> list:
+    """Extract SignalResults directly from raw JSONL content.
+
+    Parses JSONL, normalizes messages, builds NormalizedSession, and runs
+    all three extractors. Returns list of 3 SignalResult objects.
+    This bypasses the lossy SessionSignals intermediate.
+    """
+    from claude_candidate.extractors.code_signals import CodeSignalExtractor
+    from claude_candidate.extractors.behavior_signals import BehaviorSignalExtractor
+    from claude_candidate.extractors.comm_signals import CommSignalExtractor
+
+    if not content.strip():
+        return []
+
+    lines = content.strip().splitlines()
+    raw_messages = parse_session_lines(lines)
+    if not raw_messages:
+        return []
+
+    messages = normalize_messages(raw_messages)
+
+    # Extract session metadata from messages
+    sid = session_id or _extract_session_id(messages)
+    cwd = next((m["raw"].get("cwd", "") for m in messages if m["raw"].get("cwd")), "")
+    project = project_hint or _extract_project_hint(messages)
+    git_branch = _extract_git_branch(messages)
+    timestamp = _parse_timestamp(_extract_timestamp(messages))
+
+    session = NormalizedSession(
+        session_id=sid,
+        timestamp=timestamp,
+        cwd=cwd,
+        project_context=_sanitize_project_hint(project),
+        git_branch=git_branch,
+        messages=messages,
     )
+
+    # Run all three extractors
+    code_ext = CodeSignalExtractor()
+    behavior_ext = BehaviorSignalExtractor()
+    comm_ext = CommSignalExtractor()
+
+    return [
+        code_ext.extract_session(session),
+        behavior_ext.extract_session(session),
+        comm_ext.extract_session(session),
+    ]
 
 
 def _build_empty_profile(manifest_hash: str) -> CandidateProfile:
