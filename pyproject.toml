@@ -33,6 +33,7 @@ dependencies = [
     "datafog>=4.0",
     "jinja2>=3.1",
     "pyyaml>=6.0",
+    "ruptures>=1.1.8",
 ]
 
 [project.optional-dependencies]
@@ -45,6 +46,11 @@ dev = [
     "syrupy>=4.0",
     "hypothesis>=6.100",
     "pytest-subprocess>=1.5",
+]
+ml = [
+    "torch>=2.2",
+    "sentence-transformers>=3.0",
+    "scikit-learn>=1.4",
 ]
 
 [project.scripts]
