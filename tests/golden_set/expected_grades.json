@@ -1,98 +1,98 @@
 {
-  "cohere-senior-software-engineer-agent-infrastructure": {
-    "expected": "B-",
-    "rationale": "Cohere \u2014 Senior Software Engineer, Agent Infrastructure"
-  },
-  "fullstack-principal-agentic-engineer": {
-    "expected": "B",
-    "rationale": "FullStack \u2014 Principal Agentic Engineer"
+  "anthropic-software-engineer-claude-code": {
+    "expected": "A+",
+    "rationale": "Anthropic — Software Engineer, Claude Code. Literally builds with Claude Code daily. Expert in agentic-workflows, prompt-engineering, LLM, full-stack. Perfect fit."
   },
   "schoolai-fullstack-software-engineer": {
-    "expected": "A",
-    "rationale": "SchoolAI \u2014 Fullstack Software Engineer"
-  },
-  "kiddom-machine-learning-engineer": {
-    "expected": "B",
-    "rationale": "Kiddom \u2014 Machine Learning Engineer"
-  },
-  "milwaukee-brewers-senior-software-engineer-baseball-systems": {
-    "expected": "B",
-    "rationale": "Milwaukee Brewers \u2014 Senior Software Engineer (Baseball Systems)"
-  },
-  "adobe-senior-software-development-engineer": {
-    "expected": "B+",
-    "rationale": "Adobe \u2014 Senior Software Development Engineer"
-  },
-  "adobe-senior-customer-facing-applied-ai-engineer": {
-    "expected": "B",
-    "rationale": "Adobe \u2014 Senior Customer Facing Applied AI Engineer"
-  },
-  "motion-recruitment-sr-react-three-js-unreal-engine-unity-nod": {
-    "expected": "B+",
-    "rationale": "Motion Recruitment \u2014 Sr. React, Three.js / Unreal Engine / Unity / Node / WebGL"
-  },
-  "change-org-senior-staff-software-engineer-ai-and-tools": {
-    "expected": "B+",
-    "rationale": "Change.org \u2014 Senior Staff Software Engineer, AI and Tools"
-  },
-  "substack-full-stack-product-engineer-creator-activation": {
-    "expected": "B+",
-    "rationale": "Substack \u2014 Full Stack Product Engineer \u2013 Creator Activation"
-  },
-  "deeprec-ai-senior-agentic-ai-engineer": {
-    "expected": "A-",
-    "rationale": "DeepRec.ai \u2014 Senior Agentic AI Engineer"
-  },
-  "arcadia-senior-software-engineer-ai-agents": {
-    "expected": "A",
-    "rationale": "Arcadia \u2014 Senior Software Engineer (AI Agents)"
-  },
-  "suno-staff-software-engineer": {
-    "expected": "B",
-    "rationale": "Suno \u2014 Staff Software Engineer"
-  },
-  "staffing-science-senior-staff-software-engineer-agentic": {
-    "expected": "A",
-    "rationale": "Staffing Science \u2014 Senior/Staff Software Engineer (Agentic)"
-  },
-  "microsoft-ai-sr-principal-product-manager": {
-    "expected": "D",
-    "rationale": "Microsoft AI \u2014 Sr. Principal Product Manager"
-  },
-  "microsoft-member-of-technical-staff-senior-applied-ai-engine": {
-    "expected": "B+",
-    "rationale": "Microsoft \u2014 Member of Technical Staff, Senior Applied AI Engineer"
+    "expected": "A+",
+    "rationale": "SchoolAI — Fullstack Software Engineer. Expert full-stack + edtech domain + AI skills. Strong match elevated by complete skill coverage."
   },
   "npr-senior-ai-engineer-ai-labs": {
-    "expected": "B+",
-    "rationale": "NPR \u2014 Senior AI Engineer, AI Labs"
+    "expected": "A+",
+    "rationale": "NPR — Senior AI Engineer, AI Labs. Expert LLM, prompt-engineering, agentic-workflows, API design, production systems. AI engineering core competency."
   },
-  "imbue-product-engineer": {
-    "expected": "B+",
-    "rationale": "Imbue \u2014 Product Engineer"
+  "deeprec-ai-senior-agentic-ai-engineer": {
+    "expected": "A+",
+    "rationale": "DeepRec.ai — Senior Agentic AI Engineer. Agentic-workflows expert with 1098 sessions. This is the candidate's primary domain."
   },
-  "product-ai-software-engineer-ai-commerce": {
+  "motion-recruitment-sr-react-three-js-unreal-engine-unity-nod": {
+    "expected": "A+",
+    "rationale": "Motion Recruitment — Sr. React/Three.js/Unity/WebGL. Has React, Three.js, Unity, WebGL, creative-tools all detected. Niche match now fully evidenced."
+  },
+  "arcadia-senior-software-engineer-ai-agents": {
+    "expected": "A+",
+    "rationale": "Arcadia — Senior Software Engineer (AI Agents). Expert agentic-workflows, prompt-engineering, system-design. Core competency match."
+  },
+  "change-org-senior-staff-software-engineer-ai-and-tools": {
+    "expected": "A+",
+    "rationale": "Change.org — Senior Staff Software Engineer, AI and Tools. Expert developer-tools, agentic-workflows, full-stack, system-design. Strong Sr Staff match."
+  },
+  "microsoft-member-of-technical-staff-senior-applied-ai-engine": {
     "expected": "A",
-    "rationale": "Product.ai \u2014 Software Engineer - AI Commerce"
-  },
-  "the-walt-disney-company-sr-staff-r-d-engineer": {
-    "expected": "D",
-    "rationale": "The Walt Disney Company \u2014 Sr Staff R&D Engineer"
-  },
-  "interplay-learning-principal-react-engineer": {
-    "expected": "B",
-    "rationale": "Interplay Learning \u2014 Principal React Engineer"
+    "rationale": "Microsoft — Senior Applied AI Engineer. Strong AI + production systems + system-design. Not A+ due to Microsoft-specific infra expectations."
   },
   "backflip-ai-senior-ai-systems-engineer-agents-reasoning": {
     "expected": "A",
-    "rationale": "Backflip AI \u2014 Senior AI Systems Engineer (Agents & Reasoning)"
+    "rationale": "Backflip AI — Senior AI Systems Engineer (Agents & Reasoning). Strong agentic match. Unchanged — was already correct."
   },
-  "anthropic-software-engineer-claude-code": {
-    "expected": "A+",
-    "rationale": "Anthropic \u2014 Software Engineer, Claude Code"
+  "cohere-senior-software-engineer-agent-infrastructure": {
+    "expected": "A",
+    "rationale": "Cohere — Senior Software Engineer, Agent Infrastructure. Expert agentic-workflows + infrastructure skills. Previously underrated at B- with only 15 skills visible."
+  },
+  "product-ai-software-engineer-ai-commerce": {
+    "expected": "A",
+    "rationale": "Product.ai — Software Engineer, AI Commerce. Unchanged — AI + full-stack match."
+  },
+  "staffing-science-senior-staff-software-engineer-agentic": {
+    "expected": "A",
+    "rationale": "Staffing Science — Senior/Staff Software Engineer (Agentic). Unchanged — strong agentic match."
+  },
+  "kiddom-machine-learning-engineer": {
+    "expected": "A-",
+    "rationale": "Kiddom — Machine Learning Engineer. Has ML, data-science, LLM. But ML engineering specialization (model training, PyTorch depth) is secondary to agentic/platform work."
+  },
+  "adobe-senior-software-development-engineer": {
+    "expected": "A",
+    "rationale": "Adobe — Senior Software Development Engineer. Expert full-stack, system-design, production-systems, API design. Strong SDE match."
+  },
+  "milwaukee-brewers-senior-software-engineer-baseball-systems": {
+    "expected": "A-",
+    "rationale": "Milwaukee Brewers — Senior Software Engineer (Baseball Systems). Strong SWE skills match but baseball/sports analytics domain is not evidenced."
+  },
+  "adobe-senior-customer-facing-applied-ai-engineer": {
+    "expected": "A-",
+    "rationale": "Adobe — Senior Customer Facing Applied AI Engineer. AI skills strong, customer-facing aspect partially covered by communication/collaboration soft skills."
+  },
+  "imbue-product-engineer": {
+    "expected": "A-",
+    "rationale": "Imbue — Product Engineer. Strong AI + product skills. Imbue focuses on AI agents — good alignment."
+  },
+  "fullstack-principal-agentic-engineer": {
+    "expected": "A-",
+    "rationale": "FullStack — Principal Agentic Engineer. Agentic expert but principal level may require deeper distributed systems or team leadership evidence."
+  },
+  "interplay-learning-principal-react-engineer": {
+    "expected": "A-",
+    "rationale": "Interplay Learning — Principal React Engineer. Has React + frontend-development + full-stack. Elevated from B — the 76-skill profile shows broader frontend competency."
+  },
+  "substack-full-stack-product-engineer-creator-activation": {
+    "expected": "A-",
+    "rationale": "Substack — Full Stack Product Engineer. Expert full-stack, product-development, API design. Good match."
+  },
+  "suno-staff-software-engineer": {
+    "expected": "B+",
+    "rationale": "Suno — Staff Software Engineer. Music/audio domain not in profile. General SWE skills match but domain gap."
   },
   "the-walt-disney-company-software-engineer-interactive-visual": {
-    "expected": "C+",
-    "rationale": "The Walt Disney Company \u2014 Software Engineer - Interactive Visualization"
+    "expected": "B+",
+    "rationale": "Disney — Interactive Visualization. Has creative-tools, WebGL, Three.js, Unity. Previously C+ was too low — these skills are now visible."
+  },
+  "microsoft-ai-sr-principal-product-manager": {
+    "expected": "B",
+    "rationale": "Microsoft AI — Sr. Principal Product Manager. Not a PM — engineering-focused profile. But AI domain knowledge, metrics, product-development skills overlap. B is right floor."
+  },
+  "the-walt-disney-company-sr-staff-r-d-engineer": {
+    "expected": "B",
+    "rationale": "Disney — Sr Staff R&D Engineer. R&D research focus doesn't match practitioner/builder profile. Has creative-tools but lacks research methodology evidence. B is appropriate."
   }
 }
