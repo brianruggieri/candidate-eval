@@ -45,9 +45,9 @@ Session JSONL files
 ```
 
 ### Constraints
-- **Output schema unchanged** — CandidateProfile, SkillEntry, ProblemSolvingPattern, ProjectSummary stay as-is
+- **Output schema unchanged** — CandidateProfile, SkillEntry, ProblemSolvingPattern, ProjectSummary stay as-is. One exception: `node.js` has `category: "runtime"` in taxonomy but SkillEntry only allows 8 categories — map `runtime → "platform"` during extraction.
 - **Same CLI interface** — `sessions scan` still works
-- **Each extractor reads the same JSONL files** independently
+- **Each extractor reads the same JSONL files** independently. All extractors have access to raw JSONL event metadata (session_id, timestamp, cwd, gitBranch) as basic infrastructure — scope boundaries define which *signals* each extractor analyzes, not which fields it can read.
 - **Graceful degradation** — ML layer is optional; without torch, full heuristic extraction still works (the 15→50+ improvement)
 
 ### File Structure
@@ -67,75 +67,102 @@ src/claude_candidate/
 │   ├── evidence_selector.py  → Embedding-based snippet selection
 │   └── learning_velocity.py  → Embedding-enhanced sophistication classification
 ├── data/
-│   └── taxonomy.json         → Updated with content_patterns for all 85 entries
+│   ├── taxonomy.json         → Updated with content_patterns for all 78 entries
+│   └── package_to_skill_map.json → ~200 package names → canonical skill mappings
 ```
 
 ---
 
 ## Shared Interfaces
 
+All interface types use pydantic `BaseModel` (consistent with the rest of the codebase). Validation on confidence ranges, snippet lengths, etc. comes for free.
+
+### ExtractorProtocol
+
+```python
+class ExtractorProtocol(Protocol):
+    """Contract for all three extractors."""
+
+    def extract_session(self, session: NormalizedSession) -> SignalResult:
+        """Extract signals from a single normalized session."""
+        ...
+
+    def name(self) -> str:
+        """Extractor identifier for logging and source tracking."""
+        ...
+```
+
+`NormalizedSession` is the existing normalized message format from `extractor.py`, extended with raw event metadata (session_id, timestamp, cwd, gitBranch, message content blocks). All three extractors receive the same `NormalizedSession` — each reads the fields relevant to its scope.
+
 ### SignalResult
 
 ```python
-@dataclass
-class SignalResult:
+class SignalResult(BaseModel):
     """One extraction layer's output for a single session."""
+    model_config = ConfigDict(frozen=True)
+
     session_id: str
     session_date: datetime
     project_context: str
-    git_branch: str | None
-    skills: dict[str, SkillSignal]
-    patterns: list[PatternSignal]
-    project_signals: ProjectSignal | None
-    metrics: dict[str, float]
+    git_branch: str | None = None
+    skills: dict[str, list[SkillSignal]] = {}   # canonical_name → signals (multiple per extractor possible)
+    patterns: list[PatternSignal] = []
+    project_signals: ProjectSignal | None = None
+    metrics: dict[str, float] = {}
 ```
 
 ### SkillSignal
 
 ```python
-@dataclass
-class SkillSignal:
+class SkillSignal(BaseModel):
     """A single skill detection from one extractor."""
+    model_config = ConfigDict(frozen=True)
+
     canonical_name: str
     source: Literal[
         "file_extension", "content_pattern", "import_statement",
         "package_command", "tool_usage", "agent_dispatch",
-        "skill_invocation", "user_message", "git_workflow"
+        "skill_invocation", "user_message", "git_workflow",
+        "quality_signal"
     ]
-    confidence: float          # 0.0-1.0
-    depth_hint: DepthLevel | None
-    evidence_snippet: str
+    confidence: float = Field(ge=0.0, le=1.0)
+    depth_hint: DepthLevel | None = None
+    evidence_snippet: str = Field(max_length=500)
     evidence_type: Literal[
         "direct_usage", "architecture_decision", "debugging",
         "teaching", "evaluation", "integration", "refactor",
         "testing", "review", "planning"
-    ]
-    metadata: dict
+    ] = "direct_usage"
+    metadata: dict = {}
 ```
 
 ### PatternSignal
 
 ```python
-@dataclass
-class PatternSignal:
+class PatternSignal(BaseModel):
     """A behavioral or communication pattern detection."""
+    model_config = ConfigDict(frozen=True)
+
     pattern_type: PatternType  # all 12 values now reachable
     session_ids: list[str]
-    confidence: float
+    confidence: float = Field(ge=0.0, le=1.0)
     description: str
-    evidence_snippet: str
-    metadata: dict
+    evidence_snippet: str = Field(max_length=500)
+    metadata: dict = {}
 ```
+
+Note: PatternSignal does NOT carry frequency/strength — those are computed by the SignalMerger during aggregation across sessions.
 
 ### ProjectSignal
 
 ```python
-@dataclass
-class ProjectSignal:
+class ProjectSignal(BaseModel):
     """Project-level enrichment from a single session."""
-    key_decisions: list[str]
-    challenges: list[str]
-    description_fragments: list[str]
+    model_config = ConfigDict(frozen=True)
+
+    key_decisions: list[str] = []
+    challenges: list[str] = []
+    description_fragments: list[str] = []
 ```
 
 ---
@@ -149,7 +176,7 @@ class ProjectSignal:
 - Source: `"file_extension"`, confidence: 0.9
 
 **Layer 2: Content patterns from taxonomy** (existing, massively expanded)
-- Expand from 17/85 to 85/85 entries with content_patterns
+- Expand from 15/78 to 78/78 entries with content_patterns
 - Pattern precision rules by category:
   - **Languages**: import statement patterns, only in code blocks
   - **Frameworks**: import + API-specific patterns (e.g., nextjs: `"next/", "getServerSideProps"`)
@@ -241,14 +268,15 @@ Replaces hardcoded `"direct_usage"`:
 | Grep→Read→Edit around error | `"debugging"` |
 | Plan/Explore Agent dispatch | `"architecture_decision"` |
 | Test file edits | `"testing"` |
-| .md documentation edits | `"review"` |
+| .md documentation edits | `"planning"` |
 | Brainstorm/plan Skill invocation | `"planning"` |
 | Structure-only Edit | `"refactor"` |
 | Default | `"direct_usage"` |
 
 ### Scope boundary
-Only analyzes: tool_use structured events, file paths, Bash commands, git metadata, error flags, message sequencing.
-Does NOT analyze: code content, user message text.
+Analyzes: tool_use structured events (name, input fields including file paths and content passed to Edit/Write/Bash), git metadata, error flags, message sequencing.
+Does NOT analyze: free-text code blocks in assistant responses, user message text (natural language intent).
+Note: reading `tool_use.input.content` (e.g., what was written to a file) is in scope — this is structured tool metadata, not free-text code analysis. The distinction is: BehaviorSignalExtractor looks at *what tools were used and on what*, not at the code's semantic meaning.
 
 ---
 
@@ -300,29 +328,10 @@ Output: META_COGNITION pattern, metadata: `grill_count`, `honesty_requests`, `se
 
 Output: DOCUMENTATION_DRIVEN pattern, metadata: `handoff_count`, `context_resets`, `plan_references`.
 
-### Group 5: Agentic Learning Velocity
-
-**Trackable agentic skills:**
-
-| Skill | Sophistication Tiers |
-|-------|---------------------|
-| Agent orchestration | Basic: single, no type → Intermediate: parallel, typed → Advanced: teams, worktrees, plan-driven |
-| Task decomposition | Basic: flat list → Intermediate: phased → Advanced: dependencies, file-level specificity |
-| Skill workflows | Basic: single skill → Intermediate: chained → Advanced: full SDLC cycle |
-| Context management | Basic: none → Intermediate: occasional resets → Advanced: structured handoffs + plan files |
-| Worktree isolation | Binary: not used → used (cleanup discipline as bonus) |
-
-**Process:**
-1. Score each session (0-3 sophistication) per agentic skill — rule-based from structured tool_use metadata
-2. Sort sessions chronologically, build time series per skill
-3. Run `ruptures.Pelt` for change point detection (level-up events)
-4. Output: `first_used`, `current_level`, `sessions_at_each_level`, `adoption_curve`, `levelup_events`
-
-Without ML enrichment, a heuristic fallback: rolling average of last 5 sessions vs. first 5 → "demonstrated learning progression" if ≥ 1 tier improvement.
-
 ### Scope boundary
-Only analyzes: user message text, message ordering/timing, command messages, Write tool paths for handoff docs.
-Does NOT analyze: code content, tool_use metadata (except to identify steering context).
+Analyzes: user message text content, message ordering/timing, command messages (/clear, /compact, /model), Write tool file paths (for handoff doc detection).
+Does NOT analyze: code content in assistant responses, tool_use execution logic.
+Note: checking Write tool file paths for `*handoff*` patterns is in scope — this is a lightweight metadata check to detect handoff discipline, not deep tool_use analysis.
 
 ---
 
@@ -338,7 +347,7 @@ Per-session SignalResults (3 extractors × N sessions)
 ### Skill Aggregation
 - Union of evidence, deduplicate by session_id + source
 - Max confidence across all signals
-- Cross-extractor boost: +0.1 for 2 extractors, +0.15 for 3
+- Cross-extractor boost: +0.1 for 2 extractors, +0.15 for 3. Final confidence capped at 1.0.
 - Preserve source tracking for transparency
 
 ### Depth Scoring
@@ -371,6 +380,31 @@ Ceiling: EXPERT. Floor: MENTIONED. Cumulative but capped.
 | key_decisions | BehaviorSignalExtractor architecture signals | Always-empty list |
 | challenges_overcome | BehaviorSignalExtractor RECOVERY_FROM_FAILURE | Always-empty list |
 | technologies | CodeSignalExtractor full skill set | Existing but richer |
+
+### Agentic Learning Velocity (computed in Merger)
+
+Learning velocity analysis lives in the Merger — not in any single extractor — because it needs chronologically sorted data across all sessions and draws on signals from both BehaviorSignalExtractor (agent dispatches, task decomposition, worktree usage) and CommSignalExtractor (handoff patterns, context management).
+
+**Trackable agentic skills:**
+
+| Skill | Sophistication Tiers (0-3) |
+|-------|---------------------------|
+| Agent orchestration | 0: none → 1: single agent, no type → 2: parallel, typed subagents → 3: teams, worktrees, plan-driven fan-out |
+| Task decomposition | 0: none → 1: flat task list → 2: phased with naming → 3: dependency chains, file-level specificity |
+| Skill workflows | 0: none → 1: single skill invocation → 2: chained skills → 3: full SDLC cycle (brainstorm→plan→execute→review) |
+| Context management | 0: none → 1: occasional /clear → 2: /clear + structured reopening → 3: handoff documents + plan file contracts |
+| Worktree isolation | 0: not used → 1: single worktree → 2: multi-worktree parallel agents → 3: cleanup discipline (remove + prune + branch delete) |
+
+**Process:**
+1. Sort all sessions chronologically across all projects
+2. For each agentic skill, score each session 0-3 using rule-based heuristics on `SignalResult.metrics` from BehaviorSignalExtractor and `PatternSignal.metadata` from CommSignalExtractor
+3. Build time series per skill
+4. Run `ruptures.Pelt` (L2 cost, BIC penalty) for change point detection → level-up events
+5. Output: `first_used`, `current_level`, `sessions_at_each_level`, `adoption_curve` (list of {date, score}), `levelup_events` (list of {date, from_level, to_level})
+
+**Minimum data requirements:** Requires ≥ 10 sessions with non-zero score for a given skill to run change point detection. For skills with 5-9 sessions, use simple comparison: mean of last 3 vs. first 3. For < 5 sessions, report `first_used` and `current_level` only, no velocity claim.
+
+**Heuristic fallback (no ruptures):** If `ruptures` import fails, fall back to: rolling average of last 5 sessions vs. first 5 → "demonstrated learning progression" if ≥ 1 tier improvement.
 
 ### Profile Assembly
 
@@ -434,7 +468,7 @@ If false, entire layer is a no-op. No warnings, no errors.
 | Operation | Cold start | Warm (cached) |
 |-----------|-----------|---------------|
 | Model download | ~30s (80MB) | 0 |
-| Taxonomy embedding (85 entries) | ~1s | Cached |
+| Taxonomy embedding (78 entries) | ~1s | Cached |
 | Evidence re-scoring (50 skills × 10 snippets) | ~3s | Per-run |
 | Total enrichment overhead | ~35s first run | ~4s subsequent |
 
@@ -454,7 +488,7 @@ scikit-learn >= 1.4     # ~30MB, cosine similarity
 
 ## Taxonomy Expansion
 
-All 85 taxonomy entries get content_patterns. Pattern design rules:
+All 78 taxonomy entries get content_patterns (currently 15/78 have them). Pattern design rules:
 
 | Category | Rule | Example |
 |----------|------|---------|
@@ -465,9 +499,23 @@ All 85 taxonomy entries get content_patterns. Pattern design rules:
 | Practices | 2+ co-occurring signals | ci-cd: `.github/workflows` path OR `"pipeline"` + `"deploy"` |
 | Domains | Domain-specific terminology only | distributed-systems: `"consensus", "sharding", "replication"` |
 
-**Anti-greedy rule:** If a single keyword matches >30% of sessions, require co-occurrence or code-block-only constraint.
+**Anti-greedy rule:** If a single keyword matches >30% of sessions, require co-occurrence or code-block-only constraint. **Validation:** after adding patterns, run extraction on full session corpus and assert no single pattern triggers in >30% of sessions. Add this as a test in `tests/test_taxonomy_patterns.py`.
 
-New data file: `package_to_skill_map.json` (~200 entries mapping package names to canonical skills).
+New data file: `data/package_to_skill_map.json` (~200 entries mapping package names to canonical skills).
+
+---
+
+## Dependency Changes
+
+### Added to `[project.dependencies]` in pyproject.toml:
+- `ruptures >= 1.1.8` — change point detection for learning velocity (5MB, pure Python, no native deps)
+
+### Added to `[project.optional-dependencies]` as `ml` extra:
+- `torch >= 2.2`
+- `sentence-transformers >= 3.0`
+- `scikit-learn >= 1.4`
+
+Install with: `pip install -e ".[ml]"` for ML enrichment, or plain `pip install -e ".[dev]"` for heuristic-only.
 
 ---
 
