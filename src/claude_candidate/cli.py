@@ -1360,9 +1360,11 @@ def _process_sessions(sessions_found: list[SessionInfo]) -> list[SessionSignals]
 
     if to_process:
         workers = min(os.cpu_count() or 4, 8)
+        # Sort largest files first so big sessions start immediately on different workers
+        to_process.sort(key=lambda s: s.file_size_bytes, reverse=True)
         click.echo(f"  Processing {len(to_process)} sessions with {workers} workers...")
         with ProcessPoolExecutor(max_workers=workers) as pool:
-            new_results = list(pool.map(_process_one_session, to_process, chunksize=50))
+            new_results = list(pool.map(_process_one_session, to_process, chunksize=1))
 
         # Update cache with new results
         for info, signals in zip(to_process, new_results):
