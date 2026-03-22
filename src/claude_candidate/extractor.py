@@ -819,7 +819,19 @@ def build_candidate_profile(
 
     # Merge and build profile
     merger = SignalMerger()
-    return merger.merge(all_results, manifest_hash=manifest_hash)
+    profile = merger.merge(all_results, manifest_hash=manifest_hash)
+
+    # Optional ML enrichment
+    from claude_candidate.enrichment import enrichment_available
+    if enrichment_available():
+        try:
+            from claude_candidate.enrichment.embedding_matcher import EmbeddingMatcher
+            # Future: apply enrichment passes here
+            pass
+        except Exception:
+            pass  # Graceful degradation
+
+    return profile
 
 
 def _build_empty_profile(manifest_hash: str) -> CandidateProfile:
