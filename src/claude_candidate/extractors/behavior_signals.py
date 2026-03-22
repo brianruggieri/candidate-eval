@@ -193,29 +193,9 @@ class BehaviorSignalExtractor:
 			info["agent_count"] = agent_in_msg
 			msg_tool_info.append(info)
 
-		# Also handle top-level tool_use role messages
-		for msg in messages:
-			if msg.get("role") == "tool_use":
-				for block in msg.get("content", []):
-					if block.get("type") == "tool_use":
-						tool_name = block.get("name", "")
-						tool_input = block.get("input", {})
-						tool_counts[tool_name] = tool_counts.get(tool_name, 0) + 1
-
-						if tool_name in ("Write", "Edit"):
-							fp = _extract_file_path_from_input(tool_input)
-							if fp:
-								ext = _file_extension(fp)
-								if ext:
-									file_extensions.add(ext)
-								file_paths_edited.append(fp)
-								if not _is_md_file(fp):
-									has_code_edit = True
-
-						if tool_name == "Bash":
-							cmd = _extract_command_from_input(tool_input)
-							if cmd:
-								bash_commands.append(cmd)
+		# NOTE: No separate loop for role=="tool_use" messages needed —
+		# _get_tool_use_blocks(msg) above already extracts tool_use content
+		# blocks from ALL messages regardless of role.
 
 		# Convenience counts
 		write_count = tool_counts.get("Write", 0)
@@ -497,6 +477,7 @@ class BehaviorSignalExtractor:
 			"agent_dispatch_count": float(len(agent_dispatches)),
 			"parallel_dispatch_count": float(parallel_dispatch_count),
 			"skill_invocation_count": float(len(skill_invocations)),
+			"task_create_count": float(len(task_creates)),
 			"error_count": float(error_count),
 			"recovery_count": float(recovery_count),
 			"test_file_edit_count": float(len(test_file_edits)),

@@ -766,35 +766,36 @@ def _signals_to_normalized_session(signals: SessionSignals) -> NormalizedSession
     }
 
     # Reconstruct tool_use messages from tool_calls
+    # NormalizedMessage is a TypedDict — use plain dict literals for clarity.
     for tool_name in signals.tool_calls:
-        messages.append(NormalizedMessage(
-            role="tool_use",
-            content=[{"type": "tool_use", "name": tool_name, "input": {}}],
-            raw=dict(raw_base),
-        ))
+        messages.append({
+            "role": "tool_use",
+            "content": [{"type": "tool_use", "name": tool_name, "input": {}}],
+            "raw": dict(raw_base),
+        })
 
     # Reconstruct synthetic Write tool_use messages from technologies
     # so CodeSignalExtractor can detect them via file extensions
     for tech in signals.technologies:
         ext = _TECH_TO_EXTENSION.get(tech)
         if ext:
-            messages.append(NormalizedMessage(
-                role="tool_use",
-                content=[{
+            messages.append({
+                "role": "tool_use",
+                "content": [{
                     "type": "tool_use",
                     "name": "Write",
                     "input": {"file_path": f"/synthetic/file{ext}", "content": ""},
                 }],
-                raw=dict(raw_base),
-            ))
+                "raw": dict(raw_base),
+            })
 
     # Reconstruct assistant text messages from evidence_snippets
     for snippet in signals.evidence_snippets:
-        messages.append(NormalizedMessage(
-            role="assistant",
-            content=[{"type": "text", "text": snippet}],
-            raw=dict(raw_base),
-        ))
+        messages.append({
+            "role": "assistant",
+            "content": [{"type": "text", "text": snippet}],
+            "raw": dict(raw_base),
+        })
 
     return NormalizedSession(
         session_id=signals.session_id,

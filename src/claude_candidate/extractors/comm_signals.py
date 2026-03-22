@@ -108,6 +108,11 @@ _PLAN_REF_RE = re.compile(
 	re.IGNORECASE,
 )
 
+# Context reset patterns (slash commands that reset/compress context)
+_CONTEXT_RESET_RE = re.compile(
+	r"(/clear|/compact|/reset)", re.IGNORECASE,
+)
+
 # Handoff file patterns (for Write/Edit tool_use detection)
 _HANDOFF_FILE_PATTERNS = ("*handoff*", "*HANDOFF*")
 
@@ -358,7 +363,7 @@ class CommSignalExtractor:
 		plan_references = 0
 		evidence_parts: list[str] = []
 
-		# Scan human messages for handoff language and plan references
+		# Scan human messages for handoff language, plan references, and context resets
 		for msg in human_messages:
 			text = _get_text(msg)
 			if _HANDOFF_RE.search(text):
@@ -368,6 +373,8 @@ class CommSignalExtractor:
 				plan_references += 1
 				if text not in evidence_parts:
 					evidence_parts.append(text)
+			if _CONTEXT_RESET_RE.search(text):
+				context_resets += 1
 
 		# Scan all messages for Write/Edit to handoff files
 		for msg in all_messages:

@@ -1308,7 +1308,8 @@ def scan(session_dir: str | None, output: str | None) -> None:
         click.echo("No sessions found. Nothing to do.")
         return
     all_results = _process_sessions_v2(sessions_found)
-    manifest_hash = hash_string("|".join(r.session_id for r in all_results[::3] if hasattr(r, 'session_id')))
+    session_ids = sorted({r.session_id for r in all_results if hasattr(r, "session_id")})
+    manifest_hash = hash_string("|".join(session_ids))
     profile = build_profile_from_signal_results(results=all_results, manifest_hash=manifest_hash)
     click.echo(f"  Skills found: {len(profile.skills)}")
     click.echo(f"  Sessions processed: {profile.session_count}")

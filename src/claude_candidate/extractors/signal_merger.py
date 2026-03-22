@@ -56,7 +56,7 @@ CATEGORY_REMAP: dict[str, str] = {
 
 FALLBACK_CATEGORY = "tool"
 
-# Cross-extractor confidence boosts
+# Multi-source (SkillSignal.source-level) confidence boosts
 BOOST_2_SOURCES = 0.1
 BOOST_3_SOURCES = 0.15
 
@@ -86,10 +86,10 @@ TOP_N = 5
 # Agentic skill dimensions and their metric keys
 AGENTIC_DIMENSIONS: dict[str, str] = {
 	"agent_orchestration": "agent_dispatch_count",
-	"task_decomposition": "task_phases",
+	"task_decomposition": "task_create_count",
 	"skill_workflows": "skill_invocation_count",
-	"context_management": "context_resets",
-	"worktree_isolation": "worktree_count",
+	"context_management": "context_reset_count",
+	"worktree_isolation": "worktree_usage",
 }
 
 # Depth levels in order for index-based navigation
@@ -255,7 +255,7 @@ class SignalMerger:
 		frequency = len(session_ids)
 		num_sources = len(source_types)
 
-		# Cross-extractor confidence boost
+		# Multi-source confidence boost
 		if num_sources >= 3:
 			boost = BOOST_3_SOURCES
 		elif num_sources >= 2:
