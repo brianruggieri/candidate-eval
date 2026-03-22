@@ -141,8 +141,13 @@ class TestProfileCommands:
         assert "Corroborated" in result.output
         assert "Sessions-only" in result.output
 
-    def test_profile_merge_candidate_only(self, fixtures_dir, tmp_path):
+    def test_profile_merge_candidate_only(self, fixtures_dir, tmp_path, monkeypatch):
         output = tmp_path / "merged.json"
+
+        # Ensure candidate-only path by disabling curated resume auto-discovery
+        monkeypatch.setattr(
+            "claude_candidate.cli._load_curated_resume", lambda: None
+        )
 
         runner = CliRunner()
         result = runner.invoke(main, [

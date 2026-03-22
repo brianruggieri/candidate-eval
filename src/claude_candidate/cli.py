@@ -66,22 +66,20 @@ def assess(
     from claude_candidate.schemas.candidate_profile import CandidateProfile
     from claude_candidate.schemas.job_requirements import QuickRequirement
     from claude_candidate.schemas.resume_profile import ResumeProfile
-    from claude_candidate.merger import merge_profiles, merge_candidate_only
     from claude_candidate.quick_match import QuickMatchEngine
 
     click.echo(f"Loading candidate profile from {profile}...")
     cp = CandidateProfile.from_json(Path(profile).read_text())
 
+    rp = None
     if resume:
         click.echo(f"Loading resume profile from {resume}...")
         rp = ResumeProfile.from_json(Path(resume).read_text())
-        merged = merge_profiles(cp, rp)
-        click.echo(f"  Merged: {merged.corroborated_skill_count} corroborated, "
-                    f"{merged.sessions_only_skill_count} sessions-only, "
-                    f"{merged.resume_only_skill_count} resume-only")
-    else:
-        click.echo("No resume provided — using sessions only")
-        merged = merge_candidate_only(cp)
+
+    merged = _merge_profile(cp, rp)
+    click.echo(f"  Merged: {merged.corroborated_skill_count} corroborated, "
+                f"{merged.sessions_only_skill_count} sessions-only, "
+                f"{merged.resume_only_skill_count} resume-only")
 
     click.echo(f"Loading job posting from {job}...")
     job_text = Path(job).read_text()
@@ -769,15 +767,14 @@ def profile_merge(candidate: str, resume: str | None, output: str) -> None:
     """Merge candidate and resume profiles."""
     from claude_candidate.schemas.candidate_profile import CandidateProfile
     from claude_candidate.schemas.resume_profile import ResumeProfile
-    from claude_candidate.merger import merge_profiles, merge_candidate_only
 
     cp = CandidateProfile.from_json(Path(candidate).read_text())
 
+    rp = None
     if resume:
         rp = ResumeProfile.from_json(Path(resume).read_text())
-        merged = merge_profiles(cp, rp)
-    else:
-        merged = merge_candidate_only(cp)
+
+    merged = _merge_profile(cp, rp)
 
     Path(output).write_text(merged.to_json())
     click.echo(f"Merged profile written to {output}")
@@ -1438,6 +1435,53 @@ def _process_sessions(sessions_found: list[SessionInfo]) -> list[SessionSignals]
         cached_results.extend(new_results)
 
     return cached_results
+
+
+def _load_curated_resume() -> dict | None:
+    """Load curated resume data from ~/.claude-candidate/curated_resume.json.
+
+    Returns the parsed dict if the file exists, None otherwise.
+    """
+    curated_path = Path.home() / ".claude-candidate" / "curated_resume.json"
+    if not curated_path.exists():
+        return None
+    return json.loads(curated_path.read_text())
+
+
+def _merge_profile(
+    cp,
+    rp=None,
+    *,
+    quiet: bool = False,
+):
+    """Merge a CandidateProfile, preferring curated resume when available.
+
+    Precedence:
+      1. Curated resume (~/.claude-candidate/curated_resume.json) → merge_with_curated()
+      2. Parsed resume (rp argument) → merge_profiles()
+      3. No resume at all → merge_candidate_only()
+    """
+    from claude_candidate.merger import merge_profiles, merge_candidate_only, merge_with_curated
+
+    curated = _load_curated_resume()
+    if curated and curated.get("curated_skills"):
+        if not quiet:
+            click.echo("Using curated resume for merge")
+        merged = merge_with_curated(
+            cp,
+            curated["curated_skills"],
+            total_years=curated.get("total_years_experience"),
+            education=curated.get("education", []),
+        )
+    elif rp is not None:
+        if not quiet:
+            click.echo("Using parsed resume for merge")
+        merged = merge_profiles(cp, rp)
+    else:
+        if not quiet:
+            click.echo("No resume provided — using sessions only")
+        merged = merge_candidate_only(cp)
+    return merged
 
 
 def _default_sessions_dir() -> Path:

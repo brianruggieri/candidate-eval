@@ -11,6 +11,8 @@ from typing import Any
 
 import yaml
 
+from claude_candidate.skill_taxonomy import SkillTaxonomy
+
 # Seniority prefixes in ascending order. Keep only the highest.
 _SENIORITY_PREFIXES = [
     "junior", "jr", "jr.",
@@ -253,6 +255,51 @@ def select_projects(
     return result
 
 
+def _resolve_skill_key(
+    raw_key: str,
+    evidence_dict: dict[str, Any],
+    taxonomy: SkillTaxonomy,
+) -> str | None:
+    """Try to resolve a requirement phrase to a key in evidence_dict.
+
+    Attempts, in order:
+    1. Direct lookup (already lowered by caller)
+    2. Canonicalize via taxonomy alias table
+    3. Full fuzzy taxonomy match
+    4. Extract individual words from the phrase and try each via taxonomy
+
+    Returns the matching key or None.
+    """
+    # 1. Direct
+    if raw_key in evidence_dict:
+        return raw_key
+
+    # 2. Canonicalize (exact alias lookup, fast)
+    canonical = taxonomy.canonicalize(raw_key)
+    if canonical in evidence_dict:
+        return canonical
+
+    # 3. Full fuzzy match on the whole phrase
+    matched = taxonomy.match(raw_key)
+    if matched and matched.lower() in evidence_dict:
+        return matched.lower()
+
+    # 4. Extract individual words and try each — handles phrases like
+    #    "5+ years python experience" by finding "python"
+    words = re.findall(r"[a-z][a-z0-9.#+_-]*", raw_key)
+    for word in words:
+        if word in evidence_dict:
+            return word
+        word_canonical = taxonomy.canonicalize(word)
+        if word_canonical in evidence_dict:
+            return word_canonical
+        word_matched = taxonomy.match(word)
+        if word_matched and word_matched.lower() in evidence_dict:
+            return word_matched.lower()
+
+    return None
+
+
 def select_evidence_highlights(
     skill_matches: list[dict[str, Any]],
     candidate_skills: list[dict[str, Any]],
@@ -267,6 +314,8 @@ def select_evidence_highlights(
         candidate_skills: SkillEntry dicts from CandidateProfile (with evidence[]).
         projects: ProjectSummary dicts for technology tag lookup by project name.
     """
+    taxonomy = SkillTaxonomy.load_default()
+
     # Build project → technologies lookup
     project_techs: dict[str, list[str]] = {}
     for proj in (projects or []):
@@ -299,7 +348,8 @@ def select_evidence_highlights(
             break
         # Use matched_skill (canonical name) for lookup, fall back to requirement
         lookup_key = (match.get("matched_skill") or match["requirement"]).lower()
-        evidence_list = skill_evidence.get(lookup_key, [])
+        resolved = _resolve_skill_key(lookup_key, skill_evidence, taxonomy)
+        evidence_list = skill_evidence.get(resolved, []) if resolved else []
         if not evidence_list:
             continue
 
@@ -442,6 +492,7 @@ def export_fit_assessment(
     action_items = full_data.get("action_items", [])
 
     # Build merged skill lookup for depth/sessions/discovery
+    taxonomy = SkillTaxonomy.load_default()
     merged_skills = {s["name"].lower(): s for s in merged_profile.get("skills", [])}
 
     # Select and enrich skill matches
@@ -449,9 +500,11 @@ def export_fit_assessment(
     enriched_matches = []
     for match in selected_matches:
         req = match["requirement"]
-        # Use matched_skill (canonical name) for the join, fall back to requirement
+        # Use matched_skill (canonical name) for the join, fall back to requirement.
+        # Resolve through taxonomy when the key doesn't match directly.
         join_key = (match.get("matched_skill") or req).lower()
-        merged = merged_skills.get(join_key, {})
+        resolved_key = _resolve_skill_key(join_key, merged_skills, taxonomy)
+        merged = merged_skills.get(resolved_key, {}) if resolved_key else {}
         enriched_matches.append({
             "skill": req,
             "status": match.get("match_status", "no_evidence"),
