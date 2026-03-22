@@ -1318,23 +1318,63 @@ def scan(session_dir: str | None, output: str | None) -> None:
     click.echo(f"  Profile written to {output_path}")
 
 
-def _process_sessions(sessions_found: list[SessionInfo]) -> list[SessionSignals]:
-    """Sanitize and extract signals from discovered sessions."""
+def _process_one_session(info: SessionInfo) -> SessionSignals:
+    """Process a single session file — designed for multiprocessing."""
     from claude_candidate.sanitizer import sanitize_text
     from claude_candidate.extractor import extract_session_signals
 
+    raw_content = info.path.read_text(errors="replace")
+    sanitized = sanitize_text(raw_content)
+    signals = extract_session_signals(sanitized.sanitized)
+    signals.session_id = info.session_id
+    signals.project_hint = info.project_hint
+    return signals
+
+
+def _process_sessions(sessions_found: list[SessionInfo]) -> list[SessionSignals]:
+    """Sanitize and extract signals with caching and parallel processing."""
+    from concurrent.futures import ProcessPoolExecutor
+    from dataclasses import asdict
+    import os
+
+    from claude_candidate.extraction_cache import load_cache, save_cache, _hash_file
+    from claude_candidate.extractor import SessionSignals
+
+    cache = load_cache()
+    cached_results: list[SessionSignals] = []
+    to_process: list[SessionInfo] = []
+    file_hashes: dict[str, str] = {}
+
+    # Check cache
+    for info in sessions_found:
+        file_hash = _hash_file(info.path)
+        key = f"{info.session_id}:{file_hash}"
+        file_hashes[info.session_id] = key
+        if key in cache:
+            signals = SessionSignals(**cache[key])
+            cached_results.append(signals)
+        else:
+            to_process.append(info)
+
+    click.echo(f"  Cache: {len(cached_results)} cached, {len(to_process)} new/changed")
+
+    if to_process:
+        workers = min(os.cpu_count() or 4, 8)
+        click.echo(f"  Processing {len(to_process)} sessions with {workers} workers...")
+        with ProcessPoolExecutor(max_workers=workers) as pool:
+            new_results = list(pool.map(_process_one_session, to_process, chunksize=50))
+
+        # Update cache with new results
+        for info, signals in zip(to_process, new_results):
+            key = file_hashes[info.session_id]
+            cache[key] = asdict(signals)
+
+        save_cache(cache)
+        cached_results.extend(new_results)
+
     total = len(sessions_found)
-    signals_list: list[SessionSignals] = []
-    for i, info in enumerate(sessions_found, 1):
-        if i % 100 == 0 or i == total:
-            click.echo(f"  Processing sessions... {i}/{total} ({i*100//total}%)", nl=True)
-        raw_content = info.path.read_text(errors="replace")
-        sanitized = sanitize_text(raw_content)
-        signals = extract_session_signals(sanitized.sanitized)
-        signals.session_id = info.session_id
-        signals.project_hint = info.project_hint
-        signals_list.append(signals)
-    return signals_list
+    click.echo(f"  Processed {total}/{total} (100%)")
+    return cached_results
 
 
 def _default_sessions_dir() -> Path:
