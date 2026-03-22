@@ -92,7 +92,7 @@ class ExtractorProtocol(Protocol):
         ...
 ```
 
-`NormalizedSession` is the existing normalized message format from `extractor.py`, extended with raw event metadata (session_id, timestamp, cwd, gitBranch, message content blocks). All three extractors receive the same `NormalizedSession` — each reads the fields relevant to its scope.
+`NormalizedSession` is a new container type that wraps the existing `NormalizedMessage` list (from `message_format.py`) with session-level metadata: `session_id`, `timestamp`, `cwd`, `gitBranch`, and the list of `NormalizedMessage` objects. It is NOT a rename of `NormalizedMessage` — it is a session-level wrapper. All three extractors receive the same `NormalizedSession` — each reads the fields relevant to its scope.
 
 ### SignalResult
 
@@ -552,10 +552,10 @@ Serial (define interfaces):
 Parallel (3 subagents, 3 worktrees):
   4a. CodeSignalExtractor (taxonomy expansion, imports, packages)
   4b. BehaviorSignalExtractor (tool patterns, agent orchestration, git, quality)
-  4c. CommSignalExtractor (steering, scope, grill-me, handoffs, velocity)
+  4c. CommSignalExtractor (steering, scope, grill-me, handoffs)
 
 Serial (integration):
-  5. Signal merger integration
+  5. Signal merger integration + agentic learning velocity computation
   6. ML enrichment layer
   7. Verify all success criteria
 ```
