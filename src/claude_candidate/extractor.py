@@ -17,6 +17,7 @@ from datetime import datetime
 from typing import Any
 
 from claude_candidate.ai_scoring import compute_ai_engineering_score
+from claude_candidate.extractors import NormalizedSession
 from claude_candidate.message_format import NormalizedMessage, normalize_messages
 from claude_candidate.skill_taxonomy import SkillTaxonomy
 from claude_candidate.schemas.candidate_profile import (
@@ -311,6 +312,15 @@ def _extract_project_hint(messages: list[NormalizedMessage]) -> str:
     return "unknown"
 
 
+def _extract_git_branch(messages: list[NormalizedMessage]) -> str | None:
+    """Extract git branch from the first message that has one."""
+    for msg in messages:
+        branch = msg["raw"].get("gitBranch", "")
+        if branch:
+            return branch
+    return None
+
+
 def _detect_patterns(
     tool_calls: list[str],
     technologies: list[str],
@@ -349,6 +359,15 @@ def extract_session_signals(content: str) -> SessionSignals:
             line_count=len(lines),
         )
     messages = normalize_messages(raw_messages)
+    cwd = next((m["raw"].get("cwd", "") for m in messages if m["raw"].get("cwd")), "")
+    session = NormalizedSession(  # noqa: F841 — used in Task 9
+        session_id=_extract_session_id(messages),
+        timestamp=_parse_timestamp(_extract_timestamp(messages)),
+        cwd=cwd,
+        project_context=_extract_project_hint(messages),
+        git_branch=_extract_git_branch(messages),
+        messages=messages,
+    )
     technologies = extract_technologies(messages)
     tool_calls = _extract_tool_calls(messages)
     patterns = _detect_patterns(tool_calls, technologies)
