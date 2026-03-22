@@ -60,11 +60,13 @@ FALLBACK_CATEGORY = "tool"
 BOOST_2_SOURCES = 0.1
 BOOST_3_SOURCES = 0.15
 
-# Depth frequency thresholds (same as extractor.py)
+# Depth frequency thresholds — scaled for large corpora (2000+ sessions).
+# EXPERT requires both high frequency AND evidence diversity (modifiers).
+# Base from frequency alone caps at DEEP to avoid everything becoming EXPERT.
 DEPTH_THRESHOLDS: list[tuple[int, DepthLevel]] = [
-	(8, DepthLevel.EXPERT),
-	(5, DepthLevel.DEEP),
-	(3, DepthLevel.APPLIED),
+	(20, DepthLevel.DEEP),
+	(8, DepthLevel.APPLIED),
+	(3, DepthLevel.USED),
 	(2, DepthLevel.USED),
 ]
 
