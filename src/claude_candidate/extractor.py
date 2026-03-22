@@ -16,6 +16,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+import ahocorasick
+import orjson
+
 from claude_candidate.ai_scoring import compute_ai_engineering_score
 from claude_candidate.extractors import NormalizedSession
 from claude_candidate.message_format import NormalizedMessage, normalize_messages
@@ -66,6 +69,23 @@ DOCKERFILE_NAMES: set[str] = {"Dockerfile", "dockerfile"}
 def _get_content_patterns() -> dict[str, list[str]]:
     """Lazy-load content patterns from the taxonomy (cached after first call)."""
     return SkillTaxonomy.load_default().get_content_patterns()
+
+
+@functools.cache
+def _get_content_automaton() -> ahocorasick.Automaton:
+    """Build Aho-Corasick automaton from taxonomy content patterns."""
+    patterns = _get_content_patterns()
+    automaton = ahocorasick.Automaton()
+    # Multiple skills can share the same pattern string, so store lists
+    pattern_to_skills: dict[str, list[str]] = {}
+    for skill, pattern_list in patterns.items():
+        for p in pattern_list:
+            key = p.lower()
+            pattern_to_skills.setdefault(key, []).append(skill)
+    for key, skills in pattern_to_skills.items():
+        automaton.add_word(key, skills)
+    automaton.make_automaton()
+    return automaton
 
 CATEGORY_MAP: dict[str, str] = {
     "python": "language",
@@ -167,9 +187,9 @@ def _is_valid_json_line(line: str) -> bool:
     if not stripped:
         return False
     try:
-        json.loads(stripped)
+        orjson.loads(stripped)
         return True
-    except (json.JSONDecodeError, ValueError):
+    except (orjson.JSONDecodeError, ValueError):
         return False
 
 
@@ -181,8 +201,8 @@ def parse_session_lines(lines: list[str]) -> list[dict]:
         if not stripped:
             continue
         try:
-            results.append(json.loads(stripped))
-        except (json.JSONDecodeError, ValueError):
+            results.append(orjson.loads(stripped))
+        except (orjson.JSONDecodeError, ValueError):
             continue
     return results
 
@@ -205,13 +225,14 @@ def _detect_from_file_path(path: str) -> list[str]:
 
 
 def _detect_from_content(content: str) -> list[str]:
-    """Detect technologies from content keywords and patterns."""
-    lower = content.lower()
-    found: list[str] = []
-    for tech, patterns in _get_content_patterns().items():
-        if any(p.lower() in lower for p in patterns):
-            found.append(tech)
-    return found
+    """Detect technologies from content using Aho-Corasick multi-pattern matching."""
+    automaton = _get_content_automaton()
+    found: set[str] = set()
+    content_lower = content.lower()
+    for _, skills in automaton.iter(content_lower):
+        for skill in skills:
+            found.add(skill)
+    return list(found)
 
 
 def extract_technologies(messages: list[NormalizedMessage]) -> list[str]:

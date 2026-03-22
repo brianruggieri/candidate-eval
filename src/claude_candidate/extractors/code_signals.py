@@ -18,6 +18,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+import ahocorasick
+
 from claude_candidate.extractors import (
 	NormalizedSession,
 	SignalResult,
@@ -110,6 +112,21 @@ class CodeSignalExtractor:
 		self._taxonomy = SkillTaxonomy.load_default()
 		self._content_patterns = self._taxonomy.get_content_patterns()
 		self._package_map = _load_package_map()
+		self._content_automaton = self._build_automaton()
+
+	def _build_automaton(self) -> ahocorasick.Automaton:
+		"""Build Aho-Corasick automaton from taxonomy content patterns."""
+		automaton = ahocorasick.Automaton()
+		# Multiple skills can share the same pattern string, so store lists
+		pattern_to_skills: dict[str, list[str]] = {}
+		for skill, patterns in self._content_patterns.items():
+			for p in patterns:
+				key = p.lower()
+				pattern_to_skills.setdefault(key, []).append(skill)
+		for key, skills in pattern_to_skills.items():
+			automaton.add_word(key, skills)
+		automaton.make_automaton()
+		return automaton
 
 	def name(self) -> str:
 		return "code_signals"
@@ -214,12 +231,13 @@ class CodeSignalExtractor:
 		skills: dict[str, list[SkillSignal]],
 		metrics: dict[str, float],
 	) -> None:
-		"""Layer 2: Detect skills from taxonomy content patterns."""
+		"""Layer 2: Detect skills from taxonomy content patterns (Aho-Corasick)."""
 		text_lower = text.lower()
-
-		for canonical, patterns in self._content_patterns.items():
-			for pattern in patterns:
-				if pattern.lower() in text_lower:
+		found_skills: set[str] = set()
+		for _, canonicals in self._content_automaton.iter(text_lower):
+			for canonical in canonicals:
+				if canonical not in found_skills:
+					found_skills.add(canonical)
 					signal = SkillSignal(
 						canonical_name=canonical,
 						source="content_pattern",
@@ -229,8 +247,6 @@ class CodeSignalExtractor:
 					)
 					skills.setdefault(canonical, []).append(signal)
 					metrics["content_pattern_count"] += 1
-					# Only one match per skill per text block
-					break
 
 	def _detect_imports(
 		self,
