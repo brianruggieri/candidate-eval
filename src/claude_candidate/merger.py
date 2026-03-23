@@ -142,6 +142,8 @@ def merge_profiles(
                 else len(s_skill.evidence)
             ) if s_skill else None,
             session_recency=s_skill.recency if s_skill else None,
+            session_first_seen=s_skill.first_seen if s_skill else None,
+            category=s_skill.category if s_skill else None,
             effective_depth=effective_depth,
             confidence=confidence,
             discovery_flag=is_discovery,
@@ -267,6 +269,8 @@ def merge_with_curated(
                 else len(s_skill.evidence)
             ) if s_skill else None,
             session_recency=s_skill.recency if s_skill else None,
+            session_first_seen=s_skill.first_seen if s_skill else None,
+            category=s_skill.category if s_skill else None,
             effective_depth=effective_depth,
             confidence=confidence,
             discovery_flag=is_discovery,
@@ -330,6 +334,8 @@ def merge_candidate_only(candidate_profile: CandidateProfile) -> MergedEvidenceP
                 else len(s_skill.evidence)
             ),
             session_recency=s_skill.recency,
+            session_first_seen=s_skill.first_seen,
+            category=s_skill.category,
             effective_depth=s_skill.depth,
             confidence=MergedSkillEvidence.compute_confidence(
                 EvidenceSource.SESSIONS_ONLY, s_skill.frequency, None

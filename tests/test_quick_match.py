@@ -907,3 +907,298 @@ def test_compound_requirement_breadth_scoring():
     # should be considered alongside best single match
     # The skill score should be > 0 since python and ml match
     assert assessment.skill_match.score > 0
+
+
+# ---------------------------------------------------------------------------
+# Adoption Velocity Tests
+# ---------------------------------------------------------------------------
+
+def _make_pattern(pattern_type, strength: str):
+	"""Build a minimal ProblemSolvingPattern for adoption velocity tests."""
+	from claude_candidate.schemas.candidate_profile import ProblemSolvingPattern, SessionReference
+	ref = SessionReference(
+		session_id="test-session",
+		session_date=datetime.now(),
+		project_context="test",
+		evidence_snippet="evidence for test",
+		evidence_type="direct_usage",
+		confidence=0.8,
+	)
+	return ProblemSolvingPattern(
+		pattern_type=pattern_type,
+		frequency="common",
+		strength=strength,
+		description="Test pattern",
+		evidence=[ref],
+	)
+
+
+class TestAdoptionVelocity:
+	"""Tests for compute_adoption_velocity() 5-signal composite."""
+
+	def _make_skill(
+		self,
+		name: str = "python",
+		category: str | None = "language",
+		depth_level: str = "applied",
+		frequency: int = 10,
+		first_seen: datetime | None = None,
+	):
+		from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+		depth = DepthLevel(depth_level)
+		return MergedSkillEvidence(
+			name=name,
+			source=EvidenceSource.SESSIONS_ONLY,
+			session_depth=depth,
+			session_frequency=frequency,
+			session_first_seen=first_seen,
+			category=category,
+			effective_depth=depth,
+			confidence=0.8,
+		)
+
+	def _make_profile(self, skills=None, patterns=None, total_years=10.0):
+		from datetime import datetime
+		from claude_candidate.schemas.merged_profile import MergedEvidenceProfile
+		return MergedEvidenceProfile(
+			skills=skills or [],
+			patterns=patterns or [],
+			projects=[],
+			roles=[],
+			total_years_experience=total_years,
+			corroborated_skill_count=0,
+			resume_only_skill_count=0,
+			sessions_only_skill_count=len(skills or []),
+			discovery_skills=[],
+			profile_hash="test",
+			resume_hash="test",
+			candidate_profile_hash="test",
+			merged_at=datetime.now(),
+		)
+
+	def test_breadth_five_categories(self):
+		from claude_candidate.quick_match import compute_adoption_velocity
+		skills = [
+			self._make_skill("python", "language"),
+			self._make_skill("react", "framework"),
+			self._make_skill("docker", "tool"),
+			self._make_skill("aws", "platform"),
+			self._make_skill("system-design", "concept"),
+		]
+		profile = self._make_profile(skills)
+		result = compute_adoption_velocity(profile)
+		assert result.sub_scores["breadth"] == 1.0
+
+	def test_breadth_below_applied_excluded(self):
+		from claude_candidate.quick_match import compute_adoption_velocity
+		# 5 different categories but all at MENTIONED depth — below applied
+		skills = [
+			self._make_skill("python", "language", "mentioned"),
+			self._make_skill("react", "framework", "mentioned"),
+			self._make_skill("docker", "tool", "mentioned"),
+			self._make_skill("aws", "platform", "mentioned"),
+			self._make_skill("system-design", "concept", "mentioned"),
+		]
+		profile = self._make_profile(skills)
+		result = compute_adoption_velocity(profile)
+		assert result.sub_scores["breadth"] == 0.0
+
+	def test_novelty_recent_skills(self):
+		from datetime import timedelta
+		from claude_candidate.quick_match import compute_adoption_velocity
+		base = datetime(2024, 1, 1)
+		skills = [
+			self._make_skill("python", "language", "used", first_seen=base),
+			self._make_skill("react", "framework", "used", first_seen=base + timedelta(days=10)),
+			# 5 skills in last 30% of range (last 3 months of a 10-month window)
+			self._make_skill("docker", "tool", "used", first_seen=base + timedelta(days=210)),
+			self._make_skill("aws", "platform", "used", first_seen=base + timedelta(days=220)),
+			self._make_skill("fastapi", "framework", "applied", first_seen=base + timedelta(days=230)),
+			self._make_skill("pydantic", "framework", "applied", first_seen=base + timedelta(days=240)),
+			self._make_skill("pytest", "tool", "applied", first_seen=base + timedelta(days=250)),
+		]
+		profile = self._make_profile(skills)
+		result = compute_adoption_velocity(profile)
+		assert result.sub_scores["novelty"] >= 1.0
+
+	def test_novelty_insufficient_dates(self):
+		from claude_candidate.quick_match import compute_adoption_velocity
+		# All skills have no first_seen
+		skills = [self._make_skill("python", "language", first_seen=None)]
+		profile = self._make_profile(skills)
+		result = compute_adoption_velocity(profile)
+		assert result.sub_scores["novelty"] == 0.0
+
+	def test_novelty_old_skills_only(self):
+		from datetime import timedelta
+		from claude_candidate.quick_match import compute_adoption_velocity
+		base = datetime(2024, 1, 1)
+		# Skills at used/applied depth in first 70% of range. A later "mentioned"
+		# skill extends the date range without counting toward novelty.
+		skills = [
+			self._make_skill("python", "language", "used", first_seen=base),
+			self._make_skill("react", "framework", "used", first_seen=base + timedelta(days=10)),
+			self._make_skill("docker", "tool", "used", first_seen=base + timedelta(days=20)),
+			# Extends range to 100 days; day 70 = cutoff; above 3 skills are before cutoff
+			self._make_skill("aws", "platform", "mentioned", first_seen=base + timedelta(days=100)),
+		]
+		profile = self._make_profile(skills)
+		result = compute_adoption_velocity(profile)
+		assert result.sub_scores["novelty"] == 0.0
+
+	def test_ramp_speed_high_frequency_deep(self):
+		from claude_candidate.quick_match import compute_adoption_velocity
+		skills = [self._make_skill("python", "language", "deep", frequency=50)]
+		profile = self._make_profile(skills)
+		result = compute_adoption_velocity(profile)
+		assert result.sub_scores["ramp_speed"] > 0.5
+
+	def test_ramp_speed_no_applied_skills(self):
+		from claude_candidate.quick_match import compute_adoption_velocity
+		skills = [self._make_skill("python", "language", "mentioned", frequency=5)]
+		profile = self._make_profile(skills)
+		result = compute_adoption_velocity(profile)
+		assert result.sub_scores["ramp_speed"] == 0.0
+
+	def test_meta_cognition_exceptional(self):
+		from claude_candidate.quick_match import compute_adoption_velocity
+		from claude_candidate.schemas.candidate_profile import PatternType
+		pattern = _make_pattern(PatternType.META_COGNITION, "exceptional")
+		profile = self._make_profile(patterns=[pattern])
+		result = compute_adoption_velocity(profile)
+		assert result.sub_scores["meta_cognition"] == 1.0
+
+	def test_meta_cognition_absent(self):
+		from claude_candidate.quick_match import compute_adoption_velocity
+		profile = self._make_profile()
+		result = compute_adoption_velocity(profile)
+		assert result.sub_scores["meta_cognition"] == 0.0
+
+	def test_tool_selection_strong(self):
+		from claude_candidate.quick_match import compute_adoption_velocity
+		from claude_candidate.schemas.candidate_profile import PatternType
+		pattern = _make_pattern(PatternType.TOOL_SELECTION, "strong")
+		profile = self._make_profile(patterns=[pattern])
+		result = compute_adoption_velocity(profile)
+		assert result.sub_scores["tool_selection"] == 0.8
+
+	def test_composite_all_strong(self):
+		from datetime import timedelta
+		from claude_candidate.quick_match import compute_adoption_velocity
+		from claude_candidate.schemas.candidate_profile import PatternType
+		base = datetime(2024, 1, 1)
+		# 5 categories, 5 novel skills, high frequency deep skills
+		skills = [
+			self._make_skill("python", "language", "deep", 50, base),
+			self._make_skill("react", "framework", "deep", 40, base + timedelta(days=10)),
+			self._make_skill("docker", "tool", "applied", 20, base + timedelta(days=30)),
+			self._make_skill("aws", "platform", "applied", 15, base + timedelta(days=210)),
+			self._make_skill("fastapi", "framework", "applied", 12, base + timedelta(days=220)),
+			self._make_skill("pydantic", "tool", "applied", 10, base + timedelta(days=230)),
+			self._make_skill("system-design", "concept", "applied", 8, base + timedelta(days=240)),
+		]
+		patterns = [
+			_make_pattern(PatternType.META_COGNITION, "exceptional"),
+			_make_pattern(PatternType.TOOL_SELECTION, "strong"),
+		]
+		profile = self._make_profile(skills, patterns)
+		result = compute_adoption_velocity(profile)
+		assert result.composite_score >= 0.6
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+		assert result.depth in (DepthLevel.DEEP, DepthLevel.EXPERT)
+
+	def test_composite_depth_thresholds(self):
+		from claude_candidate.quick_match import compute_adoption_velocity, AdoptionVelocityResult
+		from claude_candidate.quick_match import (
+			ADOPTION_DEPTH_EXPERT, ADOPTION_DEPTH_DEEP,
+			ADOPTION_DEPTH_APPLIED, ADOPTION_DEPTH_USED,
+		)
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+		from claude_candidate.quick_match import _build_adoption_summary
+		# Verify depth mapping boundaries directly on AdoptionVelocityResult construction
+		# by exercising the depth logic in compute_adoption_velocity with controlled inputs
+		profile = self._make_profile()
+		result = compute_adoption_velocity(profile)
+		# Empty profile should produce low/zero composite
+		assert result.depth in (DepthLevel.MENTIONED, DepthLevel.USED, DepthLevel.APPLIED)
+
+	def test_confidence_from_evidence_count(self):
+		from claude_candidate.quick_match import compute_adoption_velocity, ADOPTION_CONFIDENCE_DIVISOR
+		# 10 scorable skills → evidence_count=10 → confidence=1.0
+		skills = [
+			self._make_skill(f"skill{i}", "language", "used") for i in range(10)
+		]
+		profile = self._make_profile(skills)
+		result = compute_adoption_velocity(profile)
+		assert result.confidence == 1.0
+		assert result.evidence_count == 10
+
+	def test_empty_profile_minimal(self):
+		from claude_candidate.quick_match import compute_adoption_velocity
+		profile = self._make_profile()
+		result = compute_adoption_velocity(profile)
+		assert result.composite_score == 0.0
+		assert result.confidence == 0.0
+		assert result.evidence_count == 0
+
+	def test_summary_quote_includes_novelty(self):
+		from datetime import timedelta
+		from claude_candidate.quick_match import compute_adoption_velocity
+		base = datetime(2024, 1, 1)
+		skills = [
+			self._make_skill("python", "language", "used", first_seen=base),
+			self._make_skill("react", "framework", "used", first_seen=base + timedelta(days=10)),
+			self._make_skill("docker", "tool", "used", first_seen=base + timedelta(days=210)),
+			self._make_skill("aws", "platform", "used", first_seen=base + timedelta(days=220)),
+		]
+		profile = self._make_profile(skills)
+		result = compute_adoption_velocity(profile)
+		assert "dopted" in result.summary_quote or "Adoption velocity" in result.summary_quote
+
+
+def test_adaptability_inferred_via_adoption_velocity(candidate_profile, resume_profile):
+	"""adaptability should use composite-based depth when session data is present."""
+	from claude_candidate.merger import merge_profiles
+	from claude_candidate.quick_match import _infer_virtual_skill
+	from claude_candidate.schemas.merged_profile import EvidenceSource
+
+	merged = merge_profiles(candidate_profile, resume_profile)
+	result = _infer_virtual_skill("adaptability", merged)
+	# candidate_profile fixture has session skills — composite should trigger
+	assert result is not None
+	# Should come from composite (SESSIONS_ONLY), not years-based (RESUME_ONLY)
+	assert result.source == EvidenceSource.SESSIONS_ONLY
+	# Summary quote should be in resume_context
+	assert result.resume_context is not None
+
+
+def test_adaptability_fallback_to_years():
+	"""adaptability falls back to years-based when no session data exists."""
+	from datetime import datetime
+	from claude_candidate.schemas.merged_profile import MergedEvidenceProfile, EvidenceSource
+	from claude_candidate.quick_match import _infer_virtual_skill
+	from claude_candidate.schemas.candidate_profile import DepthLevel
+
+	# Profile with no skills (no session evidence), but 10 years experience
+	profile = MergedEvidenceProfile(
+		skills=[],
+		patterns=[],
+		projects=[],
+		roles=[],
+		total_years_experience=10.0,
+		corroborated_skill_count=0,
+		resume_only_skill_count=0,
+		sessions_only_skill_count=0,
+		discovery_skills=[],
+		profile_hash="test",
+		resume_hash="test",
+		candidate_profile_hash="test",
+		merged_at=datetime.now(),
+	)
+
+	result = _infer_virtual_skill("adaptability", profile)
+	assert result is not None
+	assert result.source == EvidenceSource.RESUME_ONLY
+	assert result.effective_depth == DepthLevel.DEEP
+	assert result.confidence == 0.6

@@ -10,13 +10,14 @@ Scores three dimensions with adaptive weighting based on company data richness:
 
 from __future__ import annotations
 
+import math
 import re
 import time
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 
-from claude_candidate.schemas.candidate_profile import DepthLevel, DEPTH_RANK
+from claude_candidate.schemas.candidate_profile import DepthLevel, DEPTH_RANK, PatternType
 from claude_candidate.schemas.company_profile import CompanyProfile
 from claude_candidate.skill_taxonomy import SkillTaxonomy
 from claude_candidate.schemas.fit_assessment import (
@@ -283,6 +284,18 @@ class SummaryInput:
     education_dim: DimensionScore | None = None
 
 
+@dataclass
+class AdoptionVelocityResult:
+    """Result of the adoption velocity composite computation."""
+
+    composite_score: float      # 0.0-1.0
+    depth: DepthLevel           # mapped from composite_score
+    confidence: float           # evidence_count / ADOPTION_CONFIDENCE_DIVISOR, capped at 1.0
+    evidence_count: int         # scorable skills + relevant pattern presence count
+    summary_quote: str          # natural language summary for evidence display
+    sub_scores: dict[str, float]  # breadth, novelty, ramp_speed, meta_cognition, tool_selection
+
+
 # ---------------------------------------------------------------------------
 # Skill matching helpers (module-level)
 # ---------------------------------------------------------------------------
@@ -413,6 +426,184 @@ PATTERN_TO_SKILL: dict[str, list[tuple[str, DepthLevel]]] = {
 YEARS_LEADERSHIP_THRESHOLD = 8.0
 YEARS_SOFTWARE_ENG_THRESHOLD = 5.0
 
+# Adoption velocity composite constants
+ADOPTION_BREADTH_WEIGHT = 0.15
+ADOPTION_NOVELTY_WEIGHT = 0.25
+ADOPTION_RAMP_WEIGHT = 0.30
+ADOPTION_META_WEIGHT = 0.15
+ADOPTION_TOOL_WEIGHT = 0.15
+
+ADOPTION_NOVELTY_RECENCY_CUTOFF = 0.7   # last 30% of date range is "recent"
+ADOPTION_NOVELTY_TARGET = 5              # 5+ novel skills = 1.0 novelty score
+ADOPTION_BREADTH_TARGET = 5              # 5+ categories at applied+ = 1.0 breadth score
+ADOPTION_CONFIDENCE_DIVISOR = 10.0       # evidence_count / 10 = confidence
+ADOPTION_RAMP_NORMALIZER = 2.87          # log1p(50/3): benchmark for a strong ramp
+
+ADOPTION_DEPTH_EXPERT = 0.8
+ADOPTION_DEPTH_DEEP = 0.6
+ADOPTION_DEPTH_APPLIED = 0.4
+ADOPTION_DEPTH_USED = 0.2
+
+ADOPTION_STRENGTH_MAP: dict[str, float] = {
+	"exceptional": 1.0,
+	"strong": 0.8,
+	"established": 0.6,
+	"emerging": 0.3,
+}
+
+
+def _build_adoption_summary(
+    breadth_count: int,
+    novelty_count: int,
+    meta_strength: str | None,
+    tool_strength: str | None,
+    composite: float,
+) -> str:
+    """Generate a natural language summary of adoption velocity signals."""
+    parts: list[str] = []
+    if novelty_count > 0:
+        parts.append(f"adopted {novelty_count} new skill{'s' if novelty_count != 1 else ''} recently")
+    if breadth_count > 0:
+        parts.append(f"applied+ depth across {breadth_count} skill categor{'ies' if breadth_count != 1 else 'y'}")
+    pattern_parts: list[str] = []
+    if meta_strength:
+        pattern_parts.append(f"{meta_strength} meta-cognition")
+    if tool_strength:
+        pattern_parts.append(f"{tool_strength} tool selection")
+    if pattern_parts:
+        parts.append(" and ".join(pattern_parts) + " patterns")
+    if not parts:
+        return f"Adoption velocity composite: {composite:.2f}"
+    summary = ", ".join(parts)
+    return summary[0].upper() + summary[1:]
+
+
+def compute_adoption_velocity(
+    profile: MergedEvidenceProfile,
+) -> AdoptionVelocityResult:
+    """Compute a 5-signal composite score for learning agility (adoption velocity).
+
+    Signals:
+      - Breadth (15%): distinct skill categories at applied+ depth
+      - Novelty (25%): skills acquired in the last 30% of the observed date range
+      - Ramp speed (30%): frequency-weighted depth achievement rate (log-scaled)
+      - Meta-cognition (15%): META_COGNITION pattern strength
+      - Tool selection (15%): TOOL_SELECTION pattern strength
+
+    Returns an AdoptionVelocityResult with composite score, depth, confidence,
+    evidence count, summary quote, and per-signal sub-scores.
+    """
+    # Signal 1: Breadth
+    distinct_categories = len({
+        s.category for s in profile.skills
+        if s.category is not None
+        and DEPTH_RANK.get(s.effective_depth, 0) >= DEPTH_RANK[DepthLevel.APPLIED]
+    })
+    breadth_score = min(distinct_categories / ADOPTION_BREADTH_TARGET, 1.0)
+
+    # Signal 2: Novelty
+    skills_with_dates = [s for s in profile.skills if s.session_first_seen is not None]
+    novelty_count = 0
+    if len(skills_with_dates) >= 2:
+        dates = sorted(s.session_first_seen for s in skills_with_dates)
+        date_range = (dates[-1] - dates[0]).total_seconds()
+        if date_range > 0:
+            cutoff = dates[0] + timedelta(seconds=date_range * ADOPTION_NOVELTY_RECENCY_CUTOFF)
+            novel_skills = [
+                s for s in skills_with_dates
+                if s.session_first_seen >= cutoff
+                and DEPTH_RANK.get(s.effective_depth, 0) >= DEPTH_RANK[DepthLevel.USED]
+            ]
+            novelty_count = len(novel_skills)
+    novelty_score = min(novelty_count / ADOPTION_NOVELTY_TARGET, 1.0)
+
+    # Signal 3: Ramp speed
+    applied_plus = [
+        s for s in profile.skills
+        if DEPTH_RANK.get(s.effective_depth, 0) >= DEPTH_RANK[DepthLevel.APPLIED]
+        and s.session_frequency is not None
+        and s.session_frequency > 0
+    ]
+    if not applied_plus:
+        ramp_score = 0.0
+    else:
+        depth_weight = {DepthLevel.APPLIED: 1.0, DepthLevel.DEEP: 2.0, DepthLevel.EXPERT: 3.0}
+        weighted_sum = 0.0
+        weight_total = 0.0
+        for s in applied_plus:
+            depth_rank = max(DEPTH_RANK.get(s.effective_depth, 1), 1)
+            ramp = math.log1p(s.session_frequency / depth_rank)
+            w = depth_weight.get(s.effective_depth, 1.0)
+            weighted_sum += ramp * w
+            weight_total += w
+        avg_ramp = weighted_sum / weight_total if weight_total > 0 else 0.0
+        ramp_score = min(avg_ramp / ADOPTION_RAMP_NORMALIZER, 1.0)
+
+    # Signals 4 & 5: Pattern strengths
+    meta_pattern = next(
+        (p for p in profile.patterns if p.pattern_type == PatternType.META_COGNITION), None
+    )
+    tool_pattern = next(
+        (p for p in profile.patterns if p.pattern_type == PatternType.TOOL_SELECTION), None
+    )
+    meta_strength = meta_pattern.strength if meta_pattern else None
+    tool_strength = tool_pattern.strength if tool_pattern else None
+    meta_score = ADOPTION_STRENGTH_MAP.get(meta_strength or "", 0.0)
+    tool_score = ADOPTION_STRENGTH_MAP.get(tool_strength or "", 0.0)
+
+    # Composite
+    composite = (
+        breadth_score * ADOPTION_BREADTH_WEIGHT
+        + novelty_score * ADOPTION_NOVELTY_WEIGHT
+        + ramp_score * ADOPTION_RAMP_WEIGHT
+        + meta_score * ADOPTION_META_WEIGHT
+        + tool_score * ADOPTION_TOOL_WEIGHT
+    )
+
+    # Depth mapping
+    if composite >= ADOPTION_DEPTH_EXPERT:
+        depth = DepthLevel.EXPERT
+    elif composite >= ADOPTION_DEPTH_DEEP:
+        depth = DepthLevel.DEEP
+    elif composite >= ADOPTION_DEPTH_APPLIED:
+        depth = DepthLevel.APPLIED
+    elif composite >= ADOPTION_DEPTH_USED:
+        depth = DepthLevel.USED
+    else:
+        depth = DepthLevel.MENTIONED
+
+    # Confidence: scorable skills + pattern presence
+    scorable_skill_count = len([
+        s for s in profile.skills
+        if s.category is not None
+        and DEPTH_RANK.get(s.effective_depth, 0) >= DEPTH_RANK[DepthLevel.USED]
+    ])
+    pattern_count = sum(
+        1 for p in profile.patterns
+        if p.pattern_type in (PatternType.META_COGNITION, PatternType.TOOL_SELECTION)
+    )
+    evidence_count = scorable_skill_count + pattern_count
+    confidence = min(evidence_count / ADOPTION_CONFIDENCE_DIVISOR, 1.0)
+
+    summary_quote = _build_adoption_summary(
+        distinct_categories, novelty_count, meta_strength, tool_strength, composite
+    )
+
+    return AdoptionVelocityResult(
+        composite_score=composite,
+        depth=depth,
+        confidence=confidence,
+        evidence_count=evidence_count,
+        summary_quote=summary_quote,
+        sub_scores={
+            "breadth": breadth_score,
+            "novelty": novelty_score,
+            "ramp_speed": ramp_score,
+            "meta_cognition": meta_score,
+            "tool_selection": tool_score,
+        },
+    )
+
 
 def _infer_virtual_skill(
     skill_name: str,
@@ -460,6 +651,39 @@ def _infer_virtual_skill(
                     discovery_flag=False,
                 )
 
+    # Adoption velocity composite for adaptability
+    if target == "adaptability":
+        result = compute_adoption_velocity(profile)
+        if result.composite_score >= ADOPTION_DEPTH_USED:
+            return MergedSkillEvidence(
+                name="adaptability",
+                source=EvidenceSource.SESSIONS_ONLY,
+                session_depth=result.depth,
+                effective_depth=result.depth,
+                confidence=result.confidence,
+                discovery_flag=False,
+                resume_context=result.summary_quote,
+            )
+        # Fallback: years-based when composite has insufficient session data
+        total_yrs = profile.total_years_experience or 0
+        if total_yrs >= 10.0:
+            return MergedSkillEvidence(
+                name="adaptability",
+                source=EvidenceSource.RESUME_ONLY,
+                resume_depth=DepthLevel.DEEP,
+                effective_depth=DepthLevel.DEEP,
+                confidence=0.6,
+            )
+        if total_yrs >= 5.0:
+            return MergedSkillEvidence(
+                name="adaptability",
+                source=EvidenceSource.RESUME_ONLY,
+                resume_depth=DepthLevel.APPLIED,
+                effective_depth=DepthLevel.APPLIED,
+                confidence=0.6,
+            )
+        return None
+
     # Years-based inference for broad skills and soft skills.
     # Depth scales with experience: senior professionals (10+ years)
     # get DEEP depth so they don't get partial_match on behavioral reqs.
@@ -470,7 +694,6 @@ def _infer_virtual_skill(
         "software-engineering": (YEARS_SOFTWARE_ENG_THRESHOLD, YEARS_SOFTWARE_ENG_THRESHOLD),
         "communication": (3.0, 8.0),
         "collaboration": (3.0, 8.0),
-        "adaptability": (5.0, 10.0),
         "problem-solving": (3.0, 8.0),
         "ownership": (5.0, 10.0),
         "technical-writing": (5.0, 10.0),
@@ -585,6 +808,9 @@ def _evidence_summary(skill: MergedSkillEvidence) -> str:
         parts.append(f"{skill.session_frequency} sessions")
     if skill.resume_years:
         parts.append(f"{skill.resume_years}y on resume")
+    # Include adoption velocity summary quote for non-resume-only sources
+    if skill.resume_context and skill.source != EvidenceSource.RESUME_ONLY:
+        parts.append(skill.resume_context)
     parts.append(f"depth: {skill.effective_depth.value}")
     return ". ".join(parts)
 
