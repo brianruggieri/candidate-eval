@@ -126,14 +126,14 @@
     "content_patterns": [".github/workflows", "pipeline", "deploy", "ci/cd"]
   },
   "machine-learning": {
-    "aliases": ["ml", "deep-learning", "deep learning", "machine learning", "multimodal-ai", "multimodal ai", "computer-vision", "voice-ai"],
+    "aliases": ["ml", "deep-learning", "deep learning", "machine learning"],
     "category": "domain",
     "related": ["python", "llm", "rag", "prompt-engineering", "pytorch", "tensorflow", "data-science"],
     "parent": null,
     "content_patterns": ["model training", "neural network", "gradient", "epoch"]
   },
   "llm": {
-    "aliases": ["large-language-model", "large language model", "language model", "llms", "large language models", "model-routing", "model routing", "llm-evaluation", "llm evaluation"],
+    "aliases": ["large-language-model", "large language model", "language model", "llms", "large language models", "model-routing", "model routing", "llm-integration"],
     "category": "domain",
     "related": ["machine-learning", "rag", "prompt-engineering", "python", "agentic-workflows", "ai-orchestration"],
     "parent": "machine-learning",
@@ -210,7 +210,7 @@
     "content_patterns": ["anthropic", "from anthropic", "import anthropic", "claude-3", "claude-4"]
   },
   "langchain": {
-    "aliases": ["langgraph", "langsmith"],
+    "aliases": [],
     "category": "framework",
     "related": ["llm", "machine-learning", "openai", "agentic-workflows"],
     "parent": null,
@@ -245,7 +245,7 @@
     "content_patterns": ["debug", "root cause", "hypothesis", "investigate"]
   },
   "adaptability": {
-    "aliases": ["flexibility", "fast learner", "quick learner", "self-starter", "autonomy", "self-directed", "initiative", "ambiguity tolerance", "bias for action", "ai-research", "ai research", "curiosity"],
+    "aliases": ["flexibility", "fast learner", "quick learner", "self-starter", "autonomy", "self-directed", "initiative", "ambiguity tolerance", "bias for action"],
     "category": "soft_skill",
     "related": [],
     "parent": null,
@@ -273,14 +273,14 @@
     "content_patterns": ["three.js", "Three.", "import * as THREE"]
   },
   "agentic-workflows": {
-    "aliases": ["agentic-ai", "agentic ai", "ai-agents", "ai agents", "ai_agents", "agent-framework", "agent framework", "agent frameworks", "agentic", "agentic workflows", "agentic_workflows", "multi-agent", "multi agent", "agent orchestration", "agent-orchestration", "ai-orchestration", "ai-augmented-development", "ai-augmented development", "human-in-the-loop", "human in the loop", "agent-runtime", "agent runtime", "llm-orchestration", "llm orchestration", "ai-planning", "ai planning", "autonomous-agents", "autonomous agents", "task-scheduling", "workflow-automation", "llm-applications", "llm applications", "mcp", "model-context-protocol"],
+    "aliases": ["agentic-ai", "agentic ai", "ai-agents", "ai agents", "ai_agents", "agent-framework", "agent framework", "agent frameworks", "agentic", "agentic workflows", "agentic_workflows", "multi-agent", "multi agent", "agent orchestration", "agent-orchestration", "ai-orchestration", "ai-augmented-development", "ai-augmented development", "human-in-the-loop", "human in the loop", "agent-runtime", "agent runtime", "llm-orchestration", "llm orchestration", "ai-planning", "ai planning", "autonomous-agents", "autonomous agents", "task-scheduling", "workflow-automation", "llm-applications", "llm applications", "mcp", "model-context-protocol", "multi-agent-orchestration", "ai-assisted-development", "ai_assisted_development"],
     "category": "domain",
     "related": ["llm", "langchain", "prompt-engineering", "rag"],
     "parent": "llm",
     "content_patterns": ["agent", "agentic", "orchestrat", "multi-agent"]
   },
   "developer-tools": {
-    "aliases": ["dev-tools", "devtools", "developer tools", "developer-tools", "dev tools", "tooling", "developer-productivity", "developer productivity", "engineering-metrics"],
+    "aliases": ["dev-tools", "devtools", "developer tools", "developer-tools", "dev tools", "tooling", "developer-productivity", "developer productivity", "engineering-metrics", "developer_tooling", "ai-tooling", "ai-tools", "ai_tools"],
     "category": "domain",
     "related": ["software-engineering", "ci-cd", "testing"],
     "parent": null,
@@ -294,7 +294,7 @@
     "content_patterns": ["frontend", "backend", "fullstack", "full-stack"]
   },
   "frontend-development": {
-    "aliases": ["frontend", "front-end", "front end", "frontend development", "front-end development", "ui-development", "ui development", "web_development", "web development", "web-development", "responsive_design", "responsive design", "responsive-design", "mobile_web_development", "frontend_architecture", "frontend-architecture", "frontend architecture", "micro_frontends", "micro-frontends", "microfrontends"],
+    "aliases": ["frontend", "front-end", "front end", "frontend development", "front-end development", "ui-development", "ui development", "web_development", "web development", "web-development", "responsive_design", "responsive design", "responsive-design", "mobile_web_development", "frontend_architecture", "frontend-architecture", "frontend architecture", "micro_frontends", "micro-frontends", "microfrontends", "web-architecture", "cross-browser-development"],
     "category": "practice",
     "related": ["react", "javascript", "typescript", "html-css", "full-stack"],
     "parent": null,
@@ -329,14 +329,14 @@
     "content_patterns": ["consensus", "partition tolerance", "sharding", "replication"]
   },
   "api-design": {
-    "aliases": ["api design", "api_design", "rest-api", "rest api", "rest apis", "restful", "api development", "api-development", "graphql", "api-integration", "api integration", "platform-integration", "platform integration"],
+    "aliases": ["api design", "api_design", "rest-api", "rest api", "rest apis", "restful", "api development", "api-development", "api-integration", "api integration", "platform-integration", "platform integration", "rest_api", "rest_apis"],
     "category": "practice",
     "related": ["software-engineering", "backend-development", "fastapi"],
     "parent": null,
     "content_patterns": ["endpoint", "REST", "GraphQL", "OpenAPI", "/api/"]
   },
   "testing": {
-    "aliases": ["test-driven-development", "tdd", "unit-testing", "unit testing", "integration-testing", "integration testing", "automated testing", "automated-testing", "qa", "quality assurance", "test automation", "code_quality", "code-quality", "code quality", "code-review", "code review"],
+    "aliases": ["test-driven-development", "tdd", "unit-testing", "unit testing", "integration-testing", "integration testing", "automated testing", "automated-testing", "qa", "quality assurance", "test automation", "code_quality", "code-quality", "code quality"],
     "category": "practice",
     "related": ["software-engineering", "ci-cd", "pytest"],
     "parent": null,
@@ -350,14 +350,14 @@
     "content_patterns": ["Dockerfile", "docker-compose", "nginx", "systemctl"]
   },
   "cloud-infrastructure": {
-    "aliases": ["cloud infrastructure", "cloud-computing", "cloud computing", "cloud services", "cloud platforms", "cloud"],
+    "aliases": ["cloud infrastructure", "cloud-computing", "cloud computing", "cloud services", "cloud platforms", "cloud", "cloud-ai-platforms", "cloud_computing"],
     "category": "domain",
     "related": ["aws", "gcp", "azure", "kubernetes", "terraform", "devops"],
     "parent": null,
     "content_patterns": ["EC2", "Lambda", "load balancer", "auto-scaling"]
   },
   "security": {
-    "aliases": ["cybersecurity", "application-security", "appsec", "information security", "infosec", "security engineering", "compliance", "safety", "responsible_ai", "responsible-ai", "responsible ai", "ai-safety", "ai safety"],
+    "aliases": ["cybersecurity", "application-security", "appsec", "information security", "infosec", "security engineering", "compliance", "safety"],
     "category": "practice",
     "related": ["software-engineering", "devops"],
     "parent": null,
@@ -434,7 +434,7 @@
     "content_patterns": ["<!doctype", "<html", "<div", "<body"]
   },
   "performance-optimization": {
-    "aliases": ["performance optimization", "performance-tuning", "optimization", "scalability", "scaling", "performance engineering", "high-scale-systems", "high scale systems", "performance_profiling", "profiling_tools"],
+    "aliases": ["performance optimization", "performance-tuning", "optimization", "scalability", "scaling", "performance engineering", "high-scale-systems", "high scale systems", "performance_profiling", "profiling_tools", "large-scale-systems"],
     "category": "practice",
     "related": ["software-engineering", "system-design", "distributed-systems"],
     "parent": null,
@@ -483,7 +483,7 @@
     "content_patterns": ["model serving", "feature store", "ML pipeline", "model registry"]
   },
   "metrics": {
-    "aliases": ["kpis", "key performance indicators", "observability", "monitoring", "instrumentation", "ab_testing", "a/b testing", "ab testing", "a-b-testing", "experimentation", "dashboards", "data_visualization", "data visualization", "data-visualization", "ai-evaluation", "ai evaluation"],
+    "aliases": ["kpis", "key performance indicators", "observability", "monitoring", "instrumentation", "ab_testing", "a/b testing", "ab testing", "a-b-testing", "experimentation", "dashboards", "data_visualization", "data visualization", "data-visualization"],
     "category": "practice",
     "related": ["data-science", "product-development", "devops"],
     "parent": null,
@@ -511,7 +511,7 @@
     "content_patterns": ["canvas", "rendering", "3D", "animation"]
   },
   "production-systems": {
-    "aliases": ["production systems", "production_systems", "production-grade", "production grade", "production engineering", "software_delivery", "software delivery", "software-delivery"],
+    "aliases": ["production systems", "production_systems", "production-grade", "production grade", "production engineering", "software_delivery", "software delivery", "software-delivery", "production-deployment"],
     "category": "practice",
     "related": ["software-engineering", "devops", "system-design", "distributed-systems"],
     "parent": null,
@@ -544,5 +544,82 @@
     "related": ["security", "api-design", "backend-development"],
     "parent": null,
     "content_patterns": ["OAuth", "JWT", "session token", "SAML"]
+  },
+  "ai-research": {
+    "aliases": ["ai research", "ai_research", "artificial-intelligence-research"],
+    "category": "domain",
+    "related": ["machine-learning", "llm", "data-science"],
+    "parent": null,
+    "content_patterns": ["research paper", "arxiv", "novel approach", "state of the art"]
+  },
+  "ai-safety": {
+    "aliases": ["ai safety", "ai_safety", "responsible-ai", "responsible_ai", "responsible ai", "ai-ethics", "ai ethics", "ethical-ai", "ethical ai"],
+    "category": "practice",
+    "related": ["machine-learning", "llm", "security"],
+    "parent": null,
+    "content_patterns": ["responsible", "bias", "fairness", "alignment", "safety"]
+  },
+  "computer-vision": {
+    "aliases": ["computer vision", "computer_vision", "cv", "image recognition", "image-recognition", "object detection", "object-detection"],
+    "category": "domain",
+    "related": ["machine-learning", "pytorch", "tensorflow", "data-science"],
+    "parent": "machine-learning",
+    "content_patterns": ["image", "vision", "detection", "segmentation", "opencv"]
+  },
+  "multimodal-ai": {
+    "aliases": ["multimodal ai", "multimodal_ai", "multi-modal", "multi-modal-ai", "multimodal"],
+    "category": "domain",
+    "related": ["machine-learning", "llm", "computer-vision"],
+    "parent": "machine-learning",
+    "content_patterns": ["multimodal", "vision-language", "image+text", "cross-modal"]
+  },
+  "voice-ai": {
+    "aliases": ["voice ai", "voice_ai", "speech-ai", "speech ai", "voice-technology", "conversational-ai", "conversational ai", "conversational_ai"],
+    "category": "domain",
+    "related": ["machine-learning", "llm", "multimodal-ai"],
+    "parent": "machine-learning",
+    "content_patterns": ["voice", "speech", "TTS", "ASR", "speech-to-text"]
+  },
+  "graphql": {
+    "aliases": ["graph-ql", "graphql-api"],
+    "category": "framework",
+    "related": ["api-design", "backend-development", "node.js", "typescript"],
+    "parent": null,
+    "content_patterns": ["graphql", "GraphQL", "query {", "mutation {", "schema {"]
+  },
+  "langgraph": {
+    "aliases": ["lang-graph", "lang graph"],
+    "category": "framework",
+    "related": ["langchain", "agentic-workflows", "llm"],
+    "parent": "langchain",
+    "content_patterns": ["langgraph", "LangGraph", "StateGraph"]
+  },
+  "langsmith": {
+    "aliases": ["lang-smith", "lang smith"],
+    "category": "tool",
+    "related": ["langchain", "langgraph", "llm", "metrics"],
+    "parent": "langchain",
+    "content_patterns": ["langsmith", "LangSmith", "trace", "run tree"]
+  },
+  "code-review": {
+    "aliases": ["code review", "code_review", "peer-review", "peer review", "pull-request-review"],
+    "category": "practice",
+    "related": ["software-engineering", "testing", "collaboration", "git"],
+    "parent": null,
+    "content_patterns": ["code review", "pull request", "PR review", "review comment"]
+  },
+  "ai-evaluation": {
+    "aliases": ["ai evaluation", "ai_evaluation", "ai-eval", "llm-evaluation", "llm evaluation", "llm_evaluation", "llm-benchmarking", "ml-benchmarking", "agent-evaluation", "agent evaluation", "model-evaluation", "model_evaluation", "evaluation_pipelines"],
+    "category": "practice",
+    "related": ["llm", "machine-learning", "metrics", "testing"],
+    "parent": null,
+    "content_patterns": ["eval", "benchmark", "accuracy", "BLEU", "rouge", "hallucination"]
+  },
+  "data-engineering": {
+    "aliases": ["data engineering", "data_engineering", "data-pipelines", "data_pipelines", "etl", "data infrastructure"],
+    "category": "domain",
+    "related": ["mlops", "data-science", "sql", "python", "cloud-infrastructure"],
+    "parent": null,
+    "content_patterns": ["pipeline", "ETL", "data lake", "data warehouse", "batch processing"]
   }
 }
