@@ -34,6 +34,9 @@ Every earlier phase is framed as: *"this is why you can trust that output."*
 
 Run `assess` against a real job posting the user cares about. Show the output immediately — letter grade, per-skill scores, evidence citations, gap analysis — before any setup context. Annotate each field inline as we go. This output is the "hero" of the final doc.
 
+**Input — sourcing posting.txt:**
+Copy the raw job description text from a LinkedIn (or similar) job posting the user is genuinely interested in. Paste it into a local file: `posting.txt`. The user also supplies `--company`, `--title`, and `--seniority` from the posting header.
+
 **Commands:**
 ```bash
 # From a raw job description text file
@@ -71,7 +74,7 @@ Read top skills from `~/.claude-candidate/candidate_profile.json`:
 - Flag: any skills conspicuously absent that the user would expect to see
 
 **3. Merge provenance breakdown**
-Read `~/.claude-candidate/merged_profile.json` corroboration summary:
+Read `~/.claude-candidate/merged_profile.json` corroboration summary. Note: this file is written as a side effect of running `assess` with `--resume`. It may not exist if Phase 0 hasn't run yet or if the user has never run assess with resume data. If absent, skip this sub-check and note it in the doc.
 - **Corroborated:** Both sessions and resume agree — strongest signal
 - **Sessions-only:** Demonstrated in work but not on resume — undersold opportunity
 - **Resume-only:** Claimed on resume, not shown in sessions — unverified
@@ -105,6 +108,7 @@ print('Extracted:', len(d['requirements']), 'requirements')
   --job /tmp/anthropic-posting.txt \
   --company "Anthropic" \
   --title "Software Engineer, Claude Code" \
+  --seniority mid \
   --output /tmp/anthropic-assessment.json
 ```
 
@@ -116,7 +120,7 @@ print('Extracted:', len(d['requirements']), 'requirements')
 
 ### Phase 3 — Real Posting (Annotated Walkthrough)
 
-Full annotated walkthrough of the Phase 0 output — now that the reader understands how it was produced. Walk every output field with explanations of what each number means and why it's more credible than a self-reported resume.
+**No new commands.** This phase is annotation-only — it revisits the Phase 0 output (`assessment.json`) with full context. Walk every output field with explanations of what each number means and why it's more credible than a self-reported resume.
 
 **Highlights to annotate:**
 - The self-referential signal: sessions from *building this tool* appear in the evidence
@@ -157,7 +161,7 @@ Full narrative tailored to the company and role. Human-readable synthesis. Best 
 3. **Why you can trust it** — Profile audit summary + baseline validation result
 4. **The deliverables** — Resume bullets + cover letter in full
 5. **The pipeline** — Technical explainer of what produced the above
-6. **Appendix** — Key commands, for a new user to reproduce
+6. **Appendix** — Full command sequence in order (all phases), including intermediate file names and the golden set prep script. Enough for a new user to reproduce the session end-to-end.
 
 ### Location
 Draft: `.claude/tutorial/YYYY-MM-DD-walkthrough.md` (gitignored — stays local until reviewed).
