@@ -501,13 +501,12 @@ class TestSessionsScanWhitelist:
                 (proj / f"session-{i:04d}.jsonl").write_text('{"msg":"test"}\n')
         return projects_dir
 
-    def test_scan_prompts_when_no_whitelist(self, tmp_path):
-        """Without a whitelist, sessions scan should run interactive selection."""
+    def test_scan_session_dir_skips_whitelist(self, tmp_path):
+        """Using --session-dir bypasses whitelist entirely."""
         projects_dir = self._make_sessions_dir(tmp_path, {
             "-Users-u-git-proj-a": 2,
             "-Users-u-git-proj-b": 1,
         })
-        whitelist_path = tmp_path / "whitelist.json"
         output_path = tmp_path / "profile.json"
 
         runner = CliRunner()
@@ -516,7 +515,7 @@ class TestSessionsScanWhitelist:
             "--session-dir", str(projects_dir / "-Users-u-git-proj-a"),
             "--output", str(output_path),
         ])
-        # Using --session-dir skips whitelist, so this should succeed without prompts
+        # --session-dir skips whitelist, so this should succeed without prompts
         assert result.exit_code == 0, result.output
 
     def test_scan_accept_defaults_without_whitelist_errors(self, tmp_path, monkeypatch):

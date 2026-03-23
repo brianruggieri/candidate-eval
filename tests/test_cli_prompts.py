@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
 
-import pytest
 from click.testing import CliRunner
 import click
 

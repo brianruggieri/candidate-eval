@@ -140,10 +140,12 @@ class TestMtimeCache:
 		hash1 = resp1.json()["hashes"]["candidate"]
 
 		# Overwrite the file with a slightly different dict to change its content + mtime
-		import time
-		time.sleep(0.01)  # ensure mtime differs
+		import os
 		new_data = {"skills": [], "_marker": "updated"}
 		(data_dir / "candidate_profile.json").write_text(json.dumps(new_data))
+		# Force a distinct mtime_ns to avoid flakiness on coarse-resolution filesystems
+		future_ns = (data_dir / "candidate_profile.json").stat().st_mtime_ns + 1_000_000_000
+		os.utime(data_dir / "candidate_profile.json", ns=(future_ns, future_ns))
 
 		# Second request — should detect the new mtime and reload
 		resp2 = await client.get("/api/profile/status")

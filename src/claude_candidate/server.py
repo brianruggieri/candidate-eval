@@ -10,7 +10,6 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -179,14 +178,14 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
         """
         for profile_type, profile_path in profile_files.items():
             try:
-                current_mtime = profile_path.stat().st_mtime
+                current_mtime = profile_path.stat().st_mtime_ns
             except OSError:
                 # File deleted or inaccessible — remove from cache
                 _state["profiles"].pop(profile_type, None)
                 _state["profile_mtimes"].pop(profile_type, None)
                 continue
             cached_mtime = _state["profile_mtimes"].get(profile_type)
-            if cached_mtime is None or current_mtime > cached_mtime:
+            if cached_mtime is None or current_mtime != cached_mtime:
                 try:
                     _state["profiles"][profile_type] = json.loads(
                         profile_path.read_text()

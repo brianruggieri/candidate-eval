@@ -278,7 +278,7 @@ def merge_with_curated(
 
     profile_hash = hash_json_stable({
         "candidate": candidate_profile.manifest_hash,
-        "curated": curated_resume.source_file_hash,
+        "curated": curated_resume.model_dump_json(),
     })
 
     merged = MergedEvidenceProfile(
