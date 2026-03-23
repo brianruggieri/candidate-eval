@@ -147,11 +147,35 @@ MAX_RESUME_ITEMS = 3
 MAX_ACTION_ITEMS = 6
 
 # Soft skill discount factor — reduces weight of soft skill requirements
-SOFT_SKILL_DISCOUNT = 0.3
+SOFT_SKILL_DISCOUNT = 0.5
+SOFT_SKILL_MAX_BOOST = 0.8  # maximum discount when culture signals fully align
 
 # Rounding precision
 SCORE_PRECISION = 3
 TIMING_PRECISION = 2
+
+
+def _soft_skill_discount(
+    culture_signals: list[str] | None,
+    company_profile: "CompanyProfile | None",
+) -> float:
+    """Compute soft skill weight discount, modulated by culture signal strength.
+
+    Base discount is SOFT_SKILL_DISCOUNT (0.5). When a CompanyProfile with
+    culture_keywords is available, the discount is boosted up to SOFT_SKILL_MAX_BOOST (0.8)
+    based on the overlap ratio between posting culture_signals and company culture_keywords.
+    """
+    if not company_profile or not company_profile.culture_keywords:
+        return SOFT_SKILL_DISCOUNT
+    if not culture_signals:
+        return SOFT_SKILL_DISCOUNT
+    company_kw = {kw.lower() for kw in company_profile.culture_keywords}
+    posting_signals = {s.lower() for s in culture_signals}
+    if not posting_signals:
+        return SOFT_SKILL_DISCOUNT
+    overlap = len(posting_signals & company_kw)
+    ratio = overlap / len(posting_signals)
+    return SOFT_SKILL_DISCOUNT + ratio * (SOFT_SKILL_MAX_BOOST - SOFT_SKILL_DISCOUNT)
 
 
 # ---------------------------------------------------------------------------
@@ -1306,6 +1330,8 @@ class QuickMatchEngine:
         start_time = time.time()
         skill_dim, skill_details = self._score_skill_match(
             inp.requirements, inp.seniority,
+            culture_signals=inp.culture_signals,
+            company_profile=inp.company_profile,
         )
         experience_dim = self._score_experience_match(
             inp.requirements, inp.seniority,
@@ -1454,6 +1480,8 @@ class QuickMatchEngine:
         self,
         requirements: list[QuickRequirement],
         seniority: str,
+        culture_signals: list[str] | None = None,
+        company_profile: CompanyProfile | None = None,
     ) -> tuple[DimensionScore, list[SkillMatchDetail]]:
         """Score the skill gap analysis dimension."""
         depth_floor = SENIORITY_DEPTH_FLOOR.get(seniority, DepthLevel.APPLIED)
@@ -1461,6 +1489,7 @@ class QuickMatchEngine:
         weighted_score = 0.0
         total_weight = 0.0
         taxonomy = _get_taxonomy()
+        effective_discount = _soft_skill_discount(culture_signals, company_profile)
 
         for req in requirements:
             weight = PRIORITY_WEIGHT.get(req.priority, 1.0)
@@ -1473,7 +1502,7 @@ class QuickMatchEngine:
                     is_soft_skill = True
                     break
             if is_soft_skill:
-                weight *= SOFT_SKILL_DISCOUNT
+                weight *= effective_discount
 
             total_weight += weight
             best_match, best_status = _find_best_skill(

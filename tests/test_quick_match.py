@@ -1202,3 +1202,79 @@ def test_adaptability_fallback_to_years():
 	assert result.source == EvidenceSource.RESUME_ONLY
 	assert result.effective_depth == DepthLevel.DEEP
 	assert result.confidence == 0.6
+
+
+# ---------------------------------------------------------------------------
+# Soft Skill Discount Modulation Tests (Plan 8)
+# ---------------------------------------------------------------------------
+
+def test_soft_skill_discount_baseline():
+	"""SOFT_SKILL_DISCOUNT constant should be 0.5."""
+	from claude_candidate.quick_match import SOFT_SKILL_DISCOUNT
+	assert SOFT_SKILL_DISCOUNT == 0.5
+
+
+def test_soft_skill_discount_no_company_profile():
+	"""No company profile returns baseline discount."""
+	from claude_candidate.quick_match import _soft_skill_discount, SOFT_SKILL_DISCOUNT
+	assert _soft_skill_discount(None, None) == SOFT_SKILL_DISCOUNT
+	assert _soft_skill_discount(["collaborative"], None) == SOFT_SKILL_DISCOUNT
+
+
+def test_soft_skill_discount_empty_culture_keywords():
+	"""Company profile with empty culture_keywords returns baseline."""
+	from claude_candidate.quick_match import _soft_skill_discount, SOFT_SKILL_DISCOUNT
+	from claude_candidate.schemas.company_profile import CompanyProfile
+	cp = CompanyProfile(company_name="Test Co", product_description="", product_domain=[], enriched_at=datetime.now(), culture_keywords=[])
+	assert _soft_skill_discount(["collaborative"], cp) == SOFT_SKILL_DISCOUNT
+
+
+def test_soft_skill_discount_no_culture_signals():
+	"""None or empty culture signals returns baseline even with company profile."""
+	from claude_candidate.quick_match import _soft_skill_discount, SOFT_SKILL_DISCOUNT
+	from claude_candidate.schemas.company_profile import CompanyProfile
+	cp = CompanyProfile(company_name="Test Co", product_description="", product_domain=[], enriched_at=datetime.now(), culture_keywords=["collaborative", "fast-paced"])
+	assert _soft_skill_discount(None, cp) == SOFT_SKILL_DISCOUNT
+	assert _soft_skill_discount([], cp) == SOFT_SKILL_DISCOUNT
+
+
+def test_soft_skill_discount_full_overlap():
+	"""All posting signals match company keywords returns max boost."""
+	from claude_candidate.quick_match import _soft_skill_discount, SOFT_SKILL_MAX_BOOST
+	from claude_candidate.schemas.company_profile import CompanyProfile
+	cp = CompanyProfile(company_name="Test Co", product_description="", product_domain=[], enriched_at=datetime.now(), culture_keywords=["collaborative", "fast-paced"])
+	result = _soft_skill_discount(["collaborative", "fast-paced"], cp)
+	assert result == SOFT_SKILL_MAX_BOOST
+
+
+def test_soft_skill_discount_partial_overlap():
+	"""2/4 signals match → discount = 0.5 + 0.5 * 0.3 = 0.65."""
+	from claude_candidate.quick_match import _soft_skill_discount
+	from claude_candidate.schemas.company_profile import CompanyProfile
+	cp = CompanyProfile(
+		company_name="Test Co",
+		product_description="",
+		product_domain=[],
+		enriched_at=datetime.now(),
+		culture_keywords=["collaborative", "fast-paced"],
+	)
+	result = _soft_skill_discount(["collaborative", "fast-paced", "autonomous", "mission-driven"], cp)
+	assert abs(result - 0.65) < 0.001
+
+
+def test_soft_skill_discount_zero_overlap():
+	"""Signals present but none match company keywords returns baseline."""
+	from claude_candidate.quick_match import _soft_skill_discount, SOFT_SKILL_DISCOUNT
+	from claude_candidate.schemas.company_profile import CompanyProfile
+	cp = CompanyProfile(company_name="Test Co", product_description="", product_domain=[], enriched_at=datetime.now(), culture_keywords=["collaborative"])
+	result = _soft_skill_discount(["autonomous", "mission-driven"], cp)
+	assert result == SOFT_SKILL_DISCOUNT
+
+
+def test_soft_skill_discount_case_insensitive():
+	"""'Collaborative' matches 'collaborative' regardless of case."""
+	from claude_candidate.quick_match import _soft_skill_discount, SOFT_SKILL_MAX_BOOST
+	from claude_candidate.schemas.company_profile import CompanyProfile
+	cp = CompanyProfile(company_name="Test Co", product_description="", product_domain=[], enriched_at=datetime.now(), culture_keywords=["Collaborative"])
+	result = _soft_skill_discount(["collaborative"], cp)
+	assert result == SOFT_SKILL_MAX_BOOST
