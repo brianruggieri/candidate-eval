@@ -190,7 +190,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 
         profiles = get_profiles()
         candidate_data = profiles.get("candidate")
-        if not candidate_data:
+        if candidate_data is None:
             return None
 
         cp = CandidateProfile.model_validate(candidate_data)

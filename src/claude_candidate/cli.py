@@ -1440,12 +1440,20 @@ def _process_sessions(sessions_found: list[SessionInfo]) -> list[SessionSignals]
 def _load_curated_resume() -> dict | None:
     """Load curated resume data from ~/.claude-candidate/curated_resume.json.
 
-    Returns the parsed dict if the file exists, None otherwise.
+    Returns the parsed dict if the file exists and is valid JSON, None otherwise.
     """
     curated_path = Path.home() / ".claude-candidate" / "curated_resume.json"
     if not curated_path.exists():
         return None
-    return json.loads(curated_path.read_text())
+    try:
+        return json.loads(curated_path.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        click.echo(
+            f"Warning: could not load curated resume from {curated_path}: {exc}. "
+            "Ignoring curated resume.",
+            err=True,
+        )
+        return None
 
 
 def _merge_profile(
@@ -1454,33 +1462,34 @@ def _merge_profile(
     *,
     quiet: bool = False,
 ):
-    """Merge a CandidateProfile, preferring curated resume when available.
+    """Merge a CandidateProfile with the best available resume data.
 
     Precedence:
-      1. Curated resume (~/.claude-candidate/curated_resume.json) → merge_with_curated()
-      2. Parsed resume (rp argument) → merge_profiles()
+      1. Explicit parsed resume (rp argument, from --resume flag) → merge_profiles()
+      2. Curated resume (~/.claude-candidate/curated_resume.json) → merge_with_curated()
       3. No resume at all → merge_candidate_only()
     """
     from claude_candidate.merger import merge_profiles, merge_candidate_only, merge_with_curated
 
-    curated = _load_curated_resume()
-    if curated and curated.get("curated_skills"):
-        if not quiet:
-            click.echo("Using curated resume for merge")
-        merged = merge_with_curated(
-            cp,
-            curated["curated_skills"],
-            total_years=curated.get("total_years_experience"),
-            education=curated.get("education", []),
-        )
-    elif rp is not None:
+    if rp is not None:
         if not quiet:
             click.echo("Using parsed resume for merge")
         merged = merge_profiles(cp, rp)
     else:
-        if not quiet:
-            click.echo("No resume provided — using sessions only")
-        merged = merge_candidate_only(cp)
+        curated = _load_curated_resume()
+        if curated and curated.get("curated_skills"):
+            if not quiet:
+                click.echo("Using curated resume for merge")
+            merged = merge_with_curated(
+                cp,
+                curated["curated_skills"],
+                total_years=curated.get("total_years_experience"),
+                education=curated.get("education", []),
+            )
+        else:
+            if not quiet:
+                click.echo("No resume provided — using sessions only")
+            merged = merge_candidate_only(cp)
     return merged
 
 

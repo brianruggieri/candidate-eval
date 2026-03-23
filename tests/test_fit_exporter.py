@@ -485,3 +485,38 @@ def test_select_evidence_highlights_prefers_corroborated():
 
     result = select_evidence_highlights(skill_matches, candidate_skills, limit=1)
     assert result[0]["heading"] == "Python"  # corroborated first
+
+
+def test_select_evidence_highlights_phrase_resolution():
+    """Requirement phrases like '5+ years python experience' should resolve to 'python'."""
+    skill_matches = [
+        {"requirement": "5+ years python experience", "matched_skill": None,
+         "match_status": "strong_match", "confidence": 0.9},
+    ]
+    candidate_skills = [
+        {"name": "python", "evidence": [
+            {"session_id": "s1", "session_date": "2026-03-01T00:00:00",
+             "project_context": "api", "evidence_snippet": "Built API", "confidence": 0.9},
+        ]},
+    ]
+
+    result = select_evidence_highlights(skill_matches, candidate_skills)
+    assert len(result) == 1
+    assert result[0]["quote"] == "Built API"
+
+
+def test_select_evidence_highlights_no_false_positive():
+    """Generic phrases without a real skill name should NOT match anything."""
+    skill_matches = [
+        {"requirement": "3+ years experience", "matched_skill": None,
+         "match_status": "strong_match", "confidence": 0.9},
+    ]
+    candidate_skills = [
+        {"name": "startup-experience", "evidence": [
+            {"session_id": "s1", "session_date": "2026-03-01T00:00:00",
+             "project_context": "startup", "evidence_snippet": "Startup work", "confidence": 0.9},
+        ]},
+    ]
+
+    result = select_evidence_highlights(skill_matches, candidate_skills)
+    assert result == []  # "experience" should not fuzzy-match to "startup-experience"
