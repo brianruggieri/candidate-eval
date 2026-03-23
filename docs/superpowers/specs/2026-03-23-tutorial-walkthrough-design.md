@@ -38,12 +38,15 @@ Run `assess` against a real job posting the user cares about. Show the output im
 ```bash
 # From a raw job description text file
 .venv/bin/python -m claude_candidate.cli assess \
-  --profile ~/.claude-candidate/merged_profile.json \
+  --profile ~/.claude-candidate/candidate_profile.json \
+  --resume ~/.claude-candidate/curated_resume.json \
   --job posting.txt \
   --company "Company Name" \
   --title "Role Title" \
-  --seniority mid
+  --seniority mid \
+  --output assessment.json
 ```
+The `--resume` flag provides the curated resume signal; `assess` handles merging internally. `--output assessment.json` is required — Phase 4 reads this file.
 
 **What we look at:**
 - Overall fit grade (A–F) and numeric score
@@ -58,7 +61,7 @@ Run `assess` against a real job posting the user cares about. Show the output im
 Inspect the existing local data to confirm it's current and complete. Three sub-checks:
 
 **1. Session coverage check**
-Determine whether any new Claude Code sessions exist since the last scan (Mar 23). If new sessions are found, note them — they represent evidence the current profile doesn't include.
+Manual inspection — there is no `--dry-run` flag. Read `candidate_profile.json` top-level metadata to find `generated_at` and session count. Compare `generated_at` against the most recent JSONL file in `~/.claude/projects/` to determine if new sessions have accumulated since the last scan. If the delta looks significant, note it; a re-scan is out of scope unless the audit reveals the profile is materially stale.
 
 **2. Skill snapshot**
 Read top skills from `~/.claude-candidate/candidate_profile.json`:
@@ -83,13 +86,26 @@ Run the same assess pipeline against a known golden set posting to verify calibr
 **Posting:** `tests/golden_set/postings/anthropic-software-engineer-claude-code.json`
 (Rationale: closest to the user's actual work domain; expected grade is known.)
 
-**Commands:**
+**Setup:** The golden set files are structured JSON (not raw text). The CLI's `--job` flag reads files as raw text and checks for a `.requirements.json` sidecar. Extract the posting text and pre-built requirements before running:
+
 ```bash
+# Extract description and requirements from the golden set JSON
+python3 -c "
+import json, pathlib
+d = json.loads(pathlib.Path('tests/golden_set/postings/anthropic-software-engineer-claude-code.json').read_text())
+pathlib.Path('/tmp/anthropic-posting.txt').write_text(d['description'])
+pathlib.Path('/tmp/anthropic-posting.requirements.json').write_text(json.dumps(d['requirements']))
+print('Extracted:', len(d['requirements']), 'requirements')
+"
+
+# Run assess — CLI finds the sidecar automatically, skips Claude re-parsing
 .venv/bin/python -m claude_candidate.cli assess \
-  --profile ~/.claude-candidate/merged_profile.json \
-  --job tests/golden_set/postings/anthropic-software-engineer-claude-code.json \
+  --profile ~/.claude-candidate/candidate_profile.json \
+  --resume ~/.claude-candidate/curated_resume.json \
+  --job /tmp/anthropic-posting.txt \
   --company "Anthropic" \
-  --title "Software Engineer, Claude Code"
+  --title "Software Engineer, Claude Code" \
+  --output /tmp/anthropic-assessment.json
 ```
 
 **Check:** Compare output grade against `tests/golden_set/expected_grades.json`.
@@ -117,7 +133,8 @@ Generate two deliverables from the real-posting assessment, showing the full evi
 ```bash
 .venv/bin/python -m claude_candidate.cli generate-deliverable \
   --assessment assessment.json \
-  --type resume-bullets
+  --type resume-bullets \
+  --output resume-bullets.md
 ```
 Shows how session evidence maps to accomplishment statements. Technical proof layer.
 
@@ -125,7 +142,8 @@ Shows how session evidence maps to accomplishment statements. Technical proof la
 ```bash
 .venv/bin/python -m claude_candidate.cli generate-deliverable \
   --assessment assessment.json \
-  --type cover-letter
+  --type cover-letter \
+  --output cover-letter.md
 ```
 Full narrative tailored to the company and role. Human-readable synthesis. Best hiring-manager showcase moment.
 
@@ -142,10 +160,13 @@ Full narrative tailored to the company and role. Human-readable synthesis. Best 
 6. **Appendix** — Key commands, for a new user to reproduce
 
 ### Location
-`docs/tutorial/YYYY-MM-DD-walkthrough.md`
+Draft: `.claude/tutorial/YYYY-MM-DD-walkthrough.md` (gitignored — stays local until reviewed).
+Final: `docs/tutorial/YYYY-MM-DD-walkthrough.md` (committed to repo after user approval).
+
+The `.claude/` directory is the staging area per project conventions. The final doc is moved to `docs/tutorial/` only after the user has reviewed and approved it.
 
 ### Format
-Markdown — version-controlled, readable on GitHub, shareable as a direct link. Not committed to main until the user approves.
+Markdown — version-controlled, readable on GitHub, shareable as a direct link.
 
 ### What a hiring manager receives
 A GitHub link. No local install required. They see: a grade on a real role, evidence from real work sessions, and a tool that produced a tailored cover letter. The repo itself is the proof layer.
