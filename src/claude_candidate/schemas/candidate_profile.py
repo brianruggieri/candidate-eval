@@ -83,6 +83,8 @@ class SkillEntry(BaseModel):
     first_seen: datetime
     evidence: list[SessionReference] = Field(min_length=1)
     context_notes: str | None = None
+    total_evidence_count: int | None = None  # pre-compaction count
+    compacted: bool = False  # whether evidence has been compacted
 
     @field_validator("name")
     @classmethod
@@ -116,6 +118,8 @@ class ProblemSolvingPattern(BaseModel):
     description: str
     evidence: list[SessionReference] = Field(min_length=1)
     counter_evidence: list[SessionReference] | None = None
+    total_evidence_count: int | None = None  # pre-compaction count
+    compacted: bool = False  # whether evidence has been compacted
 
 
 class ProjectComplexity(str, Enum):
@@ -140,6 +144,8 @@ class ProjectSummary(BaseModel):
     key_decisions: list[str] = Field(max_length=5, default_factory=list)
     challenges_overcome: list[str] = Field(max_length=5, default_factory=list)
     evidence: list[SessionReference] = Field(min_length=1)
+    total_evidence_count: int | None = None  # pre-compaction count
+    compacted: bool = False  # whether evidence has been compacted
 
 
 class CandidateProfile(BaseModel):
@@ -176,6 +182,9 @@ class CandidateProfile(BaseModel):
     # Integrity
     extraction_notes: str
     confidence_assessment: Literal["low", "moderate", "high", "very_high"]
+
+    # Compaction metadata
+    compaction_version: str | None = None  # e.g. "1.0" — None for uncompacted profiles
 
     def get_skill(self, name: str) -> SkillEntry | None:
         """Look up a skill by canonical name."""
