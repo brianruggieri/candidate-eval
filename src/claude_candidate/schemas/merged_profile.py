@@ -47,11 +47,13 @@ class MergedSkillEvidence(BaseModel):
     session_frequency: int | None = None
     session_evidence_count: int | None = None
     session_recency: datetime | None = None
+    session_first_seen: datetime | None = None  # when this skill first appeared in sessions
 
     # Merged assessment
     effective_depth: DepthLevel
     confidence: float = Field(ge=0.0, le=1.0)
     discovery_flag: bool = False  # True if sessions_only — resume undersells this
+    category: str | None = None  # taxonomy category: "language", "framework", etc.
 
     @staticmethod
     def compute_effective_depth(
