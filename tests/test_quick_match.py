@@ -1461,8 +1461,7 @@ class TestConflictingExpertConfidence:
 	"""Tests for CONFLICTING_EXPERT_CONF_FLOOR — expert/deep session evidence dominates."""
 
 	def _make_skill(self, source, depth, confidence):
-		from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
-		from claude_candidate.schemas.candidate_profile import DepthLevel
+		from claude_candidate.schemas.merged_profile import MergedSkillEvidence
 		return MergedSkillEvidence(
 			name="test-skill",
 			source=source,
