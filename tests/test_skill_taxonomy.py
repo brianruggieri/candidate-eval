@@ -514,7 +514,7 @@ def test_alias_sandboxing(taxonomy: SkillTaxonomy) -> None:
 def test_alias_generative_ai(taxonomy: SkillTaxonomy) -> None:
     assert taxonomy.canonicalize("genai") == "generative-ai"
     assert taxonomy.canonicalize("generative ai") == "generative-ai"
-    assert taxonomy.canonicalize("applied-ai") == "generative-ai"
+    # applied-ai is broader than generative-ai — not an alias
 
 
 def test_alias_react_native(taxonomy: SkillTaxonomy) -> None:
@@ -571,7 +571,7 @@ def test_agentic_workflows_new_aliases(taxonomy: SkillTaxonomy) -> None:
 def test_adaptability_new_aliases(taxonomy: SkillTaxonomy) -> None:
     """New soft-skill aliases route to adaptability."""
     assert taxonomy.canonicalize("curiosity") == "adaptability"
-    assert taxonomy.canonicalize("mission_driven") == "adaptability"
+    # mission_driven is a values/culture trait, not adaptability
     # mission_alignment is NOT an alias — it's too common as a posting requirement
     assert taxonomy.canonicalize("mission_alignment") != "adaptability"
 
