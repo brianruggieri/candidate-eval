@@ -1275,7 +1275,9 @@ def sessions() -> None:
               help="Re-select projects for whitelist interactively")
 @click.option("--accept-defaults", is_flag=True, default=False,
               help="Use existing whitelist without prompting (error if none exists)")
-def scan(session_dir: str | None, output: str | None, reselect: bool, accept_defaults: bool) -> None:
+@click.option("--no-compact", is_flag=True, default=False,
+              help="Skip evidence compaction (write full uncompacted profile)")
+def scan(session_dir: str | None, output: str | None, reselect: bool, accept_defaults: bool, no_compact: bool) -> None:
     """Scan session logs and build a CandidateProfile."""
     from claude_candidate.session_scanner import discover_sessions
     from claude_candidate.manifest import hash_string
@@ -1336,6 +1338,15 @@ def scan(session_dir: str | None, output: str | None, reselect: bool, accept_def
     profile = build_profile_from_signal_results(results=all_results, manifest_hash=manifest_hash)
     click.echo(f"  Skills found: {len(profile.skills)}")
     click.echo(f"  Sessions processed: {profile.session_count}")
+
+    if not no_compact:
+        from claude_candidate.evidence_compactor import compact_evidence
+        click.echo("  Compacting evidence...")
+        compact_evidence(profile)
+        total_evidence = sum(len(s.evidence) for s in profile.skills)
+        click.echo(f"  Evidence compacted (compaction_version={profile.compaction_version}, "
+                    f"total skill evidence entries={total_evidence})")
+
     output_path = Path(output) if output else _default_profile_path()
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(profile.to_json())

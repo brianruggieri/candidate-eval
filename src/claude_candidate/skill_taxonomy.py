@@ -3,7 +3,7 @@ SkillTaxonomy: Canonical skill name resolution with alias lookup and fuzzy match
 
 Three-tier matching strategy:
 1. Exact alias lookup (case-insensitive)
-2. Fuzzy match via rapidfuzz token_set_ratio >= 80
+2. Fuzzy match via rapidfuzz token_set_ratio >= 90
 3. None (unknown skill)
 
 Used by the merger to normalize skill names from resume and session sources
@@ -19,7 +19,7 @@ from typing import Any
 from rapidfuzz import fuzz
 
 # Fuzzy match threshold (token_set_ratio score 0-100)
-FUZZY_THRESHOLD = 80
+FUZZY_THRESHOLD = 90
 
 # Path to the bundled taxonomy data file
 _DEFAULT_TAXONOMY_PATH = Path(__file__).parent / "data" / "taxonomy.json"
@@ -79,7 +79,7 @@ class SkillTaxonomy:
         Three-tier skill resolution.
 
         1. Exact alias lookup
-        2. Fuzzy match (rapidfuzz token_set_ratio >= 80) across all terms
+        2. Fuzzy match (rapidfuzz token_set_ratio >= 90) across all terms
         3. None if no match found
 
         Returns the canonical skill name or None.
