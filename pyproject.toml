@@ -33,7 +33,6 @@ dependencies = [
     "datafog>=4.0",
     "jinja2>=3.1",
     "pyyaml>=6.0",
-    "ruptures>=1.1.8",
     "orjson>=3.9",
     "pyahocorasick>=2.0",
 ]

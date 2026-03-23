@@ -14,7 +14,6 @@ from claude_candidate.schemas.candidate_profile import (
     ProjectSummary,
     SessionReference,
     SkillEntry,
-    SkillTrajectoryPoint,
 )
 from claude_candidate.schemas.job_requirements import (
     JobRequirement,
@@ -60,7 +59,6 @@ __all__ = [
     "ProjectSummary",
     "SessionReference",
     "SkillEntry",
-    "SkillTrajectoryPoint",
     # job_requirements
     "JobRequirement",
     "JobRequirements",

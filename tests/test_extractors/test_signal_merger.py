@@ -1,4 +1,4 @@
-"""Tests for SignalMerger: aggregation, depth scoring, patterns, projects, velocity."""
+"""Tests for SignalMerger: aggregation, depth scoring, patterns, projects."""
 
 from __future__ import annotations
 
@@ -461,57 +461,3 @@ class TestProfileAssembly:
 		output_types = {p.pattern_type for p in profile.problem_solving_patterns}
 		assert output_types == set(PatternType)
 
-
-# ---------------------------------------------------------------------------
-# TestLearningVelocity
-# ---------------------------------------------------------------------------
-
-
-class TestLearningVelocity:
-	def test_skill_trajectory_populated(self):
-		"""With enough agentic data, skill_trajectory is not None/empty."""
-		base = datetime(2026, 1, 1, tzinfo=timezone.utc)
-		results = []
-		for i in range(12):
-			# Simulate progression: early sessions have low agentic metrics,
-			# later sessions have higher ones
-			results.append(_make_signal_result(
-				session_id=f"s{i}",
-				session_date=base + timedelta(days=i),
-				skills={"python": [_skill("python")]},
-				metrics={
-					"agent_dispatch_count": float(min(i, 3)),
-					"task_phases": float(min(i // 3, 3)),
-					"skill_invocation_count": float(min(i // 2, 3)),
-					"context_resets": float(min(i // 4, 3)),
-					"worktree_count": float(min(i // 4, 3)),
-				},
-			))
-		merger = SignalMerger()
-		profile = merger.merge(results, manifest_hash="abc")
-
-		assert profile.skill_trajectory is not None
-		assert len(profile.skill_trajectory) > 0
-
-	def test_learning_velocity_notes_populated(self):
-		"""With progression data, notes are generated."""
-		base = datetime(2026, 1, 1, tzinfo=timezone.utc)
-		results = []
-		for i in range(12):
-			results.append(_make_signal_result(
-				session_id=f"s{i}",
-				session_date=base + timedelta(days=i),
-				skills={"python": [_skill("python")]},
-				metrics={
-					"agent_dispatch_count": float(min(i, 3)),
-					"task_phases": float(min(i // 3, 3)),
-					"skill_invocation_count": float(min(i // 2, 3)),
-					"context_resets": float(min(i // 4, 3)),
-					"worktree_count": float(min(i // 4, 3)),
-				},
-			))
-		merger = SignalMerger()
-		profile = merger.merge(results, manifest_hash="abc")
-
-		assert profile.learning_velocity_notes is not None
-		assert len(profile.learning_velocity_notes) > 0

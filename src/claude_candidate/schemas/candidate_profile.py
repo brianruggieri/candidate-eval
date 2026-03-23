@@ -142,15 +142,6 @@ class ProjectSummary(BaseModel):
     evidence: list[SessionReference] = Field(min_length=1)
 
 
-class SkillTrajectoryPoint(BaseModel):
-    """A snapshot of a skill's depth at a point in time."""
-
-    skill_name: str
-    depth: DepthLevel
-    as_of: datetime
-    session_id: str
-
-
 class CandidateProfile(BaseModel):
     """
     The central IR of a candidate's demonstrated abilities.
@@ -181,10 +172,6 @@ class CandidateProfile(BaseModel):
     # Communication
     communication_style: str
     documentation_tendency: Literal["minimal", "moderate", "thorough", "extensive"]
-
-    # Growth (optional, progressive enhancement)
-    skill_trajectory: list[SkillTrajectoryPoint] | None = None
-    learning_velocity_notes: str | None = None
 
     # Integrity
     extraction_notes: str

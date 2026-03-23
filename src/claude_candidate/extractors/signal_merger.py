@@ -4,7 +4,7 @@ SignalMerger: Aggregates SignalResults from all extractors into a CandidateProfi
 Takes SignalResult objects from CodeSignalExtractor, BehaviorSignalExtractor,
 and CommSignalExtractor and produces the existing CandidateProfile schema unchanged.
 Owns aggregation, deduplication, depth scoring, pattern merging, project enrichment,
-agentic learning velocity, and profile assembly.
+and profile assembly.
 """
 
 from __future__ import annotations
@@ -29,15 +29,8 @@ from claude_candidate.schemas.candidate_profile import (
 	ProjectSummary,
 	SessionReference,
 	SkillEntry,
-	SkillTrajectoryPoint,
 )
 from claude_candidate.skill_taxonomy import SkillTaxonomy
-
-try:
-	import ruptures as rpt
-	HAS_RUPTURES = True
-except ImportError:
-	HAS_RUPTURES = False
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -82,15 +75,6 @@ PROJECT_MODERATE = 3
 PROJECT_SIMPLE = 2
 
 TOP_N = 5
-
-# Agentic skill dimensions and their metric keys
-AGENTIC_DIMENSIONS: dict[str, str] = {
-	"agent_orchestration": "agent_dispatch_count",
-	"task_decomposition": "task_create_count",
-	"skill_workflows": "skill_invocation_count",
-	"context_management": "context_reset_count",
-	"worktree_isolation": "worktree_usage",
-}
 
 # Depth levels in order for index-based navigation
 DEPTH_LEVELS = [
@@ -148,19 +132,6 @@ def _project_complexity(session_count: int) -> ProjectComplexity:
 	return ProjectComplexity.TRIVIAL
 
 
-def _score_agentic_dimension(metric_value: float, dimension: str) -> int:
-	"""Score a single agentic dimension 0-3 from its metric value."""
-	# All dimensions use the same simple threshold scheme
-	v = metric_value
-	if v >= 3:
-		return 3
-	if v >= 2:
-		return 2
-	if v >= 1:
-		return 1
-	return 0
-
-
 # ---------------------------------------------------------------------------
 # SignalMerger
 # ---------------------------------------------------------------------------
@@ -184,7 +155,6 @@ class SignalMerger:
 		skills = self._aggregate_skills(results)
 		patterns = self._aggregate_patterns(results)
 		projects = self._build_projects(results)
-		trajectory, velocity_notes = self._compute_learning_velocity(results)
 
 		# Date range
 		all_dates = [r.session_date for r in results]
@@ -209,8 +179,6 @@ class SignalMerger:
 			projects=projects,
 			communication_style=self._derive_communication_style(results),
 			documentation_tendency=self._assess_documentation(results),
-			skill_trajectory=trajectory if trajectory else None,
-			learning_velocity_notes=velocity_notes if velocity_notes else None,
 			extraction_notes=f"Merged from {len(results)} result(s) across {session_count} session(s)",
 			confidence_assessment=self._assess_confidence(session_count, results),
 		)
@@ -509,103 +477,6 @@ class SignalMerger:
 			challenges_overcome=challenges[:5],
 			evidence=evidence,
 		)
-
-	# -------------------------------------------------------------------
-	# Agentic Learning Velocity
-	# -------------------------------------------------------------------
-
-	def _compute_learning_velocity(
-		self,
-		results: list[SignalResult],
-	) -> tuple[list[SkillTrajectoryPoint], str]:
-		"""Compute agentic skill trajectories and learning velocity notes."""
-		if not results:
-			return [], ""
-
-		# Sort results chronologically
-		sorted_results = sorted(results, key=lambda r: r.session_date)
-
-		trajectory: list[SkillTrajectoryPoint] = []
-		velocity_notes_parts: list[str] = []
-
-		for dimension_name, metric_key in AGENTIC_DIMENSIONS.items():
-			# Build time series: (date, score) per session
-			time_series: list[tuple[datetime, int, str]] = []
-			for r in sorted_results:
-				metric_val = r.metrics.get(metric_key, 0.0)
-				score = _score_agentic_dimension(metric_val, dimension_name)
-				time_series.append((r.session_date, score, r.session_id))
-
-			if not time_series:
-				continue
-
-			# Check if there's any non-zero data
-			scores = [s for _, s, _ in time_series]
-			if max(scores) == 0:
-				continue
-
-			# Build trajectory points
-			for dt, score, sid in time_series:
-				if score > 0:
-					depth = _depth_from_rank(min(score, 4))
-					trajectory.append(SkillTrajectoryPoint(
-						skill_name=dimension_name,
-						depth=depth,
-						as_of=dt,
-						session_id=sid,
-					))
-
-			# Detect change points / progression
-			if len(scores) >= 10 and HAS_RUPTURES:
-				try:
-					signal = [[float(s)] for s in scores]
-					algo = rpt.Pelt(model="l2").fit(signal)
-					change_points = algo.predict(pen=1)
-					if change_points and change_points[0] < len(scores):
-						early_avg = sum(scores[:change_points[0]]) / max(change_points[0], 1)
-						late_avg = (
-							sum(scores[change_points[0]:])
-							/ max(len(scores) - change_points[0], 1)
-						)
-						if late_avg > early_avg:
-							velocity_notes_parts.append(
-								f"{dimension_name}: improvement detected "
-								f"(avg {early_avg:.1f} -> {late_avg:.1f})"
-							)
-				except Exception:
-					# Fallback to simple comparison
-					self._simple_velocity_check(
-						dimension_name, scores, velocity_notes_parts
-					)
-			else:
-				self._simple_velocity_check(
-					dimension_name, scores, velocity_notes_parts
-				)
-
-		velocity_notes = "; ".join(velocity_notes_parts) if velocity_notes_parts else ""
-		return trajectory, velocity_notes
-
-	def _simple_velocity_check(
-		self,
-		dimension_name: str,
-		scores: list[int],
-		notes: list[str],
-	) -> None:
-		"""Simple first-half vs second-half comparison for velocity detection."""
-		if len(scores) < 2:
-			return
-		mid = len(scores) // 2
-		first_half = scores[:mid]
-		second_half = scores[mid:]
-		if not first_half or not second_half:
-			return
-		first_avg = sum(first_half) / len(first_half)
-		second_avg = sum(second_half) / len(second_half)
-		if second_avg > first_avg:
-			notes.append(
-				f"{dimension_name}: progression observed "
-				f"(avg {first_avg:.1f} -> {second_avg:.1f})"
-			)
 
 	# -------------------------------------------------------------------
 	# Profile Assembly Helpers
