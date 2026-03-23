@@ -1271,25 +1271,61 @@ def sessions() -> None:
               help="Directory containing session JSONL files")
 @click.option("--output", "-o", type=click.Path(),
               help="Output path for CandidateProfile JSON")
-def scan(session_dir: str | None, output: str | None) -> None:
+@click.option("--reselect", is_flag=True, default=False,
+              help="Re-select projects for whitelist interactively")
+@click.option("--accept-defaults", is_flag=True, default=False,
+              help="Use existing whitelist without prompting (error if none exists)")
+def scan(session_dir: str | None, output: str | None, reselect: bool, accept_defaults: bool) -> None:
     """Scan session logs and build a CandidateProfile."""
     from claude_candidate.session_scanner import discover_sessions
     from claude_candidate.manifest import hash_string
     from claude_candidate.extractor import build_profile_from_signal_results
-
-    from claude_candidate.whitelist import load_whitelist, get_default_whitelist_path, filter_sessions_by_whitelist
+    from claude_candidate.whitelist import (
+        load_whitelist, get_default_whitelist_path, filter_sessions_by_whitelist,
+    )
 
     search_dir = Path(session_dir) if session_dir else _default_sessions_dir()
-    click.echo(f"Scanning sessions in {search_dir}...")
-    sessions_found = discover_sessions(search_dir)
-    click.echo(f"  Found {len(sessions_found)} session files")
 
-    # Only apply whitelist when using default session dir (not explicit --session-dir)
-    if not session_dir:
-        whitelist = load_whitelist(get_default_whitelist_path())
-        if whitelist:
-            sessions_found = filter_sessions_by_whitelist(sessions_found, whitelist)
-            click.echo(f"  After whitelist filter: {len(sessions_found)} sessions")
+    if session_dir:
+        # Explicit directory — skip whitelist entirely
+        click.echo(f"Scanning sessions in {search_dir}...")
+        sessions_found = discover_sessions(search_dir)
+        click.echo(f"  Found {len(sessions_found)} session files")
+    else:
+        # Default path — whitelist is required for privacy
+        whitelist_path = get_default_whitelist_path()
+        whitelist = load_whitelist(whitelist_path)
+        need_selection = reselect or whitelist is None
+
+        if need_selection and accept_defaults:
+            click.echo(
+                "Error: No whitelist found. Run without --accept-defaults to set one up.",
+                err=True,
+            )
+            raise SystemExit(1)
+
+        if need_selection:
+            from claude_candidate.session_scanner import discover_projects
+            from claude_candidate.cli_prompts import interactive_whitelist_selection
+
+            projects = discover_projects(search_dir)
+            if not projects:
+                click.echo(f"No projects found in {search_dir}. Nothing to scan.")
+                return
+
+            whitelist = interactive_whitelist_selection(projects, whitelist)
+            from claude_candidate.whitelist import save_whitelist
+            save_whitelist(whitelist, whitelist_path)
+            click.echo(f"Whitelist saved to {whitelist_path}")
+
+        click.echo(f"Scanning sessions in {search_dir}...")
+        sessions_found = discover_sessions(search_dir)
+        click.echo(f"  Found {len(sessions_found)} session files")
+        sessions_found = filter_sessions_by_whitelist(sessions_found, whitelist)
+        click.echo(
+            f"  After whitelist filter: {len(sessions_found)} sessions"
+            f" ({len(whitelist.projects)} whitelisted projects)"
+        )
 
     if not sessions_found:
         click.echo("No sessions found. Nothing to do.")
@@ -1505,53 +1541,31 @@ def whitelist() -> None:
 @click.option("--session-dir", type=click.Path(exists=True), default=None,
               help="Directory containing session JSONL files")
 @click.option("--filter", "-f", "hint_filter", default=None,
-              help="Only show projects whose hint contains this substring (e.g. 'git')")
+              help="Only show projects whose name contains this substring (e.g. 'git')")
 def whitelist_setup(session_dir: str | None, hint_filter: str | None) -> None:
     """Interactive: discover projects, select which to include."""
-    from claude_candidate.session_scanner import discover_sessions
+    from claude_candidate.session_scanner import discover_projects
+    from claude_candidate.cli_prompts import interactive_whitelist_selection
     from claude_candidate.whitelist import (
-        WhitelistConfig,
         get_default_whitelist_path,
+        load_whitelist,
         save_whitelist,
     )
-    from collections import Counter
 
     search_dir = Path(session_dir) if session_dir else _default_sessions_dir()
-    click.echo(f"Scanning sessions in {search_dir}...")
-    sessions_found = discover_sessions(search_dir)
-    click.echo(f"  Found {len(sessions_found)} session files")
+    projects = discover_projects(search_dir)
 
-    if not sessions_found:
-        click.echo("No sessions found. Nothing to whitelist.")
+    if not projects:
+        click.echo("No projects found. Nothing to whitelist.")
         return
 
-    counts: Counter[str] = Counter(s.project_hint for s in sessions_found)
+    existing = load_whitelist(get_default_whitelist_path())
+    config = interactive_whitelist_selection(projects, existing, hint_filter=hint_filter)
 
-    if hint_filter:
-        counts = Counter({h: c for h, c in counts.items() if hint_filter.lower() in h.lower()})
-        click.echo(f"  Filtered to {len(counts)} projects matching '{hint_filter}'")
-
-    if not counts:
-        click.echo("No projects match the filter. Nothing to whitelist.")
-        return
-
-    selected: list[str] = []
-
-    click.echo("\nFor each project, choose whether to include it in the whitelist.")
-    click.echo("Only include public GitHub projects — keep private/client work out.\n")
-
-    for hint in sorted(counts):
-        count = counts[hint]
-        label = f"  {hint} ({count} session{'s' if count != 1 else ''})"
-        if click.confirm(f"{label} — include?", default=False):
-            selected.append(hint)
-
-    config = WhitelistConfig(projects=selected)
     path = get_default_whitelist_path()
     save_whitelist(config, path)
-
-    click.echo(f"\nWhitelist saved to {path}")
-    click.echo(f"  Included projects ({len(selected)}): {', '.join(selected) or '(none)'}")
+    click.echo(f"Whitelist saved to {path}")
+    click.echo(f"  Included: {len(config.projects)} project(s)")
 
 
 @whitelist.command("show")
