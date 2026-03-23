@@ -126,8 +126,9 @@ def test_fuzzy_kubernetes_typo(taxonomy: SkillTaxonomy) -> None:
 
 
 def test_fuzzy_python_typo(taxonomy: SkillTaxonomy) -> None:
+    # "pyhton" scores ~83 on token_set_ratio, below threshold 90
     result = taxonomy.match("pyhton")
-    assert result == "python"
+    assert result is None
 
 
 def test_fuzzy_returns_none_for_unrelated(taxonomy: SkillTaxonomy) -> None:
@@ -252,3 +253,192 @@ def test_soft_skill_category(taxonomy: SkillTaxonomy) -> None:
     # Aliases should resolve
     assert taxonomy.match("excellent communication") == "communication"
     assert taxonomy.match("team player") == "collaboration"
+
+
+# ---------------------------------------------------------------------------
+# Promoted entries — canonical resolution
+# ---------------------------------------------------------------------------
+
+def test_canonical_ai_research(taxonomy: SkillTaxonomy) -> None:
+    """ai-research is now its own entry, not an alias of adaptability."""
+    assert taxonomy.canonicalize("ai-research") == "ai-research"
+    assert taxonomy.canonicalize("ai_research") == "ai-research"
+    assert taxonomy.get_category("ai-research") == "domain"
+
+
+def test_canonical_ai_safety(taxonomy: SkillTaxonomy) -> None:
+    """ai-safety is now its own entry, not an alias of security."""
+    assert taxonomy.canonicalize("ai-safety") == "ai-safety"
+    assert taxonomy.canonicalize("responsible-ai") == "ai-safety"
+    assert taxonomy.canonicalize("responsible_ai") == "ai-safety"
+    assert taxonomy.get_category("ai-safety") == "practice"
+
+
+def test_canonical_computer_vision(taxonomy: SkillTaxonomy) -> None:
+    """computer-vision is now its own entry, not an alias of machine-learning."""
+    assert taxonomy.canonicalize("computer-vision") == "computer-vision"
+    assert taxonomy.get_category("computer-vision") == "domain"
+    assert taxonomy.are_related("computer-vision", "machine-learning")
+
+
+def test_canonical_multimodal_ai(taxonomy: SkillTaxonomy) -> None:
+    """multimodal-ai is now its own entry, not an alias of machine-learning."""
+    assert taxonomy.canonicalize("multimodal-ai") == "multimodal-ai"
+    assert taxonomy.canonicalize("multimodal_ai") == "multimodal-ai"
+    assert taxonomy.get_category("multimodal-ai") == "domain"
+
+
+def test_canonical_voice_ai(taxonomy: SkillTaxonomy) -> None:
+    """voice-ai is now its own entry, not an alias of machine-learning."""
+    assert taxonomy.canonicalize("voice-ai") == "voice-ai"
+    assert taxonomy.canonicalize("conversational-ai") == "voice-ai"
+    assert taxonomy.get_category("voice-ai") == "domain"
+
+
+def test_canonical_graphql(taxonomy: SkillTaxonomy) -> None:
+    """graphql is now its own entry, not an alias of api-design."""
+    assert taxonomy.canonicalize("graphql") == "graphql"
+    assert taxonomy.get_category("graphql") == "framework"
+    assert taxonomy.are_related("graphql", "api-design")
+
+
+def test_canonical_langgraph(taxonomy: SkillTaxonomy) -> None:
+    """langgraph is now its own entry, not an alias of langchain."""
+    assert taxonomy.canonicalize("langgraph") == "langgraph"
+    assert taxonomy.get_category("langgraph") == "framework"
+    assert taxonomy.are_related("langgraph", "langchain")
+
+
+def test_canonical_langsmith(taxonomy: SkillTaxonomy) -> None:
+    """langsmith is now its own entry, not an alias of langchain."""
+    assert taxonomy.canonicalize("langsmith") == "langsmith"
+    assert taxonomy.get_category("langsmith") == "tool"
+    assert taxonomy.are_related("langsmith", "langchain")
+
+
+def test_canonical_code_review(taxonomy: SkillTaxonomy) -> None:
+    """code-review is now its own entry, not an alias of testing."""
+    assert taxonomy.canonicalize("code-review") == "code-review"
+    assert taxonomy.canonicalize("code_review") == "code-review"
+    assert taxonomy.canonicalize("code review") == "code-review"
+    assert taxonomy.get_category("code-review") == "practice"
+
+
+def test_canonical_ai_evaluation(taxonomy: SkillTaxonomy) -> None:
+    """ai-evaluation is now its own entry, not an alias of metrics."""
+    assert taxonomy.canonicalize("ai-evaluation") == "ai-evaluation"
+    assert taxonomy.canonicalize("ai_evaluation") == "ai-evaluation"
+    assert taxonomy.canonicalize("llm-evaluation") == "ai-evaluation"
+    assert taxonomy.get_category("ai-evaluation") == "practice"
+
+
+def test_canonical_data_engineering(taxonomy: SkillTaxonomy) -> None:
+    """data-engineering is a new entry."""
+    assert taxonomy.canonicalize("data-engineering") == "data-engineering"
+    assert taxonomy.canonicalize("data engineering") == "data-engineering"
+    assert taxonomy.get_category("data-engineering") == "domain"
+
+
+# ---------------------------------------------------------------------------
+# Alias removals — ensure old bad mappings are gone
+# ---------------------------------------------------------------------------
+
+def test_curiosity_not_adaptability(taxonomy: SkillTaxonomy) -> None:
+    """curiosity should no longer resolve to adaptability."""
+    assert taxonomy.canonicalize("curiosity") != "adaptability"
+
+
+def test_ai_research_not_adaptability(taxonomy: SkillTaxonomy) -> None:
+    """ai-research should no longer resolve to adaptability."""
+    assert taxonomy.canonicalize("ai-research") != "adaptability"
+
+
+def test_ai_safety_not_security(taxonomy: SkillTaxonomy) -> None:
+    """ai-safety should no longer resolve to security."""
+    assert taxonomy.canonicalize("ai-safety") != "security"
+
+
+def test_graphql_not_api_design(taxonomy: SkillTaxonomy) -> None:
+    """graphql should no longer resolve to api-design."""
+    assert taxonomy.canonicalize("graphql") != "api-design"
+
+
+def test_code_review_not_testing(taxonomy: SkillTaxonomy) -> None:
+    """code-review should no longer resolve to testing."""
+    assert taxonomy.canonicalize("code-review") != "testing"
+
+
+# ---------------------------------------------------------------------------
+# Explicit aliases — formerly fuzzy, now exact
+# ---------------------------------------------------------------------------
+
+def test_alias_developer_tooling(taxonomy: SkillTaxonomy) -> None:
+    assert taxonomy.canonicalize("developer_tooling") == "developer-tools"
+
+
+def test_alias_rest_api(taxonomy: SkillTaxonomy) -> None:
+    assert taxonomy.canonicalize("rest_api") == "api-design"
+
+
+def test_alias_multi_agent_orchestration(taxonomy: SkillTaxonomy) -> None:
+    assert taxonomy.canonicalize("multi-agent-orchestration") == "agentic-workflows"
+
+
+def test_alias_ai_assisted_development(taxonomy: SkillTaxonomy) -> None:
+    assert taxonomy.canonicalize("ai-assisted-development") == "agentic-workflows"
+    assert taxonomy.canonicalize("ai_assisted_development") == "agentic-workflows"
+
+
+def test_alias_ai_tools(taxonomy: SkillTaxonomy) -> None:
+    assert taxonomy.canonicalize("ai-tools") == "developer-tools"
+    assert taxonomy.canonicalize("ai_tools") == "developer-tools"
+
+
+def test_alias_large_scale_systems(taxonomy: SkillTaxonomy) -> None:
+    assert taxonomy.canonicalize("large-scale-systems") == "performance-optimization"
+
+
+def test_alias_cloud_ai_platforms(taxonomy: SkillTaxonomy) -> None:
+    assert taxonomy.canonicalize("cloud-ai-platforms") == "cloud-infrastructure"
+
+
+def test_alias_production_deployment(taxonomy: SkillTaxonomy) -> None:
+    assert taxonomy.canonicalize("production-deployment") == "production-systems"
+
+
+def test_alias_web_architecture(taxonomy: SkillTaxonomy) -> None:
+    assert taxonomy.canonicalize("web-architecture") == "frontend-development"
+
+
+def test_alias_cross_browser_development(taxonomy: SkillTaxonomy) -> None:
+    assert taxonomy.canonicalize("cross-browser-development") == "frontend-development"
+
+
+def test_alias_llm_integration(taxonomy: SkillTaxonomy) -> None:
+    assert taxonomy.canonicalize("llm-integration") == "llm"
+
+
+# ---------------------------------------------------------------------------
+# Fuzzy threshold — verify threshold is at 90
+# ---------------------------------------------------------------------------
+
+def test_fuzzy_threshold_is_90() -> None:
+    """Verify FUZZY_THRESHOLD has been raised to 90."""
+    from claude_candidate.skill_taxonomy import FUZZY_THRESHOLD
+    assert FUZZY_THRESHOLD == 90
+
+
+def test_fuzzy_still_catches_typos(taxonomy: SkillTaxonomy) -> None:
+    """Typos with score >= 90 should still resolve."""
+    assert taxonomy.match("javascrpt") == "javascript"
+    assert taxonomy.match("kuberntes") == "kubernetes"
+    # "pyhton" scores ~83 (below 90), so it no longer resolves via fuzzy
+    assert taxonomy.match("pyhton") is None
+
+
+def test_fuzzy_rejects_false_positives(taxonomy: SkillTaxonomy) -> None:
+    """Terms that previously fuzzy-matched at 80-89 should no longer resolve."""
+    # production-deployment should NOT fuzzy-match to product-development
+    # (it should exact-match to production-systems via new alias)
+    result = taxonomy.match("production-deployment")
+    assert result == "production-systems"
