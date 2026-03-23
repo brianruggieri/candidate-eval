@@ -198,10 +198,19 @@ def _apply_compaction_to_skill(skill: SkillEntry, selected_indices: list[int]) -
 		best_idx = max(range(original_count), key=lambda i: skill.evidence[i].confidence)
 		valid_indices = [best_idx]
 
-	selected = [skill.evidence[i] for i in valid_indices]
+	# Deduplicate while preserving order, then cap at MAX_SHOWCASE
+	seen: set[int] = set()
+	deduped: list[int] = []
+	for i in valid_indices:
+		if i not in seen:
+			seen.add(i)
+			deduped.append(i)
+	capped_indices = deduped[:MAX_SHOWCASE]
+
+	selected = [skill.evidence[i] for i in capped_indices]
 
 	# Build aggregate from non-selected entries
-	excluded_indices = set(range(original_count)) - set(valid_indices)
+	excluded_indices = set(range(original_count)) - set(capped_indices)
 	excluded = [skill.evidence[i] for i in sorted(excluded_indices)]
 
 	aggregate = _build_aggregate_reference(excluded, all_evidence=skill.evidence)
@@ -221,8 +230,17 @@ def _apply_compaction_to_pattern(
 		best_idx = max(range(original_count), key=lambda i: pattern.evidence[i].confidence)
 		valid_indices = [best_idx]
 
-	selected = [pattern.evidence[i] for i in valid_indices]
-	excluded_indices = set(range(original_count)) - set(valid_indices)
+	# Deduplicate while preserving order, then cap at MAX_SHOWCASE
+	seen_p: set[int] = set()
+	deduped_p: list[int] = []
+	for i in valid_indices:
+		if i not in seen_p:
+			seen_p.add(i)
+			deduped_p.append(i)
+	capped_indices_p = deduped_p[:MAX_SHOWCASE]
+
+	selected = [pattern.evidence[i] for i in capped_indices_p]
+	excluded_indices = set(range(original_count)) - set(capped_indices_p)
 	excluded = [pattern.evidence[i] for i in sorted(excluded_indices)]
 
 	aggregate = _build_aggregate_reference(excluded, all_evidence=pattern.evidence)
@@ -242,8 +260,17 @@ def _apply_compaction_to_project(
 		best_idx = max(range(original_count), key=lambda i: project.evidence[i].confidence)
 		valid_indices = [best_idx]
 
-	selected = [project.evidence[i] for i in valid_indices]
-	excluded_indices = set(range(original_count)) - set(valid_indices)
+	# Deduplicate while preserving order, then cap at MAX_SHOWCASE
+	seen_j: set[int] = set()
+	deduped_j: list[int] = []
+	for i in valid_indices:
+		if i not in seen_j:
+			seen_j.add(i)
+			deduped_j.append(i)
+	capped_indices_j = deduped_j[:MAX_SHOWCASE]
+
+	selected = [project.evidence[i] for i in capped_indices_j]
+	excluded_indices = set(range(original_count)) - set(capped_indices_j)
 	excluded = [project.evidence[i] for i in sorted(excluded_indices)]
 
 	aggregate = _build_aggregate_reference(excluded, all_evidence=project.evidence)
