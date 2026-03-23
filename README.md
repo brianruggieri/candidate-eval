@@ -4,7 +4,7 @@
 
 A pipeline that turns development session logs and resume data into evidence-backed job fit assessments.
 
-**Privacy note:** Session logs and resume data are processed locally. Job posting extraction calls Claude CLI, which reaches Anthropic's API — posting text is sent as a prompt; your sessions and resume stay on your machine.
+**Privacy note:** Session logs and resume data are processed locally. Job posting extraction calls Claude CLI, which reaches Anthropic's API — posting text is sent as a prompt; raw session logs and resume files are not sent. Generation commands (reports, deliverables) may include derived assessment summaries in prompts.
 
 ---
 
@@ -35,7 +35,7 @@ Job Posting ──→ Requirement Parser ──→ QuickRequirements ──→ S
 
 - **Dual evidence model** — Skills sourced from sessions, resume, or both. Corroborated skills (both sources agree) rank higher.
 - **Provenance tracking** — Every skill claim is tagged: `corroborated`, `sessions_only`, or `resume_only`. No unattributed assertions.
-- **PII scrubbing** — Raw session and resume text is scrubbed via DataFog (phone, email, SSN, names) before any output is written to disk.
+- **PII scrubbing** — Two-layer pipeline: session logs are scrubbed on ingestion (emails, phones, API keys, paths); deliverable output is additionally scrubbed via DataFog before leaving the tool. Person-name detection uses honorific-anchored heuristics unless `datafog[nlp]` is installed.
 
 Full architecture, trust model, and roadmap: [PROJECT.md](PROJECT.md)
 
