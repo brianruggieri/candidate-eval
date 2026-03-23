@@ -4,14 +4,14 @@
 
 A privacy-first pipeline that turns real development session logs and resume credentials into evidence-backed job fit assessments. The sessions from *building this tool* are input to the tool evaluating its builder — every design decision and test in this repo is also data it has scored against real job postings.
 
-**22/24 exact grade match on real LinkedIn postings. All processing on localhost.**
+**All processing on localhost. No data leaves your machine.**
 
 ---
 
 ## What It Does
 
 - **Extracts skills from real work** — Scans Claude Code development sessions, identifies skills and behavioral patterns, and links every claim to specific session evidence. Not self-reported; observed.
-- **Matches against real job postings** — Parses job requirements, scores fit across skills, domain, and culture signals, and produces a letter grade. 22/24 exact match (24/24 within one grade) on a golden set of LinkedIn postings.
+- **Matches against real job postings** — Parses job requirements, scores fit across skills, domain, and culture signals, and produces a letter grade with evidence-linked explanations.
 - **Runs as a browser extension** — Chrome extension assesses LinkedIn postings in real-time via a local FastAPI server. No data leaves localhost.
 
 ---
@@ -46,10 +46,8 @@ Job Posting ──→ Requirement Parser ──→ QuickRequirements ──→ S
 | Metric | Value |
 |--------|-------|
 | Tests passing | 1,120+ |
-| Benchmark accuracy | 22/24 exact grade match (24/24 within one grade) |
 | Canonical skills in taxonomy | 49 |
 | Sessions scanned (author) | 2,300+ |
-| Must-have skill coverage | 93% across 24 real postings |
 
 ---
 
