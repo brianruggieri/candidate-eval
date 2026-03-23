@@ -1278,3 +1278,180 @@ def test_soft_skill_discount_case_insensitive():
 	cp = CompanyProfile(company_name="Test Co", product_description="", product_domain=[], enriched_at=datetime.now(), culture_keywords=["Collaborative"])
 	result = _soft_skill_discount(["collaborative"], cp)
 	assert result == SOFT_SKILL_MAX_BOOST
+
+
+# ---------------------------------------------------------------------------
+# Plan 9: Eligibility filter tests
+# ---------------------------------------------------------------------------
+
+class TestEligibilityFilters:
+	"""Eligibility requirements are excluded from skill scoring."""
+
+	def _make_req(self, skill: str, priority: str = "must_have", description: str = "", is_eligibility: bool = False) -> QuickRequirement:
+		return QuickRequirement(
+			description=description or skill,
+			skill_mapping=[skill],
+			priority=RequirementPriority(priority),
+			is_eligibility=is_eligibility,
+		)
+
+	def test_eligibility_excluded_from_skill_score(self, candidate_profile, resume_profile):
+		"""Eligibility requirement does not appear in skill_details and doesn't affect score."""
+		from claude_candidate.merger import merge_profiles
+		merged = merge_profiles(candidate_profile, resume_profile)
+		engine = QuickMatchEngine(merged)
+		reqs = [
+			self._make_req("python", "must_have"),
+			self._make_req("us-work-authorization", "must_have", "Must be authorized to work in the US", is_eligibility=True),
+		]
+		result = engine.assess(reqs, "TestCo", "Engineer")
+		# skill_matches should only contain the non-eligibility requirement
+		skill_req_names = [d.requirement for d in result.skill_matches]
+		assert not any("authorized" in n.lower() or "work" in n.lower() for n in skill_req_names if "authorization" in n.lower())
+		# eligibility gate should be in eligibility_gates
+		assert len(result.eligibility_gates) == 1
+		assert result.eligibility_gates[0].status == "unknown"
+
+	def test_eligibility_gates_populated(self, candidate_profile, resume_profile):
+		"""eligibility_gates contains one entry per eligibility requirement."""
+		from claude_candidate.merger import merge_profiles
+		merged = merge_profiles(candidate_profile, resume_profile)
+		engine = QuickMatchEngine(merged)
+		reqs = [
+			self._make_req("python", "must_have"),
+			self._make_req("us-work-authorization", "must_have", "Must be authorized to work", is_eligibility=True),
+			self._make_req("travel", "must_have", "Willing to travel 20%", is_eligibility=True),
+		]
+		result = engine.assess(reqs, "TestCo", "Engineer")
+		assert len(result.eligibility_gates) == 2
+
+	def test_must_have_coverage_excludes_eligibility(self, candidate_profile, resume_profile):
+		"""must_have_coverage denominator counts only scorable must-haves."""
+		from claude_candidate.merger import merge_profiles
+		merged = merge_profiles(candidate_profile, resume_profile)
+		engine = QuickMatchEngine(merged)
+		reqs = [
+			self._make_req("python", "must_have"),
+			self._make_req("us-work-authorization", "must_have", "Must be authorized", is_eligibility=True),
+		]
+		result = engine.assess(reqs, "TestCo", "Engineer")
+		# denominator should be 1 (just python), not 2
+		assert "/1 must-haves" in result.must_have_coverage or result.must_have_coverage == "No must-haves specified"
+
+	def test_biggest_gap_excludes_eligibility(self, candidate_profile, resume_profile):
+		"""biggest_gap should never show an eligibility requirement."""
+		from claude_candidate.merger import merge_profiles
+		merged = merge_profiles(candidate_profile, resume_profile)
+		engine = QuickMatchEngine(merged)
+		reqs = [
+			self._make_req("python", "must_have"),
+			self._make_req("us-work-authorization", "must_have", "Must be authorized to work in the US", is_eligibility=True),
+		]
+		result = engine.assess(reqs, "TestCo", "Engineer")
+		assert "authorized" not in result.biggest_gap.lower()
+		assert "us_work" not in result.biggest_gap.lower()
+
+	def test_heuristic_denylist_skill_names(self):
+		"""_infer_eligibility flags requirements with known eligibility skill names."""
+		from claude_candidate.quick_match import _infer_eligibility
+		for skill in ["us-work-authorization", "us_work_authorization", "travel", "english", "visa", "relocation"]:
+			req = QuickRequirement(
+				description="test", skill_mapping=[skill], priority=RequirementPriority.MUST_HAVE,
+			)
+			assert _infer_eligibility(req), f"Expected eligibility for skill {skill!r}"
+
+	def test_heuristic_denylist_description_patterns(self):
+		"""_infer_eligibility flags requirements matching eligibility description patterns."""
+		from claude_candidate.quick_match import _infer_eligibility
+		descriptions = [
+			"Must be authorized to work in the United States",
+			"Eligible to work in the US without sponsorship",
+			"Comfortable with 20% travel to customer sites",
+			"Willing to travel 15% of the time",
+			"Advanced English is required",
+			"Believe in our company's mission and values",
+		]
+		for desc in descriptions:
+			req = QuickRequirement(
+				description=desc, skill_mapping=["some_skill"], priority=RequirementPriority.MUST_HAVE,
+			)
+			assert _infer_eligibility(req), f"Expected eligibility for: {desc!r}"
+
+	def test_heuristic_denylist_no_false_positives(self):
+		"""_infer_eligibility does not flag real skill requirements."""
+		from claude_candidate.quick_match import _infer_eligibility
+		non_eligibility = [
+			("5+ years Python experience", ["python"]),
+			("Strong customer success skills", ["customer_success"]),
+			("Bachelor's degree in Computer Science", ["computer_science"]),
+			("Experience with English literature analysis", ["nlp"]),
+		]
+		for desc, skills in non_eligibility:
+			req = QuickRequirement(
+				description=desc, skill_mapping=skills, priority=RequirementPriority.NICE_TO_HAVE,
+			)
+			assert not _infer_eligibility(req), f"False positive for: {desc!r}"
+
+	def test_entire_requirement_excluded_when_eligibility(self, candidate_profile, resume_profile):
+		"""Mixed skill_mapping: if is_eligibility=True, entire requirement is excluded."""
+		from claude_candidate.merger import merge_profiles
+		merged = merge_profiles(candidate_profile, resume_profile)
+		engine = QuickMatchEngine(merged)
+		# Requirement has both a real skill and an eligibility skill, but is_eligibility=True
+		req_mixed = QuickRequirement(
+			description="Comfortable with travel and customer engagement",
+			skill_mapping=["travel", "customer_engagement"],
+			priority=RequirementPriority.MUST_HAVE,
+			is_eligibility=True,
+		)
+		req_real = self._make_req("python", "must_have")
+		result = engine.assess([req_real, req_mixed], "TestCo", "Engineer")
+		assert len(result.eligibility_gates) == 1
+		# customer_engagement should NOT appear in skill_matches
+		skill_reqs = [d.requirement for d in result.skill_matches]
+		assert all("customer" not in r.lower() for r in skill_reqs)
+
+
+class TestEligibilityGateSchema:
+	"""Schema tests for EligibilityGate and updated FitAssessment."""
+
+	def test_eligibility_gate_defaults_unknown(self):
+		from claude_candidate.schemas.fit_assessment import EligibilityGate
+		gate = EligibilityGate(description="Must be authorized to work in the US")
+		assert gate.status == "unknown"
+		assert gate.requirement_text == ""
+
+	def test_eligibility_gate_all_statuses(self):
+		from claude_candidate.schemas.fit_assessment import EligibilityGate
+		for status in ("met", "unmet", "unknown"):
+			gate = EligibilityGate(description="test", status=status)
+			assert gate.status == status
+
+	def test_fit_assessment_has_eligibility_fields(self, candidate_profile, resume_profile):
+		from claude_candidate.merger import merge_profiles
+		merged = merge_profiles(candidate_profile, resume_profile)
+		engine = QuickMatchEngine(merged)
+		reqs = [QuickRequirement(description="Python", skill_mapping=["python"], priority=RequirementPriority.MUST_HAVE)]
+		result = engine.assess(reqs, "TestCo", "Engineer")
+		assert hasattr(result, "eligibility_gates")
+		assert hasattr(result, "eligibility_passed")
+		assert result.eligibility_passed is True
+		assert result.eligibility_gates == []
+
+	def test_fit_assessment_serialization_round_trip(self, candidate_profile, resume_profile):
+		from claude_candidate.merger import merge_profiles
+		from claude_candidate.schemas.fit_assessment import FitAssessment
+		merged = merge_profiles(candidate_profile, resume_profile)
+		engine = QuickMatchEngine(merged)
+		req_elig = QuickRequirement(
+			description="Must be authorized to work in the US",
+			skill_mapping=["us-work-authorization"],
+			priority=RequirementPriority.MUST_HAVE,
+			is_eligibility=True,
+		)
+		req_skill = QuickRequirement(description="Python", skill_mapping=["python"], priority=RequirementPriority.MUST_HAVE)
+		result = engine.assess([req_skill, req_elig], "TestCo", "Engineer")
+		json_str = result.to_json()
+		restored = FitAssessment.from_json(json_str)
+		assert len(restored.eligibility_gates) == 1
+		assert restored.eligibility_passed is True

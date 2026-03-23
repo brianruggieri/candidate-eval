@@ -54,3 +54,15 @@ def quick_requirements():
     from claude_candidate.schemas.job_requirements import QuickRequirement
     data = json.loads((FIXTURES_DIR / "sample_job_posting.requirements.json").read_text())
     return [QuickRequirement(**r) for r in data]
+
+
+@pytest.fixture
+def eligibility_requirement():
+    from claude_candidate.schemas.job_requirements import QuickRequirement, RequirementPriority
+    return QuickRequirement(
+        description="Must be authorized to work in the United States",
+        skill_mapping=["us-work-authorization"],
+        priority=RequirementPriority.MUST_HAVE,
+        is_eligibility=True,
+        source_text="Must be authorized to work in the United States",
+    )
