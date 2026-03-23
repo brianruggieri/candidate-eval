@@ -11,6 +11,18 @@ from typing import Any
 
 import yaml
 
+from claude_candidate.skill_taxonomy import SkillTaxonomy
+
+_taxonomy: SkillTaxonomy | None = None
+
+
+def _get_taxonomy() -> SkillTaxonomy:
+    global _taxonomy
+    if _taxonomy is None:
+        _taxonomy = SkillTaxonomy.load_default()
+    return _taxonomy
+
+
 # Seniority prefixes in ascending order. Keep only the highest.
 _SENIORITY_PREFIXES = [
     "junior", "jr", "jr.",
@@ -253,6 +265,55 @@ def select_projects(
     return result
 
 
+# Generic terms that should never fuzzy-match to a real skill.
+_RESOLVE_STOPWORDS = frozenset({
+    "experience", "years", "year", "proficiency", "knowledge", "expertise",
+    "understanding", "familiarity", "skills", "ability", "strong", "deep",
+    "solid", "proven", "track", "record", "working", "hands", "plus",
+    "preferred", "required", "minimum", "senior", "junior", "staff",
+})
+
+
+def _resolve_skill_key(
+    raw_key: str,
+    evidence_dict: dict[str, Any],
+    taxonomy: SkillTaxonomy,
+) -> str | None:
+    """Try to resolve a requirement phrase to a key in evidence_dict.
+
+    Attempts, in order:
+    1. Direct lookup (already lowered by caller)
+    2. Canonicalize via taxonomy alias table
+    3. Extract individual words and try each via direct/canonical lookup
+       (no fuzzy on individual words — avoids "experience" → "startup-experience")
+
+    Returns the matching key or None.
+    """
+    # 1. Direct
+    if raw_key in evidence_dict:
+        return raw_key
+
+    # 2. Canonicalize (exact alias lookup, fast)
+    canonical = taxonomy.canonicalize(raw_key)
+    if canonical in evidence_dict:
+        return canonical
+
+    # 3. Extract individual words and try direct/canonical only.
+    # Skip fuzzy matching on individual words to avoid false positives
+    # (e.g., "experience" fuzzy-matching to "startup-experience").
+    words = re.findall(r"[a-z][a-z0-9.#+_-]*", raw_key)
+    for word in words:
+        if word in _RESOLVE_STOPWORDS:
+            continue
+        if word in evidence_dict:
+            return word
+        word_canonical = taxonomy.canonicalize(word)
+        if word_canonical in evidence_dict:
+            return word_canonical
+
+    return None
+
+
 def select_evidence_highlights(
     skill_matches: list[dict[str, Any]],
     candidate_skills: list[dict[str, Any]],
@@ -267,6 +328,8 @@ def select_evidence_highlights(
         candidate_skills: SkillEntry dicts from CandidateProfile (with evidence[]).
         projects: ProjectSummary dicts for technology tag lookup by project name.
     """
+    taxonomy = _get_taxonomy()
+
     # Build project → technologies lookup
     project_techs: dict[str, list[str]] = {}
     for proj in (projects or []):
@@ -299,7 +362,8 @@ def select_evidence_highlights(
             break
         # Use matched_skill (canonical name) for lookup, fall back to requirement
         lookup_key = (match.get("matched_skill") or match["requirement"]).lower()
-        evidence_list = skill_evidence.get(lookup_key, [])
+        resolved = _resolve_skill_key(lookup_key, skill_evidence, taxonomy)
+        evidence_list = skill_evidence.get(resolved, []) if resolved else []
         if not evidence_list:
             continue
 
@@ -442,6 +506,7 @@ def export_fit_assessment(
     action_items = full_data.get("action_items", [])
 
     # Build merged skill lookup for depth/sessions/discovery
+    taxonomy = _get_taxonomy()
     merged_skills = {s["name"].lower(): s for s in merged_profile.get("skills", [])}
 
     # Select and enrich skill matches
@@ -449,9 +514,11 @@ def export_fit_assessment(
     enriched_matches = []
     for match in selected_matches:
         req = match["requirement"]
-        # Use matched_skill (canonical name) for the join, fall back to requirement
+        # Use matched_skill (canonical name) for the join, fall back to requirement.
+        # Resolve through taxonomy when the key doesn't match directly.
         join_key = (match.get("matched_skill") or req).lower()
-        merged = merged_skills.get(join_key, {})
+        resolved_key = _resolve_skill_key(join_key, merged_skills, taxonomy)
+        merged = merged_skills.get(resolved_key, {}) if resolved_key else {}
         enriched_matches.append({
             "skill": req,
             "status": match.get("match_status", "no_evidence"),
