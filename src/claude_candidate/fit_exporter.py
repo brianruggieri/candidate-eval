@@ -464,7 +464,7 @@ def _today_iso() -> str:
 
 def export_fit_assessment(
     assessment_data: dict[str, Any],
-    merged_profile_path: Path,
+    merged_profile_data: dict[str, Any],
     candidate_profile_path: Path,
     output_dir: Path,
     *,
@@ -475,7 +475,7 @@ def export_fit_assessment(
     Args:
         assessment_data: Assessment dict from storage. The 'data' field contains the
             full FitAssessment payload — already parsed as a dict by storage._decode_assessment().
-        merged_profile_path: Path to merged_profile.json.
+        merged_profile_data: Merged profile as a dict (built on the fly, not read from disk).
         candidate_profile_path: Path to candidate_profile.json.
         output_dir: Directory to write the markdown file.
         cal_link: Cal.com booking link.
@@ -493,8 +493,8 @@ def export_fit_assessment(
     else:
         full_data = raw_data
 
-    # Load profiles
-    merged_profile = json.loads(merged_profile_path.read_text(encoding="utf-8"))
+    # Use the pre-built merged profile dict directly; load candidate from disk
+    merged_profile = merged_profile_data
     candidate_profile = json.loads(candidate_profile_path.read_text(encoding="utf-8"))
 
     # Extract fields

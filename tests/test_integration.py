@@ -124,42 +124,6 @@ class TestManifestCommands:
         assert len(data["sessions"]) == 3
 
 
-class TestProfileCommands:
-    def test_profile_merge(self, fixtures_dir, tmp_path):
-        output = tmp_path / "merged.json"
-
-        runner = CliRunner()
-        result = runner.invoke(main, [
-            "profile", "merge",
-            "--candidate", str(fixtures_dir / "sample_candidate_profile.json"),
-            "--resume", str(fixtures_dir / "sample_resume_profile.json"),
-            "--output", str(output),
-        ])
-
-        assert result.exit_code == 0, f"CLI failed: {result.output}"
-        assert output.exists()
-        assert "Corroborated" in result.output
-        assert "Sessions-only" in result.output
-
-    def test_profile_merge_candidate_only(self, fixtures_dir, tmp_path, monkeypatch):
-        output = tmp_path / "merged.json"
-
-        # Ensure candidate-only path by disabling curated resume auto-discovery
-        monkeypatch.setattr(
-            "claude_candidate.cli._load_curated_resume", lambda: None
-        )
-
-        runner = CliRunner()
-        result = runner.invoke(main, [
-            "profile", "merge",
-            "--candidate", str(fixtures_dir / "sample_candidate_profile.json"),
-            "--output", str(output),
-        ])
-
-        assert result.exit_code == 0
-        data = json.loads(output.read_text())
-        assert data["resume_only_skill_count"] == 0
-
 
 class TestEndToEndFlow:
     """Full pipeline: load → merge → assess → validate output chain."""
@@ -500,3 +464,167 @@ class TestSessionsScanCommand:
 
         assert result.exit_code == 0
         assert "No sessions found" in result.output
+
+    def test_scan_session_dir_skips_whitelist(self, tmp_path, fixtures_dir):
+        """--session-dir bypasses whitelist entirely — no prompt, no whitelist required."""
+        sessions_dir = fixtures_dir / "sessions"
+        output_path = tmp_path / "profile.json"
+
+        runner = CliRunner()
+        result = runner.invoke(main, [
+            "sessions", "scan",
+            "--session-dir", str(sessions_dir),
+            "--output", str(output_path),
+        ])
+
+        assert result.exit_code == 0, result.output
+        # No whitelist-related output expected
+        assert "whitelist" not in result.output.lower()
+
+
+class TestSessionsScanWhitelist:
+    """Integration tests for the sessions scan whitelist flow."""
+
+    def _make_sessions_dir(self, root: Path, projects: dict[str, int]) -> Path:
+        """Create a fake ~/.claude/projects/ style directory.
+
+        Args:
+            root: tmp_path root
+            projects: mapping of dir_name -> number of .jsonl files
+        """
+        projects_dir = root / "projects"
+        projects_dir.mkdir()
+        for dir_name, count in projects.items():
+            proj = projects_dir / dir_name
+            proj.mkdir()
+            for i in range(count):
+                (proj / f"session-{i:04d}.jsonl").write_text('{"msg":"test"}\n')
+        return projects_dir
+
+    def test_scan_session_dir_skips_whitelist(self, tmp_path):
+        """Using --session-dir bypasses whitelist entirely."""
+        projects_dir = self._make_sessions_dir(tmp_path, {
+            "-Users-u-git-proj-a": 2,
+            "-Users-u-git-proj-b": 1,
+        })
+        output_path = tmp_path / "profile.json"
+
+        runner = CliRunner()
+        result = runner.invoke(main, [
+            "sessions", "scan",
+            "--session-dir", str(projects_dir / "-Users-u-git-proj-a"),
+            "--output", str(output_path),
+        ])
+        # --session-dir skips whitelist, so this should succeed without prompts
+        assert result.exit_code == 0, result.output
+
+    def test_scan_accept_defaults_without_whitelist_errors(self, tmp_path, monkeypatch):
+        """--accept-defaults with no whitelist should print an error and exit 1."""
+        projects_dir = self._make_sessions_dir(tmp_path, {
+            "-Users-u-git-proj-a": 1,
+        })
+        # Point default dirs to our tmp dirs
+        monkeypatch.setattr("claude_candidate.cli._default_sessions_dir", lambda: projects_dir)
+        monkeypatch.setattr(
+            "claude_candidate.whitelist.get_default_whitelist_path",
+            lambda: tmp_path / "no_whitelist.json",
+        )
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["sessions", "scan", "--accept-defaults"])
+
+        assert result.exit_code != 0
+        assert "No whitelist found" in result.output or "No whitelist found" in (result.exception and str(result.exception) or "")
+
+    def test_scan_accept_defaults_with_existing_whitelist(self, tmp_path, monkeypatch):
+        """--accept-defaults with an existing whitelist uses it without prompting."""
+        from claude_candidate.whitelist import WhitelistConfig, save_whitelist
+
+        projects_dir = self._make_sessions_dir(tmp_path, {
+            "-Users-u-git-proj-a": 2,
+            "-Users-u-git-proj-b": 1,
+        })
+        whitelist_path = tmp_path / "whitelist.json"
+        output_path = tmp_path / "profile.json"
+
+        # Create a whitelist that includes proj-a
+        save_whitelist(WhitelistConfig(projects=["-Users-u-git-proj-a"]), whitelist_path)
+
+        monkeypatch.setattr("claude_candidate.cli._default_sessions_dir", lambda: projects_dir)
+        monkeypatch.setattr(
+            "claude_candidate.whitelist.get_default_whitelist_path",
+            lambda: whitelist_path,
+        )
+
+        runner = CliRunner()
+        result = runner.invoke(main, [
+            "sessions", "scan",
+            "--accept-defaults",
+            "--output", str(output_path),
+        ])
+
+        assert result.exit_code == 0, result.output
+        # Should have filtered to only proj-a sessions (2 sessions)
+        assert "2 sessions" in result.output or "After whitelist" in result.output
+
+    def test_scan_reselect_forces_prompt(self, tmp_path, monkeypatch):
+        """--reselect triggers interactive selection even when whitelist exists."""
+        from claude_candidate.whitelist import WhitelistConfig, save_whitelist
+
+        projects_dir = self._make_sessions_dir(tmp_path, {
+            "-Users-u-git-proj-a": 1,
+        })
+        whitelist_path = tmp_path / "whitelist.json"
+        output_path = tmp_path / "profile.json"
+
+        # Create an existing whitelist
+        save_whitelist(WhitelistConfig(projects=["-Users-u-git-proj-a"]), whitelist_path)
+
+        monkeypatch.setattr("claude_candidate.cli._default_sessions_dir", lambda: projects_dir)
+        monkeypatch.setattr(
+            "claude_candidate.whitelist.get_default_whitelist_path",
+            lambda: whitelist_path,
+        )
+
+        runner = CliRunner()
+        # Select all (project 1) and confirm, then the scan runs
+        result = runner.invoke(main, [
+            "sessions", "scan",
+            "--reselect",
+            "--output", str(output_path),
+        ], input="all\ny\n")
+
+        assert result.exit_code == 0, result.output
+        # The interactive table should have appeared
+        assert "Found" in result.output and "projects" in result.output
+
+    def test_scan_interactive_creates_whitelist_and_scans(self, tmp_path, monkeypatch):
+        """No whitelist → interactive selection → whitelist saved → scan completes."""
+        from claude_candidate.whitelist import load_whitelist
+
+        projects_dir = self._make_sessions_dir(tmp_path, {
+            "-Users-u-git-myapp": 2,
+            "-Users-u-git-other": 1,
+        })
+        whitelist_path = tmp_path / "new_whitelist.json"
+        output_path = tmp_path / "profile.json"
+
+        monkeypatch.setattr("claude_candidate.cli._default_sessions_dir", lambda: projects_dir)
+        monkeypatch.setattr(
+            "claude_candidate.whitelist.get_default_whitelist_path",
+            lambda: whitelist_path,
+        )
+
+        runner = CliRunner()
+        # Select project 1 (myapp) and confirm
+        result = runner.invoke(main, [
+            "sessions", "scan",
+            "--output", str(output_path),
+        ], input="1\ny\n")
+
+        assert result.exit_code == 0, result.output
+        # Whitelist should have been saved
+        assert whitelist_path.exists()
+        saved = load_whitelist(whitelist_path)
+        assert saved is not None
+        assert len(saved.projects) == 1

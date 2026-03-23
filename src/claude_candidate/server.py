@@ -9,9 +9,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -105,6 +108,15 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
     _state: dict[str, Any] = {
         "store": None,
         "profiles": {},
+        "profile_mtimes": {},  # {profile_type: float} — last-read mtime per file
+    }
+
+    # Profile files tracked for mtime-based cache invalidation.
+    # "merged" is intentionally excluded — the server always builds it on the fly.
+    profile_files: dict[str, Path] = {
+        "candidate": _data_dir / "candidate_profile.json",
+        "resume": _data_dir / "resume_profile.json",
+        "curated_resume": _data_dir / "curated_resume.json",
     }
 
     @asynccontextmanager
@@ -115,21 +127,17 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
         await store.initialize()
         _state["store"] = store
 
-        # Auto-discover profile JSON files
-        profiles: dict[str, Any] = {}
-        profile_files = {
-            "candidate": _data_dir / "candidate_profile.json",
-            "resume": _data_dir / "resume_profile.json",
-            "merged": _data_dir / "merged_profile.json",
-            "curated_resume": _data_dir / "curated_resume.json",
-        }
+        # Pre-load profile JSON files and record their mtimes
         for profile_type, profile_path in profile_files.items():
-            if profile_path.exists():
-                try:
-                    profiles[profile_type] = json.loads(profile_path.read_text())
-                except (json.JSONDecodeError, OSError):
-                    pass
-        _state["profiles"] = profiles
+            try:
+                mtime = profile_path.stat().st_mtime
+            except OSError:
+                continue
+            try:
+                _state["profiles"][profile_type] = json.loads(profile_path.read_text())
+                _state["profile_mtimes"][profile_type] = mtime
+            except (json.JSONDecodeError, OSError):
+                pass
 
         yield
 
@@ -163,6 +171,31 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
         return store
 
     def get_profiles() -> dict[str, Any]:
+        """Return cached profiles, reloading any file whose mtime has changed.
+
+        Cost: one os.stat() per tracked file per call (~10 µs total).
+        File data is re-read only when the mtime is newer than last load.
+        """
+        for profile_type, profile_path in profile_files.items():
+            try:
+                current_mtime = profile_path.stat().st_mtime_ns
+            except OSError:
+                # File deleted or inaccessible — remove from cache
+                _state["profiles"].pop(profile_type, None)
+                _state["profile_mtimes"].pop(profile_type, None)
+                continue
+            cached_mtime = _state["profile_mtimes"].get(profile_type)
+            if cached_mtime is None or current_mtime != cached_mtime:
+                try:
+                    _state["profiles"][profile_type] = json.loads(
+                        profile_path.read_text()
+                    )
+                    _state["profile_mtimes"][profile_type] = current_mtime
+                except (json.JSONDecodeError, OSError) as exc:
+                    logger.warning(
+                        "Failed to reload %s profile from %s: %s — keeping stale data",
+                        profile_type, profile_path, exc,
+                    )
         return _state["profiles"]
 
     def _profile_hash(data: dict[str, Any]) -> str:
@@ -196,13 +229,17 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
         cp = CandidateProfile.model_validate(candidate_data)
 
         curated_data = profiles.get("curated_resume")
-        if curated_data and curated_data.get("curated_skills"):
-            return merge_with_curated(
-                cp,
-                curated_data["curated_skills"],
-                total_years=curated_data.get("total_years_experience"),
-                education=curated_data.get("education", []),
-            )
+        if curated_data:
+            from claude_candidate.schemas.curated_resume import CuratedResume
+            from pydantic import ValidationError
+            try:
+                curated = CuratedResume.model_validate(
+                    curated_data if isinstance(curated_data, dict)
+                    else curated_data.model_dump()
+                )
+                return merge_with_curated(cp, curated)
+            except ValidationError:
+                pass  # fall through to resume_profile or candidate_only
 
         resume_data = profiles.get("resume")
         if resume_data:
@@ -218,7 +255,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
     @app.get("/api/health")
     async def health():
         profiles = get_profiles()
-        profile_loaded = bool(profiles.get("candidate") or profiles.get("merged"))
+        profile_loaded = bool(profiles.get("candidate"))
         return {
             "status": "ok",
             "version": __version__,
@@ -236,23 +273,22 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 
         candidate_data = profiles.get("candidate")
         resume_data = profiles.get("resume")
-        merged_data = profiles.get("merged")
         curated_data = profiles.get("curated_resume")
 
         if candidate_data:
             hashes["candidate"] = _profile_hash(candidate_data)
         if resume_data:
             hashes["resume"] = _profile_hash(resume_data)
-        if merged_data:
-            hashes["merged"] = _profile_hash(merged_data)
         if curated_data:
             hashes["curated_resume"] = _profile_hash(curated_data)
 
         return {
             "has_candidate_profile": candidate_data is not None,
             "has_resume_profile": resume_data is not None,
-            "has_merged_profile": merged_data is not None,
             "has_curated_resume": curated_data is not None,
+            # merge_available: true when a candidate profile is loaded.
+            # The server always merges on the fly — no merged_profile.json needed.
+            "merge_available": candidate_data is not None,
             "hashes": hashes,
         }
 

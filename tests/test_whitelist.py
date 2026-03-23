@@ -112,3 +112,35 @@ def test_filter_sessions_empty_input_returns_empty():
     whitelist = WhitelistConfig(projects=["project-a"])
     result = filter_sessions_by_whitelist([], whitelist)
     assert result == []
+
+
+# --- is_whitelisted: prefix matching for worktrees ---
+
+def test_is_whitelisted_matches_worktree():
+    """Canonical prefix should match a worktree directory (-- separator)."""
+    config = WhitelistConfig(projects=["-Users-u-git-proj-a"])
+    assert config.is_whitelisted("-Users-u-git-proj-a--worktrees-feat") is True
+
+
+def test_is_whitelisted_no_false_positive_on_prefix():
+    """'proj' must NOT match 'proj-extended' (no -- separator)."""
+    config = WhitelistConfig(projects=["proj"])
+    assert config.is_whitelisted("proj-extended") is False
+
+
+def test_is_whitelisted_exact_match_still_works():
+    """Full directory name (old-style whitelist entry) still matches exactly."""
+    config = WhitelistConfig(projects=["-Users-u-git-candidate-eval"])
+    assert config.is_whitelisted("-Users-u-git-candidate-eval") is True
+
+
+def test_is_whitelisted_claude_worktree_match():
+    """Canonical prefix should match a --claude-worktrees-agent-* directory."""
+    config = WhitelistConfig(projects=["-Users-u-git-proj-a"])
+    assert config.is_whitelisted("-Users-u-git-proj-a--claude-worktrees-agent-abc") is True
+
+
+def test_is_whitelisted_worktree_not_matched_by_unrelated_prefix():
+    """Worktree for proj-b is not matched by whitelist entry for proj-a."""
+    config = WhitelistConfig(projects=["-Users-u-git-proj-a"])
+    assert config.is_whitelisted("-Users-u-git-proj-b--worktrees-feat") is False

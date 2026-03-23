@@ -91,7 +91,8 @@ class TestProfileStatus:
 		data = resp.json()
 		assert data["has_candidate_profile"] is False
 		assert data["has_resume_profile"] is False
-		assert data["has_merged_profile"] is False
+		assert data["has_curated_resume"] is False
+		assert data["merge_available"] is False
 		assert data["hashes"] == {}
 
 	async def test_with_profiles_shows_loaded(self, client_with_profile: AsyncClient):
@@ -100,10 +101,97 @@ class TestProfileStatus:
 		data = resp.json()
 		assert data["has_candidate_profile"] is True
 		assert data["has_resume_profile"] is True
-		# Merged profile is only written when explicitly requested
-		assert data["has_merged_profile"] is False
+		# merge_available is true whenever candidate profile is present
+		assert data["merge_available"] is True
 		assert "candidate" in data["hashes"]
 		assert "resume" in data["hashes"]
+
+
+# ---------------------------------------------------------------------------
+# Mtime-based cache
+# ---------------------------------------------------------------------------
+
+
+class TestMtimeCache:
+	"""Verify that get_profiles() picks up file changes without a server restart."""
+
+	@pytest.fixture
+	def data_dir(self, tmp_path: Path, sample_candidate_profile_json: str):
+		"""Return tmp_path with a candidate_profile.json already written."""
+		(tmp_path / "candidate_profile.json").write_text(sample_candidate_profile_json)
+		return tmp_path
+
+	@pytest.fixture
+	async def client_and_dir(self, data_dir: Path):
+		"""Client whose data_dir is exposed for in-test file manipulation."""
+		app = create_app(data_dir=data_dir)
+		async with LifespanManager(app) as manager:
+			transport = ASGITransport(app=manager.app)
+			async with AsyncClient(transport=transport, base_url="http://test") as c:
+				yield c, data_dir
+
+	async def test_profile_reload_on_file_change(self, client_and_dir):
+		"""Modifying a profile file mid-request is picked up on the next call."""
+		client, data_dir = client_and_dir
+
+		# First request — caches initial data
+		resp1 = await client.get("/api/profile/status")
+		assert resp1.json()["has_candidate_profile"] is True
+		hash1 = resp1.json()["hashes"]["candidate"]
+
+		# Overwrite the file with a slightly different dict to change its content + mtime
+		import os
+		new_data = {"skills": [], "_marker": "updated"}
+		(data_dir / "candidate_profile.json").write_text(json.dumps(new_data))
+		# Force a distinct mtime_ns to avoid flakiness on coarse-resolution filesystems
+		future_ns = (data_dir / "candidate_profile.json").stat().st_mtime_ns + 1_000_000_000
+		os.utime(data_dir / "candidate_profile.json", ns=(future_ns, future_ns))
+
+		# Second request — should detect the new mtime and reload
+		resp2 = await client.get("/api/profile/status")
+		hash2 = resp2.json()["hashes"]["candidate"]
+		assert hash1 != hash2, "Hash should change after file update"
+
+	async def test_profile_removed_from_cache_when_file_deleted(self, client_and_dir):
+		"""Deleting a profile file removes it from the cache on the next request."""
+		client, data_dir = client_and_dir
+
+		resp1 = await client.get("/api/profile/status")
+		assert resp1.json()["has_candidate_profile"] is True
+
+		(data_dir / "candidate_profile.json").unlink()
+
+		resp2 = await client.get("/api/profile/status")
+		assert resp2.json()["has_candidate_profile"] is False
+
+	async def test_new_profile_file_picked_up(self, client_and_dir, sample_resume_profile_json: str):
+		"""A profile file created after startup is picked up on the next request."""
+		client, data_dir = client_and_dir
+
+		resp1 = await client.get("/api/profile/status")
+		assert resp1.json()["has_resume_profile"] is False
+
+		(data_dir / "resume_profile.json").write_text(sample_resume_profile_json)
+
+		resp2 = await client.get("/api/profile/status")
+		assert resp2.json()["has_resume_profile"] is True
+
+	async def test_corrupt_file_keeps_stale_data(self, client_and_dir):
+		"""A corrupt JSON file keeps the last good cached data and doesn't crash."""
+		import time
+		client, data_dir = client_and_dir
+
+		resp1 = await client.get("/api/profile/status")
+		assert resp1.json()["has_candidate_profile"] is True
+		hash1 = resp1.json()["hashes"]["candidate"]
+
+		time.sleep(0.01)  # ensure mtime differs
+		(data_dir / "candidate_profile.json").write_text("{ invalid json !!!")
+
+		resp2 = await client.get("/api/profile/status")
+		# Stale data is preserved — still present, same hash
+		assert resp2.json()["has_candidate_profile"] is True
+		assert resp2.json()["hashes"]["candidate"] == hash1
 
 
 # ---------------------------------------------------------------------------

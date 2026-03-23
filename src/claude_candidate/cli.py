@@ -374,18 +374,15 @@ def export_fit(assessment_id: str, output_dir: str, db: str | None, cal_link: st
     import asyncio
     from claude_candidate.fit_exporter import export_fit_assessment, _DEFAULT_CAL_LINK
     from claude_candidate.storage import AssessmentStore
+    from claude_candidate.schemas.candidate_profile import CandidateProfile
 
     data_dir = Path.home() / ".claude-candidate"
     db_path = Path(db) if db else data_dir / "assessments.db"
-    merged_path = data_dir / "merged_profile.json"
     candidate_path = data_dir / "candidate_profile.json"
 
     # Validate paths
     if not db_path.exists():
         click.echo(f"Error: Database not found at {db_path}", err=True)
-        raise SystemExit(1)
-    if not merged_path.exists():
-        click.echo(f"Error: Merged profile not found at {merged_path}", err=True)
         raise SystemExit(1)
     if not candidate_path.exists():
         click.echo(f"Error: Candidate profile not found at {candidate_path}", err=True)
@@ -405,10 +402,14 @@ def export_fit(assessment_id: str, output_dir: str, db: str | None, cal_link: st
         click.echo(f"Error: Assessment '{assessment_id}' not found.", err=True)
         raise SystemExit(1)
 
+    # Build merged profile on the fly — no merged_profile.json needed
+    cp = CandidateProfile.from_json(candidate_path.read_text())
+    merged = _merge_profile(cp, quiet=True)
+
     # Export
     result_path = export_fit_assessment(
         assessment,
-        merged_profile_path=merged_path,
+        merged_profile_data=merged.model_dump(),
         candidate_profile_path=candidate_path,
         output_dir=Path(output_dir),
         cal_link=cal_link or _DEFAULT_CAL_LINK,
@@ -758,32 +759,6 @@ def profile() -> None:
     """Profile management commands."""
     pass
 
-
-@profile.command("merge")
-@click.option("--candidate", "-c", type=click.Path(exists=True), required=True)
-@click.option("--resume", "-r", type=click.Path(exists=True), required=False)
-@click.option("--output", "-o", type=click.Path(), default="merged_profile.json")
-def profile_merge(candidate: str, resume: str | None, output: str) -> None:
-    """Merge candidate and resume profiles."""
-    from claude_candidate.schemas.candidate_profile import CandidateProfile
-    from claude_candidate.schemas.resume_profile import ResumeProfile
-
-    cp = CandidateProfile.from_json(Path(candidate).read_text())
-
-    rp = None
-    if resume:
-        rp = ResumeProfile.from_json(Path(resume).read_text())
-
-    merged = _merge_profile(cp, rp)
-
-    Path(output).write_text(merged.to_json())
-    click.echo(f"Merged profile written to {output}")
-    click.echo(f"  Skills: {len(merged.skills)}")
-    click.echo(f"  Corroborated: {merged.corroborated_skill_count}")
-    click.echo(f"  Sessions-only: {merged.sessions_only_skill_count}")
-    click.echo(f"  Resume-only: {merged.resume_only_skill_count}")
-    if merged.discovery_skills:
-        click.echo(f"  Discovery: {', '.join(merged.discovery_skills)}")
 
 
 # Strength bar display for pattern review
@@ -1231,16 +1206,31 @@ def resume_onboard(resume_path: str, output: str | None, accept_defaults: bool) 
         f"{v} {k}" for k, v in sorted(depths.items(), key=lambda x: -x[1])
     ))
 
-    # Save curated profile
+    # Save curated profile — validate at write time to catch onboard bugs
+    from claude_candidate.schemas.curated_resume import CuratedResume
+
     output_path = Path(output) if output else Path.home() / ".claude-candidate" / "curated_resume.json"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    curated_data = raw_profile.model_dump(mode="json")
-    curated_data["curated_skills"] = curated_skills
-    curated_data["curated"] = True
+    curated_resume = CuratedResume(
+        profile_version=raw_profile.profile_version,
+        parsed_at=raw_profile.parsed_at,
+        source_file_hash=raw_profile.source_file_hash,
+        source_format=raw_profile.source_format,
+        name=raw_profile.name,
+        current_title=raw_profile.current_title,
+        location=raw_profile.location,
+        roles=raw_profile.roles,
+        total_years_experience=raw_profile.total_years_experience,
+        education=raw_profile.education,
+        certifications=raw_profile.certifications,
+        professional_summary=raw_profile.professional_summary,
+        curated_skills=curated_skills,
+        skills=[s.model_dump(mode="json") for s in raw_profile.skills],
+    )
 
     with open(output_path, "w") as f:
-        json.dump(curated_data, f, indent=2, default=str)
+        f.write(curated_resume.model_dump_json(indent=2))
 
     click.echo(f"Saved: {output_path}")
 
@@ -1281,25 +1271,61 @@ def sessions() -> None:
               help="Directory containing session JSONL files")
 @click.option("--output", "-o", type=click.Path(),
               help="Output path for CandidateProfile JSON")
-def scan(session_dir: str | None, output: str | None) -> None:
+@click.option("--reselect", is_flag=True, default=False,
+              help="Re-select projects for whitelist interactively")
+@click.option("--accept-defaults", is_flag=True, default=False,
+              help="Use existing whitelist without prompting (error if none exists)")
+def scan(session_dir: str | None, output: str | None, reselect: bool, accept_defaults: bool) -> None:
     """Scan session logs and build a CandidateProfile."""
     from claude_candidate.session_scanner import discover_sessions
     from claude_candidate.manifest import hash_string
     from claude_candidate.extractor import build_profile_from_signal_results
-
-    from claude_candidate.whitelist import load_whitelist, get_default_whitelist_path, filter_sessions_by_whitelist
+    from claude_candidate.whitelist import (
+        load_whitelist, get_default_whitelist_path, filter_sessions_by_whitelist,
+    )
 
     search_dir = Path(session_dir) if session_dir else _default_sessions_dir()
-    click.echo(f"Scanning sessions in {search_dir}...")
-    sessions_found = discover_sessions(search_dir)
-    click.echo(f"  Found {len(sessions_found)} session files")
 
-    # Only apply whitelist when using default session dir (not explicit --session-dir)
-    if not session_dir:
-        whitelist = load_whitelist(get_default_whitelist_path())
-        if whitelist:
-            sessions_found = filter_sessions_by_whitelist(sessions_found, whitelist)
-            click.echo(f"  After whitelist filter: {len(sessions_found)} sessions")
+    if session_dir:
+        # Explicit directory — skip whitelist entirely
+        click.echo(f"Scanning sessions in {search_dir}...")
+        sessions_found = discover_sessions(search_dir)
+        click.echo(f"  Found {len(sessions_found)} session files")
+    else:
+        # Default path — whitelist is required for privacy
+        whitelist_path = get_default_whitelist_path()
+        whitelist = load_whitelist(whitelist_path)
+        need_selection = reselect or whitelist is None
+
+        if need_selection and accept_defaults:
+            click.echo(
+                "Error: No whitelist found. Run without --accept-defaults to set one up.",
+                err=True,
+            )
+            raise SystemExit(1)
+
+        if need_selection:
+            from claude_candidate.session_scanner import discover_projects
+            from claude_candidate.cli_prompts import interactive_whitelist_selection
+
+            projects = discover_projects(search_dir)
+            if not projects:
+                click.echo(f"No projects found in {search_dir}. Nothing to scan.")
+                return
+
+            whitelist = interactive_whitelist_selection(projects, whitelist)
+            from claude_candidate.whitelist import save_whitelist
+            save_whitelist(whitelist, whitelist_path)
+            click.echo(f"Whitelist saved to {whitelist_path}")
+
+        click.echo(f"Scanning sessions in {search_dir}...")
+        sessions_found = discover_sessions(search_dir)
+        click.echo(f"  Found {len(sessions_found)} session files")
+        sessions_found = filter_sessions_by_whitelist(sessions_found, whitelist)
+        click.echo(
+            f"  After whitelist filter: {len(sessions_found)} sessions"
+            f" ({len(whitelist.projects)} whitelisted projects)"
+        )
 
     if not sessions_found:
         click.echo("No sessions found. Nothing to do.")
@@ -1437,23 +1463,30 @@ def _process_sessions(sessions_found: list[SessionInfo]) -> list[SessionSignals]
     return cached_results
 
 
-def _load_curated_resume() -> dict | None:
-    """Load curated resume data from ~/.claude-candidate/curated_resume.json.
+def _load_curated_resume():
+    """Load curated resume from ~/.claude-candidate/curated_resume.json.
 
-    Returns the parsed dict if the file exists and is valid JSON, None otherwise.
+    Returns validated CuratedResume if the file exists and is valid, None otherwise.
+    Raises click.ClickException on validation failure — typos and missing keys
+    should not silently degrade to sessions-only merge.
     """
+    from claude_candidate.schemas.curated_resume import CuratedResume
+    from pydantic import ValidationError
+
     curated_path = Path.home() / ".claude-candidate" / "curated_resume.json"
     if not curated_path.exists():
         return None
     try:
-        return json.loads(curated_path.read_text())
-    except (OSError, json.JSONDecodeError) as exc:
-        click.echo(
-            f"Warning: could not load curated resume from {curated_path}: {exc}. "
-            "Ignoring curated resume.",
-            err=True,
-        )
+        data = json.loads(curated_path.read_text())
+        return CuratedResume.model_validate(data)
+    except json.JSONDecodeError as exc:
+        click.echo(f"Warning: invalid JSON in {curated_path}: {exc}", err=True)
         return None
+    except ValidationError as exc:
+        raise click.ClickException(
+            f"Curated resume at {curated_path} failed validation:\n{exc}\n"
+            "Fix the file or re-run `resume onboard`."
+        )
 
 
 def _merge_profile(
@@ -1477,15 +1510,10 @@ def _merge_profile(
         merged = merge_profiles(cp, rp)
     else:
         curated = _load_curated_resume()
-        if curated and curated.get("curated_skills"):
+        if curated is not None:
             if not quiet:
                 click.echo("Using curated resume for merge")
-            merged = merge_with_curated(
-                cp,
-                curated["curated_skills"],
-                total_years=curated.get("total_years_experience"),
-                education=curated.get("education", []),
-            )
+            merged = merge_with_curated(cp, curated)
         else:
             if not quiet:
                 click.echo("No resume provided — using sessions only")
@@ -1513,53 +1541,31 @@ def whitelist() -> None:
 @click.option("--session-dir", type=click.Path(exists=True), default=None,
               help="Directory containing session JSONL files")
 @click.option("--filter", "-f", "hint_filter", default=None,
-              help="Only show projects whose hint contains this substring (e.g. 'git')")
+              help="Only show projects whose name contains this substring (e.g. 'git')")
 def whitelist_setup(session_dir: str | None, hint_filter: str | None) -> None:
     """Interactive: discover projects, select which to include."""
-    from claude_candidate.session_scanner import discover_sessions
+    from claude_candidate.session_scanner import discover_projects
+    from claude_candidate.cli_prompts import interactive_whitelist_selection
     from claude_candidate.whitelist import (
-        WhitelistConfig,
         get_default_whitelist_path,
+        load_whitelist,
         save_whitelist,
     )
-    from collections import Counter
 
     search_dir = Path(session_dir) if session_dir else _default_sessions_dir()
-    click.echo(f"Scanning sessions in {search_dir}...")
-    sessions_found = discover_sessions(search_dir)
-    click.echo(f"  Found {len(sessions_found)} session files")
+    projects = discover_projects(search_dir)
 
-    if not sessions_found:
-        click.echo("No sessions found. Nothing to whitelist.")
+    if not projects:
+        click.echo("No projects found. Nothing to whitelist.")
         return
 
-    counts: Counter[str] = Counter(s.project_hint for s in sessions_found)
+    existing = load_whitelist(get_default_whitelist_path())
+    config = interactive_whitelist_selection(projects, existing, hint_filter=hint_filter)
 
-    if hint_filter:
-        counts = Counter({h: c for h, c in counts.items() if hint_filter.lower() in h.lower()})
-        click.echo(f"  Filtered to {len(counts)} projects matching '{hint_filter}'")
-
-    if not counts:
-        click.echo("No projects match the filter. Nothing to whitelist.")
-        return
-
-    selected: list[str] = []
-
-    click.echo("\nFor each project, choose whether to include it in the whitelist.")
-    click.echo("Only include public GitHub projects — keep private/client work out.\n")
-
-    for hint in sorted(counts):
-        count = counts[hint]
-        label = f"  {hint} ({count} session{'s' if count != 1 else ''})"
-        if click.confirm(f"{label} — include?", default=False):
-            selected.append(hint)
-
-    config = WhitelistConfig(projects=selected)
     path = get_default_whitelist_path()
     save_whitelist(config, path)
-
-    click.echo(f"\nWhitelist saved to {path}")
-    click.echo(f"  Included projects ({len(selected)}): {', '.join(selected) or '(none)'}")
+    click.echo(f"Whitelist saved to {path}")
+    click.echo(f"  Included: {len(config.projects)} project(s)")
 
 
 @whitelist.command("show")

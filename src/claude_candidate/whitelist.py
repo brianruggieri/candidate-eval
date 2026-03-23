@@ -21,7 +21,16 @@ class WhitelistConfig:
     projects: list[str] = field(default_factory=list)
 
     def is_whitelisted(self, project_hint: str) -> bool:
-        return project_hint in self.projects
+        """Check if a project_hint matches any whitelisted project (including worktrees).
+
+        Supports two match modes:
+        - Exact match: project_hint == entry  (backward compat with old full-dir-name entries)
+        - Prefix match: project_hint.startswith(entry + "--")  (new canonical-prefix entries)
+        """
+        for prefix in self.projects:
+            if project_hint == prefix or project_hint.startswith(prefix + "--"):
+                return True
+        return False
 
 
 def load_whitelist(path: Path) -> WhitelistConfig | None:

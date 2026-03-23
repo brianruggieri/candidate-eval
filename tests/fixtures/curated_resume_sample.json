@@ -1,0 +1,59 @@
+{
+  "profile_version": "0.1.0",
+  "parsed_at": "2026-03-19T09:22:32.036114",
+  "source_file_hash": "abc123def456",
+  "source_format": "pdf",
+  "name": "Test Candidate",
+  "current_title": "Software Engineer",
+  "location": "Somewhere, US",
+  "roles": [
+    {
+      "title": "Senior Developer",
+      "company": "Acme Corp",
+      "start_date": "2020-01",
+      "end_date": "2024-06",
+      "duration_months": 54,
+      "description": "Led platform development.",
+      "technologies": ["python", "typescript"],
+      "achievements": ["Shipped v2 platform"],
+      "domain": null
+    }
+  ],
+  "total_years_experience": 8.5,
+  "skills": [
+    {
+      "name": "python",
+      "source_context": "Listed in skills section",
+      "implied_depth": "mentioned",
+      "years_experience": null,
+      "recency": "unknown"
+    }
+  ],
+  "education": ["B.S. Computer Science, 2016"],
+  "certifications": [],
+  "professional_summary": "Experienced software engineer.",
+  "curated_skills": [
+    {
+      "name": "python",
+      "depth": "deep",
+      "duration": "4 years",
+      "source_context": "Listed in skills section",
+      "curated": true
+    },
+    {
+      "name": "typescript",
+      "depth": "expert",
+      "duration": "6 years",
+      "source_context": "Listed in skills section",
+      "curated": true
+    },
+    {
+      "name": "docker",
+      "depth": "applied",
+      "duration": "2 years",
+      "source_context": "Listed in skills section",
+      "curated": true
+    }
+  ],
+  "curated": true
+}

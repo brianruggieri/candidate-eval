@@ -14,7 +14,6 @@ from claude_candidate.schemas.candidate_profile import (
     ProjectSummary,
     SessionReference,
     SkillEntry,
-    SkillTrajectoryPoint,
 )
 from claude_candidate.schemas.job_requirements import (
     JobRequirement,
@@ -38,6 +37,10 @@ from claude_candidate.schemas.resume_profile import (
     ResumeRole,
     ResumeSkill,
 )
+from claude_candidate.schemas.curated_resume import (
+    CuratedResume,
+    CuratedSkill,
+)
 from claude_candidate.schemas.merged_profile import (
     EvidenceSource,
     MergedEvidenceProfile,
@@ -60,7 +63,6 @@ __all__ = [
     "ProjectSummary",
     "SessionReference",
     "SkillEntry",
-    "SkillTrajectoryPoint",
     # job_requirements
     "JobRequirement",
     "JobRequirements",
@@ -79,6 +81,9 @@ __all__ = [
     "ResumeProfile",
     "ResumeRole",
     "ResumeSkill",
+    # curated_resume
+    "CuratedResume",
+    "CuratedSkill",
     # merged_profile
     "EvidenceSource",
     "MergedEvidenceProfile",
