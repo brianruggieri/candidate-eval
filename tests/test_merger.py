@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 
 from claude_candidate.schemas.candidate_profile import DepthLevel
 from claude_candidate.schemas.merged_profile import EvidenceSource
@@ -207,6 +208,78 @@ def test_merge_with_curated_resume(candidate_profile):
     # Verify total_years and education propagated
     assert merged.total_years_experience == 12.4
     assert "B.S. Computer Science" in merged.education
+
+
+def test_merge_with_curated_passes_roles(candidate_profile):
+    """merge_with_curated should propagate roles with domain/technologies into merged profile."""
+    from datetime import datetime
+    from claude_candidate.merger import merge_with_curated
+    from claude_candidate.schemas.curated_resume import CuratedResume
+
+    curated = CuratedResume(
+        parsed_at=datetime.now(),
+        source_file_hash="test-hash",
+        source_format="pdf",
+        total_years_experience=10.0,
+        education=[],
+        curated_skills=[
+            {"name": "python", "depth": "deep", "source_context": "skills"},
+        ],
+        roles=[
+            {
+                "title": "Senior Engineer",
+                "company": "Acme Corp",
+                "start_date": "2020-01",
+                "end_date": "2023-06",
+                "duration_months": 42,
+                "description": "Built data pipelines for edtech platform",
+                "technologies": ["python", "postgresql"],
+                "achievements": ["Scaled pipeline to 1M events/day"],
+                "domain": "edtech",
+            }
+        ],
+    )
+
+    merged = merge_with_curated(candidate_profile, curated)
+
+    assert len(merged.roles) == 1
+    assert merged.roles[0].domain == "edtech"
+    assert "python" in merged.roles[0].technologies
+
+
+def test_merge_with_curated_no_roles_defaults_empty(candidate_profile):
+    """merge_with_curated with no roles should produce empty roles list."""
+    from datetime import datetime
+    from claude_candidate.merger import merge_with_curated
+    from claude_candidate.schemas.curated_resume import CuratedResume
+
+    curated = CuratedResume(
+        parsed_at=datetime.now(),
+        source_file_hash="test-hash",
+        source_format="pdf",
+        curated_skills=[
+            {"name": "python", "depth": "used", "source_context": "skills"},
+        ],
+    )
+
+    merged = merge_with_curated(candidate_profile, curated)
+    assert merged.roles == []
+
+
+def test_merge_with_curated_malformed_role_skipped(candidate_profile):
+    """Malformed role dicts in CuratedResume should raise validation error at construction time."""
+    from datetime import datetime
+    from pydantic import ValidationError
+    from claude_candidate.schemas.curated_resume import CuratedResume
+
+    with pytest.raises(ValidationError):
+        CuratedResume(
+            parsed_at=datetime.now(),
+            source_file_hash="test-hash",
+            source_format="pdf",
+            curated_skills=[],
+            roles=[{"bad": "data"}],  # missing required fields
+        )
 
 
 def test_corroboration_with_name_variants(candidate_profile):
