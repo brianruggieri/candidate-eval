@@ -100,7 +100,6 @@ class MergedSkillEvidence(BaseModel):
         - conflicting → 0.3–0.5
         """
         freq = session_frequency or 0
-        has_context = bool(resume_context and len(resume_context) > 20)
 
         if source == EvidenceSource.CORROBORATED:
             base = 0.7
@@ -114,7 +113,10 @@ class MergedSkillEvidence(BaseModel):
             else:
                 return 0.45
         elif source == EvidenceSource.RESUME_ONLY:
-            return 0.5 if has_context else 0.3
+            # Resume claims are legitimate evidence of real work experience.
+            # Depth accuracy is handled by the depth matching system, not
+            # confidence. No penalty for skills not demonstrated in sessions.
+            return 0.85
         else:  # CONFLICTING
             return 0.4
 

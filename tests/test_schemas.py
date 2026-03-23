@@ -257,11 +257,12 @@ class TestMergedSkillEvidence:
         )
         assert conf >= 0.9
 
-    def test_compute_confidence_resume_only_vague(self):
+    def test_compute_confidence_resume_only(self):
+        """Resume claims are legitimate evidence — no confidence penalty."""
         conf = MergedSkillEvidence.compute_confidence(
             EvidenceSource.RESUME_ONLY, None, "test"
         )
-        assert conf <= 0.4  # Short/vague context
+        assert conf == 0.85  # No penalty for resume-only skills
 
 
 # === Score Functions ===
