@@ -250,7 +250,7 @@ def test_export_fit_assessment_end_to_end(tmp_path):
             },
         ],
     }
-    merged_path = tmp_path / "merged_profile.json"
+    merged_path = tmp_path / "merged_profile.json"  # kept for reference, not passed to function
     merged_path.write_text(json.dumps(merged))
 
     # Create mock candidate profile
@@ -335,7 +335,7 @@ def test_export_fit_assessment_end_to_end(tmp_path):
 
     result = export_fit_assessment(
         assessment,
-        merged_profile_path=merged_path,
+        merged_profile_data=merged,
         candidate_profile_path=candidate_path,
         output_dir=output_dir,
     )
@@ -390,8 +390,6 @@ def test_export_fails_below_skill_threshold(tmp_path):
          "technologies": [], "session_count": 1, "date_range_start": "2026",
          "date_range_end": "2026", "key_decisions": ["test"]},
     ]}
-    merged_path = tmp_path / "merged.json"
-    merged_path.write_text(json.dumps(merged))
 
     candidate = {"skills": []}
     candidate_path = tmp_path / "candidate.json"
@@ -418,7 +416,12 @@ def test_export_fails_below_skill_threshold(tmp_path):
     output_dir.mkdir()
 
     with pytest.raises(ValueError, match="minimum 3 required"):
-        export_fit_assessment(assessment, merged_path, candidate_path, output_dir)
+        export_fit_assessment(
+            assessment,
+            merged_profile_data=merged,
+            candidate_profile_path=candidate_path,
+            output_dir=output_dir,
+        )
 
 
 # ── Evidence highlights ──

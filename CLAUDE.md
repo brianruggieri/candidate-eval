@@ -41,7 +41,7 @@ Job posting → requirement_parser → QuickRequirement[]
 | `merger.py` | Combines session + resume evidence into unified profile |
 | `extractor.py` | Extracts skills/patterns/projects from session logs |
 | `server.py` | FastAPI server for browser extension |
-| `cli.py` | Click CLI (`sessions scan`, `profile merge`, etc.) |
+| `cli.py` | Click CLI (`sessions scan`, `assess`, `export-fit`, etc.) |
 | `pii_gate.py` | PII scrubbing before any output (DataFog + regex fallback) |
 
 ### Schemas (pydantic v2)
@@ -67,7 +67,6 @@ Job posting → requirement_parser → QuickRequirement[]
 | `~/.claude-candidate/assessments.db` | SQLite — cached postings, assessments, profiles |
 | `~/.claude-candidate/candidate_profile.json` | Session-derived profile |
 | `~/.claude-candidate/curated_resume.json` | Human-curated resume with skill depths + durations |
-| `~/.claude-candidate/merged_profile.json` | Combined profile for scoring |
 | `~/.claude-candidate/whitelist.json` | Project whitelist for session scanning |
 
 ## Conventions

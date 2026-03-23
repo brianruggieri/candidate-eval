@@ -22,19 +22,13 @@ def grade_distance(actual: str, expected: str) -> int:
 
 
 def load_profile() -> MergedEvidenceProfile:
-    """Load merged profile from standard location."""
-    profile_path = Path.home() / ".claude-candidate" / "merged_profile.json"
-    if not profile_path.exists():
-        # Fallback to generating on the fly
-        from claude_candidate.schemas.candidate_profile import CandidateProfile
-        from claude_candidate.schemas.curated_resume import CuratedResume
-        cp_path = Path.home() / ".claude-candidate" / "candidate_profile.json"
-        curated_path = Path.home() / ".claude-candidate" / "curated_resume.json"
-        cp = CandidateProfile.from_json(cp_path.read_text())
-        curated = CuratedResume.from_file(curated_path)
-        from claude_candidate.merger import merge_with_curated
-        return merge_with_curated(cp, curated)
-    return MergedEvidenceProfile.from_json(profile_path.read_text())
+    """Build merged profile on the fly from candidate + curated resume."""
+    from claude_candidate.schemas.candidate_profile import CandidateProfile
+    from claude_candidate.cli import _merge_profile
+
+    data_dir = Path.home() / ".claude-candidate"
+    cp = CandidateProfile.from_json((data_dir / "candidate_profile.json").read_text())
+    return _merge_profile(cp, quiet=True)
 
 
 def _grade_to_midpoint(grade: str) -> float:

@@ -374,18 +374,15 @@ def export_fit(assessment_id: str, output_dir: str, db: str | None, cal_link: st
     import asyncio
     from claude_candidate.fit_exporter import export_fit_assessment, _DEFAULT_CAL_LINK
     from claude_candidate.storage import AssessmentStore
+    from claude_candidate.schemas.candidate_profile import CandidateProfile
 
     data_dir = Path.home() / ".claude-candidate"
     db_path = Path(db) if db else data_dir / "assessments.db"
-    merged_path = data_dir / "merged_profile.json"
     candidate_path = data_dir / "candidate_profile.json"
 
     # Validate paths
     if not db_path.exists():
         click.echo(f"Error: Database not found at {db_path}", err=True)
-        raise SystemExit(1)
-    if not merged_path.exists():
-        click.echo(f"Error: Merged profile not found at {merged_path}", err=True)
         raise SystemExit(1)
     if not candidate_path.exists():
         click.echo(f"Error: Candidate profile not found at {candidate_path}", err=True)
@@ -405,10 +402,14 @@ def export_fit(assessment_id: str, output_dir: str, db: str | None, cal_link: st
         click.echo(f"Error: Assessment '{assessment_id}' not found.", err=True)
         raise SystemExit(1)
 
+    # Build merged profile on the fly — no merged_profile.json needed
+    cp = CandidateProfile.from_json(candidate_path.read_text())
+    merged = _merge_profile(cp, quiet=True)
+
     # Export
     result_path = export_fit_assessment(
         assessment,
-        merged_profile_path=merged_path,
+        merged_profile_data=merged.model_dump(),
         candidate_profile_path=candidate_path,
         output_dir=Path(output_dir),
         cal_link=cal_link or _DEFAULT_CAL_LINK,
@@ -758,32 +759,6 @@ def profile() -> None:
     """Profile management commands."""
     pass
 
-
-@profile.command("merge")
-@click.option("--candidate", "-c", type=click.Path(exists=True), required=True)
-@click.option("--resume", "-r", type=click.Path(exists=True), required=False)
-@click.option("--output", "-o", type=click.Path(), default="merged_profile.json")
-def profile_merge(candidate: str, resume: str | None, output: str) -> None:
-    """Merge candidate and resume profiles."""
-    from claude_candidate.schemas.candidate_profile import CandidateProfile
-    from claude_candidate.schemas.resume_profile import ResumeProfile
-
-    cp = CandidateProfile.from_json(Path(candidate).read_text())
-
-    rp = None
-    if resume:
-        rp = ResumeProfile.from_json(Path(resume).read_text())
-
-    merged = _merge_profile(cp, rp)
-
-    Path(output).write_text(merged.to_json())
-    click.echo(f"Merged profile written to {output}")
-    click.echo(f"  Skills: {len(merged.skills)}")
-    click.echo(f"  Corroborated: {merged.corroborated_skill_count}")
-    click.echo(f"  Sessions-only: {merged.sessions_only_skill_count}")
-    click.echo(f"  Resume-only: {merged.resume_only_skill_count}")
-    if merged.discovery_skills:
-        click.echo(f"  Discovery: {', '.join(merged.discovery_skills)}")
 
 
 # Strength bar display for pattern review

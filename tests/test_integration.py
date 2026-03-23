@@ -124,42 +124,6 @@ class TestManifestCommands:
         assert len(data["sessions"]) == 3
 
 
-class TestProfileCommands:
-    def test_profile_merge(self, fixtures_dir, tmp_path):
-        output = tmp_path / "merged.json"
-
-        runner = CliRunner()
-        result = runner.invoke(main, [
-            "profile", "merge",
-            "--candidate", str(fixtures_dir / "sample_candidate_profile.json"),
-            "--resume", str(fixtures_dir / "sample_resume_profile.json"),
-            "--output", str(output),
-        ])
-
-        assert result.exit_code == 0, f"CLI failed: {result.output}"
-        assert output.exists()
-        assert "Corroborated" in result.output
-        assert "Sessions-only" in result.output
-
-    def test_profile_merge_candidate_only(self, fixtures_dir, tmp_path, monkeypatch):
-        output = tmp_path / "merged.json"
-
-        # Ensure candidate-only path by disabling curated resume auto-discovery
-        monkeypatch.setattr(
-            "claude_candidate.cli._load_curated_resume", lambda: None
-        )
-
-        runner = CliRunner()
-        result = runner.invoke(main, [
-            "profile", "merge",
-            "--candidate", str(fixtures_dir / "sample_candidate_profile.json"),
-            "--output", str(output),
-        ])
-
-        assert result.exit_code == 0
-        data = json.loads(output.read_text())
-        assert data["resume_only_skill_count"] == 0
-
 
 class TestEndToEndFlow:
     """Full pipeline: load → merge → assess → validate output chain."""
