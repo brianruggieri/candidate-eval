@@ -85,6 +85,14 @@ def score_to_verdict(score: float) -> Literal[
         return "no"
 
 
+class EligibilityGate(BaseModel):
+    """Binary pass/fail eligibility check (work authorization, travel, language, etc.)."""
+
+    description: str
+    status: Literal["met", "unmet", "unknown"] = "unknown"
+    requirement_text: str = ""  # source_text from the requirement
+
+
 class FitAssessment(BaseModel):
     """
     Complete fit assessment for a job posting.
@@ -139,6 +147,10 @@ class FitAssessment(BaseModel):
     # Actionability
     should_apply: Literal["strong_yes", "yes", "maybe", "probably_not", "no"]
     action_items: list[str] = Field(min_length=1, max_length=6)
+
+    # Eligibility gates (evaluated before skill scoring)
+    eligibility_gates: list[EligibilityGate] = Field(default_factory=list)
+    eligibility_passed: bool = True  # False if any gate is explicitly "unmet"
 
     # Metadata
     profile_hash: str

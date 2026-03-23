@@ -98,3 +98,4 @@ class QuickRequirement(BaseModel):
     years_experience: int | None = None
     education_level: str | None = None  # "bachelor", "master", "phd", etc.
     source_text: str = ""  # Original text fragment this was extracted from
+    is_eligibility: bool = False  # True = binary gate (work auth, travel, language), not scored

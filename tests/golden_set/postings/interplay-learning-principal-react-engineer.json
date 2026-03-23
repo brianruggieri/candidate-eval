@@ -145,7 +145,8 @@
       ],
       "priority": "must_have",
       "years_experience": null,
-      "education_level": null
+      "education_level": null,
+      "is_eligibility": true
     },
     {
       "description": "Frontend architectural experience including monorepos, Micro Frontends, meta frameworks, and BFF (Backend for Frontend)",

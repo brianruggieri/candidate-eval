@@ -180,6 +180,29 @@ function renderResults(data) {
 	el('detail-strongest-match').textContent = data.strongest_match || '--';
 	el('detail-biggest-gap').textContent = data.biggest_gap || 'None';
 
+	// Eligibility gates
+	const gates = data.eligibility_gates || [];
+	const eligSection = el('section-eligibility');
+	const eligList = el('eligibility-list');
+	if (eligList) eligList.innerHTML = '';
+	if (gates.length > 0 && eligList) {
+		gates.forEach(g => {
+			const iconClass = g.status === 'met' ? 'hit' : g.status === 'unmet' ? 'miss' : 'partial';
+			const iconChar = g.status === 'met' ? '+' : g.status === 'unmet' ? 'x' : '?';
+			const div = document.createElement('div');
+			div.className = 'match-item';
+			div.innerHTML = `
+				<span class="match-icon ${iconClass}">${iconChar}</span>
+				<span class="match-name">${g.description || ''}</span>
+				<span class="match-source">${g.status || 'unknown'}</span>
+			`;
+			eligList.appendChild(div);
+		});
+		if (eligSection) eligSection.classList.remove('hidden');
+	} else if (eligSection) {
+		eligSection.classList.add('hidden');
+	}
+
 	// Skill matches
 	const matches = data.skill_matches || [];
 	const matchList = el('skill-match-list');

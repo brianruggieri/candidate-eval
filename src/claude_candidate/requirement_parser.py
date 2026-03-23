@@ -23,6 +23,13 @@ Each element must have these fields:
   - skill_mapping: non-empty array of lowercase skill/technology strings
   - priority: one of "must_have", "strong_preference", "nice_to_have", "implied"
   - source_text: the verbatim sentence or phrase from the posting
+  - is_eligibility: boolean, true ONLY for non-skill logistical/eligibility requirements
+    (work authorization, visa sponsorship, travel willingness, language proficiency,
+    relocation, security clearance, mission/values alignment statements).
+    Set false for technical skills, domain experience, and education requirements.
+    Education requirements (bachelor's, master's, PhD) are NOT eligibility — leave
+    is_eligibility false and use the education_level field for those.
+    If a requirement mixes a skill with an eligibility item, split into two entries.
 
 Return ONLY a valid JSON array with no commentary or markdown fences.
 

@@ -179,7 +179,8 @@
       ],
       "priority": "must_have",
       "years_experience": null,
-      "education_level": null
+      "education_level": null,
+      "is_eligibility": true
     },
     {
       "description": "Exposure to LLM applications (RAG, agents, prompt pipelines) and their evaluation",

@@ -31,7 +31,8 @@
       ],
       "priority": "must_have",
       "years_experience": null,
-      "education_level": null
+      "education_level": null,
+      "is_eligibility": true
     },
     {
       "description": "Successful completion of a four-year college degree is required",

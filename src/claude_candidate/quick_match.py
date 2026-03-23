@@ -22,6 +22,7 @@ from claude_candidate.schemas.company_profile import CompanyProfile
 from claude_candidate.skill_taxonomy import SkillTaxonomy
 from claude_candidate.schemas.fit_assessment import (
     DimensionScore,
+    EligibilityGate,
     FitAssessment,
     SkillMatchDetail,
     score_to_grade,
@@ -149,6 +150,72 @@ MAX_ACTION_ITEMS = 6
 # Soft skill discount factor — reduces weight of soft skill requirements
 SOFT_SKILL_DISCOUNT = 0.5
 SOFT_SKILL_MAX_BOOST = 0.8  # maximum discount when culture signals fully align
+
+# ---------------------------------------------------------------------------
+# Eligibility filters — requirements that are gates, not skills
+# ---------------------------------------------------------------------------
+
+ELIGIBILITY_SKILL_NAMES: set[str] = {
+    "us-work-authorization",
+    "us_work_authorization",
+    "work-authorization",
+    "work_authorization",
+    "travel",
+    "relocation",
+    "security-clearance",
+    "clearance",
+    "english",
+    "mission_alignment",
+    "mission-alignment",
+    "visa",
+    "visa-sponsorship",
+}
+
+ELIGIBILITY_DESCRIPTION_PATTERNS: list[str] = [
+    r"(?i)authorized?\s+to\s+work",
+    r"(?i)eligible\s+to\s+work",
+    r"(?i)work\s+authorization",
+    r"(?i)\d+%\s+travel",
+    r"(?i)travel\s+\d+%",
+    r"(?i)willing(ness)?\s+to\s+travel",
+    r"(?i)comfortable\s+with\s+.*\s*travel",
+    r"(?i)security\s+clearance",
+    r"(?i)believe\s+in.*mission",
+    r"(?i)(advanced|fluent|native)\s+(english|spanish|french|german|mandarin)",
+    r"(?i)must\s+be\s+(a\s+)?us\s+(citizen|resident)",
+    r"(?i)relo(cate|cation)",
+]
+
+
+def _infer_eligibility(req: "QuickRequirement") -> bool:
+    """Heuristic fallback: classify a requirement as eligibility if it matches known patterns.
+
+    Used for cached postings that predate the is_eligibility field.
+    """
+    if req.is_eligibility:
+        return True
+    if any(s.lower() in ELIGIBILITY_SKILL_NAMES for s in req.skill_mapping):
+        return True
+    for pattern in ELIGIBILITY_DESCRIPTION_PATTERNS:
+        if re.search(pattern, req.description):
+            return True
+    return False
+
+
+def _evaluate_eligibility(reqs: list["QuickRequirement"]) -> list[EligibilityGate]:
+    """Convert eligibility requirements to EligibilityGate objects.
+
+    All gates are status=unknown for now — the profile doesn't carry eligibility data.
+    """
+    return [
+        EligibilityGate(
+            description=req.description,
+            status="unknown",
+            requirement_text=req.source_text,
+        )
+        for req in reqs
+    ]
+
 
 # Rounding precision
 SCORE_PRECISION = 3
@@ -1328,16 +1395,24 @@ class QuickMatchEngine:
         education_match (20%) — mission and culture are left as None.
         """
         start_time = time.time()
+
+        # Partition: separate eligibility gates from scorable requirements.
+        # Apply heuristic denylist as fallback for cached pre-Plan-9 postings.
+        eligibility_reqs = [r for r in inp.requirements if _infer_eligibility(r)]
+        scorable_reqs = [r for r in inp.requirements if not _infer_eligibility(r)]
+        eligibility_gates = _evaluate_eligibility(eligibility_reqs)
+        eligibility_passed = not any(g.status == "unmet" for g in eligibility_gates)
+
         skill_dim, skill_details = self._score_skill_match(
-            inp.requirements, inp.seniority,
+            scorable_reqs, inp.seniority,
             culture_signals=inp.culture_signals,
             company_profile=inp.company_profile,
         )
         experience_dim = self._score_experience_match(
-            inp.requirements, inp.seniority,
+            scorable_reqs, inp.seniority,
         )
         education_dim = self._score_education_match(
-            inp.requirements, inp.tech_stack or [],
+            scorable_reqs, inp.tech_stack or [],
         )
 
         # Partial-assessment weights: skill-heavy so unmatched technical
@@ -1367,6 +1442,9 @@ class QuickMatchEngine:
             experience_dim=experience_dim,
             education_dim=education_dim,
             partial_percentage=partial_percentage,
+            eligibility_gates=eligibility_gates,
+            eligibility_passed=eligibility_passed,
+            scorable_reqs=scorable_reqs,
         )
 
     def _build_assessment(
@@ -1381,12 +1459,16 @@ class QuickMatchEngine:
         experience_dim: DimensionScore | None = None,
         education_dim: DimensionScore | None = None,
         partial_percentage: float | None = None,
+        eligibility_gates: list[EligibilityGate] | None = None,
+        eligibility_passed: bool = True,
+        scorable_reqs: list[QuickRequirement] | None = None,
     ) -> FitAssessment:
         """Assemble the final FitAssessment from scored dimensions."""
+        reqs_for_gaps = scorable_reqs if scorable_reqs is not None else inp.requirements
         must_cov = _must_have_coverage(skill_details)
         strongest, biggest_gap = _strongest_and_gap(skill_details)
-        resume_gaps = _discover_resume_gaps(self.profile, inp.requirements)
-        resume_unverified = _find_resume_unverified(self.profile, inp.requirements)
+        resume_gaps = _discover_resume_gaps(self.profile, reqs_for_gaps)
+        resume_unverified = _find_resume_unverified(self.profile, reqs_for_gaps)
         gaps = [
             d for d in skill_details
             if d.match_status == "no_evidence"
@@ -1410,6 +1492,8 @@ class QuickMatchEngine:
             experience_dim=experience_dim,
             education_dim=education_dim,
             partial_percentage=partial_percentage,
+            eligibility_gates=eligibility_gates or [],
+            eligibility_passed=eligibility_passed,
         )
 
     def _assemble_fit_assessment(
@@ -1430,6 +1514,8 @@ class QuickMatchEngine:
         experience_dim: DimensionScore | None = None,
         education_dim: DimensionScore | None = None,
         partial_percentage: float | None = None,
+        eligibility_gates: list[EligibilityGate] | None = None,
+        eligibility_passed: bool = True,
     ) -> FitAssessment:
         """Construct the FitAssessment pydantic model."""
         is_partial = mission_dim is None and culture_dim is None
@@ -1466,6 +1552,8 @@ class QuickMatchEngine:
                 if inp.company_profile
                 else "none"
             ),
+            eligibility_gates=eligibility_gates or [],
+            eligibility_passed=eligibility_passed,
             should_apply=score_to_verdict(overall_score),
             action_items=self._generate_action_items(
                 overall_score, gaps, resume_gaps, resume_unverified, inp.company,

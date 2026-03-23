@@ -245,7 +245,7 @@
     "content_patterns": ["debug", "root cause", "hypothesis", "investigate"]
   },
   "adaptability": {
-    "aliases": ["flexibility", "fast learner", "quick learner", "self-starter", "autonomy", "self-directed", "initiative", "ambiguity tolerance", "bias for action", "curiosity", "positive-attitude", "mission_driven"],
+    "aliases": ["flexibility", "fast learner", "quick learner", "self-starter", "autonomy", "self-directed", "initiative", "ambiguity tolerance", "bias for action", "curiosity", "positive-attitude"],
     "category": "soft_skill",
     "related": [],
     "parent": null,
@@ -623,7 +623,7 @@
     "content_patterns": ["pipeline", "ETL", "data lake", "data warehouse", "batch processing"]
   },
   "e-commerce": {
-    "aliases": ["ecommerce", "e-commerce", "commerce", "online-commerce", "digital-commerce"],
+    "aliases": ["ecommerce", "e-commerce", "online-commerce", "digital-commerce"],
     "category": "domain",
     "related": ["full-stack", "product-development", "frontend-development"],
     "parent": null,
@@ -693,7 +693,7 @@
     "content_patterns": ["shader", "render pipeline", "GPU", "fragment", "vertex", "rasteriz"]
   },
   "virtual-production": {
-    "aliases": ["virtual production", "virtual_production", "virtual-reality", "virtual_reality", "xr", "webxr", "mixed-reality", "extended-reality"],
+    "aliases": ["virtual production", "virtual_production", "xr", "webxr", "mixed-reality", "extended-reality"],
     "category": "domain",
     "related": ["unity", "real-time-graphics", "game-development", "creative-tools"],
     "parent": null,
@@ -714,7 +714,7 @@
     "content_patterns": ["react-native", "React Native", "expo", "react native"]
   },
   "generative-ai": {
-    "aliases": ["generative ai", "generative_ai", "genai", "gen-ai", "applied-ai", "applied_ai"],
+    "aliases": ["generative ai", "generative_ai", "genai", "gen-ai"],
     "category": "domain",
     "related": ["llm", "machine-learning", "prompt-engineering", "agentic-workflows"],
     "parent": "machine-learning",
