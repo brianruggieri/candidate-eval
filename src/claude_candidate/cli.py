@@ -1090,42 +1090,21 @@ def resume() -> None:
     pass
 
 
-@resume.command("ingest")
-@click.argument("resume_path", type=click.Path(exists=True))
-@click.option("--output", "-o", type=click.Path(), default=None,
-              help="Output path for the ResumeProfile JSON. Defaults to ~/.claude-candidate/resume_profile.json")
-def resume_ingest(resume_path: str, output: str | None) -> None:
-    """Parse a resume file and save the structured profile."""
-    from claude_candidate.resume_parser import ingest_resume
-
-    path = Path(resume_path)
-    click.echo(f"Parsing resume: {path.name}")
-
-    profile = ingest_resume(path)
-
-    # Determine output path
-    if output:
-        out_path = Path(output)
-    else:
-        default_dir = Path.home() / ".claude-candidate"
-        default_dir.mkdir(parents=True, exist_ok=True)
-        out_path = default_dir / "resume_profile.json"
-
-    out_path.write_text(profile.to_json())
-
-    click.echo(f"  Name:        {profile.name or '(not detected)'}")
-    click.echo(f"  Title:       {profile.current_title or '(not detected)'}")
-    click.echo(f"  Location:    {profile.location or '(not detected)'}")
-    click.echo(f"  Roles:       {len(profile.roles)}")
-    click.echo(f"  Skills:      {len(profile.skills)}")
-    if profile.total_years_experience is not None:
-        click.echo(f"  Experience:  ~{profile.total_years_experience:.1f} years")
-    click.echo(f"  Hash:        {profile.source_file_hash[:16]}...")
-    click.echo(f"\nProfile written to {out_path}")
-
 
 DEPTH_KEYS = {"1": "mentioned", "2": "used", "3": "applied", "4": "deep", "5": "expert"}
 DEPTH_LABELS = "1=mentioned 2=used 3=applied 4=deep 5=expert"
+
+DOMAIN_HINTS: dict[str, str] = {
+	"education": "edtech", "learning": "edtech", "school": "edtech",
+	"fitness": "healthtech", "health": "healthtech", "medical": "healthtech",
+	"finance": "fintech", "banking": "fintech", "payment": "fintech",
+	"e-commerce": "ecommerce", "retail": "ecommerce", "shop": "ecommerce",
+	"security": "cybersecurity", "auth": "cybersecurity",
+	"game": "gaming", "entertainment": "media",
+	"data": "data-platform", "analytics": "data-platform",
+	"cloud": "cloud-infrastructure", "devops": "cloud-infrastructure",
+	"ai": "ai/ml", "machine learning": "ai/ml", "llm": "ai/ml",
+}
 
 
 def _prompt_depth(skill_name: str, default: str) -> str:
@@ -1206,6 +1185,54 @@ def resume_onboard(resume_path: str, output: str | None, accept_defaults: bool) 
         f"{v} {k}" for k, v in sorted(depths.items(), key=lambda x: -x[1])
     ))
 
+    # Role curation — fill in domain + technologies for each role
+    curated_roles = []
+    if raw_profile.roles:
+        curated_skill_names = [s["name"].lower() for s in curated_skills]
+        if not accept_defaults:
+            click.echo("\nNow let's fill in role details.")
+        for i, role in enumerate(raw_profile.roles, 1):
+            search_text = (role.description + " " + " ".join(role.achievements)).lower()
+            end_label = role.end_date or "present"
+
+            # Infer domain: first keyword match wins
+            inferred_domain = ""
+            for keyword, domain in DOMAIN_HINTS.items():
+                if keyword in search_text:
+                    inferred_domain = domain
+                    break
+
+            # Infer technologies: curated skills mentioned in role text, plus parser-detected
+            inferred_techs: list[str] = [n for n in curated_skill_names if n in search_text]
+            for t in role.technologies:
+                if t.lower() not in inferred_techs:
+                    inferred_techs.append(t.lower())
+
+            if accept_defaults:
+                final_domain = inferred_domain or role.domain or ""
+                final_techs = inferred_techs or list(role.technologies)
+            else:
+                click.echo(f"\n({i}/{len(raw_profile.roles)}) {role.title} @ {role.company} ({role.start_date}–{end_label})")
+                if role.description:
+                    click.echo(f"  {role.description[:120]}")
+                final_domain = click.prompt(
+                    "  Domain",
+                    default=inferred_domain or role.domain or "",
+                    show_default=True,
+                ).strip()
+                tech_default = ", ".join(inferred_techs)
+                tech_input = click.prompt(
+                    "  Technologies (comma-separated)",
+                    default=tech_default,
+                    show_default=True,
+                ).strip()
+                final_techs = [t.strip() for t in tech_input.split(",") if t.strip()]
+
+            role_dict = role.model_dump(mode="json")
+            role_dict["domain"] = final_domain or None
+            role_dict["technologies"] = final_techs
+            curated_roles.append(role_dict)
+
     # Save curated profile — validate at write time to catch onboard bugs
     from claude_candidate.schemas.curated_resume import CuratedResume
 
@@ -1220,7 +1247,7 @@ def resume_onboard(resume_path: str, output: str | None, accept_defaults: bool) 
         name=raw_profile.name,
         current_title=raw_profile.current_title,
         location=raw_profile.location,
-        roles=raw_profile.roles,
+        roles=curated_roles if raw_profile.roles else raw_profile.roles,
         total_years_experience=raw_profile.total_years_experience,
         education=raw_profile.education,
         certifications=raw_profile.certifications,
