@@ -260,9 +260,9 @@ def test_soft_skill_category(taxonomy: SkillTaxonomy) -> None:
 # ---------------------------------------------------------------------------
 
 def test_canonical_ai_research(taxonomy: SkillTaxonomy) -> None:
-    """ai-research is now its own entry, not an alias of adaptability."""
-    assert taxonomy.canonicalize("ai-research") == "ai-research"
-    assert taxonomy.canonicalize("ai_research") == "ai-research"
+    """ai-research is an alias of llm (curiosity about AI research maps to LLM expertise)."""
+    assert taxonomy.canonicalize("ai-research") == "llm"
+    assert taxonomy.canonicalize("ai_research") == "llm"
     assert taxonomy.get_category("ai-research") == "domain"
 
 
@@ -579,3 +579,13 @@ def test_adaptability_new_aliases(taxonomy: SkillTaxonomy) -> None:
 def test_web_architecture_now_system_design(taxonomy: SkillTaxonomy) -> None:
     """web-architecture moved from frontend-development to system-design."""
     assert taxonomy.canonicalize("web-architecture") == "system-design"
+
+
+def test_ai_research_resolves_to_llm(taxonomy: SkillTaxonomy) -> None:
+    """ai-research alias should resolve to llm (Anthropic posting requirement)."""
+    assert taxonomy.match("ai-research") == "llm"
+
+
+def test_ai_research_phrase_resolves_to_llm(taxonomy: SkillTaxonomy) -> None:
+    """'ai research' phrase alias should resolve to llm."""
+    assert taxonomy.match("ai research") == "llm"

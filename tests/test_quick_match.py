@@ -1455,3 +1455,62 @@ class TestEligibilityGateSchema:
 		restored = FitAssessment.from_json(json_str)
 		assert len(restored.eligibility_gates) == 1
 		assert restored.eligibility_passed is True
+
+
+class TestConflictingExpertConfidence:
+	"""Tests for CONFLICTING_EXPERT_CONF_FLOOR — expert/deep session evidence dominates."""
+
+	def _make_skill(self, source, depth, confidence):
+		from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+		return MergedSkillEvidence(
+			name="test-skill",
+			source=source,
+			effective_depth=depth,
+			confidence=confidence,
+		)
+
+	def test_conflicting_expert_uses_higher_conf_floor(self):
+		"""CONFLICTING + EXPERT depth should use 0.80 floor, not 0.65."""
+		from claude_candidate.schemas.merged_profile import EvidenceSource
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+		from claude_candidate.quick_match import _score_requirement
+		from claude_candidate.schemas.job_requirements import RequirementPriority
+		skill = self._make_skill(EvidenceSource.CONFLICTING, DepthLevel.EXPERT, 0.40)
+		# With 0.80 floor: adjustment = 0.90 + 0.10*0.80 = 0.98; score = 1.0 * 0.98 = 0.98
+		score = _score_requirement(skill, "exceeds", RequirementPriority.MUST_HAVE)
+		assert score >= 0.98, f"Expected >= 0.98 with CONFLICTING+EXPERT floor, got {score}"
+
+	def test_conflicting_deep_uses_higher_conf_floor(self):
+		"""CONFLICTING + DEEP depth should also use 0.80 floor."""
+		from claude_candidate.schemas.merged_profile import EvidenceSource
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+		from claude_candidate.quick_match import _score_requirement
+		from claude_candidate.schemas.job_requirements import RequirementPriority
+		skill = self._make_skill(EvidenceSource.CONFLICTING, DepthLevel.DEEP, 0.40)
+		score = _score_requirement(skill, "exceeds", RequirementPriority.MUST_HAVE)
+		assert score >= 0.98, f"Expected >= 0.98 with CONFLICTING+DEEP floor, got {score}"
+
+	def test_conflicting_applied_uses_standard_floor(self):
+		"""CONFLICTING + APPLIED depth should use standard 0.65 floor, not 0.80."""
+		from claude_candidate.schemas.merged_profile import EvidenceSource
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+		from claude_candidate.quick_match import _score_requirement, STATUS_SCORE
+		from claude_candidate.schemas.job_requirements import RequirementPriority
+		skill = self._make_skill(EvidenceSource.CONFLICTING, DepthLevel.APPLIED, 0.40)
+		# With 0.65 floor: adjustment = 0.90 + 0.10*0.65 = 0.965
+		score = _score_requirement(skill, "exceeds", RequirementPriority.MUST_HAVE)
+		expected_max = STATUS_SCORE.get("exceeds", 1.0) * (0.90 + 0.10 * 0.65)
+		assert score <= expected_max + 0.001, f"Expected <= {expected_max} for APPLIED floor, got {score}"
+		assert score >= 0.96, f"Expected >= 0.96 (standard floor), got {score}"
+
+	def test_corroborated_unaffected(self):
+		"""CORROBORATED source should be unaffected by the CONFLICTING-EXPERT logic."""
+		from claude_candidate.schemas.merged_profile import EvidenceSource
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+		from claude_candidate.quick_match import _score_requirement
+		from claude_candidate.schemas.job_requirements import RequirementPriority
+		skill = self._make_skill(EvidenceSource.CORROBORATED, DepthLevel.EXPERT, 0.85)
+		# adjustment = 0.90 + 0.10*0.85 = 0.985
+		score = _score_requirement(skill, "exceeds", RequirementPriority.MUST_HAVE)
+		assert 0.984 <= score <= 0.986, f"Expected ~0.985 for CORROBORATED, got {score}"
