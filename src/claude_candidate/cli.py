@@ -1345,7 +1345,7 @@ def scan(session_dir: str | None, output: str | None, reselect: bool, accept_def
         compact_evidence(profile)
         total_evidence = sum(len(s.evidence) for s in profile.skills)
         click.echo(f"  Evidence compacted (compaction_version={profile.compaction_version}, "
-                    f"total evidence entries={total_evidence})")
+                    f"total skill evidence entries={total_evidence})")
 
     output_path = Path(output) if output else _default_profile_path()
     output_path.parent.mkdir(parents=True, exist_ok=True)

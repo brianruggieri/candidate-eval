@@ -136,7 +136,11 @@ def merge_profiles(
             resume_years=r_skill.years_experience if r_skill else None,
             session_depth=s_depth,
             session_frequency=s_skill.frequency if s_skill else None,
-            session_evidence_count=(s_skill.total_evidence_count or len(s_skill.evidence)) if s_skill else None,
+            session_evidence_count=(
+                s_skill.total_evidence_count
+                if s_skill.total_evidence_count is not None
+                else len(s_skill.evidence)
+            ) if s_skill else None,
             session_recency=s_skill.recency if s_skill else None,
             effective_depth=effective_depth,
             confidence=confidence,
@@ -257,7 +261,11 @@ def merge_with_curated(
             resume_duration=c_skill.duration if c_skill else None,
             session_depth=s_depth,
             session_frequency=s_skill.frequency if s_skill else None,
-            session_evidence_count=(s_skill.total_evidence_count or len(s_skill.evidence)) if s_skill else None,
+            session_evidence_count=(
+                s_skill.total_evidence_count
+                if s_skill.total_evidence_count is not None
+                else len(s_skill.evidence)
+            ) if s_skill else None,
             session_recency=s_skill.recency if s_skill else None,
             effective_depth=effective_depth,
             confidence=confidence,
@@ -316,7 +324,11 @@ def merge_candidate_only(candidate_profile: CandidateProfile) -> MergedEvidenceP
             source=EvidenceSource.SESSIONS_ONLY,
             session_depth=s_skill.depth,
             session_frequency=s_skill.frequency,
-            session_evidence_count=s_skill.total_evidence_count or len(s_skill.evidence),
+            session_evidence_count=(
+                s_skill.total_evidence_count
+                if s_skill.total_evidence_count is not None
+                else len(s_skill.evidence)
+            ),
             session_recency=s_skill.recency,
             effective_depth=s_skill.depth,
             confidence=MergedSkillEvidence.compute_confidence(
