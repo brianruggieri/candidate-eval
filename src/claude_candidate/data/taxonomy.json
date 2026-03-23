@@ -2,14 +2,14 @@
   "python": {
     "aliases": ["py", "python3", "cpython"],
     "category": "language",
-    "related": ["fastapi", "pydantic", "pytest", "machine-learning"],
+    "related": ["fastapi", "pydantic", "pytest", "machine-learning", "data-engineering", "concurrent-programming"],
     "parent": null,
     "content_patterns": ["import ", "from ", "def ", "class ", ".py"]
   },
   "typescript": {
     "aliases": ["ts", "tsx"],
     "category": "language",
-    "related": ["javascript", "react", "node.js", "nextjs"],
+    "related": ["javascript", "react", "node.js", "nextjs", "state-management", "redux", "tanstack"],
     "parent": null,
     "content_patterns": ["import {", "export ", ": string", ": number", ".ts"]
   },
@@ -23,7 +23,7 @@
   "react": {
     "aliases": ["react.js", "reactjs"],
     "category": "framework",
-    "related": ["javascript", "typescript", "nextjs", "node.js", "frontend-development"],
+    "related": ["javascript", "typescript", "nextjs", "node.js", "frontend-development", "redux", "tanstack", "react-native", "state-management"],
     "parent": "javascript",
     "content_patterns": ["import React", "useState", "useEffect"]
   },
@@ -44,7 +44,7 @@
   "docker": {
     "aliases": ["dockerfile", "docker-compose"],
     "category": "tool",
-    "related": ["kubernetes", "ci-cd", "terraform", "devops"],
+    "related": ["kubernetes", "ci-cd", "terraform", "devops", "sandboxing"],
     "parent": null,
     "content_patterns": ["dockerfile", "docker-compose", "docker build"]
   },
@@ -126,16 +126,16 @@
     "content_patterns": [".github/workflows", "pipeline", "deploy", "ci/cd"]
   },
   "machine-learning": {
-    "aliases": ["ml", "deep-learning", "deep learning", "machine learning"],
+    "aliases": ["ml", "deep-learning", "deep learning", "machine learning", "diffusion-models", "generative-models", "transformer_architectures", "model-training", "model_building", "model_evaluation", "classification", "ranking", "gan", "vae"],
     "category": "domain",
-    "related": ["python", "llm", "rag", "prompt-engineering", "pytorch", "tensorflow", "data-science"],
+    "related": ["python", "llm", "rag", "prompt-engineering", "pytorch", "tensorflow", "data-science", "generative-ai"],
     "parent": null,
     "content_patterns": ["model training", "neural network", "gradient", "epoch"]
   },
   "llm": {
-    "aliases": ["large-language-model", "large language model", "language model", "llms", "large language models", "model-routing", "model routing", "llm-integration"],
+    "aliases": ["large-language-model", "large language model", "language model", "llms", "large language models", "model-routing", "model routing", "llm-integration", "claude", "claude-code", "gemini", "codex", "ai-reasoning", "fine_tuning", "fine-tuning", "lora", "peft", "rlhf", "model-adaptation", "model_adaptation"],
     "category": "domain",
-    "related": ["machine-learning", "rag", "prompt-engineering", "python", "agentic-workflows", "ai-orchestration"],
+    "related": ["machine-learning", "rag", "prompt-engineering", "python", "agentic-workflows", "ai-orchestration", "generative-ai"],
     "parent": "machine-learning",
     "content_patterns": ["llm", "large language model", "language model"]
   },
@@ -147,7 +147,7 @@
     "content_patterns": ["prompt", "system prompt", "few-shot", "chain of thought"]
   },
   "rag": {
-    "aliases": ["retrieval-augmented-generation", "retrieval augmented generation", "semantic-retrieval", "semantic retrieval", "vector-databases", "vector databases", "memory-systems", "memory systems"],
+    "aliases": ["retrieval-augmented-generation", "retrieval augmented generation", "semantic-retrieval", "semantic retrieval", "vector-databases", "vector databases", "memory-systems", "memory systems", "search-systems", "search_systems", "personalization", "information_retrieval", "semantic_search", "search", "recommendation_systems", "embeddings"],
     "category": "domain",
     "related": ["llm", "machine-learning", "prompt-engineering"],
     "parent": "machine-learning",
@@ -156,7 +156,7 @@
   "sql": {
     "aliases": [],
     "category": "language",
-    "related": ["postgresql", "redis"],
+    "related": ["postgresql", "redis", "data-engineering"],
     "parent": null,
     "content_patterns": ["Select ", "Insert Into", "Create Table", "Alter Table"]
   },
@@ -177,7 +177,7 @@
   "rust": {
     "aliases": ["rs"],
     "category": "language",
-    "related": [],
+    "related": ["wasm", "concurrent-programming"],
     "parent": null,
     "content_patterns": ["fn ", "let mut", "impl ", "use ", ".rs"]
   },
@@ -217,21 +217,21 @@
     "content_patterns": ["langchain", "from langchain"]
   },
   "communication": {
-    "aliases": ["written communication", "verbal communication", "communication skills", "excellent communication", "client-facing", "client facing", "presentation", "consulting"],
+    "aliases": ["written communication", "verbal communication", "communication skills", "excellent communication", "client-facing", "client facing", "presentation", "consulting", "technical-consulting", "technical_consulting", "solutions-engineering", "solutions_engineering", "technical_communication", "technical-communication", "english"],
     "category": "soft_skill",
     "related": ["collaboration", "leadership"],
     "parent": null,
     "content_patterns": ["explain", "clarify", "document", "present"]
   },
   "collaboration": {
-    "aliases": ["teamwork", "team player", "collaborative", "cross-functional", "cross-functional collaboration", "cross_functional_collaboration", "cross-functional-collaboration"],
+    "aliases": ["teamwork", "team player", "collaborative", "cross-functional", "cross-functional collaboration", "cross_functional_collaboration", "cross-functional-collaboration", "customer-engagement", "customer_engagement", "customer_success", "cross-functional-teamwork", "cross_functional_teamwork", "small_team_collaboration", "pair-programming", "pair programming"],
     "category": "soft_skill",
     "related": ["communication", "leadership"],
     "parent": null,
     "content_patterns": ["pair", "code review", "team", "merge request"]
   },
   "leadership": {
-    "aliases": ["technical leadership", "technical-leadership", "team lead", "mentorship", "people management", "tech lead", "engineering management", "mentoring", "stakeholder_management", "stakeholder-management", "stakeholder management", "executive-communication"],
+    "aliases": ["technical leadership", "technical-leadership", "team lead", "mentorship", "people management", "tech lead", "engineering management", "mentoring", "stakeholder_management", "stakeholder-management", "stakeholder management", "executive-communication", "engineering-leadership", "cross_functional_leadership", "delegation", "executive_influence", "onboarding"],
     "category": "soft_skill",
     "related": ["communication", "collaboration"],
     "parent": null,
@@ -245,7 +245,7 @@
     "content_patterns": ["debug", "root cause", "hypothesis", "investigate"]
   },
   "adaptability": {
-    "aliases": ["flexibility", "fast learner", "quick learner", "self-starter", "autonomy", "self-directed", "initiative", "ambiguity tolerance", "bias for action"],
+    "aliases": ["flexibility", "fast learner", "quick learner", "self-starter", "autonomy", "self-directed", "initiative", "ambiguity tolerance", "bias for action", "curiosity", "positive-attitude", "mission_driven"],
     "category": "soft_skill",
     "related": [],
     "parent": null,
@@ -254,33 +254,33 @@
   "unity": {
     "aliases": ["unity3d", "unity-engine", "unity engine"],
     "category": "framework",
-    "related": ["webgl", "three-js", "game-development", "javascript"],
+    "related": ["webgl", "three-js", "game-development", "javascript", "real-time-graphics", "virtual-production"],
     "parent": null,
     "content_patterns": ["unity", "Unity", "UnityEngine", "MonoBehaviour"]
   },
   "webgl": {
     "aliases": ["web-gl", "opengl", "webgpu"],
     "category": "domain",
-    "related": ["unity", "three-js", "javascript", "frontend-development"],
+    "related": ["unity", "three-js", "javascript", "frontend-development", "real-time-graphics", "wasm"],
     "parent": null,
     "content_patterns": ["webgl", "WebGL", "gl.create"]
   },
   "three-js": {
     "aliases": ["three.js", "threejs", "three js"],
     "category": "framework",
-    "related": ["webgl", "unity", "javascript", "react"],
+    "related": ["webgl", "unity", "javascript", "react", "real-time-graphics", "animation"],
     "parent": "javascript",
     "content_patterns": ["three.js", "Three.", "import * as THREE"]
   },
   "agentic-workflows": {
-    "aliases": ["agentic-ai", "agentic ai", "ai-agents", "ai agents", "ai_agents", "agent-framework", "agent framework", "agent frameworks", "agentic", "agentic workflows", "agentic_workflows", "multi-agent", "multi agent", "agent orchestration", "agent-orchestration", "ai-orchestration", "ai-augmented-development", "ai-augmented development", "human-in-the-loop", "human in the loop", "agent-runtime", "agent runtime", "llm-orchestration", "llm orchestration", "ai-planning", "ai planning", "autonomous-agents", "autonomous agents", "task-scheduling", "workflow-automation", "llm-applications", "llm applications", "mcp", "model-context-protocol", "multi-agent-orchestration", "ai-assisted-development", "ai_assisted_development"],
+    "aliases": ["agentic-ai", "agentic ai", "ai-agents", "ai agents", "ai_agents", "agent-framework", "agent framework", "agent frameworks", "agentic", "agentic workflows", "agentic_workflows", "multi-agent", "multi agent", "agent orchestration", "agent-orchestration", "ai-orchestration", "ai-augmented-development", "ai-augmented development", "human-in-the-loop", "human in the loop", "agent-runtime", "agent runtime", "llm-orchestration", "llm orchestration", "ai-planning", "ai planning", "autonomous-agents", "autonomous agents", "task-scheduling", "workflow-automation", "llm-applications", "llm applications", "mcp", "model-context-protocol", "multi-agent-orchestration", "ai-assisted-development", "ai_assisted_development", "agentic-systems", "agentic_systems", "agent-architecture", "multi-agent-systems", "code-execution", "context-management", "conversation-memory", "function-calling", "function_calling", "mcp_servers"],
     "category": "domain",
     "related": ["llm", "langchain", "prompt-engineering", "rag"],
     "parent": "llm",
     "content_patterns": ["agent", "agentic", "orchestrat", "multi-agent"]
   },
   "developer-tools": {
-    "aliases": ["dev-tools", "devtools", "developer tools", "developer-tools", "dev tools", "tooling", "developer-productivity", "developer productivity", "engineering-metrics", "developer_tooling", "ai-tooling", "ai-tools", "ai_tools"],
+    "aliases": ["dev-tools", "devtools", "developer tools", "developer-tools", "dev tools", "tooling", "developer-productivity", "developer productivity", "engineering-metrics", "developer_tooling", "ai-tooling", "ai-tools", "ai_tools", "cli", "vscode-extensions", "github-copilot", "cursor", "ai-driven-development", "sdk-development", "ai-adoption"],
     "category": "domain",
     "related": ["software-engineering", "ci-cd", "testing"],
     "parent": null,
@@ -294,9 +294,9 @@
     "content_patterns": ["frontend", "backend", "fullstack", "full-stack"]
   },
   "frontend-development": {
-    "aliases": ["frontend", "front-end", "front end", "frontend development", "front-end development", "ui-development", "ui development", "web_development", "web development", "web-development", "responsive_design", "responsive design", "responsive-design", "mobile_web_development", "frontend_architecture", "frontend-architecture", "frontend architecture", "micro_frontends", "micro-frontends", "microfrontends", "web-architecture", "cross-browser-development"],
+    "aliases": ["frontend", "front-end", "front end", "frontend development", "front-end development", "ui-development", "ui development", "web_development", "web development", "web-development", "responsive_design", "responsive design", "responsive-design", "mobile_web_development", "frontend_architecture", "frontend-architecture", "frontend architecture", "micro_frontends", "micro-frontends", "microfrontends", "cross-browser-development", "ui-frameworks", "ui frameworks"],
     "category": "practice",
-    "related": ["react", "javascript", "typescript", "html-css", "full-stack"],
+    "related": ["react", "javascript", "typescript", "html-css", "full-stack", "state-management", "ux-design", "accessibility"],
     "parent": null,
     "content_patterns": ["useState", "component", "CSS", "responsive"]
   },
@@ -315,7 +315,7 @@
     "content_patterns": ["refactor", "code review", "pull request", "technical debt"]
   },
   "system-design": {
-    "aliases": ["system design", "system_design", "system-architecture", "system architecture", "systems design", "systems architecture", "architecture-design", "software architecture", "software-architecture", "monorepo", "bff", "backend-for-frontend"],
+    "aliases": ["system design", "system_design", "system-architecture", "system architecture", "systems design", "systems architecture", "architecture-design", "software architecture", "software-architecture", "monorepo", "bff", "backend-for-frontend", "solution-architecture", "codebase-architecture", "cloud-architecture", "event_driven_architecture", "scalable_systems", "web-architecture", "web architecture"],
     "category": "practice",
     "related": ["software-engineering", "distributed-systems", "api-design"],
     "parent": null,
@@ -324,7 +324,7 @@
   "distributed-systems": {
     "aliases": ["distributed systems", "distributed-computing", "distributed computing", "microservices", "micro-services"],
     "category": "domain",
-    "related": ["kubernetes", "system-design", "cloud-infrastructure", "scalability"],
+    "related": ["kubernetes", "system-design", "cloud-infrastructure", "scalability", "concurrent-programming"],
     "parent": null,
     "content_patterns": ["consensus", "partition tolerance", "sharding", "replication"]
   },
@@ -336,7 +336,7 @@
     "content_patterns": ["endpoint", "REST", "GraphQL", "OpenAPI", "/api/"]
   },
   "testing": {
-    "aliases": ["test-driven-development", "tdd", "unit-testing", "unit testing", "integration-testing", "integration testing", "automated testing", "automated-testing", "qa", "quality assurance", "test automation", "code_quality", "code-quality", "code quality"],
+    "aliases": ["test-driven-development", "tdd", "unit-testing", "unit testing", "integration-testing", "integration testing", "automated testing", "automated-testing", "qa", "quality assurance", "test automation", "code_quality", "code-quality", "code quality", "e2e_testing", "testing_frameworks", "quality-assurance", "ai_qa_systems"],
     "category": "practice",
     "related": ["software-engineering", "ci-cd", "pytest"],
     "parent": null,
@@ -350,16 +350,16 @@
     "content_patterns": ["Dockerfile", "docker-compose", "nginx", "systemctl"]
   },
   "cloud-infrastructure": {
-    "aliases": ["cloud infrastructure", "cloud-computing", "cloud computing", "cloud services", "cloud platforms", "cloud", "cloud-ai-platforms", "cloud_computing"],
+    "aliases": ["cloud infrastructure", "cloud-computing", "cloud computing", "cloud services", "cloud platforms", "cloud", "cloud-ai-platforms", "cloud_computing", "hybrid-cloud", "on-premises", "private-cloud", "edge-computing", "infrastructure_as_code"],
     "category": "domain",
     "related": ["aws", "gcp", "azure", "kubernetes", "terraform", "devops"],
     "parent": null,
     "content_patterns": ["EC2", "Lambda", "load balancer", "auto-scaling"]
   },
   "security": {
-    "aliases": ["cybersecurity", "application-security", "appsec", "information security", "infosec", "security engineering", "compliance", "safety"],
+    "aliases": ["cybersecurity", "application-security", "appsec", "information security", "infosec", "security engineering", "compliance", "safety", "rate-limiting", "workload-authentication", "fault-tolerance"],
     "category": "practice",
-    "related": ["software-engineering", "devops"],
+    "related": ["software-engineering", "devops", "sandboxing"],
     "parent": null,
     "content_patterns": ["sanitiz", "XSS", "CORS", "RBAC", "encrypt"]
   },
@@ -371,9 +371,9 @@
     "content_patterns": ["sprint", "standup", "backlog", "user story"]
   },
   "data-science": {
-    "aliases": ["data science", "data_science", "data analysis", "data_analysis", "analytics", "data analytics", "data-analysis", "statistics", "statistical analysis"],
+    "aliases": ["data science", "data_science", "data analysis", "data_analysis", "analytics", "data analytics", "data-analysis", "statistics", "statistical analysis", "pandas", "jupyter", "jupyter_notebooks", "scikit_learn", "xgboost"],
     "category": "domain",
-    "related": ["python", "machine-learning", "sql"],
+    "related": ["python", "machine-learning", "sql", "data-engineering"],
     "parent": null,
     "content_patterns": ["dataframe", "pandas", "matplotlib", "jupyter"]
   },
@@ -434,23 +434,23 @@
     "content_patterns": ["<!doctype", "<html", "<div", "<body"]
   },
   "performance-optimization": {
-    "aliases": ["performance optimization", "performance-tuning", "optimization", "scalability", "scaling", "performance engineering", "high-scale-systems", "high scale systems", "performance_profiling", "profiling_tools", "large-scale-systems"],
+    "aliases": ["performance optimization", "performance-tuning", "optimization", "scalability", "scaling", "performance engineering", "high-scale-systems", "high scale systems", "performance_profiling", "profiling_tools", "large-scale-systems", "inference-optimization", "inference_optimization", "edge-inference", "high-traffic-systems"],
     "category": "practice",
-    "related": ["software-engineering", "system-design", "distributed-systems"],
+    "related": ["software-engineering", "system-design", "distributed-systems", "concurrent-programming", "wasm"],
     "parent": null,
     "content_patterns": ["profil", "latency", "throughput", "benchmark"]
   },
   "game-development": {
     "aliases": ["game development", "game-dev", "gamedev", "game design", "game engine", "unreal-engine", "unreal engine", "unreal"],
     "category": "domain",
-    "related": ["unity", "webgl", "three-js", "cpp"],
+    "related": ["unity", "webgl", "three-js", "cpp", "real-time-graphics", "virtual-production"],
     "parent": null,
     "content_patterns": ["game loop", "sprite", "physics engine", "collision"]
   },
   "product-development": {
-    "aliases": ["product development", "product_development", "product engineering", "product-engineering", "product management", "product-management", "product ownership", "product thinking", "product sense", "process-design", "process design"],
+    "aliases": ["product development", "product_development", "product engineering", "product-engineering", "product management", "product-management", "product ownership", "product thinking", "product sense", "process-design", "process design", "product-strategy", "product_strategy", "product-roadmap", "product_roadmap", "product-vision", "product_vision", "product_analytics", "roadmap-planning", "product-design", "product design"],
     "category": "practice",
-    "related": ["software-engineering", "full-stack", "agile"],
+    "related": ["software-engineering", "full-stack", "agile", "user-research", "e-commerce"],
     "parent": null,
     "content_patterns": ["user story", "feature flag", "A/B test", "roadmap"]
   },
@@ -462,7 +462,7 @@
     "content_patterns": ["curriculum", "assessment", "learning management", "student"]
   },
   "ownership": {
-    "aliases": ["end-to-end ownership", "project ownership", "technical ownership", "owning outcomes"],
+    "aliases": ["end-to-end ownership", "project ownership", "technical ownership", "owning outcomes", "feature-ownership", "project_ownership", "accountability", "shipping", "self-management"],
     "category": "soft_skill",
     "related": ["leadership", "adaptability"],
     "parent": null,
@@ -476,14 +476,14 @@
     "content_patterns": ["open source", "MIT license", "contributing", "changelog"]
   },
   "mlops": {
-    "aliases": ["ml-ops", "ml ops", "model deployment", "model-deployment", "ml engineering", "ml-engineering", "machine learning operations"],
+    "aliases": ["ml-ops", "ml ops", "model deployment", "model-deployment", "ml engineering", "ml-engineering", "machine learning operations", "ml-pipelines", "ml_pipelines", "ml-lifecycle", "ml-performance", "ml-benchmarking", "weights-and-biases", "mlflow", "vertex_ai", "model-validation"],
     "category": "practice",
     "related": ["machine-learning", "devops", "ci-cd", "python"],
     "parent": null,
     "content_patterns": ["model serving", "feature store", "ML pipeline", "model registry"]
   },
   "metrics": {
-    "aliases": ["kpis", "key performance indicators", "observability", "monitoring", "instrumentation", "ab_testing", "a/b testing", "ab testing", "a-b-testing", "experimentation", "dashboards", "data_visualization", "data visualization", "data-visualization"],
+    "aliases": ["kpis", "key performance indicators", "observability", "monitoring", "instrumentation", "ab_testing", "a/b testing", "ab testing", "a-b-testing", "experimentation", "dashboards", "data_visualization", "data visualization", "data-visualization", "dashboard_development", "performance_monitoring", "telemetry", "opentelemetry", "datadog", "grafana", "prometheus", "okrs", "product_metrics"],
     "category": "practice",
     "related": ["data-science", "product-development", "devops"],
     "parent": null,
@@ -497,7 +497,7 @@
     "content_patterns": ["algorithm", "data structure", "complexity", "recursion"]
   },
   "startup-experience": {
-    "aliases": ["startup experience", "startup_experience", "startup", "early-stage", "early stage", "0-to-1", "zero to one"],
+    "aliases": ["startup experience", "startup_experience", "startup", "early-stage", "early stage", "0-to-1", "zero to one", "entrepreneurship", "founder-mentality", "founder mentality", "early_stage_startup", "zero_to_one"],
     "category": "practice",
     "related": ["product-development", "full-stack", "ownership"],
     "parent": null,
@@ -506,12 +506,12 @@
   "creative-tools": {
     "aliases": ["creative tools", "creative tooling", "creative-technology", "creative technology", "visual-authoring", "visual authoring", "playcanvas"],
     "category": "domain",
-    "related": ["unity", "webgl", "three-js", "game-development"],
+    "related": ["unity", "webgl", "three-js", "game-development", "real-time-graphics", "virtual-production", "animation"],
     "parent": null,
     "content_patterns": ["canvas", "rendering", "3D", "animation"]
   },
   "production-systems": {
-    "aliases": ["production systems", "production_systems", "production-grade", "production grade", "production engineering", "software_delivery", "software delivery", "software-delivery", "production-deployment"],
+    "aliases": ["production systems", "production_systems", "production-grade", "production grade", "production engineering", "software_delivery", "software delivery", "software-delivery", "production-deployment", "reliability-engineering", "reliability_engineering", "canary_deployments", "feature_flags"],
     "category": "practice",
     "related": ["software-engineering", "devops", "system-design", "distributed-systems"],
     "parent": null,
@@ -616,10 +616,122 @@
     "content_patterns": ["eval", "benchmark", "accuracy", "BLEU", "rouge", "hallucination"]
   },
   "data-engineering": {
-    "aliases": ["data engineering", "data_engineering", "data-pipelines", "data_pipelines", "etl", "data infrastructure"],
-    "category": "domain",
+    "aliases": ["data engineering", "data_engineering", "data-pipelines", "data_pipelines", "etl", "data infrastructure", "data-modeling", "data-warehousing", "data-extraction", "data_extraction", "pipeline-design", "pipeline_design"],
+    "category": "practice",
     "related": ["mlops", "data-science", "sql", "python", "cloud-infrastructure"],
     "parent": null,
     "content_patterns": ["pipeline", "ETL", "data lake", "data warehouse", "batch processing"]
+  },
+  "e-commerce": {
+    "aliases": ["ecommerce", "e-commerce", "commerce", "online-commerce", "digital-commerce"],
+    "category": "domain",
+    "related": ["full-stack", "product-development", "frontend-development"],
+    "parent": null,
+    "content_patterns": ["cart", "checkout", "payment", "SKU", "catalog"]
+  },
+  "state-management": {
+    "aliases": ["state management", "state_management", "client-state", "global state"],
+    "category": "practice",
+    "related": ["react", "frontend-development", "redux"],
+    "parent": null,
+    "content_patterns": ["useState", "useReducer", "store", "dispatch", "selector"]
+  },
+  "redux": {
+    "aliases": ["react-redux", "redux-toolkit", "rtk", "rtk-query", "rtk_query"],
+    "category": "framework",
+    "related": ["react", "state-management", "typescript", "frontend-development"],
+    "parent": "react",
+    "content_patterns": ["createSlice", "configureStore", "useDispatch", "useSelector", "redux"]
+  },
+  "tanstack": {
+    "aliases": ["tanstack-query", "react-query", "tanstack-router", "tanstack-table"],
+    "category": "framework",
+    "related": ["react", "state-management", "typescript", "frontend-development"],
+    "parent": "react",
+    "content_patterns": ["useQuery", "useMutation", "queryClient", "tanstack"]
+  },
+  "wasm": {
+    "aliases": ["webassembly", "web-assembly", "wasi"],
+    "category": "domain",
+    "related": ["rust", "cpp", "performance-optimization", "webgl"],
+    "parent": null,
+    "content_patterns": ["wasm", "WebAssembly", ".wasm", "emscripten"]
+  },
+  "functional-programming": {
+    "aliases": ["functional programming", "functional_programming", "fp", "immutability", "pure functions"],
+    "category": "practice",
+    "related": ["typescript", "javascript", "software-engineering"],
+    "parent": null,
+    "content_patterns": ["map(", "reduce(", "filter(", "immutable", "pure function", "compose"]
+  },
+  "user-research": {
+    "aliases": ["user research", "user_research", "ux-research", "ux_research", "user interviews", "usability-testing", "user-testing"],
+    "category": "practice",
+    "related": ["product-development", "frontend-development", "collaboration"],
+    "parent": null,
+    "content_patterns": ["user interview", "usability test", "user feedback", "persona"]
+  },
+  "sandboxing": {
+    "aliases": ["sandbox", "isolation", "capability-based-security", "process-isolation", "container-security"],
+    "category": "practice",
+    "related": ["security", "docker", "devops"],
+    "parent": null,
+    "content_patterns": ["sandbox", "isolat", "seccomp", "namespace", "chroot"]
+  },
+  "concurrent-programming": {
+    "aliases": ["concurrent programming", "concurrent_programming", "concurrency", "multithreading", "parallelism", "async-programming", "async programming"],
+    "category": "practice",
+    "related": ["performance-optimization", "distributed-systems", "python", "rust"],
+    "parent": null,
+    "content_patterns": ["async ", "await ", "thread", "mutex", "concurrent", "parallel"]
+  },
+  "real-time-graphics": {
+    "aliases": ["real-time graphics", "real_time_graphics", "real-time-rendering", "real_time_rendering", "graphics-programming", "graphics_programming", "gpu-programming", "gpu_programming", "shader-programming", "shader_programming"],
+    "category": "domain",
+    "related": ["webgl", "unity", "three-js", "game-development", "creative-tools", "wasm"],
+    "parent": null,
+    "content_patterns": ["shader", "render pipeline", "GPU", "fragment", "vertex", "rasteriz"]
+  },
+  "virtual-production": {
+    "aliases": ["virtual production", "virtual_production", "virtual-reality", "virtual_reality", "xr", "webxr", "mixed-reality", "extended-reality"],
+    "category": "domain",
+    "related": ["unity", "real-time-graphics", "game-development", "creative-tools"],
+    "parent": null,
+    "content_patterns": ["VR", "virtual reality", "XR", "headset", "immersive"]
+  },
+  "ux-design": {
+    "aliases": ["ux design", "ux_design", "ui-design", "ui design", "ux-engineering", "ux engineering", "ux_engineering", "product-design", "product design", "interaction design", "interaction-design", "hci", "human-computer-interaction", "interface design", "interface-design", "visual design", "visual-design"],
+    "category": "practice",
+    "related": ["frontend-development", "product-development", "user-research"],
+    "parent": null,
+    "content_patterns": ["wireframe", "mockup", "user flow", "Figma", "design system"]
+  },
+  "react-native": {
+    "aliases": ["react native", "mobile-app", "mobile app development", "mobile web"],
+    "category": "framework",
+    "related": ["react", "typescript", "javascript", "frontend-development"],
+    "parent": "react",
+    "content_patterns": ["react-native", "React Native", "expo", "react native"]
+  },
+  "generative-ai": {
+    "aliases": ["generative ai", "generative_ai", "genai", "gen-ai", "applied-ai", "applied_ai"],
+    "category": "domain",
+    "related": ["llm", "machine-learning", "prompt-engineering", "agentic-workflows"],
+    "parent": "machine-learning",
+    "content_patterns": ["generative", "GenAI", "gen AI", "artificial intelligence"]
+  },
+  "accessibility": {
+    "aliases": ["a11y", "web-accessibility", "wcag", "aria"],
+    "category": "practice",
+    "related": ["frontend-development", "html-css", "ux-design"],
+    "parent": null,
+    "content_patterns": ["aria-", "WCAG", "screen reader", "a11y"]
+  },
+  "animation": {
+    "aliases": ["web-animation", "motion-design", "motion-graphics"],
+    "category": "domain",
+    "related": ["creative-tools", "frontend-development", "webgl", "three-js"],
+    "parent": null,
+    "content_patterns": ["animation", "keyframe", "tween", "frame rate", "canvas"]
   }
 }
