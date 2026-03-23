@@ -982,11 +982,11 @@ def _find_best_skill(
 
 
 # Confidence floor — prevent low-confidence skills from cratering scores.
-# Resume-only skills default to 0.3–0.5 confidence; sessions-only with
-# low frequency get 0.45–0.65. Floor at 0.65 lets confidence differentiate
-# resume-only (floored) from corroborated/high-frequency (0.85–1.0) while
-# preventing catastrophic penalties.
+# CONFLICTING defaults to 0.40; sessions-only with low frequency get 0.45–0.65.
+# Floor at 0.65 prevents catastrophic penalties for these cases.
+# Resume-only (0.85 flat) and corroborated (0.70–1.0) always exceed the floor.
 CONFIDENCE_FLOOR = 0.65
+CONFLICTING_EXPERT_CONF_FLOOR = 0.80  # expert session evidence overrides resume "mentioned"
 
 
 def _score_requirement(
@@ -1013,6 +1013,11 @@ def _score_requirement(
     req_score = STATUS_SCORE.get(best_status, STATUS_SCORE_NONE)
     if best_match:
         effective_confidence = max(best_match.confidence, CONFIDENCE_FLOOR)
+        # Expert/deep session skills marked CONFLICTING (resume "mentioned" vs sessions
+        # EXPERT): use a higher floor — session depth evidence dominates.
+        if (best_match.source == EvidenceSource.CONFLICTING
+                and best_match.effective_depth in (DepthLevel.EXPERT, DepthLevel.DEEP)):
+            effective_confidence = max(effective_confidence, CONFLICTING_EXPERT_CONF_FLOOR)
         # Scale confidence to a ~0.965–1.0 range (with floor at 0.65):
         # corroborated/high-freq skills get near-full score (0.985–1.0),
         # resume-only skills get modest penalty (~3.5% at floor).

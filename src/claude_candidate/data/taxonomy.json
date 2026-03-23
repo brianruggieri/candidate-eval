@@ -133,7 +133,7 @@
     "content_patterns": ["model training", "neural network", "gradient", "epoch"]
   },
   "llm": {
-    "aliases": ["large-language-model", "large language model", "language model", "llms", "large language models", "model-routing", "model routing", "llm-integration", "claude", "claude-code", "gemini", "codex", "ai-reasoning", "fine_tuning", "fine-tuning", "lora", "peft", "rlhf", "model-adaptation", "model_adaptation"],
+    "aliases": ["large-language-model", "large language model", "language model", "llms", "large language models", "model-routing", "model routing", "llm-integration", "claude", "claude-code", "gemini", "codex", "ai-reasoning", "fine_tuning", "fine-tuning", "lora", "peft", "rlhf", "model-adaptation", "model_adaptation", "ai-research", "ai research", "ai_research", "ai-research-application", "artificial-intelligence-research"],
     "category": "domain",
     "related": ["machine-learning", "rag", "prompt-engineering", "python", "agentic-workflows", "ai-orchestration", "generative-ai"],
     "parent": "machine-learning",
@@ -544,13 +544,6 @@
     "related": ["security", "api-design", "backend-development"],
     "parent": null,
     "content_patterns": ["OAuth", "JWT", "session token", "SAML"]
-  },
-  "ai-research": {
-    "aliases": ["ai research", "ai_research", "artificial-intelligence-research"],
-    "category": "domain",
-    "related": ["machine-learning", "llm", "data-science"],
-    "parent": null,
-    "content_patterns": ["research paper", "arxiv", "novel approach", "state of the art"]
   },
   "ai-safety": {
     "aliases": ["ai safety", "ai_safety", "responsible-ai", "responsible_ai", "responsible ai", "ai-ethics", "ai ethics", "ethical-ai", "ethical ai"],
