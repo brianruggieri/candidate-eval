@@ -27,17 +27,13 @@ def load_profile() -> MergedEvidenceProfile:
     if not profile_path.exists():
         # Fallback to generating on the fly
         from claude_candidate.schemas.candidate_profile import CandidateProfile
+        from claude_candidate.schemas.curated_resume import CuratedResume
         cp_path = Path.home() / ".claude-candidate" / "candidate_profile.json"
         curated_path = Path.home() / ".claude-candidate" / "curated_resume.json"
         cp = CandidateProfile.from_json(cp_path.read_text())
-        curated = json.loads(curated_path.read_text())
+        curated = CuratedResume.from_file(curated_path)
         from claude_candidate.merger import merge_with_curated
-        return merge_with_curated(
-            cp,
-            curated.get("curated_skills", []),
-            total_years=curated.get("total_years_experience"),
-            education=curated.get("education", []),
-        )
+        return merge_with_curated(cp, curated)
     return MergedEvidenceProfile.from_json(profile_path.read_text())
 
 

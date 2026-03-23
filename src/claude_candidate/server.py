@@ -196,13 +196,17 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
         cp = CandidateProfile.model_validate(candidate_data)
 
         curated_data = profiles.get("curated_resume")
-        if curated_data and curated_data.get("curated_skills"):
-            return merge_with_curated(
-                cp,
-                curated_data["curated_skills"],
-                total_years=curated_data.get("total_years_experience"),
-                education=curated_data.get("education", []),
-            )
+        if curated_data:
+            from claude_candidate.schemas.curated_resume import CuratedResume
+            from pydantic import ValidationError
+            try:
+                curated = CuratedResume.model_validate(
+                    curated_data if isinstance(curated_data, dict)
+                    else curated_data.model_dump()
+                )
+                return merge_with_curated(cp, curated)
+            except ValidationError:
+                pass  # fall through to resume_profile or candidate_only
 
         resume_data = profiles.get("resume")
         if resume_data:

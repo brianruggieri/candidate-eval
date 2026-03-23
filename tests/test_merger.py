@@ -171,18 +171,27 @@ class TestMergedProfilePropagation:
 
 def test_merge_with_curated_resume(candidate_profile):
     """Merger should use curated_skills depths when available."""
+    from datetime import datetime
     from claude_candidate.merger import merge_with_curated
+    from claude_candidate.schemas.curated_resume import CuratedResume
+
     cp = candidate_profile
 
-    # Curated resume data (as would be loaded from curated_resume.json)
-    curated_skills = [
-        {"name": "typescript", "depth": "expert", "duration": "8 years",
-         "source_context": "Listed in skills section", "curated": True},
-        {"name": "python", "depth": "deep", "duration": "2 years",
-         "source_context": "Listed in skills section", "curated": True},
-    ]
+    curated = CuratedResume(
+        parsed_at=datetime.now(),
+        source_file_hash="test-hash",
+        source_format="pdf",
+        total_years_experience=12.4,
+        education=["B.S. Computer Science"],
+        curated_skills=[
+            {"name": "typescript", "depth": "expert", "duration": "8 years",
+             "source_context": "Listed in skills section"},
+            {"name": "python", "depth": "deep", "duration": "2 years",
+             "source_context": "Listed in skills section"},
+        ],
+    )
 
-    merged = merge_with_curated(cp, curated_skills, total_years=12.4, education=["B.S. Computer Science"])
+    merged = merge_with_curated(cp, curated)
 
     # typescript is in curated but NOT in candidate_profile.skills (which has python, claude-api, fastapi, etc)
     # So it should be resume_only

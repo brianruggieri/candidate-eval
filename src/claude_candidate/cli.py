@@ -1231,16 +1231,31 @@ def resume_onboard(resume_path: str, output: str | None, accept_defaults: bool) 
         f"{v} {k}" for k, v in sorted(depths.items(), key=lambda x: -x[1])
     ))
 
-    # Save curated profile
+    # Save curated profile — validate at write time to catch onboard bugs
+    from claude_candidate.schemas.curated_resume import CuratedResume
+
     output_path = Path(output) if output else Path.home() / ".claude-candidate" / "curated_resume.json"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    curated_data = raw_profile.model_dump(mode="json")
-    curated_data["curated_skills"] = curated_skills
-    curated_data["curated"] = True
+    curated_resume = CuratedResume(
+        profile_version=raw_profile.profile_version,
+        parsed_at=raw_profile.parsed_at,
+        source_file_hash=raw_profile.source_file_hash,
+        source_format=raw_profile.source_format,
+        name=raw_profile.name,
+        current_title=raw_profile.current_title,
+        location=raw_profile.location,
+        roles=raw_profile.roles,
+        total_years_experience=raw_profile.total_years_experience,
+        education=raw_profile.education,
+        certifications=raw_profile.certifications,
+        professional_summary=raw_profile.professional_summary,
+        curated_skills=curated_skills,
+        skills=[s.model_dump(mode="json") for s in raw_profile.skills],
+    )
 
     with open(output_path, "w") as f:
-        json.dump(curated_data, f, indent=2, default=str)
+        f.write(curated_resume.model_dump_json(indent=2))
 
     click.echo(f"Saved: {output_path}")
 
@@ -1437,23 +1452,30 @@ def _process_sessions(sessions_found: list[SessionInfo]) -> list[SessionSignals]
     return cached_results
 
 
-def _load_curated_resume() -> dict | None:
-    """Load curated resume data from ~/.claude-candidate/curated_resume.json.
+def _load_curated_resume():
+    """Load curated resume from ~/.claude-candidate/curated_resume.json.
 
-    Returns the parsed dict if the file exists and is valid JSON, None otherwise.
+    Returns validated CuratedResume if the file exists and is valid, None otherwise.
+    Raises click.ClickException on validation failure — typos and missing keys
+    should not silently degrade to sessions-only merge.
     """
+    from claude_candidate.schemas.curated_resume import CuratedResume
+    from pydantic import ValidationError
+
     curated_path = Path.home() / ".claude-candidate" / "curated_resume.json"
     if not curated_path.exists():
         return None
     try:
-        return json.loads(curated_path.read_text())
-    except (OSError, json.JSONDecodeError) as exc:
-        click.echo(
-            f"Warning: could not load curated resume from {curated_path}: {exc}. "
-            "Ignoring curated resume.",
-            err=True,
-        )
+        data = json.loads(curated_path.read_text())
+        return CuratedResume.model_validate(data)
+    except json.JSONDecodeError as exc:
+        click.echo(f"Warning: invalid JSON in {curated_path}: {exc}", err=True)
         return None
+    except ValidationError as exc:
+        raise click.ClickException(
+            f"Curated resume at {curated_path} failed validation:\n{exc}\n"
+            "Fix the file or re-run `resume onboard`."
+        )
 
 
 def _merge_profile(
@@ -1477,15 +1499,10 @@ def _merge_profile(
         merged = merge_profiles(cp, rp)
     else:
         curated = _load_curated_resume()
-        if curated and curated.get("curated_skills"):
+        if curated is not None:
             if not quiet:
                 click.echo("Using curated resume for merge")
-            merged = merge_with_curated(
-                cp,
-                curated["curated_skills"],
-                total_years=curated.get("total_years_experience"),
-                education=curated.get("education", []),
-            )
+            merged = merge_with_curated(cp, curated)
         else:
             if not quiet:
                 click.echo("No resume provided — using sessions only")
