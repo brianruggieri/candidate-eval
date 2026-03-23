@@ -235,6 +235,8 @@ body {
 .panel.discovery .panel-title { background: transparent; color: #15803d; }
 .panel.caution { background: #fffbeb; border-color: #fde68a; }
 .panel.caution .panel-title { background: transparent; color: #92400e; }
+.panel.eligibility { background: #f0f9ff; border-color: #bae6fd; }
+.panel.eligibility .panel-title { background: transparent; color: #0369a1; }
 
 .chip-row { padding: 6px 12px; display: flex; flex-wrap: wrap; gap: 4px; }
 .chip {

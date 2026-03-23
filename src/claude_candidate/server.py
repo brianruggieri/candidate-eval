@@ -744,7 +744,12 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
             '  - skill_mapping: array of strings (normalized skill names, e.g. ["python", "django"])\n'
             '  - priority: string (one of: must_have, strong_preference, nice_to_have, implied)\n'
             '  - years_experience: integer or null (e.g. 5 for "5+ years")\n'
-            '  - education_level: string or null (e.g. "bachelor", "master", "phd")\n\n'
+            '  - education_level: string or null (e.g. "bachelor", "master", "phd")\n'
+            '  - is_eligibility: boolean, true ONLY for non-skill logistical/eligibility requirements\n'
+            '    (work authorization, visa sponsorship, travel willingness, language proficiency,\n'
+            '    relocation, security clearance, mission/values alignment). False for technical skills,\n'
+            '    domain experience, and education requirements. Education (bachelor/master/PhD) is NOT\n'
+            '    eligibility. Split mixed requirements into separate entries.\n\n'
             "For requirements, extract every qualification, skill, or experience mentioned in the posting. "
             "Use must_have for requirements labeled required/must/essential, "
             "strong_preference for strongly preferred/highly desired, "
