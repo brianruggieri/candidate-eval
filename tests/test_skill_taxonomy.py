@@ -336,16 +336,12 @@ def test_canonical_data_engineering(taxonomy: SkillTaxonomy) -> None:
     """data-engineering is a new entry."""
     assert taxonomy.canonicalize("data-engineering") == "data-engineering"
     assert taxonomy.canonicalize("data engineering") == "data-engineering"
-    assert taxonomy.get_category("data-engineering") == "domain"
+    assert taxonomy.get_category("data-engineering") == "practice"
 
 
 # ---------------------------------------------------------------------------
 # Alias removals — ensure old bad mappings are gone
 # ---------------------------------------------------------------------------
-
-def test_curiosity_not_adaptability(taxonomy: SkillTaxonomy) -> None:
-    """curiosity should no longer resolve to adaptability."""
-    assert taxonomy.canonicalize("curiosity") != "adaptability"
 
 
 def test_ai_research_not_adaptability(taxonomy: SkillTaxonomy) -> None:
@@ -407,7 +403,7 @@ def test_alias_production_deployment(taxonomy: SkillTaxonomy) -> None:
 
 
 def test_alias_web_architecture(taxonomy: SkillTaxonomy) -> None:
-    assert taxonomy.canonicalize("web-architecture") == "frontend-development"
+    assert taxonomy.canonicalize("web-architecture") == "system-design"
 
 
 def test_alias_cross_browser_development(taxonomy: SkillTaxonomy) -> None:
@@ -442,3 +438,144 @@ def test_fuzzy_rejects_false_positives(taxonomy: SkillTaxonomy) -> None:
     # (it should exact-match to production-systems via new alias)
     result = taxonomy.match("production-deployment")
     assert result == "production-systems"
+
+
+# ---------------------------------------------------------------------------
+# Plan 10: New taxonomy entries — alias resolution, category, relationships
+# ---------------------------------------------------------------------------
+
+def test_alias_rtk_query_to_redux(taxonomy: SkillTaxonomy) -> None:
+    assert taxonomy.canonicalize("rtk_query") == "redux"
+    assert taxonomy.canonicalize("rtk-query") == "redux"
+    assert taxonomy.canonicalize("redux-toolkit") == "redux"
+
+
+def test_alias_react_query_to_tanstack(taxonomy: SkillTaxonomy) -> None:
+    assert taxonomy.canonicalize("react-query") == "tanstack"
+    assert taxonomy.canonicalize("tanstack-query") == "tanstack"
+
+
+def test_alias_webassembly_to_wasm(taxonomy: SkillTaxonomy) -> None:
+    assert taxonomy.canonicalize("webassembly") == "wasm"
+    assert taxonomy.canonicalize("web-assembly") == "wasm"
+
+
+def test_category_e_commerce(taxonomy: SkillTaxonomy) -> None:
+    assert taxonomy.get_category("e-commerce") == "domain"
+    assert taxonomy.canonicalize("ecommerce") == "e-commerce"
+
+
+def test_category_state_management(taxonomy: SkillTaxonomy) -> None:
+    assert taxonomy.get_category("state-management") == "practice"
+    assert taxonomy.canonicalize("state management") == "state-management"
+
+
+def test_category_functional_programming(taxonomy: SkillTaxonomy) -> None:
+    assert taxonomy.get_category("functional-programming") == "practice"
+    assert taxonomy.canonicalize("fp") == "functional-programming"
+    assert taxonomy.canonicalize("immutability") == "functional-programming"
+
+
+def test_category_concurrent_programming(taxonomy: SkillTaxonomy) -> None:
+    assert taxonomy.get_category("concurrent-programming") == "practice"
+    assert taxonomy.canonicalize("concurrency") == "concurrent-programming"
+    assert taxonomy.canonicalize("multithreading") == "concurrent-programming"
+    assert taxonomy.canonicalize("parallelism") == "concurrent-programming"
+
+
+def test_alias_a11y_to_accessibility(taxonomy: SkillTaxonomy) -> None:
+    assert taxonomy.canonicalize("a11y") == "accessibility"
+    assert taxonomy.canonicalize("wcag") == "accessibility"
+    assert taxonomy.canonicalize("aria") == "accessibility"
+
+
+def test_ux_engineering_resolves_correctly(taxonomy: SkillTaxonomy) -> None:
+    assert taxonomy.canonicalize("ux-engineering") == "ux-design"
+    assert taxonomy.canonicalize("ux_design") == "ux-design"
+    assert taxonomy.canonicalize("product-design") == "ux-design"
+    assert taxonomy.canonicalize("hci") == "ux-design"
+
+
+def test_ui_design_resolves_correctly(taxonomy: SkillTaxonomy) -> None:
+    assert taxonomy.canonicalize("ui design") == "ux-design"
+    assert taxonomy.canonicalize("ui-design") == "ux-design"
+
+
+def test_alias_user_research(taxonomy: SkillTaxonomy) -> None:
+    assert taxonomy.canonicalize("user research") == "user-research"
+    assert taxonomy.canonicalize("ux-research") == "user-research"
+
+
+def test_alias_sandboxing(taxonomy: SkillTaxonomy) -> None:
+    assert taxonomy.canonicalize("sandbox") == "sandboxing"
+    assert taxonomy.canonicalize("isolation") == "sandboxing"
+
+
+def test_alias_generative_ai(taxonomy: SkillTaxonomy) -> None:
+    assert taxonomy.canonicalize("genai") == "generative-ai"
+    assert taxonomy.canonicalize("generative ai") == "generative-ai"
+    assert taxonomy.canonicalize("applied-ai") == "generative-ai"
+
+
+def test_alias_react_native(taxonomy: SkillTaxonomy) -> None:
+    assert taxonomy.canonicalize("react native") == "react-native"
+    assert taxonomy.canonicalize("mobile app development") == "react-native"
+
+
+def test_category_animation(taxonomy: SkillTaxonomy) -> None:
+    assert taxonomy.get_category("animation") == "domain"
+    assert taxonomy.canonicalize("web-animation") == "animation"
+    assert taxonomy.canonicalize("motion-design") == "animation"
+    assert taxonomy.canonicalize("motion-graphics") == "animation"
+
+
+def test_relationship_redux_parent_react(taxonomy: SkillTaxonomy) -> None:
+    """redux should have react as its parent."""
+    entry = taxonomy._skills.get("redux")
+    assert entry is not None
+    assert entry.get("parent") == "react"
+
+
+def test_relationship_generative_ai_parent_ml(taxonomy: SkillTaxonomy) -> None:
+    """generative-ai should have machine-learning as its parent."""
+    entry = taxonomy._skills.get("generative-ai")
+    assert entry is not None
+    assert entry.get("parent") == "machine-learning"
+
+
+def test_data_engineering_aliases(taxonomy: SkillTaxonomy) -> None:
+    """New data-engineering aliases resolve correctly."""
+    assert taxonomy.canonicalize("data-modeling") == "data-engineering"
+    assert taxonomy.canonicalize("data-warehousing") == "data-engineering"
+    assert taxonomy.canonicalize("pipeline-design") == "data-engineering"
+
+
+def test_machine_learning_new_aliases(taxonomy: SkillTaxonomy) -> None:
+    """ML aliases should route to machine-learning; LLM fine-tuning to llm."""
+    assert taxonomy.canonicalize("diffusion-models") == "machine-learning"
+    assert taxonomy.canonicalize("model-training") == "machine-learning"
+    # LLM-specific fine-tuning techniques route to llm
+    assert taxonomy.canonicalize("fine_tuning") == "llm"
+    assert taxonomy.canonicalize("lora") == "llm"
+    assert taxonomy.canonicalize("peft") == "llm"
+    assert taxonomy.canonicalize("rlhf") == "llm"
+
+
+def test_agentic_workflows_new_aliases(taxonomy: SkillTaxonomy) -> None:
+    """New agentic aliases should route to agentic-workflows."""
+    assert taxonomy.canonicalize("function-calling") == "agentic-workflows"
+    assert taxonomy.canonicalize("mcp_servers") == "agentic-workflows"
+    assert taxonomy.canonicalize("agentic-systems") == "agentic-workflows"
+
+
+def test_adaptability_new_aliases(taxonomy: SkillTaxonomy) -> None:
+    """New soft-skill aliases route to adaptability."""
+    assert taxonomy.canonicalize("curiosity") == "adaptability"
+    assert taxonomy.canonicalize("mission_driven") == "adaptability"
+    # mission_alignment is NOT an alias — it's too common as a posting requirement
+    assert taxonomy.canonicalize("mission_alignment") != "adaptability"
+
+
+def test_web_architecture_now_system_design(taxonomy: SkillTaxonomy) -> None:
+    """web-architecture moved from frontend-development to system-design."""
+    assert taxonomy.canonicalize("web-architecture") == "system-design"
