@@ -42,6 +42,45 @@ MAX_BULLETS = 8
 # Maximum strong matches to highlight in cover letter body
 MAX_COVER_LETTER_HIGHLIGHTS = 3
 
+# ---------------------------------------------------------------------------
+# Domain-mismatch detection
+# ---------------------------------------------------------------------------
+
+DOMAIN_KEYWORDS: frozenset[str] = frozenset({
+	"healthcare",
+	"financial",
+	"fintech",
+	"regulated",
+	"hipaa",
+	"compliance",
+	"legal",
+	"insurance",
+	"pharma",
+})
+
+GENERAL_SKILLS_PRONE_TO_DOMAIN_MISMATCH: frozenset[str] = frozenset({
+	"security",
+	"testing",
+	"authentication",
+	"compliance",
+	"documentation",
+})
+
+
+def _is_domain_mismatch(match: SkillMatchDetail) -> bool:
+	"""Return True when a general skill has matched a domain-specific requirement.
+
+	False positives (claiming domain experience the evidence doesn't support) occur
+	when a general-purpose skill like 'security' matches a requirement that names a
+	specific regulated domain (healthcare, financial services, etc.).
+	"""
+	if match.matched_skill is None:
+		return False
+	if match.matched_skill not in GENERAL_SKILLS_PRONE_TO_DOMAIN_MISMATCH:
+		return False
+	req_lower = match.requirement.lower()
+	return any(kw in req_lower for kw in DOMAIN_KEYWORDS)
+
 
 # ---------------------------------------------------------------------------
 # Claude CLI integration
@@ -63,13 +102,19 @@ def _build_bullet_prompt(
     profile: MergedEvidenceProfile | None,
 ) -> str:
     """Build a prompt for Claude to generate resume bullets."""
-    matches_text = _format_matches_for_prompt(assessment.skill_matches)
+    matches_text = _format_matches_for_prompt(
+        assessment.skill_matches, strip_domain_mismatch=True
+    )
     return (
         f"Generate tailored resume bullet points for a {assessment.job_title} "
         f"role at {assessment.company_name}.\n\n"
         f"Skill matches:\n{matches_text}\n\n"
         "Format: action verb + specific achievement + technology context. "
-        "Return only the bullet points, one per line, prefixed with a dash."
+        "Return only the bullet points, one per line, prefixed with a dash.\n\n"
+        "Important: Do not claim specific domain experience in named regulated "
+        "verticals unless the candidate_evidence text explicitly references that "
+        "domain. If the matched skill is a general-purpose skill, describe what "
+        "the evidence demonstrates — not what the requirement mentions."
     )
 
 
@@ -78,14 +123,20 @@ def _build_cover_letter_prompt(
     profile: MergedEvidenceProfile | None,
 ) -> str:
     """Build a prompt for Claude to generate a cover letter."""
-    matches_text = _format_matches_for_prompt(assessment.skill_matches)
+    matches_text = _format_matches_for_prompt(
+        assessment.skill_matches, strip_domain_mismatch=True
+    )
     return (
         f"Write a professional cover letter for a {assessment.job_title} "
         f"position at {assessment.company_name}.\n\n"
         f"Candidate fit: {assessment.overall_summary}\n"
         f"Skill matches:\n{matches_text}\n\n"
         "Tone: professional but authentic. Length: 300-500 words. "
-        "Reference specific skills and evidence. Do not use placeholders."
+        "Reference specific skills and evidence. Do not use placeholders.\n\n"
+        "Important: Do not claim specific domain experience in named regulated "
+        "verticals unless the candidate_evidence text explicitly references that "
+        "domain. If the matched skill is a general-purpose skill, describe what "
+        "the evidence demonstrates — not what the requirement mentions."
     )
 
 
@@ -104,13 +155,21 @@ def _build_interview_prompt(
     )
 
 
-def _format_matches_for_prompt(matches: list[SkillMatchDetail]) -> str:
+def _format_matches_for_prompt(
+    matches: list[SkillMatchDetail],
+    *,
+    strip_domain_mismatch: bool = False,
+) -> str:
     """Format skill matches into a readable string for prompts."""
     lines = []
     for m in matches:
-        lines.append(
-            f"- {m.requirement} ({m.match_status}): {m.candidate_evidence}"
-        )
+        if strip_domain_mismatch and _is_domain_mismatch(m):
+            # Replace requirement text with evidence-only framing to prevent
+            # the model from echoing domain claims the evidence doesn't support.
+            req_text = m.candidate_evidence
+        else:
+            req_text = m.requirement
+        lines.append(f"- {req_text} ({m.match_status}): {m.candidate_evidence}")
     return "\n".join(lines)
 
 

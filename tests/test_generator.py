@@ -10,6 +10,7 @@ import pytest
 
 from claude_candidate.claude_cli import ClaudeCLIError
 from claude_candidate.generator import (
+    _is_domain_mismatch,
     generate_cover_letter,
     generate_interview_prep,
     generate_narrative_verdict,
@@ -423,3 +424,89 @@ class TestGenerateNarrativeVerdict:
         with patch("claude_candidate.generator.call_claude", return_value=SAMPLE_NARRATIVE_RESPONSE):
             result = generate_narrative_verdict(SAMPLE_ASSESSMENT_DATA, {})
         assert "narrative" in result
+
+
+# ---------------------------------------------------------------------------
+# TestDomainMismatch / TestBulletPromptDomainFilter
+# ---------------------------------------------------------------------------
+
+
+def _make_match(requirement: str, matched_skill: str | None) -> SkillMatchDetail:
+    return SkillMatchDetail(
+        requirement=requirement,
+        priority="must_have",
+        match_status="strong_match",
+        candidate_evidence="security practices: 138 sessions, expert depth",
+        evidence_source=EvidenceSource.SESSIONS_ONLY,
+        confidence=0.85,
+        matched_skill=matched_skill,
+    )
+
+
+class TestDomainMismatch:
+    def test_domain_mismatch_detected(self):
+        """security matched to healthcare requirement is a mismatch."""
+        match = _make_match(
+            "Background in highly regulated industries — healthcare or financial services",
+            "security",
+        )
+        assert _is_domain_mismatch(match) is True
+
+    def test_no_mismatch_on_domain_skill(self):
+        """A non-general skill matching a domain req is not flagged."""
+        match = _make_match(
+            "Experience in healthcare software",
+            "healthcare-compliance",
+        )
+        assert _is_domain_mismatch(match) is False
+
+    def test_no_mismatch_on_generic_req(self):
+        """security matched to a plain security requirement is fine."""
+        match = _make_match(
+            "Strong security practices and auth experience",
+            "security",
+        )
+        assert _is_domain_mismatch(match) is False
+
+    def test_no_mismatch_when_matched_skill_is_none(self):
+        """No matched_skill → no false positive."""
+        match = _make_match(
+            "Background in regulated industries",
+            None,
+        )
+        assert _is_domain_mismatch(match) is False
+
+
+class TestBulletPromptDomainFilter:
+    def test_domain_framing_stripped_from_mismatch(self):
+        """When domain mismatch: prompt uses evidence text, not requirement text."""
+        mismatch_match = _make_match(
+            "Background in highly regulated industries — healthcare or financial services",
+            "security",
+        )
+        clean_match = _make_match(
+            "Strong Python proficiency",
+            "python",
+        )
+        assessment = _make_assessment(skill_matches=[mismatch_match, clean_match])
+
+        with patch("claude_candidate.generator.call_claude", return_value="- Bullet") as mock_call:
+            generate_resume_bullets(assessment=assessment)
+            prompt = mock_call.call_args[0][0]
+
+        # The domain framing should NOT appear in the prompt
+        assert "healthcare" not in prompt.lower()
+        assert "financial services" not in prompt.lower()
+        # Evidence text SHOULD appear
+        assert "138 sessions" in prompt
+
+    def test_clean_match_not_stripped(self):
+        """Non-mismatch requirements are passed through unchanged."""
+        clean_match = _make_match("Strong Python proficiency", "python")
+        assessment = _make_assessment(skill_matches=[clean_match])
+
+        with patch("claude_candidate.generator.call_claude", return_value="- Bullet") as mock_call:
+            generate_resume_bullets(assessment=assessment)
+            prompt = mock_call.call_args[0][0]
+
+        assert "Strong Python proficiency" in prompt
