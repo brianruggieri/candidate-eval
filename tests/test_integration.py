@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from unittest.mock import patch
 
+import pytest
 from click.testing import CliRunner
 
 from claude_candidate.cli import main
@@ -187,6 +188,7 @@ class TestEndToEndFlow:
         assert reloaded.company_name == "AI Tools Corp"
 
 
+@pytest.mark.slow
 class TestJobParseCommand:
     def test_parse_job_posting(self, fixtures_dir, tmp_path):
         posting = fixtures_dir / "sample_job_posting.txt"
@@ -431,6 +433,7 @@ class TestShortlistCommand:
 
 
 class TestSessionsScanCommand:
+    @pytest.mark.slow
     def test_scan_with_fixtures(self, tmp_path, fixtures_dir):
         """Scan fixture session files and produce a CandidateProfile."""
         sessions_dir = fixtures_dir / "sessions"
@@ -465,6 +468,7 @@ class TestSessionsScanCommand:
         assert result.exit_code == 0
         assert "No sessions found" in result.output
 
+    @pytest.mark.slow
     def test_scan_session_dir_skips_whitelist(self, tmp_path, fixtures_dir):
         """--session-dir bypasses whitelist entirely — no prompt, no whitelist required."""
         sessions_dir = fixtures_dir / "sessions"

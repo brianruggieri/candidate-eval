@@ -71,3 +71,6 @@ line-length = 100
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "slow: integration tests that spawn subprocesses or call real APIs (skip with -m 'not slow')",
+]

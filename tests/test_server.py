@@ -321,6 +321,7 @@ class TestAssessPartialEndpoint:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.slow
 class TestAssessFullEndpoint:
 	async def test_assess_full_not_found_returns_404(self, client_with_profile: AsyncClient):
 		resp = await client_with_profile.post(

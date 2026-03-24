@@ -492,6 +492,7 @@ class TestFallback:
 		selected_projects = {evidence[i].project_context for i in indices}
 		assert len(selected_projects) >= 2
 
+	@pytest.mark.slow
 	def test_claude_failure_triggers_fallback(self):
 		"""When Claude call raises, fallback to local heuristic."""
 		profile = _make_profile(skill_evidence_counts=[60])
