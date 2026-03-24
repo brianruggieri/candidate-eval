@@ -72,7 +72,7 @@ Job posting → requirement_parser → QuickRequirement[]
 
 ## Conventions
 
-- **Indentation:** 4-space indentation (ruff enforced; tabs only in legacy files)
+- **Indentation:** Tabs (`ruff format` enforced via `[tool.ruff.format] indent-style = "tab"`)
 - **Line length:** 100 (ruff)
 - **Commits:** Brief imperative sentences. No Co-Authored-By trailers.
 - **Tests:** Real data strongly preferred over mocks. Use fixture files in `tests/fixtures/`.

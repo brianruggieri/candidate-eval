@@ -2,6 +2,7 @@
 Shared interfaces for the three-extractor architecture.
 All extractors produce SignalResult objects. The SignalMerger consumes them.
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -15,6 +16,7 @@ from claude_candidate.schemas.candidate_profile import DepthLevel, PatternType
 
 class NormalizedSession(BaseModel):
 	"""Session-level container wrapping NormalizedMessage list with metadata."""
+
 	model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
 	session_id: str
@@ -27,22 +29,36 @@ class NormalizedSession(BaseModel):
 
 class SkillSignal(BaseModel):
 	"""A single skill detection from one extractor."""
+
 	model_config = ConfigDict(frozen=True)
 
 	canonical_name: str
 	source: Literal[
-		"file_extension", "content_pattern", "import_statement",
-		"package_command", "tool_usage", "agent_dispatch",
-		"skill_invocation", "user_message", "git_workflow",
+		"file_extension",
+		"content_pattern",
+		"import_statement",
+		"package_command",
+		"tool_usage",
+		"agent_dispatch",
+		"skill_invocation",
+		"user_message",
+		"git_workflow",
 		"quality_signal",
 	]
 	confidence: float = Field(ge=0.0, le=1.0, default=0.7)
 	depth_hint: DepthLevel | None = None
 	evidence_snippet: str = Field(max_length=500)
 	evidence_type: Literal[
-		"direct_usage", "architecture_decision", "debugging",
-		"teaching", "evaluation", "integration", "refactor",
-		"testing", "review", "planning",
+		"direct_usage",
+		"architecture_decision",
+		"debugging",
+		"teaching",
+		"evaluation",
+		"integration",
+		"refactor",
+		"testing",
+		"review",
+		"planning",
 	] = "direct_usage"
 	metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -50,6 +66,7 @@ class SkillSignal(BaseModel):
 class PatternSignal(BaseModel):
 	"""A behavioral or communication pattern detection.
 	Does NOT carry frequency/strength — computed by SignalMerger."""
+
 	model_config = ConfigDict(frozen=True)
 
 	pattern_type: PatternType
@@ -62,6 +79,7 @@ class PatternSignal(BaseModel):
 
 class ProjectSignal(BaseModel):
 	"""Project-level enrichment from a single session."""
+
 	model_config = ConfigDict(frozen=True)
 
 	key_decisions: list[str] = Field(default_factory=list)
@@ -71,6 +89,7 @@ class ProjectSignal(BaseModel):
 
 class SignalResult(BaseModel):
 	"""One extraction layer's output for a single session."""
+
 	model_config = ConfigDict(frozen=True)
 
 	session_id: str
@@ -85,5 +104,6 @@ class SignalResult(BaseModel):
 
 class ExtractorProtocol(Protocol):
 	"""Contract for all three extractors."""
+
 	def extract_session(self, session: NormalizedSession) -> SignalResult: ...
 	def name(self) -> str: ...

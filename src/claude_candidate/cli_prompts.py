@@ -3,6 +3,7 @@
 This module is the designated home for interactive CLI prompts used by multiple
 commands (e.g. both `sessions scan` and `whitelist setup`).
 """
+
 from __future__ import annotations
 
 from datetime import datetime

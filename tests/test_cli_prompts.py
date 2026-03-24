@@ -16,6 +16,7 @@ from claude_candidate.whitelist import WhitelistConfig
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_project(display_name: str, session_count: int = 10) -> ProjectSummary:
 	"""Create a minimal ProjectSummary for testing."""
 	now = time.time()
@@ -61,6 +62,7 @@ def _run_selection(
 # _human_size
 # ---------------------------------------------------------------------------
 
+
 class TestHumanSize:
 	def test_bytes(self) -> None:
 		assert _human_size(500) == "500 B"
@@ -72,7 +74,7 @@ class TestHumanSize:
 		assert _human_size(1024 * 1024) == "1.0 MB"
 
 	def test_gigabytes(self) -> None:
-		assert _human_size(1024 ** 3) == "1.0 GB"
+		assert _human_size(1024**3) == "1.0 GB"
 
 	def test_large_megabytes(self) -> None:
 		size = int(312 * 1024 * 1024)
@@ -83,6 +85,7 @@ class TestHumanSize:
 # ---------------------------------------------------------------------------
 # interactive_whitelist_selection
 # ---------------------------------------------------------------------------
+
 
 class TestInteractiveWhitelistSelection:
 	def setup_method(self):

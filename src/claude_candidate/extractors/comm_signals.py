@@ -110,7 +110,8 @@ _PLAN_REF_RE = re.compile(
 
 # Context reset patterns (slash commands that reset/compress context)
 _CONTEXT_RESET_RE = re.compile(
-	r"(/clear|/compact|/reset)", re.IGNORECASE,
+	r"(/clear|/compact|/reset)",
+	re.IGNORECASE,
 )
 
 # Handoff file patterns (for Write/Edit tool_use detection)
@@ -148,83 +149,91 @@ class CommSignalExtractor:
 		patterns: list[PatternSignal] = []
 
 		if steering["steering_count"] > 0:
-			patterns.append(PatternSignal(
-				pattern_type=PatternType.COMMUNICATION_CLARITY,
-				session_ids=[session.session_id],
-				confidence=min(0.6 + steering["steering_count"] * 0.1, 0.95),
-				description=(
-					f"Steering precision: {steering['steering_count']} concise "
-					f"redirections after verbose assistant output"
-				),
-				evidence_snippet=steering["evidence"][:500],
-				metadata={
-					"steering_count": steering["steering_count"],
-					"steering_precision_ratio": steering["steering_precision_ratio"],
-				},
-			))
+			patterns.append(
+				PatternSignal(
+					pattern_type=PatternType.COMMUNICATION_CLARITY,
+					session_ids=[session.session_id],
+					confidence=min(0.6 + steering["steering_count"] * 0.1, 0.95),
+					description=(
+						f"Steering precision: {steering['steering_count']} concise "
+						f"redirections after verbose assistant output"
+					),
+					evidence_snippet=steering["evidence"][:500],
+					metadata={
+						"steering_count": steering["steering_count"],
+						"steering_precision_ratio": steering["steering_precision_ratio"],
+					},
+				)
+			)
 
 		if scope["deferral_count"] > 0 or scope["phase_gates"] > 0 or scope["clean_exits"] > 0:
 			total = scope["deferral_count"] + scope["phase_gates"] + scope["clean_exits"]
-			patterns.append(PatternSignal(
-				pattern_type=PatternType.SCOPE_MANAGEMENT,
-				session_ids=[session.session_id],
-				confidence=min(0.6 + total * 0.1, 0.95),
-				description=(
-					f"Scope control: {scope['deferral_count']} deferrals, "
-					f"{scope['phase_gates']} phase gates, "
-					f"{scope['clean_exits']} clean exits"
-				),
-				evidence_snippet=scope["evidence"][:500],
-				metadata={
-					"deferral_count": scope["deferral_count"],
-					"phase_gates": scope["phase_gates"],
-					"clean_exits": scope["clean_exits"],
-				},
-			))
+			patterns.append(
+				PatternSignal(
+					pattern_type=PatternType.SCOPE_MANAGEMENT,
+					session_ids=[session.session_id],
+					confidence=min(0.6 + total * 0.1, 0.95),
+					description=(
+						f"Scope control: {scope['deferral_count']} deferrals, "
+						f"{scope['phase_gates']} phase gates, "
+						f"{scope['clean_exits']} clean exits"
+					),
+					evidence_snippet=scope["evidence"][:500],
+					metadata={
+						"deferral_count": scope["deferral_count"],
+						"phase_gates": scope["phase_gates"],
+						"clean_exits": scope["clean_exits"],
+					},
+				)
+			)
 
 		if meta["grill_count"] > 0 or meta["honesty_requests"] > 0:
 			total = (
-				meta["grill_count"] + meta["honesty_requests"]
-				+ meta["feedback_invitations"] + meta["self_assessments"]
+				meta["grill_count"]
+				+ meta["honesty_requests"]
+				+ meta["feedback_invitations"]
+				+ meta["self_assessments"]
 			)
-			patterns.append(PatternSignal(
-				pattern_type=PatternType.META_COGNITION,
-				session_ids=[session.session_id],
-				confidence=min(0.6 + total * 0.1, 0.95),
-				description=(
-					f"Adversarial self-review: {meta['grill_count']} grill requests, "
-					f"{meta['honesty_requests']} honesty requests"
-				),
-				evidence_snippet=meta["evidence"][:500],
-				metadata={
-					"grill_count": meta["grill_count"],
-					"honesty_requests": meta["honesty_requests"],
-					"feedback_invitations": meta["feedback_invitations"],
-					"self_assessments": meta["self_assessments"],
-				},
-			))
+			patterns.append(
+				PatternSignal(
+					pattern_type=PatternType.META_COGNITION,
+					session_ids=[session.session_id],
+					confidence=min(0.6 + total * 0.1, 0.95),
+					description=(
+						f"Adversarial self-review: {meta['grill_count']} grill requests, "
+						f"{meta['honesty_requests']} honesty requests"
+					),
+					evidence_snippet=meta["evidence"][:500],
+					metadata={
+						"grill_count": meta["grill_count"],
+						"honesty_requests": meta["honesty_requests"],
+						"feedback_invitations": meta["feedback_invitations"],
+						"self_assessments": meta["self_assessments"],
+					},
+				)
+			)
 
 		if handoff["handoff_count"] > 0 or handoff["plan_references"] > 0:
 			total = (
-				handoff["handoff_count"]
-				+ handoff["context_resets"]
-				+ handoff["plan_references"]
+				handoff["handoff_count"] + handoff["context_resets"] + handoff["plan_references"]
 			)
-			patterns.append(PatternSignal(
-				pattern_type=PatternType.DOCUMENTATION_DRIVEN,
-				session_ids=[session.session_id],
-				confidence=min(0.6 + total * 0.1, 0.95),
-				description=(
-					f"Handoff discipline: {handoff['handoff_count']} handoffs, "
-					f"{handoff['plan_references']} plan references"
-				),
-				evidence_snippet=handoff["evidence"][:500],
-				metadata={
-					"handoff_count": handoff["handoff_count"],
-					"context_resets": handoff["context_resets"],
-					"plan_references": handoff["plan_references"],
-				},
-			))
+			patterns.append(
+				PatternSignal(
+					pattern_type=PatternType.DOCUMENTATION_DRIVEN,
+					session_ids=[session.session_id],
+					confidence=min(0.6 + total * 0.1, 0.95),
+					description=(
+						f"Handoff discipline: {handoff['handoff_count']} handoffs, "
+						f"{handoff['plan_references']} plan references"
+					),
+					evidence_snippet=handoff["evidence"][:500],
+					metadata={
+						"handoff_count": handoff["handoff_count"],
+						"context_resets": handoff["context_resets"],
+						"plan_references": handoff["plan_references"],
+					},
+				)
+			)
 
 		# --- Metrics ---
 		metrics: dict[str, float] = {
@@ -250,7 +259,8 @@ class CommSignalExtractor:
 	# -------------------------------------------------------------------
 
 	def _detect_steering(
-		self, messages: list[NormalizedMessage],
+		self,
+		messages: list[NormalizedMessage],
 	) -> dict[str, Any]:
 		"""Detect short redirections after long assistant output."""
 		steering_count = 0
@@ -268,17 +278,11 @@ class CommSignalExtractor:
 			user_text = _get_text(next_msg)
 			assistant_len = _text_length(messages[i])
 
-			if (
-				len(user_text) < 150
-				and assistant_len > 1000
-				and _REDIRECT_RE.search(user_text)
-			):
+			if len(user_text) < 150 and assistant_len > 1000 and _REDIRECT_RE.search(user_text):
 				steering_count += 1
 				evidence_parts.append(user_text)
 
-		precision_ratio = (
-			steering_count / total_pairs if total_pairs > 0 else 0.0
-		)
+		precision_ratio = steering_count / total_pairs if total_pairs > 0 else 0.0
 
 		return {
 			"steering_count": steering_count,
@@ -287,7 +291,8 @@ class CommSignalExtractor:
 		}
 
 	def _detect_scope_management(
-		self, human_messages: list[NormalizedMessage],
+		self,
+		human_messages: list[NormalizedMessage],
 	) -> dict[str, Any]:
 		"""Detect deferrals, phase-gating, and session boundary language."""
 		deferral_count = 0
@@ -317,7 +322,8 @@ class CommSignalExtractor:
 		}
 
 	def _detect_adversarial_review(
-		self, human_messages: list[NormalizedMessage],
+		self,
+		human_messages: list[NormalizedMessage],
 	) -> dict[str, Any]:
 		"""Detect grill-me, honesty requests, and feedback invitations."""
 		grill_count = 0

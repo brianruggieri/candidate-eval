@@ -117,9 +117,7 @@ class TestPatternDetection:
 		# the real fixture runs without error and produces patterns.
 		assert isinstance(pattern_types, set)
 
-	def test_iterative_refinement_synthetic(
-		self, extractor: BehaviorSignalExtractor
-	):
+	def test_iterative_refinement_synthetic(self, extractor: BehaviorSignalExtractor):
 		"""Synthetic session with 2 Writes + 1 Bash → ITERATIVE_REFINEMENT."""
 		msgs: list[NormalizedMessage] = [
 			{
@@ -168,8 +166,7 @@ class TestPatternDetection:
 		assert PatternType.SYSTEMATIC_DEBUGGING in pattern_types
 		# Check evidence type hint
 		debug_patterns = [
-			p for p in result.patterns
-			if p.pattern_type == PatternType.SYSTEMATIC_DEBUGGING
+			p for p in result.patterns if p.pattern_type == PatternType.SYSTEMATIC_DEBUGGING
 		]
 		assert debug_patterns[0].confidence >= 0.7
 
@@ -318,8 +315,7 @@ class TestAgentOrchestration:
 		assert PatternType.TOOL_SELECTION in pattern_types
 		# Also check that skill invocation appears in agentic-workflows
 		inv_signals = [
-			s for s in result.skills.get("agentic-workflows", [])
-			if s.source == "skill_invocation"
+			s for s in result.skills.get("agentic-workflows", []) if s.source == "skill_invocation"
 		]
 		assert len(inv_signals) >= 1
 
@@ -353,10 +349,7 @@ class TestGitWorkflow:
 		"""git worktree command → advanced git signal with DEEP depth."""
 		result = extractor.extract_session(agent_session)
 		git_signals = result.skills["git"]
-		worktree_signals = [
-			s for s in git_signals
-			if s.depth_hint == DepthLevel.DEEP
-		]
+		worktree_signals = [s for s in git_signals if s.depth_hint == DepthLevel.DEEP]
 		assert len(worktree_signals) >= 1
 		assert result.metrics["worktree_usage"] == 1.0
 
@@ -367,9 +360,7 @@ class TestGitWorkflow:
 		result = extractor.extract_session(agent_session)
 		assert "ci-cd" in result.skills
 
-	def test_branch_type_classification(
-		self, extractor: BehaviorSignalExtractor
-	):
+	def test_branch_type_classification(self, extractor: BehaviorSignalExtractor):
 		"""Branch type classified from prefix."""
 		ext = extractor
 		assert ext._classify_branch("feat/new-feature") == "feature"
@@ -386,9 +377,7 @@ class TestGitWorkflow:
 
 
 class TestQualitySignals:
-	def test_security_detection_from_file_paths(
-		self, extractor: BehaviorSignalExtractor
-	):
+	def test_security_detection_from_file_paths(self, extractor: BehaviorSignalExtractor):
 		"""File paths with 'sanitiz'/'secret'/'auth' → security skill."""
 		msgs: list[NormalizedMessage] = [
 			{
@@ -446,12 +435,14 @@ class TestEvidenceTypes:
 		"""Debugging sequence pattern has 'debugging' in description context."""
 		result = extractor.extract_session(agent_session)
 		debug_patterns = [
-			p for p in result.patterns
-			if p.pattern_type == PatternType.SYSTEMATIC_DEBUGGING
+			p for p in result.patterns if p.pattern_type == PatternType.SYSTEMATIC_DEBUGGING
 		]
 		assert len(debug_patterns) >= 1
 		# The pattern itself is "debugging" evidence
-		assert "Grep" in debug_patterns[0].description or "debug" in debug_patterns[0].description.lower()
+		assert (
+			"Grep" in debug_patterns[0].description
+			or "debug" in debug_patterns[0].description.lower()
+		)
 
 	def test_testing_evidence_type(
 		self, extractor: BehaviorSignalExtractor, agent_session: NormalizedSession
@@ -476,7 +467,5 @@ class TestEvidenceTypes:
 		"""Agent dispatch produces evidence_type 'architecture_decision'."""
 		result = extractor.extract_session(agent_session)
 		agent_signals = result.skills.get("agentic-workflows", [])
-		arch_signals = [
-			s for s in agent_signals if s.evidence_type == "architecture_decision"
-		]
+		arch_signals = [s for s in agent_signals if s.evidence_type == "architecture_decision"]
 		assert len(arch_signals) >= 1

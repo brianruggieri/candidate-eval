@@ -1,4 +1,5 @@
 """Embedding-based evidence snippet relevance scoring."""
+
 from __future__ import annotations
 
 
@@ -7,6 +8,7 @@ class EvidenceSelector:
 
 	def __init__(self):
 		from sentence_transformers import SentenceTransformer
+
 		self._model = SentenceTransformer("all-MiniLM-L6-v2")
 
 	def select_best_snippet(
@@ -23,10 +25,7 @@ class EvidenceSelector:
 		from sklearn.metrics.pairwise import cosine_similarity
 
 		# Pre-filter
-		filtered = [
-			s for s in candidates
-			if len(s) >= 100 and not s.strip().endswith("?")
-		]
+		filtered = [s for s in candidates if len(s) >= 100 and not s.strip().endswith("?")]
 		if not filtered:
 			return candidates[0] if candidates else None
 

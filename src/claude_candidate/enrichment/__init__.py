@@ -6,6 +6,7 @@ def enrichment_available() -> bool:
 	try:
 		import torch  # noqa: F401
 		import sentence_transformers  # noqa: F401
+
 		return True
 	except ImportError:
 		return False

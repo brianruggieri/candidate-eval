@@ -14,6 +14,7 @@ from claude_candidate.schemas.company_profile import CompanyProfile
 # TestExtractCompanyInfo
 # ---------------------------------------------------------------------------
 
+
 class TestExtractCompanyInfo:
 	"""Tests for heuristic extraction from page text."""
 
@@ -47,7 +48,9 @@ class TestExtractCompanyInfo:
 	def test_detects_tech_stack_typescript_react(self):
 		from claude_candidate.company_enrichment import extract_company_info
 
-		text = "The frontend is a TypeScript + React application with a Kubernetes-based deployment."
+		text = (
+			"The frontend is a TypeScript + React application with a Kubernetes-based deployment."
+		)
 		result = extract_company_info("FrontCo", text, "https://frontco.io")
 		stack = [t.lower() for t in result.get("tech_stack_public", [])]
 		assert "typescript" in stack
@@ -78,7 +81,9 @@ class TestExtractCompanyInfo:
 	def test_detects_in_office_policy(self):
 		from claude_candidate.company_enrichment import extract_company_info
 
-		text = "We believe in in-office collaboration. All employees work from our NYC headquarters."
+		text = (
+			"We believe in in-office collaboration. All employees work from our NYC headquarters."
+		)
 		result = extract_company_info("OfficeCo", text, "https://officeco.io")
 		assert result.get("remote_policy") == "in_office"
 
@@ -131,6 +136,7 @@ class TestExtractCompanyInfo:
 # ---------------------------------------------------------------------------
 # TestCompanyEnrichmentEngine
 # ---------------------------------------------------------------------------
+
 
 class TestCompanyEnrichmentEngine:
 	"""Tests for caching, profile building, and the enrich() orchestration."""

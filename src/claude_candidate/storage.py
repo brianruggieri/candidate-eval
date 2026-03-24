@@ -68,256 +68,263 @@ CREATE TABLE IF NOT EXISTS company_research (
 """
 
 _CREATE_INDEXES = [
-    "CREATE INDEX IF NOT EXISTS idx_assessments_company ON assessments(company_name);",
-    "CREATE INDEX IF NOT EXISTS idx_assessments_score ON assessments(overall_score DESC);",
-    "CREATE INDEX IF NOT EXISTS idx_shortlist_status ON shortlist(status);",
+	"CREATE INDEX IF NOT EXISTS idx_assessments_company ON assessments(company_name);",
+	"CREATE INDEX IF NOT EXISTS idx_assessments_score ON assessments(overall_score DESC);",
+	"CREATE INDEX IF NOT EXISTS idx_shortlist_status ON shortlist(status);",
 ]
 
 
 class AssessmentStore:
-    """Async SQLite storage for assessments, shortlist, and profiles."""
+	"""Async SQLite storage for assessments, shortlist, and profiles."""
 
-    def __init__(self, db_path: Path | str) -> None:
-        self._db_path = Path(db_path)
-        self._conn: aiosqlite.Connection | None = None
+	def __init__(self, db_path: Path | str) -> None:
+		self._db_path = Path(db_path)
+		self._conn: aiosqlite.Connection | None = None
 
-    # ------------------------------------------------------------------
-    # Lifecycle
-    # ------------------------------------------------------------------
+	# ------------------------------------------------------------------
+	# Lifecycle
+	# ------------------------------------------------------------------
 
-    async def initialize(self) -> None:
-        """Open (or reuse) the database connection and create tables."""
-        if self._conn is None:
-            self._conn = await aiosqlite.connect(self._db_path)
-            self._conn.row_factory = aiosqlite.Row
+	async def initialize(self) -> None:
+		"""Open (or reuse) the database connection and create tables."""
+		if self._conn is None:
+			self._conn = await aiosqlite.connect(self._db_path)
+			self._conn.row_factory = aiosqlite.Row
 
-        await self._conn.execute(_CREATE_ASSESSMENTS)
+		await self._conn.execute(_CREATE_ASSESSMENTS)
 
-        # Migrate existing watchlist table to shortlist
-        async with self._conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='watchlist'"
-        ) as cursor:
-            if await cursor.fetchone():
-                await self._conn.execute("ALTER TABLE watchlist RENAME TO shortlist")
-                for col in ["salary TEXT", "location TEXT", "overall_grade TEXT"]:
-                    try:
-                        await self._conn.execute(f"ALTER TABLE shortlist ADD COLUMN {col}")
-                    except Exception:
-                        pass  # Column already exists
-                await self._conn.execute(
-                    "UPDATE shortlist SET status = 'shortlisted' WHERE status = 'watching'"
-                )
-                await self._conn.commit()
+		# Migrate existing watchlist table to shortlist
+		async with self._conn.execute(
+			"SELECT name FROM sqlite_master WHERE type='table' AND name='watchlist'"
+		) as cursor:
+			if await cursor.fetchone():
+				await self._conn.execute("ALTER TABLE watchlist RENAME TO shortlist")
+				for col in ["salary TEXT", "location TEXT", "overall_grade TEXT"]:
+					try:
+						await self._conn.execute(f"ALTER TABLE shortlist ADD COLUMN {col}")
+					except Exception:
+						pass  # Column already exists
+				await self._conn.execute(
+					"UPDATE shortlist SET status = 'shortlisted' WHERE status = 'watching'"
+				)
+				await self._conn.commit()
 
-        await self._conn.execute(_CREATE_SHORTLIST)
-        await self._conn.execute(_CREATE_PROFILES)
-        await self._conn.execute(_CREATE_POSTING_CACHE)
-        await self._conn.execute(_CREATE_COMPANY_RESEARCH)
-        for idx_sql in _CREATE_INDEXES:
-            await self._conn.execute(idx_sql)
-        await self._conn.commit()
+		await self._conn.execute(_CREATE_SHORTLIST)
+		await self._conn.execute(_CREATE_PROFILES)
+		await self._conn.execute(_CREATE_POSTING_CACHE)
+		await self._conn.execute(_CREATE_COMPANY_RESEARCH)
+		for idx_sql in _CREATE_INDEXES:
+			await self._conn.execute(idx_sql)
+		await self._conn.commit()
 
-    async def close(self) -> None:
-        """Close the database connection."""
-        if self._conn is not None:
-            await self._conn.close()
-            self._conn = None
+	async def close(self) -> None:
+		"""Close the database connection."""
+		if self._conn is not None:
+			await self._conn.close()
+			self._conn = None
 
-    async def list_tables(self) -> list[str]:
-        """Return the names of all user-created tables in the database."""
-        assert self._conn is not None, "Store not initialized"
-        async with self._conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;"
-        ) as cursor:
-            rows = await cursor.fetchall()
-        return [row[0] for row in rows]
+	async def list_tables(self) -> list[str]:
+		"""Return the names of all user-created tables in the database."""
+		assert self._conn is not None, "Store not initialized"
+		async with self._conn.execute(
+			"SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;"
+		) as cursor:
+			rows = await cursor.fetchall()
+		return [row[0] for row in rows]
 
-    # ------------------------------------------------------------------
-    # Assessment CRUD
-    # ------------------------------------------------------------------
+	# ------------------------------------------------------------------
+	# Assessment CRUD
+	# ------------------------------------------------------------------
 
-    async def save_assessment(self, assessment_data: dict[str, Any]) -> str:
-        """Insert or replace an assessment record. Returns the assessment_id."""
-        assert self._conn is not None, "Store not initialized"
-        data = dict(assessment_data)
-        assessment_id = data.get("assessment_id") or str(uuid.uuid4())
+	async def save_assessment(self, assessment_data: dict[str, Any]) -> str:
+		"""Insert or replace an assessment record. Returns the assessment_id."""
+		assert self._conn is not None, "Store not initialized"
+		data = dict(assessment_data)
+		assessment_id = data.get("assessment_id") or str(uuid.uuid4())
 
-        # Serialize any nested dicts/lists stored in the 'data' key
-        nested = data.get("data", {})
-        data_json = json.dumps(nested) if not isinstance(nested, str) else nested
+		# Serialize any nested dicts/lists stored in the 'data' key
+		nested = data.get("data", {})
+		data_json = json.dumps(nested) if not isinstance(nested, str) else nested
 
-        await self._conn.execute(
-            """
+		await self._conn.execute(
+			"""
             INSERT OR REPLACE INTO assessments
                 (assessment_id, assessed_at, job_title, company_name, posting_url,
                  overall_score, overall_grade, should_apply, data)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (
-                assessment_id,
-                data.get("assessed_at"),
-                data.get("job_title"),
-                data.get("company_name"),
-                data.get("posting_url"),
-                data.get("overall_score"),
-                data.get("overall_grade"),
-                1 if data.get("should_apply") else 0,
-                data_json,
-            ),
-        )
-        await self._conn.commit()
-        return assessment_id
+			(
+				assessment_id,
+				data.get("assessed_at"),
+				data.get("job_title"),
+				data.get("company_name"),
+				data.get("posting_url"),
+				data.get("overall_score"),
+				data.get("overall_grade"),
+				1 if data.get("should_apply") else 0,
+				data_json,
+			),
+		)
+		await self._conn.commit()
+		return assessment_id
 
-    async def get_assessment(self, assessment_id: str) -> dict[str, Any] | None:
-        """Fetch a single assessment by ID, or None if not found."""
-        assert self._conn is not None, "Store not initialized"
-        async with self._conn.execute(
-            "SELECT * FROM assessments WHERE assessment_id = ?;",
-            (assessment_id,),
-        ) as cursor:
-            row = await cursor.fetchone()
-        if row is None:
-            return None
-        return self._decode_assessment(row)
+	async def get_assessment(self, assessment_id: str) -> dict[str, Any] | None:
+		"""Fetch a single assessment by ID, or None if not found."""
+		assert self._conn is not None, "Store not initialized"
+		async with self._conn.execute(
+			"SELECT * FROM assessments WHERE assessment_id = ?;",
+			(assessment_id,),
+		) as cursor:
+			row = await cursor.fetchone()
+		if row is None:
+			return None
+		return self._decode_assessment(row)
 
-    async def list_assessments(
-        self, limit: int = 50, offset: int = 0
-    ) -> list[dict[str, Any]]:
-        """Return assessments ordered by assessed_at DESC with pagination."""
-        assert self._conn is not None, "Store not initialized"
-        async with self._conn.execute(
-            "SELECT * FROM assessments ORDER BY assessed_at DESC LIMIT ? OFFSET ?;",
-            (limit, offset),
-        ) as cursor:
-            rows = await cursor.fetchall()
-        return [self._decode_assessment(r) for r in rows]
+	async def list_assessments(self, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
+		"""Return assessments ordered by assessed_at DESC with pagination."""
+		assert self._conn is not None, "Store not initialized"
+		async with self._conn.execute(
+			"SELECT * FROM assessments ORDER BY assessed_at DESC LIMIT ? OFFSET ?;",
+			(limit, offset),
+		) as cursor:
+			rows = await cursor.fetchall()
+		return [self._decode_assessment(r) for r in rows]
 
-    async def delete_assessment(self, assessment_id: str) -> bool:
-        """Delete an assessment by ID. Returns True if a row was deleted."""
-        assert self._conn is not None, "Store not initialized"
-        async with self._conn.execute(
-            "DELETE FROM assessments WHERE assessment_id = ?;",
-            (assessment_id,),
-        ) as cursor:
-            deleted = cursor.rowcount
-        await self._conn.commit()
-        return deleted > 0
+	async def delete_assessment(self, assessment_id: str) -> bool:
+		"""Delete an assessment by ID. Returns True if a row was deleted."""
+		assert self._conn is not None, "Store not initialized"
+		async with self._conn.execute(
+			"DELETE FROM assessments WHERE assessment_id = ?;",
+			(assessment_id,),
+		) as cursor:
+			deleted = cursor.rowcount
+		await self._conn.commit()
+		return deleted > 0
 
-    @staticmethod
-    def _decode_assessment(row: aiosqlite.Row) -> dict[str, Any]:
-        d = dict(row)
-        if "data" in d and isinstance(d["data"], str):
-            d["data"] = json.loads(d["data"])
-        if "should_apply" in d:
-            d["should_apply"] = bool(d["should_apply"])
-        return d
+	@staticmethod
+	def _decode_assessment(row: aiosqlite.Row) -> dict[str, Any]:
+		d = dict(row)
+		if "data" in d and isinstance(d["data"], str):
+			d["data"] = json.loads(d["data"])
+		if "should_apply" in d:
+			d["should_apply"] = bool(d["should_apply"])
+		return d
 
-    # ------------------------------------------------------------------
-    # Shortlist CRUD
-    # ------------------------------------------------------------------
+	# ------------------------------------------------------------------
+	# Shortlist CRUD
+	# ------------------------------------------------------------------
 
-    async def add_to_shortlist(
-        self,
-        company_name: str,
-        job_title: str,
-        posting_url: str | None = None,
-        assessment_id: str | None = None,
-        notes: str | None = None,
-        salary: str | None = None,
-        location: str | None = None,
-        overall_grade: str | None = None,
-    ) -> int:
-        """Insert a shortlist entry and return its auto-generated id."""
-        assert self._conn is not None, "Store not initialized"
-        async with self._conn.execute(
-            """
+	async def add_to_shortlist(
+		self,
+		company_name: str,
+		job_title: str,
+		posting_url: str | None = None,
+		assessment_id: str | None = None,
+		notes: str | None = None,
+		salary: str | None = None,
+		location: str | None = None,
+		overall_grade: str | None = None,
+	) -> int:
+		"""Insert a shortlist entry and return its auto-generated id."""
+		assert self._conn is not None, "Store not initialized"
+		async with self._conn.execute(
+			"""
             INSERT INTO shortlist (company_name, job_title, posting_url, assessment_id, notes, salary, location, overall_grade)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?);
             """,
-            (company_name, job_title, posting_url, assessment_id, notes, salary, location, overall_grade),
-        ) as cursor:
-            row_id = cursor.lastrowid
-        await self._conn.commit()
-        return row_id  # type: ignore[return-value]
+			(
+				company_name,
+				job_title,
+				posting_url,
+				assessment_id,
+				notes,
+				salary,
+				location,
+				overall_grade,
+			),
+		) as cursor:
+			row_id = cursor.lastrowid
+		await self._conn.commit()
+		return row_id  # type: ignore[return-value]
 
-    async def list_shortlist(
-        self, status: str | None = None, limit: int = 50
-    ) -> list[dict[str, Any]]:
-        """List shortlist entries, optionally filtered by status."""
-        assert self._conn is not None, "Store not initialized"
-        if status is not None:
-            async with self._conn.execute(
-                "SELECT * FROM shortlist WHERE status = ? ORDER BY added_at DESC LIMIT ?;",
-                (status, limit),
-            ) as cursor:
-                rows = await cursor.fetchall()
-        else:
-            async with self._conn.execute(
-                "SELECT * FROM shortlist ORDER BY added_at DESC LIMIT ?;",
-                (limit,),
-            ) as cursor:
-                rows = await cursor.fetchall()
-        return [dict(r) for r in rows]
+	async def list_shortlist(
+		self, status: str | None = None, limit: int = 50
+	) -> list[dict[str, Any]]:
+		"""List shortlist entries, optionally filtered by status."""
+		assert self._conn is not None, "Store not initialized"
+		if status is not None:
+			async with self._conn.execute(
+				"SELECT * FROM shortlist WHERE status = ? ORDER BY added_at DESC LIMIT ?;",
+				(status, limit),
+			) as cursor:
+				rows = await cursor.fetchall()
+		else:
+			async with self._conn.execute(
+				"SELECT * FROM shortlist ORDER BY added_at DESC LIMIT ?;",
+				(limit,),
+			) as cursor:
+				rows = await cursor.fetchall()
+		return [dict(r) for r in rows]
 
-    async def update_shortlist(
-        self,
-        shortlist_id: int,
-        status: str | None = None,
-        notes: str | None = None,
-        assessment_id: str | None = None,
-    ) -> bool:
-        """Update a shortlist entry's mutable fields. Returns True if updated."""
-        assert self._conn is not None, "Store not initialized"
-        # Build SET clause only for provided fields
-        fields: list[str] = []
-        values: list[Any] = []
-        if status is not None:
-            fields.append("status = ?")
-            values.append(status)
-        if notes is not None:
-            fields.append("notes = ?")
-            values.append(notes)
-        if assessment_id is not None:
-            fields.append("assessment_id = ?")
-            values.append(assessment_id)
+	async def update_shortlist(
+		self,
+		shortlist_id: int,
+		status: str | None = None,
+		notes: str | None = None,
+		assessment_id: str | None = None,
+	) -> bool:
+		"""Update a shortlist entry's mutable fields. Returns True if updated."""
+		assert self._conn is not None, "Store not initialized"
+		# Build SET clause only for provided fields
+		fields: list[str] = []
+		values: list[Any] = []
+		if status is not None:
+			fields.append("status = ?")
+			values.append(status)
+		if notes is not None:
+			fields.append("notes = ?")
+			values.append(notes)
+		if assessment_id is not None:
+			fields.append("assessment_id = ?")
+			values.append(assessment_id)
 
-        if not fields:
-            # Nothing to update — check existence
-            async with self._conn.execute(
-                "SELECT id FROM shortlist WHERE id = ?;", (shortlist_id,)
-            ) as cursor:
-                row = await cursor.fetchone()
-            return row is not None
+		if not fields:
+			# Nothing to update — check existence
+			async with self._conn.execute(
+				"SELECT id FROM shortlist WHERE id = ?;", (shortlist_id,)
+			) as cursor:
+				row = await cursor.fetchone()
+			return row is not None
 
-        values.append(shortlist_id)
-        sql = f"UPDATE shortlist SET {', '.join(fields)} WHERE id = ?;"
-        async with self._conn.execute(sql, values) as cursor:
-            updated = cursor.rowcount
-        await self._conn.commit()
-        return updated > 0
+		values.append(shortlist_id)
+		sql = f"UPDATE shortlist SET {', '.join(fields)} WHERE id = ?;"
+		async with self._conn.execute(sql, values) as cursor:
+			updated = cursor.rowcount
+		await self._conn.commit()
+		return updated > 0
 
-    async def remove_from_shortlist(self, shortlist_id: int) -> bool:
-        """Delete a shortlist entry by id. Returns True if a row was deleted."""
-        assert self._conn is not None, "Store not initialized"
-        async with self._conn.execute(
-            "DELETE FROM shortlist WHERE id = ?;", (shortlist_id,)
-        ) as cursor:
-            deleted = cursor.rowcount
-        await self._conn.commit()
-        return deleted > 0
+	async def remove_from_shortlist(self, shortlist_id: int) -> bool:
+		"""Delete a shortlist entry by id. Returns True if a row was deleted."""
+		assert self._conn is not None, "Store not initialized"
+		async with self._conn.execute(
+			"DELETE FROM shortlist WHERE id = ?;", (shortlist_id,)
+		) as cursor:
+			deleted = cursor.rowcount
+		await self._conn.commit()
+		return deleted > 0
 
-    # ------------------------------------------------------------------
-    # Profile storage
-    # ------------------------------------------------------------------
+	# ------------------------------------------------------------------
+	# Profile storage
+	# ------------------------------------------------------------------
 
-    async def save_profile(
-        self, profile_type: str, profile_hash: str, data: dict[str, Any]
-    ) -> None:
-        """Insert or replace a profile (upsert on profile_type PK)."""
-        assert self._conn is not None, "Store not initialized"
-        data_json = json.dumps(data)
-        await self._conn.execute(
-            """
+	async def save_profile(
+		self, profile_type: str, profile_hash: str, data: dict[str, Any]
+	) -> None:
+		"""Insert or replace a profile (upsert on profile_type PK)."""
+		assert self._conn is not None, "Store not initialized"
+		data_json = json.dumps(data)
+		await self._conn.execute(
+			"""
             INSERT INTO profiles (profile_type, profile_hash, data, updated_at)
             VALUES (?, ?, ?, datetime('now'))
             ON CONFLICT(profile_type) DO UPDATE SET
@@ -325,95 +332,89 @@ class AssessmentStore:
                 data         = excluded.data,
                 updated_at   = excluded.updated_at;
             """,
-            (profile_type, profile_hash, data_json),
-        )
-        await self._conn.commit()
+			(profile_type, profile_hash, data_json),
+		)
+		await self._conn.commit()
 
-    async def get_profile(self, profile_type: str) -> dict[str, Any] | None:
-        """Fetch profile data by type, or None if not found."""
-        assert self._conn is not None, "Store not initialized"
-        async with self._conn.execute(
-            "SELECT data FROM profiles WHERE profile_type = ?;",
-            (profile_type,),
-        ) as cursor:
-            row = await cursor.fetchone()
-        if row is None:
-            return None
-        return json.loads(row[0])
+	async def get_profile(self, profile_type: str) -> dict[str, Any] | None:
+		"""Fetch profile data by type, or None if not found."""
+		assert self._conn is not None, "Store not initialized"
+		async with self._conn.execute(
+			"SELECT data FROM profiles WHERE profile_type = ?;",
+			(profile_type,),
+		) as cursor:
+			row = await cursor.fetchone()
+		if row is None:
+			return None
+		return json.loads(row[0])
 
-    # ------------------------------------------------------------------
-    # Posting cache
-    # ------------------------------------------------------------------
+	# ------------------------------------------------------------------
+	# Posting cache
+	# ------------------------------------------------------------------
 
-    async def get_cached_posting(self, url_hash: str) -> dict[str, Any] | None:
-        """Return cached posting dict if < 7 days old, else None (deletes expired row)."""
-        assert self._conn is not None, "Store not initialized"
-        async with self._conn.execute(
-            "SELECT data, extracted_at FROM posting_cache WHERE url_hash = ?;",
-            (url_hash,),
-        ) as cursor:
-            row = await cursor.fetchone()
-        if row is None:
-            return None
-        async with self._conn.execute(
-            "SELECT (julianday('now') - julianday(?)) * 86400 > 604800;",
-            (row[1],),
-        ) as cursor:
-            expired_row = await cursor.fetchone()
-        if expired_row and expired_row[0]:
-            await self._conn.execute(
-                "DELETE FROM posting_cache WHERE url_hash = ?;", (url_hash,)
-            )
-            await self._conn.commit()
-            return None
-        return json.loads(row[0])
+	async def get_cached_posting(self, url_hash: str) -> dict[str, Any] | None:
+		"""Return cached posting dict if < 7 days old, else None (deletes expired row)."""
+		assert self._conn is not None, "Store not initialized"
+		async with self._conn.execute(
+			"SELECT data, extracted_at FROM posting_cache WHERE url_hash = ?;",
+			(url_hash,),
+		) as cursor:
+			row = await cursor.fetchone()
+		if row is None:
+			return None
+		async with self._conn.execute(
+			"SELECT (julianday('now') - julianday(?)) * 86400 > 604800;",
+			(row[1],),
+		) as cursor:
+			expired_row = await cursor.fetchone()
+		if expired_row and expired_row[0]:
+			await self._conn.execute("DELETE FROM posting_cache WHERE url_hash = ?;", (url_hash,))
+			await self._conn.commit()
+			return None
+		return json.loads(row[0])
 
-    async def cache_posting(
-        self, url_hash: str, url: str, data: dict[str, Any]
-    ) -> None:
-        """Insert or replace a posting cache entry."""
-        assert self._conn is not None, "Store not initialized"
-        await self._conn.execute(
-            "INSERT OR REPLACE INTO posting_cache (url_hash, url, data) VALUES (?, ?, ?);",
-            (url_hash, url, json.dumps(data)),
-        )
-        await self._conn.commit()
+	async def cache_posting(self, url_hash: str, url: str, data: dict[str, Any]) -> None:
+		"""Insert or replace a posting cache entry."""
+		assert self._conn is not None, "Store not initialized"
+		await self._conn.execute(
+			"INSERT OR REPLACE INTO posting_cache (url_hash, url, data) VALUES (?, ?, ?);",
+			(url_hash, url, json.dumps(data)),
+		)
+		await self._conn.commit()
 
-    # ------------------------------------------------------------------
-    # Company research cache
-    # ------------------------------------------------------------------
+	# ------------------------------------------------------------------
+	# Company research cache
+	# ------------------------------------------------------------------
 
-    async def cache_company_research(self, company_name: str, data: dict) -> None:
-        """Insert or replace a company research cache entry."""
-        assert self._conn is not None, "Store not initialized"
-        key = company_name.strip().lower()
-        await self._conn.execute(
-            "INSERT OR REPLACE INTO company_research (company_key, company_name, data) VALUES (?, ?, ?);",
-            (key, company_name.strip(), json.dumps(data)),
-        )
-        await self._conn.commit()
+	async def cache_company_research(self, company_name: str, data: dict) -> None:
+		"""Insert or replace a company research cache entry."""
+		assert self._conn is not None, "Store not initialized"
+		key = company_name.strip().lower()
+		await self._conn.execute(
+			"INSERT OR REPLACE INTO company_research (company_key, company_name, data) VALUES (?, ?, ?);",
+			(key, company_name.strip(), json.dumps(data)),
+		)
+		await self._conn.commit()
 
-    async def get_cached_company_research(self, company_name: str) -> dict | None:
-        """Return cached company research if < 30 days old, else None (deletes expired row)."""
-        assert self._conn is not None, "Store not initialized"
-        key = company_name.strip().lower()
-        async with self._conn.execute(
-            "SELECT data, researched_at FROM company_research WHERE company_key = ?;",
-            (key,),
-        ) as cursor:
-            row = await cursor.fetchone()
-        if row is None:
-            return None
-        # 30 days = 30 * 86400 = 2592000 seconds
-        async with self._conn.execute(
-            "SELECT (julianday('now') - julianday(?)) * 86400 > 2592000;",
-            (row[1],),
-        ) as cursor:
-            expired_row = await cursor.fetchone()
-        if expired_row and expired_row[0]:
-            await self._conn.execute(
-                "DELETE FROM company_research WHERE company_key = ?;", (key,)
-            )
-            await self._conn.commit()
-            return None
-        return json.loads(row[0])
+	async def get_cached_company_research(self, company_name: str) -> dict | None:
+		"""Return cached company research if < 30 days old, else None (deletes expired row)."""
+		assert self._conn is not None, "Store not initialized"
+		key = company_name.strip().lower()
+		async with self._conn.execute(
+			"SELECT data, researched_at FROM company_research WHERE company_key = ?;",
+			(key,),
+		) as cursor:
+			row = await cursor.fetchone()
+		if row is None:
+			return None
+		# 30 days = 30 * 86400 = 2592000 seconds
+		async with self._conn.execute(
+			"SELECT (julianday('now') - julianday(?)) * 86400 > 2592000;",
+			(row[1],),
+		) as cursor:
+			expired_row = await cursor.fetchone()
+		if expired_row and expired_row[0]:
+			await self._conn.execute("DELETE FROM company_research WHERE company_key = ?;", (key,))
+			await self._conn.commit()
+			return None
+		return json.loads(row[0])

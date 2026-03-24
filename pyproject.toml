@@ -68,6 +68,9 @@ strict = true
 target-version = "py311"
 line-length = 100
 
+[tool.ruff.format]
+indent-style = "tab"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"

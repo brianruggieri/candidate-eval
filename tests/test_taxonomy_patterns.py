@@ -1,4 +1,5 @@
 """Validate taxonomy content_patterns don't over-match."""
+
 import json
 from pathlib import Path
 import pytest
@@ -25,15 +26,21 @@ class TestTaxonomyPatterns:
 		too_common = {"the", "a", "an", "is", "it", "in", "on", "to", "for", "of", "and", "or"}
 		for name, info in taxonomy.items():
 			for pattern in info.get("content_patterns", []):
-				assert pattern.lower() not in too_common, f"{name} has overly common pattern: {pattern}"
+				assert pattern.lower() not in too_common, (
+					f"{name} has overly common pattern: {pattern}"
+				)
 
 	def test_practices_have_multiple_patterns(self, taxonomy):
 		for name, info in taxonomy.items():
 			if info.get("category") == "practice":
 				patterns = info.get("content_patterns", [])
-				assert len(patterns) >= 2, f"Practice '{name}' needs 2+ patterns, has {len(patterns)}"
+				assert len(patterns) >= 2, (
+					f"Practice '{name}' needs 2+ patterns, has {len(patterns)}"
+				)
 
 	def test_patterns_are_not_all_caps(self, taxonomy):
 		for name, info in taxonomy.items():
 			for pattern in info.get("content_patterns", []):
-				assert not pattern.isupper() or len(pattern) <= 4, f"{name} has ALL CAPS pattern: {pattern}"
+				assert not pattern.isupper() or len(pattern) <= 4, (
+					f"{name} has ALL CAPS pattern: {pattern}"
+				)
