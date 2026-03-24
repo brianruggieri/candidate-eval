@@ -52,26 +52,60 @@ def _classify(skill: str) -> str:
 	return "unknown"
 
 
+_BLOCKING_CATEGORIES: frozenset[str] = frozenset({
+	"work_auth", "clearance", "relocation", "travel", "foreign_language",
+})
+
+
 def _resolve(req: QuickRequirement, eligibility: CandidateEligibility) -> str:
+	"""Scan all skill_mapping entries and apply precedence: unmet > met > unknown.
+
+	Evaluating all entries (rather than returning on the first match) prevents
+	list order from affecting the outcome — e.g. ["english", "spanish"] correctly
+	resolves to "unmet" because "spanish" blocks regardless of position.
+	"""
+	blocking_unmet = False
+	any_met = False
+	any_unknown = False
+
 	for skill in req.skill_mapping:
 		category = _classify(skill)
+		status: str
+
 		if category == "work_auth":
-			return "met" if eligibility.us_work_authorized else "unmet"
-		if category == "clearance":
-			return "met" if eligibility.has_clearance else "unmet"
-		if category == "relocation":
-			return "met" if eligibility.willing_to_relocate else "unmet"
-		if category == "travel":
+			status = "met" if eligibility.us_work_authorized else "unmet"
+		elif category == "clearance":
+			status = "met" if eligibility.has_clearance else "unmet"
+		elif category == "relocation":
+			status = "met" if eligibility.willing_to_relocate else "unmet"
+		elif category == "travel":
 			m = _PCT_PATTERN.search(req.description)
 			if m:
-				return "met" if int(m.group(1)) <= eligibility.max_travel_pct else "unmet"
-			return "unknown"
-		if category == "english":
-			return "met"
-		if category == "foreign_language":
-			return "unmet"
-		if category == "mission":
-			return "unknown"
+				status = "met" if int(m.group(1)) <= eligibility.max_travel_pct else "unmet"
+			else:
+				status = "unknown"
+		elif category == "english":
+			status = "met"
+		elif category == "foreign_language":
+			status = "unmet"
+		elif category == "mission":
+			status = "unknown"
+		else:
+			continue  # Unrecognized category — skip, doesn't affect aggregate
+
+		if status == "unmet" and category in _BLOCKING_CATEGORIES:
+			blocking_unmet = True
+		elif status == "met":
+			any_met = True
+		elif status == "unknown":
+			any_unknown = True
+
+	if blocking_unmet:
+		return "unmet"
+	if any_met:
+		return "met"
+	if any_unknown:
+		return "unknown"
 	return "unknown"
 
 

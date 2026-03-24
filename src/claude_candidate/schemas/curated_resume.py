@@ -36,7 +36,7 @@ class CandidateEligibility(BaseModel):
 	"""Candidate's binary eligibility facts — checked against job gate requirements."""
 
 	us_work_authorized: bool = True
-	max_travel_pct: int = 40       # candidate's tolerance ceiling (0–100)
+	max_travel_pct: int = Field(default=40, ge=0, le=100)  # candidate's tolerance ceiling (0–100)
 	has_clearance: bool = False
 	willing_to_relocate: bool = True
 
