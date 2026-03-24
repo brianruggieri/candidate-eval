@@ -24,13 +24,18 @@ Three targeted fixes surfaced during a live walkthrough session. No new features
 
 ## Fix 1: Assessment Timer
 
-**Problem:** `time_to_assess_seconds` is set inside `quick_match.py::assess_partial()`, which runs *after* `parse_requirements_with_claude` has already returned in `cli.py`. The label "Assessed in X.Xs" is misleading — it measures only the scoring step, not the full pipeline including requirement parsing.
+**Problem:** `time_to_assess_seconds` is set inside `quick_match.py::_run_assessment()` (via `start_time = time.time()` at line ~1402, `elapsed = time.time() - start_time` at line ~1443), which runs *after* `parse_requirements_with_claude` has already returned in `cli.py`. The label "Assessed in X.Xs" is misleading — it measures only the scoring step, not the full pipeline including requirement parsing.
 
-**Fix:** Move `start_time = time.time()` into `cli.py`, captured just before requirement parsing begins (before the `parse_requirements_with_claude` call or sidecar load). Pass the resulting `elapsed` value into the engine's `assess` call. The label stays "Assessed in X.Xs."
+**Fix:** Move `start_time = time.time()` into `cli.py`, captured just before requirement parsing begins (before the `parse_requirements_with_claude` call or sidecar load). Pass the resulting `elapsed: float` into `engine.assess()` as an optional kwarg. Thread it through `assess()` → `_run_assessment()` → `_build_assessment()`, suppressing the internal `start_time` capture when `elapsed` is provided. The label stays "Assessed in X.Xs."
+
+**Touch points in `quick_match.py`:**
+1. `assess(...)` — add `elapsed: float | None = None` kwarg, pass to `_run_assessment`
+2. `_run_assessment(...)` — add `elapsed: float | None = None` kwarg; if provided, skip internal `start_time` and compute nothing — pass `elapsed` directly to `_build_assessment`
+3. `_build_assessment(...)` — already accepts `elapsed: float`; no signature change needed
 
 **Files:**
-- Modify: `src/claude_candidate/cli.py` — capture `start_time` before parsing, pass elapsed to assess
-- Modify: `src/claude_candidate/quick_match.py` — accept optional `elapsed` override in `assess` (not `assess_partial` — that is a `server.py` route handler, not the scoring method); fall back to internal timing if `elapsed=None` (backwards compat for direct API callers)
+- Modify: `src/claude_candidate/cli.py` — capture `start_time = time.time()` before parsing, compute `elapsed = time.time() - start_time` after `engine.assess()` returns, pass as `elapsed=elapsed`
+- Modify: `src/claude_candidate/quick_match.py` — thread optional `elapsed` through `assess()` and `_run_assessment()` as described above
 
 **Behaviour change:**
 - Fresh posting (Claude parses): "Assessed in ~8s" instead of "Assessed in 0.1s"
@@ -92,8 +97,9 @@ DEFAULT_CLAUDE_TIMEOUT = 180  # fallback for unknown types
 - Modify: `src/claude_candidate/generator.py`
   - Replace `CLAUDE_TIMEOUT_SECONDS` with `CLAUDE_TIMEOUTS` dict + `DEFAULT_CLAUDE_TIMEOUT`
   - Update `_call_claude(prompt, deliverable_type)` signature
-  - Update all four callers: `generate_resume_bullets`, `generate_cover_letter`, `generate_interview_prep`, and `generate_site_narrative`
-  - `generate_site_narrative` does not map to a user-facing deliverable type — it intentionally falls through to `DEFAULT_CLAUDE_TIMEOUT` (180s). Add `"site-narrative"` as a comment in `CLAUDE_TIMEOUTS` or leave it to the default; either is acceptable. Do not break the call.
+  - Update `_call_claude` signature to `_call_claude(prompt: str, deliverable_type: str = "") -> str`; make `deliverable_type` optional with empty-string default
+  - Update the three user-facing callers to pass their type string: `generate_resume_bullets` → `"resume-bullets"`, `generate_cover_letter` → `"cover-letter"`, `generate_interview_prep` → `"interview-prep"`
+  - `generate_site_narrative` calls `_call_claude(prompt)` without a type — it relies on the default `""` which resolves to `DEFAULT_CLAUDE_TIMEOUT`. No change needed to the call site.
 
 **Tests:**
 - `tests/test_generator.py` — verify correct timeout is looked up per type; verify fallback for unknown type
