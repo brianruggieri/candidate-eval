@@ -476,6 +476,11 @@ class TestDomainMismatch:
         )
         assert _is_domain_mismatch(match) is False
 
+    def test_no_mismatch_when_skill_equals_domain_keyword(self):
+        """compliance skill on a plain compliance requirement is not a mismatch."""
+        match = _make_match("Strong compliance background", "compliance")
+        assert _is_domain_mismatch(match) is False
+
 
 class TestBulletPromptDomainFilter:
     def test_domain_framing_stripped_from_mismatch(self):

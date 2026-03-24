@@ -47,39 +47,38 @@ MAX_COVER_LETTER_HIGHLIGHTS = 3
 # ---------------------------------------------------------------------------
 
 DOMAIN_KEYWORDS: frozenset[str] = frozenset({
-	"healthcare",
-	"financial",
-	"fintech",
-	"regulated",
-	"hipaa",
-	"compliance",
-	"legal",
-	"insurance",
-	"pharma",
+    "healthcare",
+    "financial",
+    "fintech",
+    "regulated",
+    "hipaa",
+    "legal",
+    "insurance",
+    "pharma",
 })
 
 GENERAL_SKILLS_PRONE_TO_DOMAIN_MISMATCH: frozenset[str] = frozenset({
-	"security",
-	"testing",
-	"authentication",
-	"compliance",
-	"documentation",
+    "security",
+    "testing",
+    "authentication",
+    "compliance",
+    "documentation",
 })
 
 
 def _is_domain_mismatch(match: SkillMatchDetail) -> bool:
-	"""Return True when a general skill has matched a domain-specific requirement.
+    """Return True when a general skill has matched a domain-specific requirement.
 
-	False positives (claiming domain experience the evidence doesn't support) occur
-	when a general-purpose skill like 'security' matches a requirement that names a
-	specific regulated domain (healthcare, financial services, etc.).
-	"""
-	if match.matched_skill is None:
-		return False
-	if match.matched_skill not in GENERAL_SKILLS_PRONE_TO_DOMAIN_MISMATCH:
-		return False
-	req_lower = match.requirement.lower()
-	return any(kw in req_lower for kw in DOMAIN_KEYWORDS)
+    False positives (claiming domain experience the evidence doesn't support) occur
+    when a general-purpose skill like 'security' matches a requirement that names a
+    specific regulated domain (healthcare, financial services, etc.).
+    """
+    if match.matched_skill is None:
+        return False
+    if match.matched_skill not in GENERAL_SKILLS_PRONE_TO_DOMAIN_MISMATCH:
+        return False
+    req_lower = match.requirement.lower()
+    return any(kw in req_lower for kw in DOMAIN_KEYWORDS)
 
 
 # ---------------------------------------------------------------------------
@@ -145,13 +144,19 @@ def _build_interview_prompt(
     profile: MergedEvidenceProfile | None,
 ) -> str:
     """Build a prompt for Claude to generate interview prep notes."""
-    matches_text = _format_matches_for_prompt(assessment.skill_matches)
+    matches_text = _format_matches_for_prompt(
+        assessment.skill_matches, strip_domain_mismatch=True
+    )
     return (
         f"Generate interview preparation notes for a {assessment.job_title} "
         f"role at {assessment.company_name}.\n\n"
         f"Skill matches:\n{matches_text}\n\n"
         "Organize by: Technical Discussion Points, Behavioral Examples, "
-        "and Questions to Ask. Reference specific evidence."
+        "and Questions to Ask. Reference specific evidence.\n\n"
+        "Important: Do not claim specific domain experience in named regulated "
+        "verticals unless the candidate_evidence text explicitly references that "
+        "domain. If the matched skill is a general-purpose skill, describe what "
+        "the evidence demonstrates — not what the requirement mentions."
     )
 
 
