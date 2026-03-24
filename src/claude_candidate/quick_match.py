@@ -14,11 +14,12 @@ import math
 import re
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 from claude_candidate.schemas.candidate_profile import DepthLevel, DEPTH_RANK, PatternType
 from claude_candidate.schemas.company_profile import CompanyProfile
+from claude_candidate.schemas.curated_resume import CandidateEligibility
 from claude_candidate.skill_taxonomy import SkillTaxonomy
 from claude_candidate.schemas.fit_assessment import (
 	DimensionScore,
@@ -38,6 +39,7 @@ from claude_candidate.schemas.merged_profile import (
 	MergedEvidenceProfile,
 	MergedSkillEvidence,
 )
+from claude_candidate.eligibility_evaluator import evaluate_gates
 
 
 # ---------------------------------------------------------------------------
@@ -202,21 +204,6 @@ def _infer_eligibility(req: "QuickRequirement") -> bool:
 	return False
 
 
-def _evaluate_eligibility(reqs: list["QuickRequirement"]) -> list[EligibilityGate]:
-	"""Convert eligibility requirements to EligibilityGate objects.
-
-	All gates are status=unknown for now — the profile doesn't carry eligibility data.
-	"""
-	return [
-		EligibilityGate(
-			description=req.description,
-			status="unknown",
-			requirement_text=req.source_text,
-		)
-		for req in reqs
-	]
-
-
 # Rounding precision
 SCORE_PRECISION = 3
 TIMING_PRECISION = 2
@@ -355,6 +342,7 @@ class AssessmentInput:
 	culture_signals: list[str] | None = None
 	tech_stack: list[str] | None = None
 	company_profile: CompanyProfile | None = None
+	curated_eligibility: CandidateEligibility = field(default_factory=CandidateEligibility)
 
 
 @dataclass
@@ -1469,6 +1457,7 @@ class QuickMatchEngine:
 		culture_signals: list[str] | None = None,
 		tech_stack: list[str] | None = None,
 		company_profile: CompanyProfile | None = None,
+		curated_eligibility: CandidateEligibility | None = None,
 		elapsed: float | None = None,
 	) -> FitAssessment:
 		"""Run the three-dimensional fit assessment."""
@@ -1482,6 +1471,7 @@ class QuickMatchEngine:
 			culture_signals=culture_signals,
 			tech_stack=tech_stack,
 			company_profile=company_profile,
+			curated_eligibility=curated_eligibility or CandidateEligibility(),
 		)
 		return self._run_assessment(inp, elapsed=elapsed)
 
@@ -1499,7 +1489,7 @@ class QuickMatchEngine:
 		# Apply heuristic denylist as fallback for cached pre-Plan-9 postings.
 		eligibility_reqs = [r for r in inp.requirements if _infer_eligibility(r)]
 		scorable_reqs = [r for r in inp.requirements if not _infer_eligibility(r)]
-		eligibility_gates = _evaluate_eligibility(eligibility_reqs)
+		eligibility_gates = evaluate_gates(eligibility_reqs, inp.curated_eligibility)
 		eligibility_passed = not any(g.status == "unmet" for g in eligibility_gates)
 
 		skill_dim, skill_details = self._score_skill_match(
@@ -1535,6 +1525,11 @@ class QuickMatchEngine:
 			experience_dim=experience_dim,
 			education_dim=education_dim,
 		)
+		pre_cap_grade: str | None = None
+		unmet_gates = [g for g in eligibility_gates if g.status == "unmet"]
+		if unmet_gates:
+			pre_cap_grade = score_to_grade(overall_score)
+			overall_score = 0.0
 		partial_percentage = round(overall_score * 100, 1)
 
 		if elapsed is None:
@@ -1553,6 +1548,7 @@ class QuickMatchEngine:
 			eligibility_gates=eligibility_gates,
 			eligibility_passed=eligibility_passed,
 			scorable_reqs=scorable_reqs,
+			pre_cap_grade=pre_cap_grade,
 		)
 
 	def _build_assessment(
@@ -1570,6 +1566,7 @@ class QuickMatchEngine:
 		eligibility_gates: list[EligibilityGate] | None = None,
 		eligibility_passed: bool = True,
 		scorable_reqs: list[QuickRequirement] | None = None,
+		pre_cap_grade: str | None = None,
 	) -> FitAssessment:
 		"""Assemble the final FitAssessment from scored dimensions."""
 		reqs_for_gaps = scorable_reqs if scorable_reqs is not None else inp.requirements
@@ -1612,6 +1609,7 @@ class QuickMatchEngine:
 			partial_percentage=partial_percentage,
 			eligibility_gates=eligibility_gates or [],
 			eligibility_passed=eligibility_passed,
+			pre_cap_grade=pre_cap_grade,
 		)
 
 	def _assemble_fit_assessment(
@@ -1634,9 +1632,30 @@ class QuickMatchEngine:
 		partial_percentage: float | None = None,
 		eligibility_gates: list[EligibilityGate] | None = None,
 		eligibility_passed: bool = True,
+		pre_cap_grade: str | None = None,
 	) -> FitAssessment:
 		"""Construct the FitAssessment pydantic model."""
 		is_partial = mission_dim is None and culture_dim is None
+		overall_summary = self._generate_summary(summary_inp)
+		action_items = self._generate_action_items(
+			overall_score,
+			gaps,
+			resume_gaps,
+			resume_unverified,
+			inp.company,
+		)
+		if pre_cap_grade is not None:
+			blocker_descriptions = "; ".join(
+				g.description for g in (eligibility_gates or []) if g.status == "unmet"
+			)
+			overall_summary = (
+				f"Eligibility blocked: {blocker_descriptions}. "
+				f"Skill fit would be {pre_cap_grade} if eligible."
+			)
+			action_items = [
+				f"Eligibility: {blocker_descriptions} — skip this role",
+				*action_items[:5],
+			]
 		return FitAssessment(
 			assessment_id=str(uuid.uuid4()),
 			assessed_at=datetime.now(),
@@ -1648,7 +1667,7 @@ class QuickMatchEngine:
 			partial_percentage=partial_percentage,
 			overall_score=round(overall_score, SCORE_PRECISION),
 			overall_grade=score_to_grade(overall_score),
-			overall_summary=self._generate_summary(summary_inp),
+			overall_summary=overall_summary,
 			skill_match=skill_dim,
 			experience_match=experience_dim,
 			education_match=education_dim,
@@ -1671,13 +1690,7 @@ class QuickMatchEngine:
 			eligibility_gates=eligibility_gates or [],
 			eligibility_passed=eligibility_passed,
 			should_apply=score_to_verdict(overall_score),
-			action_items=self._generate_action_items(
-				overall_score,
-				gaps,
-				resume_gaps,
-				resume_unverified,
-				inp.company,
-			),
+			action_items=action_items,
 			profile_hash=self.profile.profile_hash,
 			time_to_assess_seconds=round(elapsed, TIMING_PRECISION),
 		)

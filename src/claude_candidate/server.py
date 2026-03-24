@@ -500,6 +500,12 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 		overall_score = round(min(max(weighted_total, 0.0), 1.0), 3)
 		overall_grade = score_to_grade(overall_score)
 
+		# Re-apply eligibility hard cap — unmet gates override the recomputed score regardless of dimension weights
+		stored_gates = data.get("eligibility_gates", [])
+		if any(g.get("status") == "unmet" for g in stored_gates):
+			overall_score = 0.0
+			overall_grade = "F"
+
 		# Update dimension weights in the returned data
 		if mission_dim:
 			mission_dim.weight = 0.15

@@ -32,6 +32,15 @@ class CuratedSkill(BaseModel):
 		return v.lower().strip()
 
 
+class CandidateEligibility(BaseModel):
+	"""Candidate's binary eligibility facts — checked against job gate requirements."""
+
+	us_work_authorized: bool = True
+	max_travel_pct: int = Field(default=40, ge=0, le=100)  # candidate's tolerance ceiling (0–100)
+	has_clearance: bool = False
+	willing_to_relocate: bool = True
+
+
 class CuratedResume(BaseModel):
 	"""
 	Human-curated resume profile.
@@ -66,6 +75,7 @@ class CuratedResume(BaseModel):
 	# The curated data (this is what the merge pipeline uses)
 	curated_skills: list[CuratedSkill] = Field(min_length=1)
 	curated: bool = True
+	eligibility: CandidateEligibility = Field(default_factory=CandidateEligibility)
 
 	# Raw parser output retained for provenance — not used in scoring
 	skills: list[dict] = Field(default_factory=list)  # kept loose, not validated

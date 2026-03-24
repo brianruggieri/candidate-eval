@@ -69,6 +69,13 @@ def main(ctx: click.Context) -> None:
 	help="Seniority level",
 )
 @click.option("--output", "-o", type=click.Path(), help="Output file for assessment JSON")
+@click.option(
+	"--curated-resume",
+	type=click.Path(exists=True),
+	required=False,
+	default=None,
+	help="Path to curated resume JSON (default: ~/.claude-candidate/curated_resume.json)",
+)
 def assess(
 	profile: str,
 	resume: str | None,
@@ -77,6 +84,7 @@ def assess(
 	title: str,
 	seniority: str,
 	output: str | None,
+	curated_resume: str | None,
 ) -> None:
 	"""Run a quick match assessment against a job posting."""
 	from claude_candidate.schemas.candidate_profile import CandidateProfile
@@ -91,6 +99,20 @@ def assess(
 	if resume:
 		click.echo(f"Loading resume profile from {resume}...")
 		rp = ResumeProfile.from_json(Path(resume).read_text())
+
+	from claude_candidate.schemas.curated_resume import CandidateEligibility, CuratedResume
+
+	curated_eligibility: CandidateEligibility | None = None
+	curated_resume_path = (
+		Path(curated_resume) if curated_resume
+		else Path.home() / ".claude-candidate" / "curated_resume.json"
+	)
+	if curated_resume_path.exists():
+		try:
+			curated_r = CuratedResume.from_file(curated_resume_path)
+			curated_eligibility = curated_r.eligibility
+		except Exception:
+			pass  # Malformed curated resume — silently fall back to defaults
 
 	merged = _merge_profile(cp, rp)
 	click.echo(
@@ -131,6 +153,7 @@ def assess(
 		source="cli",
 		seniority=seniority,
 		elapsed=elapsed,
+		curated_eligibility=curated_eligibility,
 	)
 
 	# Output
@@ -511,6 +534,44 @@ def _extract_basic_requirements(text: str) -> list:
 					skill_mapping=[tech],
 					priority=priority,
 					source_text="",
+				)
+			)
+
+	# Eligibility gate keywords — set is_eligibility=True so the hard cap fires
+	eligibility_patterns: dict[str, list[str]] = {
+		"us-work-authorization": [
+			"work authorization", "authorized to work", "work permit",
+			"us citizen", "green card", "ead",
+		],
+		"visa-sponsorship": ["visa sponsorship", "sponsor visa", "require sponsorship"],
+		"security-clearance": [
+			"security clearance", "clearance required", "ts/sci",
+			"top secret", "secret clearance", "active clearance",
+		],
+		"relocation": ["willing to relocate", "relocation required", "must relocate"],
+		"spanish": ["fluent in spanish", "spanish fluency", "spanish proficiency", "native spanish"],
+		"french": ["fluent in french", "french fluency", "french proficiency"],
+		"german": ["fluent in german", "german fluency", "german proficiency"],
+		"mandarin": ["fluent in mandarin", "mandarin fluency", "mandarin proficiency"],
+	}
+
+	for skill, keywords in eligibility_patterns.items():
+		if any(kw in text_lower for kw in keywords):
+			source = next(
+				(
+					line.strip()
+					for line in text.split("\n")
+					if any(kw in line.lower() for kw in keywords)
+				),
+				skill,
+			)
+			requirements.append(
+				QuickRequirement(
+					description=source,
+					skill_mapping=[skill],
+					priority=RequirementPriority.MUST_HAVE,
+					is_eligibility=True,
+					source_text=source,
 				)
 			)
 
