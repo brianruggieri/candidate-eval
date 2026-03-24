@@ -588,6 +588,49 @@ class TestAssessFullEndpoint:
 		data = resp.json()
 		assert data["assessment_phase"] == "full"
 
+	@pytest.mark.slow
+	async def test_full_assess_preserves_eligibility_cap(self, client_with_profile: AsyncClient):
+		"""Full-assess recomputation must not undo an F grade from an unmet eligibility gate."""
+		spanish_posting = (
+			SAMPLE_POSTING
+			+ "\n- Must be fluent in Spanish (required)\n"
+			+ "- Must have active security clearance (required)\n"
+		)
+		partial = await client_with_profile.post(
+			"/api/assess/partial",
+			json={
+				"posting_text": spanish_posting,
+				"company": "GovCo",
+				"title": "Senior Python Engineer",
+				"seniority": "senior",
+			},
+		)
+		assert partial.status_code == 200
+		aid = partial.json()["assessment_id"]
+		# Partial should already be F due to unmet gates
+		assert partial.json()["overall_grade"] == "F"
+		# Verify the unmet gate is the reason for the F, not just coincidence
+		partial_gates = partial.json().get("eligibility_gates", [])
+		assert any(g.get("status") == "unmet" for g in partial_gates), \
+			"Expected at least one unmet eligibility gate in partial assessment"
+
+		with patch(
+			"claude_candidate.company_research.research_company",
+			return_value={
+				"mission": "Building secure government software",
+				"values": ["security", "reliability"],
+				"culture_signals": ["mission-driven", "process-oriented"],
+				"tech_philosophy": "Python, secure coding practices",
+				"ai_native": False,
+				"product_domains": ["government-technology"],
+				"team_size_signal": "large (500+)",
+			},
+		):
+			resp = await client_with_profile.post("/api/assess/full", json={"assessment_id": aid})
+
+		assert resp.status_code == 200
+		assert resp.json()["overall_grade"] == "F"  # cap must survive full-assess recomputation
+
 
 # ---------------------------------------------------------------------------
 # Assessment list / detail / delete
