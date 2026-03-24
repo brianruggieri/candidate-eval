@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from datetime import datetime
+from unittest.mock import patch
 
+import pytest
 
 from claude_candidate.merger import merge_profiles, merge_candidate_only
 from claude_candidate.quick_match import QuickMatchEngine, _compute_weights
@@ -1521,9 +1523,6 @@ class TestConflictingExpertConfidence:
 
 def test_assess_accepts_elapsed_kwarg(minimal_engine):
 	"""When elapsed is passed to assess(), it is used instead of internal timing."""
-	import pytest
-	from unittest.mock import patch
-
 	reqs = [QuickRequirement(
 		description="Python programming language",
 		skill_mapping=["python"],

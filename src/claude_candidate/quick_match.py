@@ -1400,8 +1400,7 @@ class QuickMatchEngine:
         Partial assessment: scores skill_match (50%), experience_match (30%),
         education_match (20%) — mission and culture are left as None.
         """
-        if elapsed is None:
-            start_time = time.time()
+        start_time = time.time() if elapsed is None else 0.0
 
         # Partition: separate eligibility gates from scorable requirements.
         # Apply heuristic denylist as fallback for cached pre-Plan-9 postings.
