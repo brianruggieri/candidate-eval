@@ -30,12 +30,12 @@ Three targeted fixes surfaced during a live walkthrough session. No new features
 
 **Files:**
 - Modify: `src/claude_candidate/cli.py` — capture `start_time` before parsing, pass elapsed to assess
-- Modify: `src/claude_candidate/quick_match.py` — accept optional `elapsed` override in `assess_partial`; fall back to internal timing if not provided (backwards compat for direct API callers)
+- Modify: `src/claude_candidate/quick_match.py` — accept optional `elapsed` override in `assess` (not `assess_partial` — that is a `server.py` route handler, not the scoring method); fall back to internal timing if `elapsed=None` (backwards compat for direct API callers)
 
 **Behaviour change:**
 - Fresh posting (Claude parses): "Assessed in ~8s" instead of "Assessed in 0.1s"
 - Cached sidecar: "Assessed in ~0.1s" — accurate, fast path is fast
-- Direct API callers (benchmark script, server): unaffected, use internal timing
+- Direct API callers (`engine.assess()` from benchmark script and server): unaffected — `elapsed` is an optional kwarg defaulting to `None`, falling back to internal timing
 
 ---
 
@@ -92,7 +92,8 @@ DEFAULT_CLAUDE_TIMEOUT = 180  # fallback for unknown types
 - Modify: `src/claude_candidate/generator.py`
   - Replace `CLAUDE_TIMEOUT_SECONDS` with `CLAUDE_TIMEOUTS` dict + `DEFAULT_CLAUDE_TIMEOUT`
   - Update `_call_claude(prompt, deliverable_type)` signature
-  - Update all three callers: `generate_resume_bullets`, `generate_cover_letter`, `generate_interview_prep`
+  - Update all four callers: `generate_resume_bullets`, `generate_cover_letter`, `generate_interview_prep`, and `generate_site_narrative`
+  - `generate_site_narrative` does not map to a user-facing deliverable type — it intentionally falls through to `DEFAULT_CLAUDE_TIMEOUT` (180s). Add `"site-narrative"` as a comment in `CLAUDE_TIMEOUTS` or leave it to the default; either is acceptable. Do not break the call.
 
 **Tests:**
 - `tests/test_generator.py` — verify correct timeout is looked up per type; verify fallback for unknown type
@@ -104,6 +105,6 @@ DEFAULT_CLAUDE_TIMEOUT = 180  # fallback for unknown types
 All three fixes have clear unit-testable behaviour:
 1. **Timer**: mock `time.time()` in `cli.py` tests; assert elapsed is passed through
 2. **Domain filter**: unit test `_is_domain_mismatch` with known-bad and known-good matches; test prompt output doesn't contain flagged domain text
-3. **Timeouts**: parametrised test over all deliverable types asserting correct timeout value; test unknown type falls back to `DEFAULT_CLAUDE_TIMEOUT`
+3. **Timeouts**: parametrised test over all deliverable types (`resume-bullets`, `cover-letter`, `interview-prep`) asserting correct timeout value; test unknown type (including `generate_site_narrative`'s path) falls back to `DEFAULT_CLAUDE_TIMEOUT`
 
 No golden set benchmark changes expected — scoring engine is untouched.
