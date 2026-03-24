@@ -6,7 +6,8 @@ Privacy-first pipeline: Claude Code session logs + resume → evidence-backed jo
 
 ```bash
 # Always use the venv — no bare python/pytest
-.venv/bin/python -m pytest                    # Run tests
+.venv/bin/python -m pytest                    # Run tests (~7s, skips slow)
+.venv/bin/python -m pytest --run-slow         # Full suite including integration tests (~5min)
 .venv/bin/python -m pytest tests/test_foo.py  # Run one test file
 .venv/bin/python -m claude_candidate.cli --help  # CLI entry point
 ```
@@ -77,6 +78,23 @@ Job posting → requirement_parser → QuickRequirement[]
 - **Tests:** Real data strongly preferred over mocks. Use fixture files in `tests/fixtures/`.
 - **Taxonomy changes:** Always add corresponding tests in `tests/test_skill_taxonomy.py`
 - **Matching changes:** Always add tests in `tests/test_quick_match.py`
+
+## Test tiers
+
+Tests are split into two tiers via `@pytest.mark.slow`:
+
+| Command | Time | When to use |
+|---------|------|-------------|
+| `.venv/bin/python -m pytest` | ~7s | Every dev loop — after any code change |
+| `.venv/bin/python -m pytest --run-slow` | ~5min | Before opening a PR; when touching modules listed below |
+
+**Run `--run-slow` when you change:**
+- `requirement_parser.py` — covered by `TestJobParseCommand` (calls real Claude CLI)
+- `extractor.py` or `sanitizer.py` — covered by `TestSessionsScanCommand` (full JSONL scan)
+- `evidence_compactor.py` — covered by `TestFallback::test_claude_failure_triggers_fallback`
+- `server.py` `/api/assess/full` endpoint — covered by `TestAssessFullEndpoint`
+
+**What slow tests cover that fast tests don't:** end-to-end subprocess calls, real Claude CLI invocations, full session extraction pipeline on real JSONL files, and the FastAPI full-assess flow with live async I/O. These are integration correctness checks — they don't need to run on every save, but must pass before merging.
 
 ## Running the benchmark
 
