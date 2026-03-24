@@ -10,6 +10,8 @@ import pytest
 
 from claude_candidate.claude_cli import ClaudeCLIError
 from claude_candidate.generator import (
+    CLAUDE_TIMEOUTS,
+    DEFAULT_CLAUDE_TIMEOUT,
     _is_domain_mismatch,
     generate_cover_letter,
     generate_interview_prep,
@@ -515,3 +517,60 @@ class TestBulletPromptDomainFilter:
             prompt = mock_call.call_args[0][0]
 
         assert "Strong Python proficiency" in prompt
+
+
+# ---------------------------------------------------------------------------
+# TestPerTypeTimeouts
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def minimal_assessment():
+    return _make_assessment()
+
+
+class TestPerTypeTimeouts:
+    def test_resume_bullets_timeout(self):
+        """resume-bullets uses the configured short timeout."""
+        assert CLAUDE_TIMEOUTS["resume-bullets"] == 120
+
+    def test_cover_letter_timeout(self):
+        """cover-letter uses the configured long timeout."""
+        assert CLAUDE_TIMEOUTS["cover-letter"] == 300
+
+    def test_interview_prep_timeout(self):
+        """interview-prep uses the configured long timeout."""
+        assert CLAUDE_TIMEOUTS["interview-prep"] == 300
+
+    def test_default_timeout_for_unknown_type(self):
+        """Unknown deliverable type falls back to DEFAULT_CLAUDE_TIMEOUT."""
+        assert DEFAULT_CLAUDE_TIMEOUT == 180
+
+    def test_generate_resume_bullets_passes_correct_timeout(self, minimal_assessment):
+        """generate_resume_bullets calls call_claude with resume-bullets timeout."""
+        with patch("claude_candidate.generator.call_claude", return_value="- Bullet") as mock_call:
+            generate_resume_bullets(assessment=minimal_assessment)
+            _, kwargs = mock_call.call_args
+            assert kwargs.get("timeout") == CLAUDE_TIMEOUTS["resume-bullets"]
+
+    def test_generate_cover_letter_passes_correct_timeout(self, minimal_assessment):
+        """generate_cover_letter calls call_claude with cover-letter timeout."""
+        with patch("claude_candidate.generator.call_claude", return_value="Dear Hiring Manager") as mock_call:
+            generate_cover_letter(assessment=minimal_assessment)
+            _, kwargs = mock_call.call_args
+            assert kwargs.get("timeout") == CLAUDE_TIMEOUTS["cover-letter"]
+
+    def test_generate_interview_prep_passes_correct_timeout(self, minimal_assessment):
+        """generate_interview_prep calls call_claude with interview-prep timeout."""
+        with patch("claude_candidate.generator.call_claude", return_value="## Technical Topics") as mock_call:
+            generate_interview_prep(assessment=minimal_assessment)
+            _, kwargs = mock_call.call_args
+            assert kwargs.get("timeout") == CLAUDE_TIMEOUTS["interview-prep"]
+
+    def test_site_narrative_empty_type_resolves_to_default_timeout(self):
+        """Empty deliverable_type (generate_site_narrative's path) uses DEFAULT_CLAUDE_TIMEOUT.
+
+        generate_site_narrative calls _call_claude(prompt) with no type string, which
+        defaults to "" — verify that resolves to DEFAULT_CLAUDE_TIMEOUT via CLAUDE_TIMEOUTS.get.
+        """
+        assert CLAUDE_TIMEOUTS.get("", DEFAULT_CLAUDE_TIMEOUT) == DEFAULT_CLAUDE_TIMEOUT

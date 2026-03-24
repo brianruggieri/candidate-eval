@@ -14,6 +14,8 @@ from claude_candidate.schemas.fit_assessment import FitAssessment, SkillMatchDet
 from claude_candidate.schemas.merged_profile import MergedEvidenceProfile
 
 __all__ = [
+    "CLAUDE_TIMEOUTS",
+    "DEFAULT_CLAUDE_TIMEOUT",
     "ClaudeCLIError",
     "generate_resume_bullets",
     "generate_cover_letter",
@@ -22,7 +24,12 @@ __all__ = [
     "generate_site_narrative",
 ]
 
-CLAUDE_TIMEOUT_SECONDS = 120
+CLAUDE_TIMEOUTS: dict[str, int] = {
+    "resume-bullets": 120,   # short list, fast
+    "cover-letter": 300,     # prose narrative, ~400 words
+    "interview-prep": 300,   # longer narrative
+}
+DEFAULT_CLAUDE_TIMEOUT = 180  # fallback for unknown / untyped callers
 
 # Match statuses considered "positive" evidence
 POSITIVE_STATUSES = {"strong_match", "exceeds", "partial_match"}
@@ -86,9 +93,10 @@ def _is_domain_mismatch(match: SkillMatchDetail) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _call_claude(prompt: str) -> str:
-    """Call Claude CLI. Raises ClaudeCLIError on any failure."""
-    return call_claude(prompt, timeout=CLAUDE_TIMEOUT_SECONDS)
+def _call_claude(prompt: str, deliverable_type: str = "") -> str:
+    """Call Claude CLI with per-type timeout. Raises ClaudeCLIError on any failure."""
+    timeout = CLAUDE_TIMEOUTS.get(deliverable_type, DEFAULT_CLAUDE_TIMEOUT)
+    return call_claude(prompt, timeout=timeout)
 
 
 # ---------------------------------------------------------------------------
@@ -194,7 +202,7 @@ def generate_resume_bullets(
         ClaudeCLIError: If the Claude CLI is unavailable or returns an error.
     """
     prompt = _build_bullet_prompt(assessment, profile)
-    result = _call_claude(prompt)
+    result = _call_claude(prompt, "resume-bullets")
     bullets = _parse_bullet_lines(result)
     return [scrub_deliverable(bullet) for bullet in bullets]
 
@@ -220,7 +228,7 @@ def generate_cover_letter(
         ClaudeCLIError: If the Claude CLI is unavailable or returns an error.
     """
     prompt = _build_cover_letter_prompt(assessment, profile)
-    return scrub_deliverable(_call_claude(prompt))
+    return scrub_deliverable(_call_claude(prompt, "cover-letter"))
 
 
 def generate_interview_prep(
@@ -234,7 +242,7 @@ def generate_interview_prep(
         ClaudeCLIError: If the Claude CLI is unavailable or returns an error.
     """
     prompt = _build_interview_prompt(assessment, profile)
-    return scrub_deliverable(_call_claude(prompt))
+    return scrub_deliverable(_call_claude(prompt, "interview-prep"))
 
 
 # ---------------------------------------------------------------------------
