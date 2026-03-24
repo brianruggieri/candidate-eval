@@ -1441,7 +1441,7 @@ class TestEligibilityFilters:
 		)
 		# eligibility gate should be in eligibility_gates
 		assert len(result.eligibility_gates) == 1
-		assert result.eligibility_gates[0].status == "unknown"
+		assert result.eligibility_gates[0].status == "met"  # us_work_authorized=True by default
 
 	def test_eligibility_gates_populated(self, candidate_profile, resume_profile):
 		"""eligibility_gates contains one entry per eligibility requirement."""

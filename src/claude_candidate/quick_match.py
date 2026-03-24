@@ -14,11 +14,12 @@ import math
 import re
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 from claude_candidate.schemas.candidate_profile import DepthLevel, DEPTH_RANK, PatternType
 from claude_candidate.schemas.company_profile import CompanyProfile
+from claude_candidate.schemas.curated_resume import CandidateEligibility
 from claude_candidate.skill_taxonomy import SkillTaxonomy
 from claude_candidate.schemas.fit_assessment import (
 	DimensionScore,
@@ -38,6 +39,7 @@ from claude_candidate.schemas.merged_profile import (
 	MergedEvidenceProfile,
 	MergedSkillEvidence,
 )
+from claude_candidate.eligibility_evaluator import evaluate_gates
 
 
 # ---------------------------------------------------------------------------
@@ -202,21 +204,6 @@ def _infer_eligibility(req: "QuickRequirement") -> bool:
 	return False
 
 
-def _evaluate_eligibility(reqs: list["QuickRequirement"]) -> list[EligibilityGate]:
-	"""Convert eligibility requirements to EligibilityGate objects.
-
-	All gates are status=unknown for now — the profile doesn't carry eligibility data.
-	"""
-	return [
-		EligibilityGate(
-			description=req.description,
-			status="unknown",
-			requirement_text=req.source_text,
-		)
-		for req in reqs
-	]
-
-
 # Rounding precision
 SCORE_PRECISION = 3
 TIMING_PRECISION = 2
@@ -355,6 +342,7 @@ class AssessmentInput:
 	culture_signals: list[str] | None = None
 	tech_stack: list[str] | None = None
 	company_profile: CompanyProfile | None = None
+	curated_eligibility: CandidateEligibility = field(default_factory=CandidateEligibility)
 
 
 @dataclass
@@ -1469,6 +1457,7 @@ class QuickMatchEngine:
 		culture_signals: list[str] | None = None,
 		tech_stack: list[str] | None = None,
 		company_profile: CompanyProfile | None = None,
+		curated_eligibility: CandidateEligibility | None = None,
 		elapsed: float | None = None,
 	) -> FitAssessment:
 		"""Run the three-dimensional fit assessment."""
@@ -1482,6 +1471,7 @@ class QuickMatchEngine:
 			culture_signals=culture_signals,
 			tech_stack=tech_stack,
 			company_profile=company_profile,
+			curated_eligibility=curated_eligibility or CandidateEligibility(),
 		)
 		return self._run_assessment(inp, elapsed=elapsed)
 
@@ -1499,7 +1489,7 @@ class QuickMatchEngine:
 		# Apply heuristic denylist as fallback for cached pre-Plan-9 postings.
 		eligibility_reqs = [r for r in inp.requirements if _infer_eligibility(r)]
 		scorable_reqs = [r for r in inp.requirements if not _infer_eligibility(r)]
-		eligibility_gates = _evaluate_eligibility(eligibility_reqs)
+		eligibility_gates = evaluate_gates(eligibility_reqs, inp.curated_eligibility)
 		eligibility_passed = not any(g.status == "unmet" for g in eligibility_gates)
 
 		skill_dim, skill_details = self._score_skill_match(
