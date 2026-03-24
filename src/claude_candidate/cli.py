@@ -537,6 +537,44 @@ def _extract_basic_requirements(text: str) -> list:
 				)
 			)
 
+	# Eligibility gate keywords — set is_eligibility=True so the hard cap fires
+	eligibility_patterns: dict[str, list[str]] = {
+		"us-work-authorization": [
+			"work authorization", "authorized to work", "work permit",
+			"us citizen", "green card", "ead",
+		],
+		"visa-sponsorship": ["visa sponsorship", "sponsor visa", "require sponsorship"],
+		"security-clearance": [
+			"security clearance", "clearance required", "ts/sci",
+			"top secret", "secret clearance", "active clearance",
+		],
+		"relocation": ["willing to relocate", "relocation required", "must relocate"],
+		"spanish": ["fluent in spanish", "spanish fluency", "spanish proficiency", "native spanish"],
+		"french": ["fluent in french", "french fluency", "french proficiency"],
+		"german": ["fluent in german", "german fluency", "german proficiency"],
+		"mandarin": ["fluent in mandarin", "mandarin fluency", "mandarin proficiency"],
+	}
+
+	for skill, keywords in eligibility_patterns.items():
+		if any(kw in text_lower for kw in keywords):
+			source = next(
+				(
+					line.strip()
+					for line in text.split("\n")
+					if any(kw in line.lower() for kw in keywords)
+				),
+				skill,
+			)
+			requirements.append(
+				QuickRequirement(
+					description=source,
+					skill_mapping=[skill],
+					priority=RequirementPriority.MUST_HAVE,
+					is_eligibility=True,
+					source_text=source,
+				)
+			)
+
 	if not requirements:
 		# Fallback: create a generic requirement
 		requirements.append(
