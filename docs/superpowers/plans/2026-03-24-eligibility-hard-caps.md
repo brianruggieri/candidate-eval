@@ -515,18 +515,25 @@ Delete the old `_evaluate_eligibility()` function entirely (lines 205–217).
 
 Expected: same count as Step 1, all pass. The existing eligibility tests now get `"unknown"` status via the evaluator (since default `CandidateEligibility` leaves clearance/auth unresolved for requirements that don't match any gate).
 
-**Important:** The existing test at `test_eligibility_excluded_from_skill_score` asserts `result.eligibility_gates[0].status == "unknown"` — this must still hold because it uses a `us-work-authorization` requirement and `CandidateEligibility` defaults to `us_work_authorized=True` → gate is `"met"`, not `"unknown"`.
+**Required assertion update — this will break and must be fixed:**
 
-Wait — check: the existing test passes `is_eligibility=True` with `skill_mapping=["us-work-authorization"]`. With `us_work_authorized=True` (default), `evaluate_gates` will return `"met"`, not `"unknown"`. **The existing test assertion `status == "unknown"` will fail.**
+The existing tests `test_eligibility_excluded_from_skill_score` and `test_eligibility_gates_populated` assert:
+```python
+assert result.eligibility_gates[0].status == "unknown"
+```
 
-Update the failing assertion in `tests/test_quick_match.py` for `test_eligibility_excluded_from_skill_score` and `test_eligibility_gates_populated`:
+These tests use `skill_mapping=["us-work-authorization"]`. Before this task, `_evaluate_eligibility()` always returned `"unknown"`. After this task, `evaluate_gates()` resolves `us-work-authorization` against `CandidateEligibility(us_work_authorized=True)` (the default) → returns `"met"`.
+
+**This is the correct new behavior.** Update those assertions:
 
 ```python
-# Old:
+# Old (was always-unknown stub):
 assert result.eligibility_gates[0].status == "unknown"
-# New:
-assert result.eligibility_gates[0].status == "met"  # us_work_authorized=True is default
+# New (evaluator now resolves correctly):
+assert result.eligibility_gates[0].status == "met"  # us_work_authorized=True by default
 ```
+
+This is not a regression — it is the point of this change. The test was validating the old inert behavior.
 
 - [ ] **Step 6: Run full fast suite**
 
@@ -691,6 +698,32 @@ class TestEligibilityHardCap:
 		)
 		assert result.eligibility_gates == []
 		assert result.overall_grade != "F"
+
+	def test_multiple_unmet_gates_all_appear_in_output(self, candidate_profile, resume_profile):
+		"""All unmet gate descriptions are joined in summary and action item."""
+		from claude_candidate.merger import merge_profiles
+		from claude_candidate.quick_match import QuickMatchEngine
+		from claude_candidate.schemas.curated_resume import CandidateEligibility
+
+		merged = merge_profiles(candidate_profile, resume_profile)
+		engine = QuickMatchEngine(merged)
+		clearance_req = self._make_req(
+			"security-clearance", "Must hold active security clearance", is_eligibility=True
+		)
+		spanish_req = self._make_req(
+			"spanish", "Must be fluent in Spanish", is_eligibility=True
+		)
+		result = engine.assess(
+			requirements=[clearance_req, spanish_req, self._make_req("python")],
+			company="GovCo",
+			title="Engineer",
+			curated_eligibility=CandidateEligibility(has_clearance=False),
+		)
+		assert result.overall_grade == "F"
+		# Both descriptions must appear in the summary
+		assert "clearance" in result.overall_summary.lower() or "spanish" in result.overall_summary.lower()
+		# The action item should reference both
+		assert result.action_items[0].startswith("Eligibility:")
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -801,21 +834,50 @@ git commit -m "feat: hard cap grade to F when eligibility gate is unmet"
 
 - [ ] **Step 1: Write the failing test**
 
-Find the existing full-assess test class in `tests/test_server.py` (search for `assess/full` or `full_assess`). Add:
+Add to `TestAssessFullEndpoint` in `tests/test_server.py`. This follows the exact same pattern as the existing tests: POST to `/api/assess/partial` first, then POST to `/api/assess/full`, assert on the result. The posting includes a Spanish language requirement — parsed as an eligibility gate → `unmet` (hardcoded foreign language) → partial grade already F → full-assess must not restore it.
 
 ```python
-def test_full_assess_respects_eligibility_cap(self, ...):
-	"""When the stored partial assessment has an unmet eligibility gate,
-	the full-assess recomputation must not undo the F grade."""
-	# Build a mock partial-assessment data dict with an unmet gate
-	# and call the full-assess endpoint, assert overall_grade == "F"
-	# (Adapt fixture setup to match the existing test pattern in this class)
+@pytest.mark.slow
+async def test_full_assess_preserves_eligibility_cap(self, client_with_profile: AsyncClient):
+	"""Full-assess recomputation must not undo an F grade from an unmet eligibility gate."""
+	spanish_posting = (
+		SAMPLE_POSTING
+		+ "\n- Must be fluent in Spanish (required)\n"
+		+ "- Must have active security clearance (required)\n"
+	)
+	partial = await client_with_profile.post(
+		"/api/assess/partial",
+		json={
+			"posting_text": spanish_posting,
+			"company": "GovCo",
+			"title": "Senior Python Engineer",
+			"seniority": "senior",
+		},
+	)
+	assert partial.status_code == 200
+	aid = partial.json()["assessment_id"]
+	# Partial should already be F due to unmet gates
+	assert partial.json()["overall_grade"] == "F"
+
+	with patch(
+		"claude_candidate.company_research.research_company",
+		return_value={
+			"mission": "Building secure government software",
+			"values": ["security", "reliability"],
+			"culture_signals": ["mission-driven", "process-oriented"],
+			"tech_philosophy": "Python, secure coding practices",
+			"ai_native": False,
+			"product_domains": ["government-technology"],
+			"team_size_signal": "large (500+)",
+		},
+	):
+		resp = await client_with_profile.post("/api/assess/full", json={"assessment_id": aid})
+
+	assert resp.status_code == 200
+	assert resp.json()["overall_grade"] == "F"  # cap must survive full-assess recomputation
 ```
 
-Look at the existing test class setup to match the pattern. The key assertion is:
-```python
-assert response.json()["overall_grade"] == "F"
-```
+Note: This is a `@pytest.mark.slow` test (real Claude CLI parsing). It lives inside `TestAssessFullEndpoint` which is already marked slow at the class level.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
@@ -913,7 +975,48 @@ assessment = engine.assess(
 )
 ```
 
-- [ ] **Step 2: Run full fast suite**
+- [ ] **Step 2: Write a unit test for the `curated_eligibility` wiring**
+
+Add to `tests/test_quick_match.py` (inside an appropriate existing class or as a standalone test):
+
+```python
+def test_assess_passes_curated_eligibility_to_gates(candidate_profile, resume_profile):
+	"""curated_eligibility parameter reaches evaluate_gates and resolves correctly."""
+	from claude_candidate.merger import merge_profiles
+	from claude_candidate.quick_match import QuickMatchEngine
+	from claude_candidate.schemas.curated_resume import CandidateEligibility
+	from claude_candidate.schemas.job_requirements import QuickRequirement, RequirementPriority
+
+	merged = merge_profiles(candidate_profile, resume_profile)
+	engine = QuickMatchEngine(merged)
+	clearance_req = QuickRequirement(
+		description="Must hold clearance",
+		skill_mapping=["security-clearance"],
+		priority=RequirementPriority.MUST_HAVE,
+		is_eligibility=True,
+		source_text="Must hold clearance",
+	)
+	# With has_clearance=True → gate resolves to "met"
+	result_met = engine.assess(
+		requirements=[clearance_req],
+		company="Co",
+		title="Eng",
+		curated_eligibility=CandidateEligibility(has_clearance=True),
+	)
+	assert result_met.eligibility_gates[0].status == "met"
+
+	# With has_clearance=False (default) → gate resolves to "unmet" → grade F
+	result_unmet = engine.assess(
+		requirements=[clearance_req],
+		company="Co",
+		title="Eng",
+		curated_eligibility=CandidateEligibility(has_clearance=False),
+	)
+	assert result_unmet.eligibility_gates[0].status == "unmet"
+	assert result_unmet.overall_grade == "F"
+```
+
+- [ ] **Step 3: Run full fast suite**
 
 ```bash
 .venv/bin/python -m pytest
@@ -921,7 +1024,7 @@ assessment = engine.assess(
 
 Expected: all tests pass.
 
-- [ ] **Step 3: Smoke-test the CLI help to confirm new option appears**
+- [ ] **Step 4: Smoke-test the CLI help to confirm new option appears**
 
 ```bash
 .venv/bin/python -m claude_candidate.cli assess --help
@@ -929,10 +1032,10 @@ Expected: all tests pass.
 
 Expected: `--curated-resume` option is listed.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add src/claude_candidate/cli.py
+git add src/claude_candidate/cli.py tests/test_quick_match.py
 git commit -m "feat: pass curated eligibility to engine.assess() from CLI assess command"
 ```
 
