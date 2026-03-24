@@ -1513,3 +1513,29 @@ class TestConflictingExpertConfidence:
 		# adjustment = 0.90 + 0.10*0.85 = 0.985
 		score = _score_requirement(skill, "exceeds", RequirementPriority.MUST_HAVE)
 		assert 0.984 <= score <= 0.986, f"Expected ~0.985 for CORROBORATED, got {score}"
+
+
+# ---------------------------------------------------------------------------
+# Timer tests
+# ---------------------------------------------------------------------------
+
+def test_assess_accepts_elapsed_kwarg(minimal_engine):
+	"""When elapsed is passed to assess(), it is used instead of internal timing."""
+	import pytest
+	from unittest.mock import patch
+
+	reqs = [QuickRequirement(
+		description="Python programming language",
+		skill_mapping=["python"],
+		priority="must_have",
+	)]
+	with patch("claude_candidate.quick_match.time") as mock_time:
+		# Internal time.time() should never be called when elapsed is provided
+		mock_time.time.side_effect = AssertionError("internal timer was called")
+		assessment = minimal_engine.assess(
+			requirements=reqs,
+			company="Test Co",
+			title="Engineer",
+			elapsed=5.0,
+		)
+	assert assessment.time_to_assess_seconds == pytest.approx(5.0, abs=0.01)

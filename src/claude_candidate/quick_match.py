@@ -1376,6 +1376,7 @@ class QuickMatchEngine:
         culture_signals: list[str] | None = None,
         tech_stack: list[str] | None = None,
         company_profile: CompanyProfile | None = None,
+        elapsed: float | None = None,
     ) -> FitAssessment:
         """Run the three-dimensional fit assessment."""
         inp = AssessmentInput(
@@ -1389,17 +1390,18 @@ class QuickMatchEngine:
             tech_stack=tech_stack,
             company_profile=company_profile,
         )
-        return self._run_assessment(inp)
+        return self._run_assessment(inp, elapsed=elapsed)
 
     # -- orchestration ------------------------------------------------------
 
-    def _run_assessment(self, inp: AssessmentInput) -> FitAssessment:
+    def _run_assessment(self, inp: AssessmentInput, elapsed: float | None = None) -> FitAssessment:
         """Orchestrate scoring dimensions and assemble the result.
 
         Partial assessment: scores skill_match (50%), experience_match (30%),
         education_match (20%) — mission and culture are left as None.
         """
-        start_time = time.time()
+        if elapsed is None:
+            start_time = time.time()
 
         # Partition: separate eligibility gates from scorable requirements.
         # Apply heuristic denylist as fallback for cached pre-Plan-9 postings.
@@ -1440,7 +1442,8 @@ class QuickMatchEngine:
         )
         partial_percentage = round(overall_score * 100, 1)
 
-        elapsed = time.time() - start_time
+        if elapsed is None:
+            elapsed = time.time() - start_time
         return self._build_assessment(
             inp, skill_dim, None, None,
             skill_details, overall_score, elapsed,

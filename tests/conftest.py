@@ -57,6 +57,17 @@ def quick_requirements():
 
 
 @pytest.fixture
+def minimal_engine():
+    from claude_candidate.merger import merge_candidate_only
+    from claude_candidate.quick_match import QuickMatchEngine
+    from claude_candidate.schemas.candidate_profile import CandidateProfile
+    data = (FIXTURES_DIR / "sample_candidate_profile.json").read_text()
+    cp = CandidateProfile.from_json(data)
+    merged = merge_candidate_only(cp)
+    return QuickMatchEngine(merged)
+
+
+@pytest.fixture
 def eligibility_requirement():
     from claude_candidate.schemas.job_requirements import QuickRequirement, RequirementPriority
     return QuickRequirement(

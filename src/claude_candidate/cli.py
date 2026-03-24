@@ -8,6 +8,7 @@ that runs the full v0.1 proof-of-concept flow.
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -84,6 +85,8 @@ def assess(
     click.echo(f"Loading job posting from {job}...")
     job_text = Path(job).read_text()
 
+    start_time = time.time()  # covers both parse paths
+
     # Parse requirements from the job text
     # In v0.1, requirements are provided as a simple JSON list alongside the text
     req_path = Path(job).with_suffix(".requirements.json")
@@ -97,6 +100,8 @@ def assess(
         requirements = parse_requirements_with_claude(job_text)
         click.echo(f"  Extracted {len(requirements)} requirements")
 
+    elapsed = time.time() - start_time
+
     # Run assessment
     click.echo(f"\nAssessing fit for {title} at {company}...")
     engine = QuickMatchEngine(merged)
@@ -107,6 +112,7 @@ def assess(
         posting_url=None,
         source="cli",
         seniority=seniority,
+        elapsed=elapsed,
     )
 
     # Output
