@@ -20,6 +20,10 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
 	if config.getoption("--run-slow"):
 		return
+	# Don't auto-skip if the user explicitly selected the slow mark via -m
+	mark_expr = getattr(config.option, "markexpr", "")
+	if mark_expr and "slow" in mark_expr:
+		return
 	skip_slow = pytest.mark.skip(reason="slow test — pass --run-slow to include")
 	for item in items:
 		if item.get_closest_marker("slow"):

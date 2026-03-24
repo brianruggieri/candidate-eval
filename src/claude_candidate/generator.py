@@ -177,10 +177,10 @@ def _format_matches_for_prompt(
 		if strip_domain_mismatch and _is_domain_mismatch(m):
 			# Replace requirement text with evidence-only framing to prevent
 			# the model from echoing domain claims the evidence doesn't support.
-			req_text = m.candidate_evidence
+			# Omit trailing evidence to avoid duplication (req_text IS the evidence).
+			lines.append(f"- {m.candidate_evidence} ({m.match_status})")
 		else:
-			req_text = m.requirement
-		lines.append(f"- {req_text} ({m.match_status}): {m.candidate_evidence}")
+			lines.append(f"- {m.requirement} ({m.match_status}): {m.candidate_evidence}")
 	return "\n".join(lines)
 
 
