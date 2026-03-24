@@ -69,6 +69,13 @@ def main(ctx: click.Context) -> None:
 	help="Seniority level",
 )
 @click.option("--output", "-o", type=click.Path(), help="Output file for assessment JSON")
+@click.option(
+	"--curated-resume",
+	type=click.Path(exists=True),
+	required=False,
+	default=None,
+	help="Path to curated resume JSON (default: ~/.claude-candidate/curated_resume.json)",
+)
 def assess(
 	profile: str,
 	resume: str | None,
@@ -77,6 +84,7 @@ def assess(
 	title: str,
 	seniority: str,
 	output: str | None,
+	curated_resume: str | None,
 ) -> None:
 	"""Run a quick match assessment against a job posting."""
 	from claude_candidate.schemas.candidate_profile import CandidateProfile
@@ -91,6 +99,20 @@ def assess(
 	if resume:
 		click.echo(f"Loading resume profile from {resume}...")
 		rp = ResumeProfile.from_json(Path(resume).read_text())
+
+	from claude_candidate.schemas.curated_resume import CandidateEligibility, CuratedResume
+
+	curated_eligibility: CandidateEligibility | None = None
+	curated_resume_path = (
+		Path(curated_resume) if curated_resume
+		else Path.home() / ".claude-candidate" / "curated_resume.json"
+	)
+	if curated_resume_path.exists():
+		try:
+			curated_r = CuratedResume.from_file(curated_resume_path)
+			curated_eligibility = curated_r.eligibility
+		except Exception:
+			pass  # Malformed curated resume — silently fall back to defaults
 
 	merged = _merge_profile(cp, rp)
 	click.echo(
@@ -131,6 +153,7 @@ def assess(
 		source="cli",
 		seniority=seniority,
 		elapsed=elapsed,
+		curated_eligibility=curated_eligibility,
 	)
 
 	# Output

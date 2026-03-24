@@ -1877,6 +1877,42 @@ class TestConflictingExpertConfidence:
 # ---------------------------------------------------------------------------
 
 
+def test_assess_passes_curated_eligibility_to_gates(candidate_profile, resume_profile):
+	"""curated_eligibility parameter reaches evaluate_gates and resolves correctly."""
+	from claude_candidate.merger import merge_profiles
+	from claude_candidate.quick_match import QuickMatchEngine
+	from claude_candidate.schemas.curated_resume import CandidateEligibility
+	from claude_candidate.schemas.job_requirements import QuickRequirement, RequirementPriority
+
+	merged = merge_profiles(candidate_profile, resume_profile)
+	engine = QuickMatchEngine(merged)
+	clearance_req = QuickRequirement(
+		description="Must hold clearance",
+		skill_mapping=["security-clearance"],
+		priority=RequirementPriority.MUST_HAVE,
+		is_eligibility=True,
+		source_text="Must hold clearance",
+	)
+	# With has_clearance=True → gate resolves to "met"
+	result_met = engine.assess(
+		requirements=[clearance_req],
+		company="Co",
+		title="Eng",
+		curated_eligibility=CandidateEligibility(has_clearance=True),
+	)
+	assert result_met.eligibility_gates[0].status == "met"
+
+	# With has_clearance=False (default) → gate resolves to "unmet" → grade F
+	result_unmet = engine.assess(
+		requirements=[clearance_req],
+		company="Co",
+		title="Eng",
+		curated_eligibility=CandidateEligibility(has_clearance=False),
+	)
+	assert result_unmet.eligibility_gates[0].status == "unmet"
+	assert result_unmet.overall_grade == "F"
+
+
 def test_assess_accepts_elapsed_kwarg(minimal_engine):
 	"""When elapsed is passed to assess(), it is used instead of internal timing."""
 	reqs = [
