@@ -37,7 +37,7 @@ Job Posting ──→ Requirement Parser ──→ QuickRequirements ──→ S
 - **Provenance tracking** — Every skill claim is tagged: `corroborated`, `sessions_only`, or `resume_only`. No unattributed assertions.
 - **PII scrubbing** — Two-layer pipeline: session logs are scrubbed on ingestion (emails, phones, API keys, paths); deliverable output is additionally scrubbed via DataFog before leaving the tool. Person-name detection uses honorific-anchored heuristics unless `datafog[nlp]` is installed.
 
-Full architecture, trust model, and roadmap: [PROJECT.md](PROJECT.md)
+Full architecture, trust model, and roadmap: [ARCHITECTURE.md](ARCHITECTURE.md)
 
 ---
 
@@ -46,7 +46,7 @@ Full architecture, trust model, and roadmap: [PROJECT.md](PROJECT.md)
 | Metric | Value |
 |--------|-------|
 | Test coverage | Fully tested |
-| Canonical skills in taxonomy | 105 |
+| Canonical skills in taxonomy | 104 |
 | Sessions scanned (author) | 2,300+ |
 
 ---

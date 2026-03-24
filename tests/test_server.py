@@ -141,6 +141,7 @@ class TestMtimeCache:
 
 		# Overwrite the file with a slightly different dict to change its content + mtime
 		import os
+
 		new_data = {"skills": [], "_marker": "updated"}
 		(data_dir / "candidate_profile.json").write_text(json.dumps(new_data))
 		# Force a distinct mtime_ns to avoid flakiness on coarse-resolution filesystems
@@ -164,7 +165,9 @@ class TestMtimeCache:
 		resp2 = await client.get("/api/profile/status")
 		assert resp2.json()["has_candidate_profile"] is False
 
-	async def test_new_profile_file_picked_up(self, client_and_dir, sample_resume_profile_json: str):
+	async def test_new_profile_file_picked_up(
+		self, client_and_dir, sample_resume_profile_json: str
+	):
 		"""A profile file created after startup is picked up on the next request."""
 		client, data_dir = client_and_dir
 
@@ -179,6 +182,7 @@ class TestMtimeCache:
 	async def test_corrupt_file_keeps_stale_data(self, client_and_dir):
 		"""A corrupt JSON file keeps the last good cached data and doesn't crash."""
 		import time
+
 		client, data_dir = client_and_dir
 
 		resp1 = await client.get("/api/profile/status")
@@ -321,6 +325,7 @@ class TestAssessPartialEndpoint:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.slow
 class TestAssessFullEndpoint:
 	async def test_assess_full_not_found_returns_404(self, client_with_profile: AsyncClient):
 		resp = await client_with_profile.post(
@@ -345,9 +350,7 @@ class TestAssessFullEndpoint:
 				"team_size_signal": "mid-size (50-500)",
 			},
 		):
-			resp = await client_with_profile.post(
-				"/api/assess/full", json={"assessment_id": aid}
-			)
+			resp = await client_with_profile.post("/api/assess/full", json={"assessment_id": aid})
 
 		assert resp.status_code == 200
 		data = resp.json()
@@ -370,9 +373,7 @@ class TestAssessFullEndpoint:
 				"team_size_signal": "startup (<50)",
 			},
 		):
-			resp = await client_with_profile.post(
-				"/api/assess/full", json={"assessment_id": aid}
-			)
+			resp = await client_with_profile.post("/api/assess/full", json={"assessment_id": aid})
 
 		data = resp.json()
 		assert data["mission_alignment"] is not None
@@ -399,9 +400,7 @@ class TestAssessFullEndpoint:
 				"team_size_signal": "",
 			},
 		):
-			resp = await client_with_profile.post(
-				"/api/assess/full", json={"assessment_id": aid}
-			)
+			resp = await client_with_profile.post("/api/assess/full", json={"assessment_id": aid})
 
 		data = resp.json()
 		assert "deliverables" not in data
@@ -423,14 +422,22 @@ class TestAssessFullEndpoint:
 				"team_size_signal": "mid-size (50-500)",
 			},
 		):
-			resp = await client_with_profile.post(
-				"/api/assess/full", json={"assessment_id": aid}
-			)
+			resp = await client_with_profile.post("/api/assess/full", json={"assessment_id": aid})
 
 		data = resp.json()
 		assert "overall_grade" in data
 		assert data["overall_grade"] in {
-			"A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D", "F"
+			"A+",
+			"A",
+			"A-",
+			"B+",
+			"B",
+			"B-",
+			"C+",
+			"C",
+			"C-",
+			"D",
+			"F",
 		}
 
 	async def test_assess_full_preserves_assessment_fields(self, client_with_profile: AsyncClient):
@@ -450,9 +457,7 @@ class TestAssessFullEndpoint:
 				"team_size_signal": "",
 			},
 		):
-			resp = await client_with_profile.post(
-				"/api/assess/full", json={"assessment_id": aid}
-			)
+			resp = await client_with_profile.post("/api/assess/full", json={"assessment_id": aid})
 
 		data = resp.json()
 		assert data["assessment_id"] == aid
@@ -477,9 +482,7 @@ class TestAssessFullEndpoint:
 				"team_size_signal": "",
 			},
 		):
-			await client_with_profile.post(
-				"/api/assess/full", json={"assessment_id": aid}
-			)
+			await client_with_profile.post("/api/assess/full", json={"assessment_id": aid})
 
 		# Verify persistence via GET
 		get_resp = await client_with_profile.get(f"/api/assessments/{aid}")
@@ -498,9 +501,7 @@ class TestAssessFullEndpoint:
 			"claude_candidate.company_research.research_company",
 			side_effect=Exception("Claude unavailable"),
 		):
-			resp = await client_with_profile.post(
-				"/api/assess/full", json={"assessment_id": aid}
-			)
+			resp = await client_with_profile.post("/api/assess/full", json={"assessment_id": aid})
 
 		# Should still succeed with best-effort mission/culture
 		assert resp.status_code == 200
@@ -514,17 +515,20 @@ class TestAssessFullEndpoint:
 		partial = await client_with_profile.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
 		aid = partial.json()["assessment_id"]
 
-		mock_narrative = MagicMock(return_value={
-			"narrative": "Strong backend fit with deep Python expertise.",
-			"receptivity": "high",
-			"receptivity_reason": "AI-native company values transparency.",
-		})
+		mock_narrative = MagicMock(
+			return_value={
+				"narrative": "Strong backend fit with deep Python expertise.",
+				"receptivity": "high",
+				"receptivity_reason": "AI-native company values transparency.",
+			}
+		)
 
 		# Mock the generator module so the lazy import inside assess_full succeeds
 		mock_generator_module = MagicMock()
 		mock_generator_module.generate_narrative_verdict = mock_narrative
 
 		import sys
+
 		with (
 			patch(
 				"claude_candidate.company_research.research_company",
@@ -540,9 +544,7 @@ class TestAssessFullEndpoint:
 			),
 			patch.dict(sys.modules, {"claude_candidate.generator": mock_generator_module}),
 		):
-			resp = await client_with_profile.post(
-				"/api/assess/full", json={"assessment_id": aid}
-			)
+			resp = await client_with_profile.post("/api/assess/full", json={"assessment_id": aid})
 
 		assert resp.status_code == 200
 		data = resp.json()
@@ -550,7 +552,9 @@ class TestAssessFullEndpoint:
 		assert data["receptivity_level"] == "high"
 		assert data["receptivity_reason"] == "AI-native company values transparency."
 
-	async def test_assess_full_succeeds_when_narrative_fails(self, client_with_profile: AsyncClient):
+	async def test_assess_full_succeeds_when_narrative_fails(
+		self, client_with_profile: AsyncClient
+	):
 		"""Full assessment should succeed even if narrative generation fails."""
 		from unittest.mock import MagicMock
 
@@ -562,6 +566,7 @@ class TestAssessFullEndpoint:
 		mock_generator_module.generate_narrative_verdict = mock_narrative
 
 		import sys
+
 		with (
 			patch(
 				"claude_candidate.company_research.research_company",
@@ -577,9 +582,7 @@ class TestAssessFullEndpoint:
 			),
 			patch.dict(sys.modules, {"claude_candidate.generator": mock_generator_module}),
 		):
-			resp = await client_with_profile.post(
-				"/api/assess/full", json={"assessment_id": aid}
-			)
+			resp = await client_with_profile.post("/api/assess/full", json={"assessment_id": aid})
 
 		assert resp.status_code == 200
 		data = resp.json()
@@ -733,10 +736,13 @@ class TestShortlistEndpoints:
 
 	async def test_list_shortlist_limit(self, client: AsyncClient):
 		for i in range(5):
-			await client.post("/api/shortlist", json={
-				"company_name": f"Company {i}",
-				"job_title": "Engineer",
-			})
+			await client.post(
+				"/api/shortlist",
+				json={
+					"company_name": f"Company {i}",
+					"job_title": "Engineer",
+				},
+			)
 		resp = await client.get("/api/shortlist?limit=3")
 		assert len(resp.json()) == 3
 
@@ -775,27 +781,27 @@ class TestShortlistEndpoints:
 
 
 class TestProofEndpoint:
-    async def test_generate_proof(self, client_with_profile: AsyncClient):
-        assess_resp = await client_with_profile.post("/api/assess", json=SAMPLE_ASSESS_PAYLOAD)
-        assert assess_resp.status_code == 200
-        assessment_id = assess_resp.json()["assessment_id"]
+	async def test_generate_proof(self, client_with_profile: AsyncClient):
+		assess_resp = await client_with_profile.post("/api/assess", json=SAMPLE_ASSESS_PAYLOAD)
+		assert assess_resp.status_code == 200
+		assessment_id = assess_resp.json()["assessment_id"]
 
-        resp = await client_with_profile.post("/api/proof", json={"assessment_id": assessment_id})
-        assert resp.status_code == 200
-        data = resp.json()
-        assert "proof_package" in data
-        assert len(data["proof_package"]) > 0
+		resp = await client_with_profile.post("/api/proof", json={"assessment_id": assessment_id})
+		assert resp.status_code == 200
+		data = resp.json()
+		assert "proof_package" in data
+		assert len(data["proof_package"]) > 0
 
-    async def test_proof_package_contains_assessment_id(self, client_with_profile: AsyncClient):
-        assess_resp = await client_with_profile.post("/api/assess", json=SAMPLE_ASSESS_PAYLOAD)
-        assessment_id = assess_resp.json()["assessment_id"]
+	async def test_proof_package_contains_assessment_id(self, client_with_profile: AsyncClient):
+		assess_resp = await client_with_profile.post("/api/assess", json=SAMPLE_ASSESS_PAYLOAD)
+		assessment_id = assess_resp.json()["assessment_id"]
 
-        resp = await client_with_profile.post("/api/proof", json={"assessment_id": assessment_id})
-        assert assessment_id in resp.json()["proof_package"]
+		resp = await client_with_profile.post("/api/proof", json={"assessment_id": assessment_id})
+		assert assessment_id in resp.json()["proof_package"]
 
-    async def test_proof_missing_assessment(self, client_with_profile: AsyncClient):
-        resp = await client_with_profile.post("/api/proof", json={"assessment_id": "nonexistent"})
-        assert resp.status_code == 404
+	async def test_proof_missing_assessment(self, client_with_profile: AsyncClient):
+		resp = await client_with_profile.post("/api/proof", json={"assessment_id": "nonexistent"})
+		assert resp.status_code == 404
 
 
 # ---------------------------------------------------------------------------
@@ -804,73 +810,73 @@ class TestProofEndpoint:
 
 
 class TestGenerateEndpoint:
-    async def _create_assessment_id(self, client: AsyncClient) -> str:
-        resp = await client.post("/api/assess", json=SAMPLE_ASSESS_PAYLOAD)
-        assert resp.status_code == 200
-        return resp.json()["assessment_id"]
+	async def _create_assessment_id(self, client: AsyncClient) -> str:
+		resp = await client.post("/api/assess", json=SAMPLE_ASSESS_PAYLOAD)
+		assert resp.status_code == 200
+		return resp.json()["assessment_id"]
 
-    async def test_generate_resume_bullets(self, client_with_profile: AsyncClient):
-        aid = await self._create_assessment_id(client_with_profile)
-        with patch(
-            "claude_candidate.generator.call_claude",
-            return_value="- Led Python backend refactor\n- Built React dashboard",
-        ):
-            resp = await client_with_profile.post(
-                "/api/generate",
-                json={"assessment_id": aid, "deliverable_type": "resume_bullets"},
-            )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["deliverable_type"] == "resume_bullets"
-        assert isinstance(data["result"], list)
-        assert len(data["result"]) > 0
+	async def test_generate_resume_bullets(self, client_with_profile: AsyncClient):
+		aid = await self._create_assessment_id(client_with_profile)
+		with patch(
+			"claude_candidate.generator.call_claude",
+			return_value="- Led Python backend refactor\n- Built React dashboard",
+		):
+			resp = await client_with_profile.post(
+				"/api/generate",
+				json={"assessment_id": aid, "deliverable_type": "resume_bullets"},
+			)
+		assert resp.status_code == 200
+		data = resp.json()
+		assert data["deliverable_type"] == "resume_bullets"
+		assert isinstance(data["result"], list)
+		assert len(data["result"]) > 0
 
-    async def test_generate_cover_letter(self, client_with_profile: AsyncClient):
-        aid = await self._create_assessment_id(client_with_profile)
-        with patch(
-            "claude_candidate.generator.call_claude",
-            return_value="Dear Hiring Manager, I am excited to apply for this role...",
-        ):
-            resp = await client_with_profile.post(
-                "/api/generate",
-                json={"assessment_id": aid, "deliverable_type": "cover_letter"},
-            )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["deliverable_type"] == "cover_letter"
-        assert isinstance(data["result"], str)
-        assert len(data["result"]) > 0
+	async def test_generate_cover_letter(self, client_with_profile: AsyncClient):
+		aid = await self._create_assessment_id(client_with_profile)
+		with patch(
+			"claude_candidate.generator.call_claude",
+			return_value="Dear Hiring Manager, I am excited to apply for this role...",
+		):
+			resp = await client_with_profile.post(
+				"/api/generate",
+				json={"assessment_id": aid, "deliverable_type": "cover_letter"},
+			)
+		assert resp.status_code == 200
+		data = resp.json()
+		assert data["deliverable_type"] == "cover_letter"
+		assert isinstance(data["result"], str)
+		assert len(data["result"]) > 0
 
-    async def test_generate_interview_prep(self, client_with_profile: AsyncClient):
-        aid = await self._create_assessment_id(client_with_profile)
-        with patch(
-            "claude_candidate.generator.call_claude",
-            return_value="## Technical Discussion Points\n- Python: strong\n## Questions to Ask\n- ?",
-        ):
-            resp = await client_with_profile.post(
-                "/api/generate",
-                json={"assessment_id": aid, "deliverable_type": "interview_prep"},
-            )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["deliverable_type"] == "interview_prep"
-        assert isinstance(data["result"], str)
-        assert len(data["result"]) > 0
+	async def test_generate_interview_prep(self, client_with_profile: AsyncClient):
+		aid = await self._create_assessment_id(client_with_profile)
+		with patch(
+			"claude_candidate.generator.call_claude",
+			return_value="## Technical Discussion Points\n- Python: strong\n## Questions to Ask\n- ?",
+		):
+			resp = await client_with_profile.post(
+				"/api/generate",
+				json={"assessment_id": aid, "deliverable_type": "interview_prep"},
+			)
+		assert resp.status_code == 200
+		data = resp.json()
+		assert data["deliverable_type"] == "interview_prep"
+		assert isinstance(data["result"], str)
+		assert len(data["result"]) > 0
 
-    async def test_generate_unknown_type_returns_422(self, client_with_profile: AsyncClient):
-        aid = await self._create_assessment_id(client_with_profile)
-        resp = await client_with_profile.post(
-            "/api/generate",
-            json={"assessment_id": aid, "deliverable_type": "magic_letter"},
-        )
-        assert resp.status_code == 422
+	async def test_generate_unknown_type_returns_422(self, client_with_profile: AsyncClient):
+		aid = await self._create_assessment_id(client_with_profile)
+		resp = await client_with_profile.post(
+			"/api/generate",
+			json={"assessment_id": aid, "deliverable_type": "magic_letter"},
+		)
+		assert resp.status_code == 422
 
-    async def test_generate_missing_assessment_returns_404(self, client_with_profile: AsyncClient):
-        resp = await client_with_profile.post(
-            "/api/generate",
-            json={"assessment_id": "nonexistent-id", "deliverable_type": "cover_letter"},
-        )
-        assert resp.status_code == 404
+	async def test_generate_missing_assessment_returns_404(self, client_with_profile: AsyncClient):
+		resp = await client_with_profile.post(
+			"/api/generate",
+			json={"assessment_id": "nonexistent-id", "deliverable_type": "cover_letter"},
+		)
+		assert resp.status_code == 404
 
 
 # ---------------------------------------------------------------------------
@@ -879,241 +885,256 @@ class TestGenerateEndpoint:
 
 
 SAMPLE_EXTRACT_PAYLOAD = {
-    "url": "https://boards.greenhouse.io/acme/jobs/12345",
-    "title": "Senior Backend Engineer at Acme",
-    "text": "Acme Corp is hiring a Senior Backend Engineer. You will build scalable services. Requirements: 5+ years Python, strong system design skills. Location: San Francisco, CA. Remote friendly. Salary: $180k-$220k.",
+	"url": "https://boards.greenhouse.io/acme/jobs/12345",
+	"title": "Senior Backend Engineer at Acme",
+	"text": "Acme Corp is hiring a Senior Backend Engineer. You will build scalable services. Requirements: 5+ years Python, strong system design skills. Location: San Francisco, CA. Remote friendly. Salary: $180k-$220k.",
 }
 
-SAMPLE_CLAUDE_JSON = json.dumps({
-    "company": "Acme Corp",
-    "title": "Senior Backend Engineer",
-    "description": "Build scalable services. Requirements: 5+ years Python, strong system design skills.",
-    "location": "San Francisco, CA",
-    "seniority": "senior",
-    "remote": True,
-    "salary": "$180k-$220k",
-})
+SAMPLE_CLAUDE_JSON = json.dumps(
+	{
+		"company": "Acme Corp",
+		"title": "Senior Backend Engineer",
+		"description": "Build scalable services. Requirements: 5+ years Python, strong system design skills.",
+		"location": "San Francisco, CA",
+		"seniority": "senior",
+		"remote": True,
+		"salary": "$180k-$220k",
+	}
+)
 
-SAMPLE_CLAUDE_JSON_WITH_REQUIREMENTS = json.dumps({
-    "company": "Acme Corp",
-    "title": "Senior Backend Engineer",
-    "description": "Build scalable services. Requirements: 5+ years Python, strong system design skills.",
-    "location": "San Francisco, CA",
-    "seniority": "senior",
-    "remote": True,
-    "salary": "$180k-$220k",
-    "requirements": [
-        {
-            "description": "5+ years of Python experience",
-            "skill_mapping": ["python"],
-            "priority": "must_have",
-            "years_experience": 5,
-            "education_level": None,
-        },
-        {
-            "description": "Strong system design skills",
-            "skill_mapping": ["system design", "architecture"],
-            "priority": "must_have",
-            "years_experience": None,
-            "education_level": None,
-        },
-    ],
-})
+SAMPLE_CLAUDE_JSON_WITH_REQUIREMENTS = json.dumps(
+	{
+		"company": "Acme Corp",
+		"title": "Senior Backend Engineer",
+		"description": "Build scalable services. Requirements: 5+ years Python, strong system design skills.",
+		"location": "San Francisco, CA",
+		"seniority": "senior",
+		"remote": True,
+		"salary": "$180k-$220k",
+		"requirements": [
+			{
+				"description": "5+ years of Python experience",
+				"skill_mapping": ["python"],
+				"priority": "must_have",
+				"years_experience": 5,
+				"education_level": None,
+			},
+			{
+				"description": "Strong system design skills",
+				"skill_mapping": ["system design", "architecture"],
+				"priority": "must_have",
+				"years_experience": None,
+				"education_level": None,
+			},
+		],
+	}
+)
 
 
 class TestExtractPostingEndpoint:
-    async def test_extracts_posting_via_claude(self, client: AsyncClient):
-        """Cache miss calls Claude and returns structured result."""
-        with (
-            patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
-            patch("claude_candidate.claude_cli.call_claude", return_value=SAMPLE_CLAUDE_JSON),
-        ):
-            resp = await client.post("/api/extract-posting", json=SAMPLE_EXTRACT_PAYLOAD)
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["company"] == "Acme Corp"
-        assert data["title"] == "Senior Backend Engineer"
-        assert data["source"] == "greenhouse"
-        assert data["remote"] is True
-        assert data["salary"] == "$180k-$220k"
+	async def test_extracts_posting_via_claude(self, client: AsyncClient):
+		"""Cache miss calls Claude and returns structured result."""
+		with (
+			patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
+			patch("claude_candidate.claude_cli.call_claude", return_value=SAMPLE_CLAUDE_JSON),
+		):
+			resp = await client.post("/api/extract-posting", json=SAMPLE_EXTRACT_PAYLOAD)
+		assert resp.status_code == 200
+		data = resp.json()
+		assert data["company"] == "Acme Corp"
+		assert data["title"] == "Senior Backend Engineer"
+		assert data["source"] == "greenhouse"
+		assert data["remote"] is True
+		assert data["salary"] == "$180k-$220k"
 
-    async def test_returns_cached_result(self, client: AsyncClient):
-        """Second call with same URL hits cache; Claude called only once."""
-        with (
-            patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
-            patch("claude_candidate.claude_cli.call_claude", return_value=SAMPLE_CLAUDE_JSON) as mock_claude,
-        ):
-            await client.post("/api/extract-posting", json=SAMPLE_EXTRACT_PAYLOAD)
-            resp2 = await client.post("/api/extract-posting", json=SAMPLE_EXTRACT_PAYLOAD)
-        assert resp2.status_code == 200
-        assert resp2.json()["company"] == "Acme Corp"
-        mock_claude.assert_called_once()
+	async def test_returns_cached_result(self, client: AsyncClient):
+		"""Second call with same URL hits cache; Claude called only once."""
+		with (
+			patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
+			patch(
+				"claude_candidate.claude_cli.call_claude", return_value=SAMPLE_CLAUDE_JSON
+			) as mock_claude,
+		):
+			await client.post("/api/extract-posting", json=SAMPLE_EXTRACT_PAYLOAD)
+			resp2 = await client.post("/api/extract-posting", json=SAMPLE_EXTRACT_PAYLOAD)
+		assert resp2.status_code == 200
+		assert resp2.json()["company"] == "Acme Corp"
+		mock_claude.assert_called_once()
 
-    async def test_503_when_claude_unavailable(self, client: AsyncClient):
-        """Returns 503 when check_claude_available returns False."""
-        with patch("claude_candidate.claude_cli.check_claude_available", return_value=False):
-            resp = await client.post("/api/extract-posting", json=SAMPLE_EXTRACT_PAYLOAD)
-        assert resp.status_code == 503
-        assert "Claude CLI not available" in resp.json()["detail"]
+	async def test_503_when_claude_unavailable(self, client: AsyncClient):
+		"""Returns 503 when check_claude_available returns False."""
+		with patch("claude_candidate.claude_cli.check_claude_available", return_value=False):
+			resp = await client.post("/api/extract-posting", json=SAMPLE_EXTRACT_PAYLOAD)
+		assert resp.status_code == 503
+		assert "Claude CLI not available" in resp.json()["detail"]
 
-    async def test_502_on_malformed_claude_response(self, client: AsyncClient):
-        """Returns 502 when Claude returns non-JSON."""
-        with (
-            patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
-            patch("claude_candidate.claude_cli.call_claude", return_value="this is not json"),
-        ):
-            resp = await client.post("/api/extract-posting", json=SAMPLE_EXTRACT_PAYLOAD)
-        assert resp.status_code == 502
-        assert "invalid response" in resp.json()["detail"]
+	async def test_502_on_malformed_claude_response(self, client: AsyncClient):
+		"""Returns 502 when Claude returns non-JSON."""
+		with (
+			patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
+			patch("claude_candidate.claude_cli.call_claude", return_value="this is not json"),
+		):
+			resp = await client.post("/api/extract-posting", json=SAMPLE_EXTRACT_PAYLOAD)
+		assert resp.status_code == 502
+		assert "invalid response" in resp.json()["detail"]
 
-    async def test_infers_source_from_url(self, client: AsyncClient):
-        """Source field matches URL hostname."""
-        for url, expected_source in [
-            ("https://boards.greenhouse.io/co/jobs/1", "greenhouse"),
-            ("https://jobs.lever.co/acme/xyz", "lever"),
-            ("https://www.linkedin.com/jobs/view/123", "linkedin"),
-            ("https://www.indeed.com/viewjob?jk=abc", "indeed"),
-            ("https://acme.com/careers/senior-engineer", "web"),
-        ]:
-            with (
-                patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
-                patch("claude_candidate.claude_cli.call_claude", return_value=SAMPLE_CLAUDE_JSON),
-            ):
-                resp = await client.post(
-                    "/api/extract-posting",
-                    json={"url": url, "title": "Engineer", "text": "job text"},
-                )
-            assert resp.status_code == 200, f"Failed for {url}"
-            assert resp.json()["source"] == expected_source, f"Wrong source for {url}"
+	async def test_infers_source_from_url(self, client: AsyncClient):
+		"""Source field matches URL hostname."""
+		for url, expected_source in [
+			("https://boards.greenhouse.io/co/jobs/1", "greenhouse"),
+			("https://jobs.lever.co/acme/xyz", "lever"),
+			("https://www.linkedin.com/jobs/view/123", "linkedin"),
+			("https://www.indeed.com/viewjob?jk=abc", "indeed"),
+			("https://acme.com/careers/senior-engineer", "web"),
+		]:
+			with (
+				patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
+				patch("claude_candidate.claude_cli.call_claude", return_value=SAMPLE_CLAUDE_JSON),
+			):
+				resp = await client.post(
+					"/api/extract-posting",
+					json={"url": url, "title": "Engineer", "text": "job text"},
+				)
+			assert resp.status_code == 200, f"Failed for {url}"
+			assert resp.json()["source"] == expected_source, f"Wrong source for {url}"
 
-    async def test_truncates_long_text(self, client: AsyncClient):
-        """Text > 15k chars is truncated in the prompt sent to Claude."""
-        long_text = "x" * 20_000
-        captured_prompts: list[str] = []
+	async def test_truncates_long_text(self, client: AsyncClient):
+		"""Text > 15k chars is truncated in the prompt sent to Claude."""
+		long_text = "x" * 20_000
+		captured_prompts: list[str] = []
 
-        def capture_call(prompt: str, **kwargs):
-            captured_prompts.append(prompt)
-            return SAMPLE_CLAUDE_JSON
+		def capture_call(prompt: str, **kwargs):
+			captured_prompts.append(prompt)
+			return SAMPLE_CLAUDE_JSON
 
-        with (
-            patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
-            patch("claude_candidate.claude_cli.call_claude", side_effect=capture_call),
-        ):
-            resp = await client.post(
-                "/api/extract-posting",
-                json={"url": "https://acme.com/jobs/1", "title": "Engineer", "text": long_text},
-            )
-        assert resp.status_code == 200
-        assert len(captured_prompts) == 1
-        # The truncated text (15k "x"s) should appear in the prompt, but not all 20k
-        assert "x" * 15_000 in captured_prompts[0]
-        assert "x" * 15_001 not in captured_prompts[0]
+		with (
+			patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
+			patch("claude_candidate.claude_cli.call_claude", side_effect=capture_call),
+		):
+			resp = await client.post(
+				"/api/extract-posting",
+				json={"url": "https://acme.com/jobs/1", "title": "Engineer", "text": long_text},
+			)
+		assert resp.status_code == 200
+		assert len(captured_prompts) == 1
+		# The truncated text (15k "x"s) should appear in the prompt, but not all 20k
+		assert "x" * 15_000 in captured_prompts[0]
+		assert "x" * 15_001 not in captured_prompts[0]
 
-    async def test_handles_code_fenced_json(self, client: AsyncClient):
-        """Claude response wrapped in ```json fences is parsed correctly."""
-        fenced_response = f"```json\n{SAMPLE_CLAUDE_JSON}\n```"
-        with (
-            patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
-            patch("claude_candidate.claude_cli.call_claude", return_value=fenced_response),
-        ):
-            resp = await client.post("/api/extract-posting", json=SAMPLE_EXTRACT_PAYLOAD)
-        assert resp.status_code == 200
-        assert resp.json()["company"] == "Acme Corp"
+	async def test_handles_code_fenced_json(self, client: AsyncClient):
+		"""Claude response wrapped in ```json fences is parsed correctly."""
+		fenced_response = f"```json\n{SAMPLE_CLAUDE_JSON}\n```"
+		with (
+			patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
+			patch("claude_candidate.claude_cli.call_claude", return_value=fenced_response),
+		):
+			resp = await client.post("/api/extract-posting", json=SAMPLE_EXTRACT_PAYLOAD)
+		assert resp.status_code == 200
+		assert resp.json()["company"] == "Acme Corp"
 
-    async def test_null_fields_for_non_job_page(self, client: AsyncClient):
-        """Returns 200 with empty strings for non-job pages where Claude returns nulls."""
-        null_response = json.dumps({
-            "company": None,
-            "title": None,
-            "description": None,
-            "location": None,
-            "seniority": None,
-            "remote": None,
-            "salary": None,
-        })
-        with (
-            patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
-            patch("claude_candidate.claude_cli.call_claude", return_value=null_response),
-        ):
-            resp = await client.post(
-                "/api/extract-posting",
-                json={"url": "https://acme.com/about", "title": "About Us", "text": "We are a company."},
-            )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["company"] == ""
-        assert data["title"] == ""
-        assert data["description"] == ""
-        assert data["location"] is None
-        assert data["remote"] is None
+	async def test_null_fields_for_non_job_page(self, client: AsyncClient):
+		"""Returns 200 with empty strings for non-job pages where Claude returns nulls."""
+		null_response = json.dumps(
+			{
+				"company": None,
+				"title": None,
+				"description": None,
+				"location": None,
+				"seniority": None,
+				"remote": None,
+				"salary": None,
+			}
+		)
+		with (
+			patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
+			patch("claude_candidate.claude_cli.call_claude", return_value=null_response),
+		):
+			resp = await client.post(
+				"/api/extract-posting",
+				json={
+					"url": "https://acme.com/about",
+					"title": "About Us",
+					"text": "We are a company.",
+				},
+			)
+		assert resp.status_code == 200
+		data = resp.json()
+		assert data["company"] == ""
+		assert data["title"] == ""
+		assert data["description"] == ""
+		assert data["location"] is None
+		assert data["remote"] is None
 
-    async def test_extraction_includes_requirements(self, client: AsyncClient):
-        """Extraction response includes structured requirements from Claude."""
-        with (
-            patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
-            patch("claude_candidate.claude_cli.call_claude", return_value=SAMPLE_CLAUDE_JSON_WITH_REQUIREMENTS),
-        ):
-            resp = await client.post(
-                "/api/extract-posting",
-                json={
-                    "url": "https://acme.com/jobs/99",
-                    "title": "Senior Backend Engineer at Acme",
-                    "text": "Acme Corp is hiring. Requirements: 5+ years Python, system design.",
-                },
-            )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert "requirements" in data
-        assert isinstance(data["requirements"], list)
-        assert len(data["requirements"]) == 2
-        req0 = data["requirements"][0]
-        assert req0["description"] == "5+ years of Python experience"
-        assert req0["skill_mapping"] == ["python"]
-        assert req0["priority"] == "must_have"
-        assert req0["years_experience"] == 5
+	async def test_extraction_includes_requirements(self, client: AsyncClient):
+		"""Extraction response includes structured requirements from Claude."""
+		with (
+			patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
+			patch(
+				"claude_candidate.claude_cli.call_claude",
+				return_value=SAMPLE_CLAUDE_JSON_WITH_REQUIREMENTS,
+			),
+		):
+			resp = await client.post(
+				"/api/extract-posting",
+				json={
+					"url": "https://acme.com/jobs/99",
+					"title": "Senior Backend Engineer at Acme",
+					"text": "Acme Corp is hiring. Requirements: 5+ years Python, system design.",
+				},
+			)
+		assert resp.status_code == 200
+		data = resp.json()
+		assert "requirements" in data
+		assert isinstance(data["requirements"], list)
+		assert len(data["requirements"]) == 2
+		req0 = data["requirements"][0]
+		assert req0["description"] == "5+ years of Python experience"
+		assert req0["skill_mapping"] == ["python"]
+		assert req0["priority"] == "must_have"
+		assert req0["years_experience"] == 5
 
-    async def test_extraction_requirements_null_when_absent(self, client: AsyncClient):
-        """Requirements is null when Claude response omits it (backward compat)."""
-        with (
-            patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
-            patch("claude_candidate.claude_cli.call_claude", return_value=SAMPLE_CLAUDE_JSON),
-        ):
-            resp = await client.post(
-                "/api/extract-posting",
-                json={
-                    "url": "https://acme.com/jobs/100",
-                    "title": "Engineer",
-                    "text": "Some job posting text.",
-                },
-            )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["requirements"] is None
+	async def test_extraction_requirements_null_when_absent(self, client: AsyncClient):
+		"""Requirements is null when Claude response omits it (backward compat)."""
+		with (
+			patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
+			patch("claude_candidate.claude_cli.call_claude", return_value=SAMPLE_CLAUDE_JSON),
+		):
+			resp = await client.post(
+				"/api/extract-posting",
+				json={
+					"url": "https://acme.com/jobs/100",
+					"title": "Engineer",
+					"text": "Some job posting text.",
+				},
+			)
+		assert resp.status_code == 200
+		data = resp.json()
+		assert data["requirements"] is None
 
-    async def test_extraction_prompt_asks_for_requirements(self, client: AsyncClient):
-        """The prompt sent to Claude asks for requirements extraction."""
-        captured_prompts: list[str] = []
+	async def test_extraction_prompt_asks_for_requirements(self, client: AsyncClient):
+		"""The prompt sent to Claude asks for requirements extraction."""
+		captured_prompts: list[str] = []
 
-        def capture_call(prompt: str, **kwargs):
-            captured_prompts.append(prompt)
-            return SAMPLE_CLAUDE_JSON_WITH_REQUIREMENTS
+		def capture_call(prompt: str, **kwargs):
+			captured_prompts.append(prompt)
+			return SAMPLE_CLAUDE_JSON_WITH_REQUIREMENTS
 
-        with (
-            patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
-            patch("claude_candidate.claude_cli.call_claude", side_effect=capture_call),
-        ):
-            await client.post(
-                "/api/extract-posting",
-                json={
-                    "url": "https://acme.com/jobs/101",
-                    "title": "Engineer",
-                    "text": "Some job posting text.",
-                },
-            )
-        assert len(captured_prompts) == 1
-        prompt = captured_prompts[0]
-        assert "requirements" in prompt.lower()
-        assert "skill_mapping" in prompt
-        assert "must_have" in prompt
-        assert "years_experience" in prompt
-        assert "education_level" in prompt
+		with (
+			patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
+			patch("claude_candidate.claude_cli.call_claude", side_effect=capture_call),
+		):
+			await client.post(
+				"/api/extract-posting",
+				json={
+					"url": "https://acme.com/jobs/101",
+					"title": "Engineer",
+					"text": "Some job posting text.",
+				},
+			)
+		assert len(captured_prompts) == 1
+		prompt = captured_prompts[0]
+		assert "requirements" in prompt.lower()
+		assert "skill_mapping" in prompt
+		assert "must_have" in prompt
+		assert "years_experience" in prompt
+		assert "education_level" in prompt

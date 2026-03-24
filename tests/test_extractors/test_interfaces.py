@@ -98,9 +98,15 @@ class TestSkillSignal:
 
 	def test_all_source_types_accepted(self):
 		sources = [
-			"file_extension", "content_pattern", "import_statement",
-			"package_command", "tool_usage", "agent_dispatch",
-			"skill_invocation", "user_message", "git_workflow",
+			"file_extension",
+			"content_pattern",
+			"import_statement",
+			"package_command",
+			"tool_usage",
+			"agent_dispatch",
+			"skill_invocation",
+			"user_message",
+			"git_workflow",
 			"quality_signal",
 		]
 		for source in sources:

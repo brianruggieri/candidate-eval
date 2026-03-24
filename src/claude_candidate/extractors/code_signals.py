@@ -64,32 +64,16 @@ DOCKERFILE_NAMES: set[str] = {"Dockerfile", "dockerfile"}
 _PACKAGE_MAP_PATH = Path(__file__).parent.parent / "data" / "package_to_skill_map.json"
 
 # Import statement regexes (compiled once)
-_PYTHON_IMPORT_RE = re.compile(
-	r'^\s*(?:from|import)\s+([\w.]+)', re.MULTILINE
-)
-_JS_TS_IMPORT_RE = re.compile(
-	r'(?:import\s+.*?from\s+[\'"]|require\s*\(\s*[\'"])([@\w/.-]+)'
-)
-_RUST_IMPORT_RE = re.compile(
-	r'^\s*use\s+([\w:]+)', re.MULTILINE
-)
-_GO_IMPORT_RE = re.compile(
-	r'"([\w./]+)"'
-)
+_PYTHON_IMPORT_RE = re.compile(r"^\s*(?:from|import)\s+([\w.]+)", re.MULTILINE)
+_JS_TS_IMPORT_RE = re.compile(r'(?:import\s+.*?from\s+[\'"]|require\s*\(\s*[\'"])([@\w/.-]+)')
+_RUST_IMPORT_RE = re.compile(r"^\s*use\s+([\w:]+)", re.MULTILINE)
+_GO_IMPORT_RE = re.compile(r'"([\w./]+)"')
 
 # Package command regexes (compiled once)
-_PIP_INSTALL_RE = re.compile(
-	r'pip3?\s+install\s+(?:-[\w-]+\s+)*(.+)'
-)
-_NPM_INSTALL_RE = re.compile(
-	r'(?:npm|yarn|pnpm|bun)\s+(?:install|add|i)\s+(?:-[\w-]+\s+)*(.+)'
-)
-_CARGO_ADD_RE = re.compile(
-	r'cargo\s+(?:add|install)\s+(.+)'
-)
-_GO_GET_RE = re.compile(
-	r'go\s+get\s+(.+)'
-)
+_PIP_INSTALL_RE = re.compile(r"pip3?\s+install\s+(?:-[\w-]+\s+)*(.+)")
+_NPM_INSTALL_RE = re.compile(r"(?:npm|yarn|pnpm|bun)\s+(?:install|add|i)\s+(?:-[\w-]+\s+)*(.+)")
+_CARGO_ADD_RE = re.compile(r"cargo\s+(?:add|install)\s+(.+)")
+_GO_GET_RE = re.compile(r"go\s+get\s+(.+)")
 
 
 def _truncate(text: str, max_len: int = MAX_SNIPPET_LENGTH) -> str:
@@ -156,25 +140,34 @@ class CodeSignalExtractor:
 					# Layer 1: File extension detection
 					if file_path:
 						self._detect_file_extension(
-							file_path, skills, metrics,
+							file_path,
+							skills,
+							metrics,
 						)
 
 					# Layer 2: Content pattern detection (on tool_use content)
 					if content:
 						self._detect_content_patterns(
-							content, skills, metrics,
+							content,
+							skills,
+							metrics,
 						)
 
 					# Layer 3: Import parsing (on code content)
 					if content and file_path:
 						self._detect_imports(
-							content, file_path, skills, metrics,
+							content,
+							file_path,
+							skills,
+							metrics,
 						)
 
 					# Layer 4: Package command parsing (Bash commands)
 					if tool_name == "Bash" and command:
 						self._detect_package_commands(
-							command, skills, metrics,
+							command,
+							skills,
+							metrics,
 						)
 
 				elif block_type == "text":
@@ -182,7 +175,9 @@ class CodeSignalExtractor:
 					if text:
 						# Layer 2: Content pattern detection (on text blocks)
 						self._detect_content_patterns(
-							text, skills, metrics,
+							text,
+							skills,
+							metrics,
 						)
 
 		return SignalResult(

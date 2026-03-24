@@ -68,6 +68,12 @@ strict = true
 target-version = "py311"
 line-length = 100
 
+[tool.ruff.format]
+indent-style = "tab"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "slow: integration tests that spawn subprocesses or call real APIs (run with --run-slow; also skippable via -m 'not slow')",
+]

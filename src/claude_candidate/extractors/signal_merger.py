@@ -37,10 +37,18 @@ from claude_candidate.skill_taxonomy import SkillTaxonomy
 # ---------------------------------------------------------------------------
 
 # Valid SkillEntry categories (must match the Literal in candidate_profile.py)
-VALID_CATEGORIES = frozenset({
-	"language", "framework", "tool", "platform",
-	"concept", "practice", "domain", "soft_skill",
-})
+VALID_CATEGORIES = frozenset(
+	{
+		"language",
+		"framework",
+		"tool",
+		"platform",
+		"concept",
+		"practice",
+		"domain",
+		"soft_skill",
+	}
+)
 
 # Taxonomy category remapping (taxonomy uses "runtime", schema needs "platform")
 CATEGORY_REMAP: dict[str, str] = {
@@ -312,14 +320,16 @@ class SignalMerger:
 			snippet = sig.evidence_snippet.strip()
 			if not snippet:
 				snippet = f"Detected {sig.canonical_name} via {sig.source}"
-			evidence.append(SessionReference(
-				session_id=result.session_id,
-				session_date=result.session_date,
-				project_context=result.project_context,
-				evidence_snippet=snippet,
-				evidence_type=sig.evidence_type,
-				confidence=confidence,
-			))
+			evidence.append(
+				SessionReference(
+					session_id=result.session_id,
+					session_date=result.session_date,
+					project_context=result.project_context,
+					evidence_snippet=snippet,
+					evidence_type=sig.evidence_type,
+					confidence=confidence,
+				)
+			)
 		return evidence
 
 	# -------------------------------------------------------------------
@@ -332,8 +342,8 @@ class SignalMerger:
 	) -> list[ProblemSolvingPattern]:
 		"""Group PatternSignals by pattern_type, merge, and score."""
 		# Collect all pattern signals grouped by type
-		pattern_groups: dict[PatternType, list[tuple[SignalResult, PatternSignal]]] = (
-			defaultdict(list)
+		pattern_groups: dict[PatternType, list[tuple[SignalResult, PatternSignal]]] = defaultdict(
+			list
 		)
 		for r in results:
 			for ps in r.patterns:
@@ -373,14 +383,16 @@ class SignalMerger:
 			snippet = ps.evidence_snippet.strip()
 			if not snippet:
 				snippet = f"Pattern {pt.value} observed"
-			evidence.append(SessionReference(
-				session_id=result.session_id,
-				session_date=result.session_date,
-				project_context=result.project_context,
-				evidence_snippet=snippet,
-				evidence_type="direct_usage",
-				confidence=ps.confidence,
-			))
+			evidence.append(
+				SessionReference(
+					session_id=result.session_id,
+					session_date=result.session_date,
+					project_context=result.project_context,
+					evidence_snippet=snippet,
+					evidence_type="direct_usage",
+					confidence=ps.confidence,
+				)
+			)
 
 		return ProblemSolvingPattern(
 			pattern_type=pt,
@@ -456,14 +468,16 @@ class SignalMerger:
 					break
 			if not snippet:
 				snippet = f"Session {r.session_id} in {project_name}"
-			evidence.append(SessionReference(
-				session_id=r.session_id,
-				session_date=r.session_date,
-				project_context=r.project_context,
-				evidence_snippet=snippet,
-				evidence_type="direct_usage",
-				confidence=0.7,
-			))
+			evidence.append(
+				SessionReference(
+					session_id=r.session_id,
+					session_date=r.session_date,
+					project_context=r.project_context,
+					evidence_snippet=snippet,
+					evidence_type="direct_usage",
+					confidence=0.7,
+				)
+			)
 
 		return ProjectSummary(
 			project_name=project_name,

@@ -57,17 +57,11 @@ class TestFileExtensionDetection:
 
 		# .tsx maps to both typescript and react
 		assert "typescript" in result.skills
-		ts_ext = [
-			s for s in result.skills["typescript"]
-			if s.source == "file_extension"
-		]
+		ts_ext = [s for s in result.skills["typescript"] if s.source == "file_extension"]
 		assert len(ts_ext) > 0
 
 		assert "react" in result.skills
-		react_ext = [
-			s for s in result.skills["react"]
-			if s.source == "file_extension"
-		]
+		react_ext = [s for s in result.skills["react"] if s.source == "file_extension"]
 		assert len(react_ext) > 0
 
 
@@ -78,10 +72,7 @@ class TestContentPatternDetection:
 		result = extractor.extract_session(session)
 
 		assert "fastapi" in result.skills
-		pattern_signals = [
-			s for s in result.skills["fastapi"]
-			if s.source == "content_pattern"
-		]
+		pattern_signals = [s for s in result.skills["fastapi"] if s.source == "content_pattern"]
 		assert len(pattern_signals) > 0
 		assert all(s.confidence == 0.75 for s in pattern_signals)
 
@@ -95,9 +86,7 @@ class TestImportStatementDetection:
 		# Check that import-based signals exist with correct source/confidence
 		all_import_signals = []
 		for signals in result.skills.values():
-			all_import_signals.extend(
-				s for s in signals if s.source == "import_statement"
-			)
+			all_import_signals.extend(s for s in signals if s.source == "import_statement")
 		assert len(all_import_signals) > 0
 		assert all(s.confidence == 0.85 for s in all_import_signals)
 
@@ -107,10 +96,7 @@ class TestImportStatementDetection:
 		result = extractor.extract_session(session)
 
 		assert "aws" in result.skills
-		aws_import = [
-			s for s in result.skills["aws"]
-			if s.source == "import_statement"
-		]
+		aws_import = [s for s in result.skills["aws"] if s.source == "import_statement"]
 		assert len(aws_import) > 0
 
 
@@ -122,9 +108,7 @@ class TestPackageCommandDetection:
 
 		all_pkg_signals = []
 		for signals in result.skills.values():
-			all_pkg_signals.extend(
-				s for s in signals if s.source == "package_command"
-			)
+			all_pkg_signals.extend(s for s in signals if s.source == "package_command")
 		assert len(all_pkg_signals) > 0
 		assert all(s.confidence == 0.7 for s in all_pkg_signals)
 
@@ -134,10 +118,7 @@ class TestPackageCommandDetection:
 		result = extractor.extract_session(session)
 
 		assert "anthropic" in result.skills
-		anthropic_pkg = [
-			s for s in result.skills["anthropic"]
-			if s.source == "package_command"
-		]
+		anthropic_pkg = [s for s in result.skills["anthropic"] if s.source == "package_command"]
 		assert len(anthropic_pkg) > 0
 
 
@@ -195,7 +176,5 @@ class TestEvidenceSnippets:
 
 		for skill_name, signals in result.skills.items():
 			for signal in signals:
-				assert signal.evidence_snippet, (
-					f"Empty evidence for {skill_name} ({signal.source})"
-				)
+				assert signal.evidence_snippet, f"Empty evidence for {skill_name} ({signal.source})"
 				assert len(signal.evidence_snippet) <= 500

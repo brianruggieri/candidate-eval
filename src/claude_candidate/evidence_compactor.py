@@ -87,18 +87,14 @@ def compact_evidence(
 
 	# Compact problem-solving patterns
 	patterns_to_compact = [
-		p for p in profile.problem_solving_patterns
-		if len(p.evidence) > COMPACTION_THRESHOLD
+		p for p in profile.problem_solving_patterns if len(p.evidence) > COMPACTION_THRESHOLD
 	]
 	if patterns_to_compact:
 		logger.info("Compacting evidence for %d patterns", len(patterns_to_compact))
 		_compact_patterns(patterns_to_compact, claude_available=claude_available)
 
 	# Compact project evidence
-	projects_to_compact = [
-		p for p in profile.projects
-		if len(p.evidence) > COMPACTION_THRESHOLD
-	]
+	projects_to_compact = [p for p in profile.projects if len(p.evidence) > COMPACTION_THRESHOLD]
 	if projects_to_compact:
 		logger.info("Compacting evidence for %d projects", len(projects_to_compact))
 		_compact_projects(projects_to_compact, claude_available=claude_available)
@@ -111,6 +107,7 @@ def _check_claude_once() -> bool:
 	"""Check Claude availability once at the start of compaction."""
 	try:
 		from claude_candidate.claude_cli import check_claude_available
+
 		available = check_claude_available()
 		if not available:
 			logger.warning(
@@ -118,9 +115,7 @@ def _check_claude_once() -> bool:
 			)
 		return available
 	except Exception:
-		logger.warning(
-			"Claude CLI unavailable — using local heuristic for evidence compaction."
-		)
+		logger.warning("Claude CLI unavailable — using local heuristic for evidence compaction.")
 		return False
 
 
@@ -247,9 +242,7 @@ def _apply_compaction_to_pattern(
 	pattern.evidence = selected + [aggregate]
 
 
-def _apply_compaction_to_project(
-	project: ProjectSummary, selected_indices: list[int]
-) -> None:
+def _apply_compaction_to_project(project: ProjectSummary, selected_indices: list[int]) -> None:
 	"""Replace project evidence with selected entries + aggregate summary."""
 	original_count = len(project.evidence)
 	project.total_evidence_count = original_count
@@ -379,8 +372,7 @@ def _build_aggregate_reference(
 	projects = set(e.project_context for e in all_evidence if e.project_context != "aggregate")
 	type_counts = Counter(e.evidence_type for e in all_evidence)
 	type_breakdown = ", ".join(
-		f"{et} ({count})"
-		for et, count in sorted(type_counts.items(), key=lambda x: -x[1])
+		f"{et} ({count})" for et, count in sorted(type_counts.items(), key=lambda x: -x[1])
 	)
 
 	date_fmt = "%Y-%m"
@@ -544,7 +536,7 @@ def _build_skill_prompt(
 		"2. Diversity of evidence types — pick from different types, not all direct_usage\n"
 		"3. Diversity of projects — show breadth across different projects\n"
 		"4. Recency — prefer recent evidence when quality is similar\n"
-		"5. Specificity — concrete descriptions > generic \"used X\" statements\n\n"
+		'5. Specificity — concrete descriptions > generic "used X" statements\n\n'
 		"Respond with ONLY a JSON object:\n"
 		'{"selected_indices": [0, 42, 187], "reasoning": "Brief explanation"}'
 	)
@@ -638,11 +630,11 @@ def _strip_json_fences(text: str) -> str:
 	"""Strip markdown JSON fences if present."""
 	text = text.strip()
 	if text.startswith("```json"):
-		text = text[len("```json"):]
+		text = text[len("```json") :]
 	elif text.startswith("```"):
-		text = text[len("```"):]
+		text = text[len("```") :]
 	if text.endswith("```"):
-		text = text[:-len("```")]
+		text = text[: -len("```")]
 	return text.strip()
 
 
@@ -660,9 +652,7 @@ def _parse_single_response(response: str, *, max_index: int) -> list[int]:
 	return valid
 
 
-def _parse_batch_response(
-	response: str, skills: list[SkillEntry]
-) -> dict[str, list[int]]:
+def _parse_batch_response(response: str, skills: list[SkillEntry]) -> dict[str, list[int]]:
 	"""Parse Claude's response for a batch of skill selections."""
 	cleaned = _strip_json_fences(response)
 	data = json.loads(cleaned)
@@ -675,10 +665,7 @@ def _parse_batch_response(
 			continue
 		indices = skill_resp.get("selected_indices", [])
 		max_index = len(skill.evidence) - 1
-		valid = [
-			idx for idx in indices
-			if isinstance(idx, int) and 0 <= idx <= max_index
-		]
+		valid = [idx for idx in indices if isinstance(idx, int) and 0 <= idx <= max_index]
 		if valid:
 			result[skill.name] = valid
 
@@ -701,10 +688,7 @@ def _parse_pattern_batch_response(
 			continue
 		indices = pat_resp.get("selected_indices", [])
 		max_index = len(pattern.evidence) - 1
-		valid = [
-			idx for idx in indices
-			if isinstance(idx, int) and 0 <= idx <= max_index
-		]
+		valid = [idx for idx in indices if isinstance(idx, int) and 0 <= idx <= max_index]
 		if valid:
 			result[key] = valid
 
@@ -726,10 +710,7 @@ def _parse_project_batch_response(
 			continue
 		indices = proj_resp.get("selected_indices", [])
 		max_index = len(project.evidence) - 1
-		valid = [
-			idx for idx in indices
-			if isinstance(idx, int) and 0 <= idx <= max_index
-		]
+		valid = [idx for idx in indices if isinstance(idx, int) and 0 <= idx <= max_index]
 		if valid:
 			result[project.project_name] = valid
 

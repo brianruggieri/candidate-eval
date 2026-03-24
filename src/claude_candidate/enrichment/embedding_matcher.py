@@ -1,4 +1,5 @@
 """Semantic skill matching using sentence-transformers embeddings."""
+
 from __future__ import annotations
 
 import hashlib

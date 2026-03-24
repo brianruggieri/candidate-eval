@@ -211,27 +211,31 @@ class BehaviorSignalExtractor:
 
 		# -- ITERATIVE_REFINEMENT --
 		if write_count >= 2 and bash_count >= 1:
-			patterns.append(PatternSignal(
-				pattern_type=PatternType.ITERATIVE_REFINEMENT,
-				session_ids=[session_id],
-				confidence=0.7,
-				description="Multiple write operations interspersed with command execution",
-				evidence_snippet=(
-					f"Session has {write_count} Write and {bash_count} Bash calls"
-				),
-			))
+			patterns.append(
+				PatternSignal(
+					pattern_type=PatternType.ITERATIVE_REFINEMENT,
+					session_ids=[session_id],
+					confidence=0.7,
+					description="Multiple write operations interspersed with command execution",
+					evidence_snippet=(
+						f"Session has {write_count} Write and {bash_count} Bash calls"
+					),
+				)
+			)
 
 		# -- ARCHITECTURE_FIRST --
 		if read_count >= 1 and write_count >= 1:
-			patterns.append(PatternSignal(
-				pattern_type=PatternType.ARCHITECTURE_FIRST,
-				session_ids=[session_id],
-				confidence=0.6,
-				description="Read existing code before writing new code",
-				evidence_snippet=(
-					f"Session has {read_count} Read and {write_count} Write calls"
-				),
-			))
+			patterns.append(
+				PatternSignal(
+					pattern_type=PatternType.ARCHITECTURE_FIRST,
+					session_ids=[session_id],
+					confidence=0.6,
+					description="Read existing code before writing new code",
+					evidence_snippet=(
+						f"Session has {read_count} Read and {write_count} Write calls"
+					),
+				)
+			)
 
 		# -- TESTING_INSTINCT --
 		test_file_edits = [fp for fp in file_paths_edited if _is_test_file(fp)]
@@ -242,26 +246,28 @@ class BehaviorSignalExtractor:
 				evidence_parts.append(f"Edited test files: {', '.join(test_file_edits[:3])}")
 			if test_commands:
 				evidence_parts.append(f"Ran test commands: {', '.join(test_commands[:3])}")
-			patterns.append(PatternSignal(
-				pattern_type=PatternType.TESTING_INSTINCT,
-				session_ids=[session_id],
-				confidence=0.8,
-				description="Active engagement with testing (file edits or test commands)",
-				evidence_snippet="; ".join(evidence_parts)[:500],
-				metadata={"test_file_count": len(test_file_edits)},
-			))
+			patterns.append(
+				PatternSignal(
+					pattern_type=PatternType.TESTING_INSTINCT,
+					session_ids=[session_id],
+					confidence=0.8,
+					description="Active engagement with testing (file edits or test commands)",
+					evidence_snippet="; ".join(evidence_parts)[:500],
+					metadata={"test_file_count": len(test_file_edits)},
+				)
+			)
 
 		# -- MODULAR_THINKING --
 		if len(file_extensions) >= 3:
-			patterns.append(PatternSignal(
-				pattern_type=PatternType.MODULAR_THINKING,
-				session_ids=[session_id],
-				confidence=0.6,
-				description="Works across multiple file types, suggesting modular design",
-				evidence_snippet=(
-					f"Unique extensions: {', '.join(sorted(file_extensions))}"
-				),
-			))
+			patterns.append(
+				PatternSignal(
+					pattern_type=PatternType.MODULAR_THINKING,
+					session_ids=[session_id],
+					confidence=0.6,
+					description="Works across multiple file types, suggesting modular design",
+					evidence_snippet=(f"Unique extensions: {', '.join(sorted(file_extensions))}"),
+				)
+			)
 
 		# -- SYSTEMATIC_DEBUGGING --
 		debug_detected = self._detect_systematic_debugging(msg_tool_info, session_id)
@@ -283,14 +289,16 @@ class BehaviorSignalExtractor:
 		# -- DOCUMENTATION_DRIVEN --
 		md_edits = [fp for fp in file_paths_edited if _is_md_file(fp)]
 		if md_edits and has_code_edit:
-			patterns.append(PatternSignal(
-				pattern_type=PatternType.DOCUMENTATION_DRIVEN,
-				session_ids=[session_id],
-				confidence=0.7,
-				description="Documentation updated alongside code changes",
-				evidence_snippet=_trunc(f"Edited docs: {', '.join(md_edits[:3])}"),
-				metadata={"doc_file_count": len(md_edits)},
-			))
+			patterns.append(
+				PatternSignal(
+					pattern_type=PatternType.DOCUMENTATION_DRIVEN,
+					session_ids=[session_id],
+					confidence=0.7,
+					description="Documentation updated alongside code changes",
+					evidence_snippet=_trunc(f"Edited docs: {', '.join(md_edits[:3])}"),
+					metadata={"doc_file_count": len(md_edits)},
+				)
+			)
 
 		# -- RECOVERY_FROM_FAILURE --
 		recovery_detected = self._detect_recovery_from_failure(msg_tool_info, session_id)
@@ -299,7 +307,8 @@ class BehaviorSignalExtractor:
 
 		# -- TOOL_SELECTION --
 		explicit_agents = [
-			d for d in agent_dispatches
+			d
+			for d in agent_dispatches
 			if d.get("subagent_type") and d.get("subagent_type") != "default"
 		]
 		if explicit_agents or skill_invocations:
@@ -310,37 +319,37 @@ class BehaviorSignalExtractor:
 			if skill_invocations:
 				skills_used = [d.get("skill", "") for d in skill_invocations]
 				evidence_parts.append(f"Skill invocations: {', '.join(skills_used)}")
-			patterns.append(PatternSignal(
-				pattern_type=PatternType.TOOL_SELECTION,
-				session_ids=[session_id],
-				confidence=0.8,
-				description=(
-					"Deliberate tool selection via agent subagent_type or skill invocation"
-				),
-				evidence_snippet="; ".join(evidence_parts)[:500],
-			))
+			patterns.append(
+				PatternSignal(
+					pattern_type=PatternType.TOOL_SELECTION,
+					session_ids=[session_id],
+					confidence=0.8,
+					description=(
+						"Deliberate tool selection via agent subagent_type or skill invocation"
+					),
+					evidence_snippet="; ".join(evidence_parts)[:500],
+				)
+			)
 
 		# -- META_COGNITION --
-		clear_commands = [
-			cmd for cmd in bash_commands if "/clear" in cmd or "/compact" in cmd
-		]
+		clear_commands = [cmd for cmd in bash_commands if "/clear" in cmd or "/compact" in cmd]
 		if clear_commands:
-			patterns.append(PatternSignal(
-				pattern_type=PatternType.META_COGNITION,
-				session_ids=[session_id],
-				confidence=0.5,
-				description="Session management via /clear or /compact commands",
-				evidence_snippet=_trunc(f"Commands: {', '.join(clear_commands[:3])}"),
-			))
+			patterns.append(
+				PatternSignal(
+					pattern_type=PatternType.META_COGNITION,
+					session_ids=[session_id],
+					confidence=0.5,
+					description="Session management via /clear or /compact commands",
+					evidence_snippet=_trunc(f"Commands: {', '.join(clear_commands[:3])}"),
+				)
+			)
 
 		# NOTE: COMMUNICATION_CLARITY is NOT detected by BehaviorSignalExtractor.
 		# It is a cross-signal from CommSignalExtractor.
 
 		# --- Pass 3: Agent orchestration signals ---
 		if agent_dispatches:
-			parallel_count = sum(
-				1 for info in msg_tool_info if info["agent_count"] >= 2
-			)
+			parallel_count = sum(1 for info in msg_tool_info if info["agent_count"] >= 2)
 			subtypes = [d.get("subagent_type", "default") for d in agent_dispatches]
 			skill_signal = SkillSignal(
 				canonical_name="agentic-workflows",
@@ -348,8 +357,7 @@ class BehaviorSignalExtractor:
 				confidence=0.85,
 				depth_hint=DepthLevel.APPLIED if parallel_count > 0 else DepthLevel.USED,
 				evidence_snippet=(
-					f"Dispatched {len(agent_dispatches)} agents "
-					f"(subtypes: {', '.join(subtypes)})"
+					f"Dispatched {len(agent_dispatches)} agents (subtypes: {', '.join(subtypes)})"
 				)[:500],
 				evidence_type="architecture_decision",
 				metadata={
@@ -389,9 +397,7 @@ class BehaviorSignalExtractor:
 			skills.setdefault("git", []).append(git_signal)
 
 		# Worktree usage
-		worktree_commands = [
-			cmd for cmd in bash_commands if "git worktree" in cmd
-		]
+		worktree_commands = [cmd for cmd in bash_commands if "git worktree" in cmd]
 		worktree_usage = 1 if worktree_commands else 0
 		if worktree_commands:
 			git_adv_signal = SkillSignal(
@@ -422,16 +428,16 @@ class BehaviorSignalExtractor:
 		# --- Pass 5: Quality practice signals ---
 
 		# Security
-		security_files = [
-			fp for fp in file_paths_edited if _SECURITY_KEYWORDS.search(fp)
-		]
+		security_files = [fp for fp in file_paths_edited if _SECURITY_KEYWORDS.search(fp)]
 		if security_files:
 			sec_signal = SkillSignal(
 				canonical_name="security",
 				source="quality_signal",
 				confidence=0.6,
 				depth_hint=DepthLevel.USED,
-				evidence_snippet=_trunc(f"Edited security-related files: {', '.join(security_files[:3])}"),
+				evidence_snippet=_trunc(
+					f"Edited security-related files: {', '.join(security_files[:3])}"
+				),
 				evidence_type="direct_usage",
 			)
 			skills.setdefault("security", []).append(sec_signal)
@@ -443,17 +449,14 @@ class BehaviorSignalExtractor:
 				source="quality_signal",
 				confidence=0.7,
 				depth_hint=DepthLevel.USED,
-				evidence_snippet=(
-					f"Edited test files: {', '.join(test_file_edits[:3])}"
-				),
+				evidence_snippet=(f"Edited test files: {', '.join(test_file_edits[:3])}"),
 				evidence_type="testing",
 			)
 			skills.setdefault("testing", []).append(test_signal)
 
 		# Code review detection
 		review_commands = [
-			cmd for cmd in bash_commands
-			if "gh pr" in cmd or "copilot review" in cmd
+			cmd for cmd in bash_commands if "gh pr" in cmd or "copilot review" in cmd
 		]
 		if review_commands:
 			review_signal = SkillSignal(
@@ -469,9 +472,7 @@ class BehaviorSignalExtractor:
 		# --- Compute metrics ---
 		error_count = sum(1 for info in msg_tool_info if info["is_error"])
 		recovery_count = 1 if recovery_detected else 0
-		parallel_dispatch_count = sum(
-			1 for info in msg_tool_info if info["agent_count"] >= 2
-		)
+		parallel_dispatch_count = sum(1 for info in msg_tool_info if info["agent_count"] >= 2)
 
 		metrics: dict[str, float] = {
 			"agent_dispatch_count": float(len(agent_dispatches)),
@@ -528,12 +529,9 @@ class BehaviorSignalExtractor:
 						pattern_type=PatternType.SYSTEMATIC_DEBUGGING,
 						session_ids=[session_id],
 						confidence=0.8,
-						description=(
-							"Grep→Read→Edit debugging sequence detected"
-						),
+						description=("Grep→Read→Edit debugging sequence detected"),
 						evidence_snippet=(
-							f"Message {i}: Grep, message {j}: Edit "
-							"(Read found in between)"
+							f"Message {i}: Grep, message {j}: Edit (Read found in between)"
 						),
 						metadata={"sequence_start": i, "sequence_end": j},
 					)
@@ -547,8 +545,7 @@ class BehaviorSignalExtractor:
 	) -> PatternSignal | None:
 		"""Detect Explore/Plan Agent dispatch before any Write/Edit."""
 		explore_agents = [
-			d for d in agent_dispatches
-			if d.get("subagent_type") in ("Explore", "Plan")
+			d for d in agent_dispatches if d.get("subagent_type") in ("Explore", "Plan")
 		]
 		if not explore_agents:
 			return None
@@ -575,9 +572,7 @@ class BehaviorSignalExtractor:
 				pattern_type=PatternType.TRADEOFF_ANALYSIS,
 				session_ids=[session_id],
 				confidence=0.7,
-				description=(
-					f"Agent ({subtype}) dispatched for exploration before implementation"
-				),
+				description=(f"Agent ({subtype}) dispatched for exploration before implementation"),
 				evidence_snippet=(
 					f"Agent subagent_type={subtype} at message {first_explore_idx}, "
 					f"first write at message {first_write_idx}"

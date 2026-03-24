@@ -100,5 +100,6 @@ class CuratedResume(BaseModel):
 		"""Load and validate from a JSON file path."""
 		import json
 		from pathlib import Path
+
 		p = Path(path)
 		return cls.model_validate(json.loads(p.read_text()))

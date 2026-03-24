@@ -16,193 +16,193 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class DepthLevel(str, Enum):
-    """How deeply the candidate has engaged with a skill."""
+	"""How deeply the candidate has engaged with a skill."""
 
-    MENTIONED = "mentioned"  # Referenced but not demonstrated
-    USED = "used"  # Used in a straightforward context
-    APPLIED = "applied"  # Applied to solve a non-trivial problem
-    DEEP = "deep"  # Deep: debugging internals, architectural decisions, teaching
-    EXPERT = "expert"  # Expert: novel applications, framework-level thinking
+	MENTIONED = "mentioned"  # Referenced but not demonstrated
+	USED = "used"  # Used in a straightforward context
+	APPLIED = "applied"  # Applied to solve a non-trivial problem
+	DEEP = "deep"  # Deep: debugging internals, architectural decisions, teaching
+	EXPERT = "expert"  # Expert: novel applications, framework-level thinking
 
 
 DEPTH_RANK = {
-    DepthLevel.MENTIONED: 0,
-    DepthLevel.USED: 1,
-    DepthLevel.APPLIED: 2,
-    DepthLevel.DEEP: 3,
-    DepthLevel.EXPERT: 4,
+	DepthLevel.MENTIONED: 0,
+	DepthLevel.USED: 1,
+	DepthLevel.APPLIED: 2,
+	DepthLevel.DEEP: 3,
+	DepthLevel.EXPERT: 4,
 }
 
 
 class SessionReference(BaseModel):
-    """Pointer to a specific session that provides evidence for a claim."""
+	"""Pointer to a specific session that provides evidence for a claim."""
 
-    session_id: str
-    session_date: datetime
-    project_context: str
-    evidence_snippet: str = Field(max_length=500)
-    evidence_type: Literal[
-        "direct_usage",
-        "architecture_decision",
-        "debugging",
-        "teaching",
-        "evaluation",
-        "integration",
-        "refactor",
-        "testing",
-        "review",
-        "planning",
-    ]
-    confidence: float = Field(ge=0.0, le=1.0)
+	session_id: str
+	session_date: datetime
+	project_context: str
+	evidence_snippet: str = Field(max_length=500)
+	evidence_type: Literal[
+		"direct_usage",
+		"architecture_decision",
+		"debugging",
+		"teaching",
+		"evaluation",
+		"integration",
+		"refactor",
+		"testing",
+		"review",
+		"planning",
+	]
+	confidence: float = Field(ge=0.0, le=1.0)
 
-    @field_validator("evidence_snippet")
-    @classmethod
-    def snippet_not_empty(cls, v: str) -> str:
-        if not v.strip():
-            raise ValueError("evidence_snippet must not be empty")
-        return v
+	@field_validator("evidence_snippet")
+	@classmethod
+	def snippet_not_empty(cls, v: str) -> str:
+		if not v.strip():
+			raise ValueError("evidence_snippet must not be empty")
+		return v
 
 
 class SkillEntry(BaseModel):
-    """A single demonstrated technical skill with evidence chain."""
+	"""A single demonstrated technical skill with evidence chain."""
 
-    name: str
-    category: Literal[
-        "language",
-        "framework",
-        "tool",
-        "platform",
-        "concept",
-        "practice",
-        "domain",
-        "soft_skill",
-    ]
-    depth: DepthLevel
-    frequency: int = Field(ge=1)
-    recency: datetime
-    first_seen: datetime
-    evidence: list[SessionReference] = Field(min_length=1)
-    context_notes: str | None = None
-    total_evidence_count: int | None = None  # pre-compaction count
-    compacted: bool = False  # whether evidence has been compacted
+	name: str
+	category: Literal[
+		"language",
+		"framework",
+		"tool",
+		"platform",
+		"concept",
+		"practice",
+		"domain",
+		"soft_skill",
+	]
+	depth: DepthLevel
+	frequency: int = Field(ge=1)
+	recency: datetime
+	first_seen: datetime
+	evidence: list[SessionReference] = Field(min_length=1)
+	context_notes: str | None = None
+	total_evidence_count: int | None = None  # pre-compaction count
+	compacted: bool = False  # whether evidence has been compacted
 
-    @field_validator("name")
-    @classmethod
-    def normalize_name(cls, v: str) -> str:
-        return v.lower().strip()
+	@field_validator("name")
+	@classmethod
+	def normalize_name(cls, v: str) -> str:
+		return v.lower().strip()
 
 
 class PatternType(str, Enum):
-    """Categories of observable problem-solving behavior."""
+	"""Categories of observable problem-solving behavior."""
 
-    SYSTEMATIC_DEBUGGING = "systematic_debugging"
-    ARCHITECTURE_FIRST = "architecture_first"
-    ITERATIVE_REFINEMENT = "iterative_refinement"
-    TRADEOFF_ANALYSIS = "tradeoff_analysis"
-    SCOPE_MANAGEMENT = "scope_management"
-    DOCUMENTATION_DRIVEN = "documentation_driven"
-    RECOVERY_FROM_FAILURE = "recovery_from_failure"
-    TOOL_SELECTION = "tool_selection"
-    MODULAR_THINKING = "modular_thinking"
-    TESTING_INSTINCT = "testing_instinct"
-    META_COGNITION = "meta_cognition"
-    COMMUNICATION_CLARITY = "communication_clarity"
+	SYSTEMATIC_DEBUGGING = "systematic_debugging"
+	ARCHITECTURE_FIRST = "architecture_first"
+	ITERATIVE_REFINEMENT = "iterative_refinement"
+	TRADEOFF_ANALYSIS = "tradeoff_analysis"
+	SCOPE_MANAGEMENT = "scope_management"
+	DOCUMENTATION_DRIVEN = "documentation_driven"
+	RECOVERY_FROM_FAILURE = "recovery_from_failure"
+	TOOL_SELECTION = "tool_selection"
+	MODULAR_THINKING = "modular_thinking"
+	TESTING_INSTINCT = "testing_instinct"
+	META_COGNITION = "meta_cognition"
+	COMMUNICATION_CLARITY = "communication_clarity"
 
 
 class ProblemSolvingPattern(BaseModel):
-    """An observed behavioral pattern in how the candidate approaches work."""
+	"""An observed behavioral pattern in how the candidate approaches work."""
 
-    pattern_type: PatternType
-    frequency: Literal["rare", "occasional", "common", "dominant"]
-    strength: Literal["emerging", "established", "strong", "exceptional"]
-    description: str
-    evidence: list[SessionReference] = Field(min_length=1)
-    counter_evidence: list[SessionReference] | None = None
-    total_evidence_count: int | None = None  # pre-compaction count
-    compacted: bool = False  # whether evidence has been compacted
+	pattern_type: PatternType
+	frequency: Literal["rare", "occasional", "common", "dominant"]
+	strength: Literal["emerging", "established", "strong", "exceptional"]
+	description: str
+	evidence: list[SessionReference] = Field(min_length=1)
+	counter_evidence: list[SessionReference] | None = None
+	total_evidence_count: int | None = None  # pre-compaction count
+	compacted: bool = False  # whether evidence has been compacted
 
 
 class ProjectComplexity(str, Enum):
-    TRIVIAL = "trivial"
-    SIMPLE = "simple"
-    MODERATE = "moderate"
-    COMPLEX = "complex"
-    AMBITIOUS = "ambitious"
+	TRIVIAL = "trivial"
+	SIMPLE = "simple"
+	MODERATE = "moderate"
+	COMPLEX = "complex"
+	AMBITIOUS = "ambitious"
 
 
 class ProjectSummary(BaseModel):
-    """A project the candidate worked on, as evidenced by sessions."""
+	"""A project the candidate worked on, as evidenced by sessions."""
 
-    project_name: str
-    description: str
-    public_repo_url: str | None = None
-    complexity: ProjectComplexity
-    technologies: list[str]
-    session_count: int = Field(ge=1)
-    date_range_start: datetime
-    date_range_end: datetime
-    key_decisions: list[str] = Field(max_length=5, default_factory=list)
-    challenges_overcome: list[str] = Field(max_length=5, default_factory=list)
-    evidence: list[SessionReference] = Field(min_length=1)
-    total_evidence_count: int | None = None  # pre-compaction count
-    compacted: bool = False  # whether evidence has been compacted
+	project_name: str
+	description: str
+	public_repo_url: str | None = None
+	complexity: ProjectComplexity
+	technologies: list[str]
+	session_count: int = Field(ge=1)
+	date_range_start: datetime
+	date_range_end: datetime
+	key_decisions: list[str] = Field(max_length=5, default_factory=list)
+	challenges_overcome: list[str] = Field(max_length=5, default_factory=list)
+	evidence: list[SessionReference] = Field(min_length=1)
+	total_evidence_count: int | None = None  # pre-compaction count
+	compacted: bool = False  # whether evidence has been compacted
 
 
 class CandidateProfile(BaseModel):
-    """
-    The central IR of a candidate's demonstrated abilities.
+	"""
+	The central IR of a candidate's demonstrated abilities.
 
-    Every field traces back to session evidence via SessionReference.
-    """
+	Every field traces back to session evidence via SessionReference.
+	"""
 
-    profile_version: str = "0.1.0"
-    generated_at: datetime
-    generator_version: str = "0.1.0"
-    session_count: int = Field(ge=0)
-    date_range_start: datetime
-    date_range_end: datetime
-    manifest_hash: str
+	profile_version: str = "0.1.0"
+	generated_at: datetime
+	generator_version: str = "0.1.0"
+	session_count: int = Field(ge=0)
+	date_range_start: datetime
+	date_range_end: datetime
+	manifest_hash: str
 
-    # Skills
-    skills: list[SkillEntry]
-    primary_languages: list[str] = Field(max_length=5)
-    primary_domains: list[str] = Field(max_length=5)
+	# Skills
+	skills: list[SkillEntry]
+	primary_languages: list[str] = Field(max_length=5)
+	primary_domains: list[str] = Field(max_length=5)
 
-    # Patterns
-    problem_solving_patterns: list[ProblemSolvingPattern]
-    working_style_summary: str
+	# Patterns
+	problem_solving_patterns: list[ProblemSolvingPattern]
+	working_style_summary: str
 
-    # Projects
-    projects: list[ProjectSummary]
+	# Projects
+	projects: list[ProjectSummary]
 
-    # Communication
-    communication_style: str
-    documentation_tendency: Literal["minimal", "moderate", "thorough", "extensive"]
+	# Communication
+	communication_style: str
+	documentation_tendency: Literal["minimal", "moderate", "thorough", "extensive"]
 
-    # Integrity
-    extraction_notes: str
-    confidence_assessment: Literal["low", "moderate", "high", "very_high"]
+	# Integrity
+	extraction_notes: str
+	confidence_assessment: Literal["low", "moderate", "high", "very_high"]
 
-    # Compaction metadata
-    compaction_version: str | None = None  # e.g. "1.0" — None for uncompacted profiles
+	# Compaction metadata
+	compaction_version: str | None = None  # e.g. "1.0" — None for uncompacted profiles
 
-    def get_skill(self, name: str) -> SkillEntry | None:
-        """Look up a skill by canonical name."""
-        normalized = name.lower().strip()
-        for skill in self.skills:
-            if skill.name == normalized:
-                return skill
-        return None
+	def get_skill(self, name: str) -> SkillEntry | None:
+		"""Look up a skill by canonical name."""
+		normalized = name.lower().strip()
+		for skill in self.skills:
+			if skill.name == normalized:
+				return skill
+		return None
 
-    def skills_by_category(self, category: str) -> list[SkillEntry]:
-        """Filter skills by category."""
-        return [s for s in self.skills if s.category == category]
+	def skills_by_category(self, category: str) -> list[SkillEntry]:
+		"""Filter skills by category."""
+		return [s for s in self.skills if s.category == category]
 
-    def to_json(self) -> str:
-        """Serialize to JSON with stable key ordering for hashing."""
-        return self.model_dump_json(indent=2)
+	def to_json(self) -> str:
+		"""Serialize to JSON with stable key ordering for hashing."""
+		return self.model_dump_json(indent=2)
 
-    @classmethod
-    def from_json(cls, data: str) -> CandidateProfile:
-        """Deserialize from JSON string."""
-        return cls.model_validate_json(data)
+	@classmethod
+	def from_json(cls, data: str) -> CandidateProfile:
+		"""Deserialize from JSON string."""
+		return cls.model_validate_json(data)

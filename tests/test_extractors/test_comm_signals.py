@@ -299,11 +299,13 @@ class TestHandoffDiscipline:
 			},
 			{
 				"role": "assistant",
-				"content": [{
-					"type": "tool_use",
-					"name": "Write",
-					"input": {"file_path": "/project/handoff-notes.md", "content": "notes"},
-				}],
+				"content": [
+					{
+						"type": "tool_use",
+						"name": "Write",
+						"input": {"file_path": "/project/handoff-notes.md", "content": "notes"},
+					}
+				],
 				"raw": {},
 			},
 		]

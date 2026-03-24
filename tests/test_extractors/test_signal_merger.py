@@ -186,15 +186,19 @@ class TestDepthScoring:
 		results = [
 			_make_signal_result(
 				session_id="s1",
-				skills={"python": [
-					_skill("python", evidence_type="debugging"),
-				]},
+				skills={
+					"python": [
+						_skill("python", evidence_type="debugging"),
+					]
+				},
 			),
 			_make_signal_result(
 				session_id="s2",
-				skills={"python": [
-					_skill("python", evidence_type="debugging"),
-				]},
+				skills={
+					"python": [
+						_skill("python", evidence_type="debugging"),
+					]
+				},
 			),
 		]
 		merger = SignalMerger()
@@ -203,6 +207,7 @@ class TestDepthScoring:
 		py = [s for s in profile.skills if s.name == "python"][0]
 		# Base for 2 sessions = USED, +1 for debugging = APPLIED
 		from claude_candidate.schemas.candidate_profile import DEPTH_RANK
+
 		assert DEPTH_RANK[py.depth] >= DEPTH_RANK[DepthLevel.APPLIED]
 
 	def test_multi_source_boosts_depth(self):
@@ -210,10 +215,12 @@ class TestDepthScoring:
 		results = [
 			_make_signal_result(
 				session_id="s1",
-				skills={"python": [
-					_skill("python", source="file_extension"),
-					_skill("python", source="content_pattern"),
-				]},
+				skills={
+					"python": [
+						_skill("python", source="file_extension"),
+						_skill("python", source="content_pattern"),
+					]
+				},
 			),
 			_make_signal_result(
 				session_id="s2",
@@ -226,6 +233,7 @@ class TestDepthScoring:
 		py = [s for s in profile.skills if s.name == "python"][0]
 		# Base for 2 sessions = USED, +1 for multi-source = APPLIED
 		from claude_candidate.schemas.candidate_profile import DEPTH_RANK
+
 		assert DEPTH_RANK[py.depth] >= DEPTH_RANK[DepthLevel.APPLIED]
 
 	def test_depth_ceiling_is_expert(self):
@@ -234,10 +242,16 @@ class TestDepthScoring:
 		results = [
 			_make_signal_result(
 				session_id=f"s{i}",
-				skills={"python": [
-					_skill("python", source="file_extension", evidence_type="debugging"),
-					_skill("python", source="content_pattern", evidence_type="architecture_decision"),
-				]},
+				skills={
+					"python": [
+						_skill("python", source="file_extension", evidence_type="debugging"),
+						_skill(
+							"python",
+							source="content_pattern",
+							evidence_type="architecture_decision",
+						),
+					]
+				},
 			)
 			for i in range(10)
 		]
@@ -259,13 +273,15 @@ class TestPatternAggregation:
 		results = [
 			_make_signal_result(
 				session_id=f"s{i}",
-				patterns=[PatternSignal(
-					pattern_type=PatternType.ITERATIVE_REFINEMENT,
-					session_ids=[f"s{i}"],
-					confidence=0.8,
-					description="Iterative refinement observed",
-					evidence_snippet="Revised implementation after feedback",
-				)],
+				patterns=[
+					PatternSignal(
+						pattern_type=PatternType.ITERATIVE_REFINEMENT,
+						session_ids=[f"s{i}"],
+						confidence=0.8,
+						description="Iterative refinement observed",
+						evidence_snippet="Revised implementation after feedback",
+					)
+				],
 			)
 			for i in range(5)
 		]
@@ -273,7 +289,8 @@ class TestPatternAggregation:
 		profile = merger.merge(results, manifest_hash="abc")
 
 		ir_patterns = [
-			p for p in profile.problem_solving_patterns
+			p
+			for p in profile.problem_solving_patterns
 			if p.pattern_type == PatternType.ITERATIVE_REFINEMENT
 		]
 		assert len(ir_patterns) == 1
@@ -283,16 +300,20 @@ class TestPatternAggregation:
 		"""One of each PatternType => 12 patterns in output."""
 		results = []
 		for pt in PatternType:
-			results.append(_make_signal_result(
-				session_id=f"s-{pt.value}",
-				patterns=[PatternSignal(
-					pattern_type=pt,
-					session_ids=[f"s-{pt.value}"],
-					confidence=0.7,
-					description=f"Pattern {pt.value} observed",
-					evidence_snippet=f"Evidence for {pt.value}",
-				)],
-			))
+			results.append(
+				_make_signal_result(
+					session_id=f"s-{pt.value}",
+					patterns=[
+						PatternSignal(
+							pattern_type=pt,
+							session_ids=[f"s-{pt.value}"],
+							confidence=0.7,
+							description=f"Pattern {pt.value} observed",
+							evidence_snippet=f"Evidence for {pt.value}",
+						)
+					],
+				)
+			)
 		merger = SignalMerger()
 		profile = merger.merge(results, manifest_hash="abc")
 
@@ -301,17 +322,20 @@ class TestPatternAggregation:
 
 	def test_pattern_frequency_thresholds(self):
 		""">=5=dominant, >=3=common, >=2=occasional, >=1=rare."""
+
 		def _make_patterns(pt: PatternType, count: int) -> list[SignalResult]:
 			return [
 				_make_signal_result(
 					session_id=f"s-{pt.value}-{i}",
-					patterns=[PatternSignal(
-						pattern_type=pt,
-						session_ids=[f"s-{pt.value}-{i}"],
-						confidence=0.7,
-						description=f"Pattern {pt.value}",
-						evidence_snippet=f"Evidence for {pt.value}",
-					)],
+					patterns=[
+						PatternSignal(
+							pattern_type=pt,
+							session_ids=[f"s-{pt.value}-{i}"],
+							confidence=0.7,
+							description=f"Pattern {pt.value}",
+							evidence_snippet=f"Evidence for {pt.value}",
+						)
+					],
 				)
 				for i in range(count)
 			]
@@ -325,10 +349,7 @@ class TestPatternAggregation:
 		merger = SignalMerger()
 		profile = merger.merge(results, manifest_hash="abc")
 
-		freq_map = {
-			p.pattern_type: p.frequency
-			for p in profile.problem_solving_patterns
-		}
+		freq_map = {p.pattern_type: p.frequency for p in profile.problem_solving_patterns}
 		assert freq_map[PatternType.ITERATIVE_REFINEMENT] == "dominant"
 		assert freq_map[PatternType.ARCHITECTURE_FIRST] == "common"
 		assert freq_map[PatternType.TESTING_INSTINCT] == "occasional"
@@ -398,13 +419,15 @@ class TestProfileAssembly:
 		"""Merger output is a valid CandidateProfile."""
 		r = _make_signal_result(
 			skills={"python": [_skill("python")]},
-			patterns=[PatternSignal(
-				pattern_type=PatternType.ITERATIVE_REFINEMENT,
-				session_ids=["s1"],
-				confidence=0.8,
-				description="Iterative refinement",
-				evidence_snippet="Revised approach",
-			)],
+			patterns=[
+				PatternSignal(
+					pattern_type=PatternType.ITERATIVE_REFINEMENT,
+					session_ids=["s1"],
+					confidence=0.8,
+					description="Iterative refinement",
+					evidence_snippet="Revised approach",
+				)
+			],
 		)
 		merger = SignalMerger()
 		profile = merger.merge([r], manifest_hash="abc123")
@@ -444,20 +467,23 @@ class TestProfileAssembly:
 		"""When all 12 PatternTypes are provided, all appear in output."""
 		results = []
 		for pt in PatternType:
-			results.append(_make_signal_result(
-				session_id=f"s-{pt.value}",
-				skills={"python": [_skill("python")]},
-				patterns=[PatternSignal(
-					pattern_type=pt,
-					session_ids=[f"s-{pt.value}"],
-					confidence=0.7,
-					description=f"Pattern {pt.value}",
-					evidence_snippet=f"Evidence for {pt.value}",
-				)],
-			))
+			results.append(
+				_make_signal_result(
+					session_id=f"s-{pt.value}",
+					skills={"python": [_skill("python")]},
+					patterns=[
+						PatternSignal(
+							pattern_type=pt,
+							session_ids=[f"s-{pt.value}"],
+							confidence=0.7,
+							description=f"Pattern {pt.value}",
+							evidence_snippet=f"Evidence for {pt.value}",
+						)
+					],
+				)
+			)
 		merger = SignalMerger()
 		profile = merger.merge(results, manifest_hash="abc")
 
 		output_types = {p.pattern_type for p in profile.problem_solving_patterns}
 		assert output_types == set(PatternType)
-

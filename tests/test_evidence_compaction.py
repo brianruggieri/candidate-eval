@@ -49,35 +49,46 @@ def _make_evidence(
 	refs = []
 	for i in range(n):
 		proj = f"{project_prefix}-{i % num_projects}"
-		refs.append(SessionReference(
-			session_id=f"session-{i:04d}",
-			session_date=base_date + timedelta(days=i),
-			project_context=proj,
-			evidence_snippet=f"Used skill in {proj} context #{i}",
-			evidence_type=evidence_type,
-			confidence=0.7 + 0.3 * (i / max(n - 1, 1)),
-		))
+		refs.append(
+			SessionReference(
+				session_id=f"session-{i:04d}",
+				session_date=base_date + timedelta(days=i),
+				project_context=proj,
+				evidence_snippet=f"Used skill in {proj} context #{i}",
+				evidence_type=evidence_type,
+				confidence=0.7 + 0.3 * (i / max(n - 1, 1)),
+			)
+		)
 	return refs
 
 
 def _make_diverse_evidence(n: int) -> list[SessionReference]:
 	"""Generate evidence with diverse types and projects."""
 	types = [
-		"architecture_decision", "debugging", "refactor", "testing",
-		"teaching", "integration", "direct_usage", "review", "planning",
+		"architecture_decision",
+		"debugging",
+		"refactor",
+		"testing",
+		"teaching",
+		"integration",
+		"direct_usage",
+		"review",
+		"planning",
 		"evaluation",
 	]
 	base_date = datetime(2025, 6, 1)
 	refs = []
 	for i in range(n):
-		refs.append(SessionReference(
-			session_id=f"session-{i:04d}",
-			session_date=base_date + timedelta(days=i * 2),
-			project_context=f"project-{i % 5}",
-			evidence_snippet=f"Evidence of type {types[i % len(types)]} in project-{i % 5}",
-			evidence_type=types[i % len(types)],
-			confidence=0.5 + 0.5 * (i / max(n - 1, 1)),
-		))
+		refs.append(
+			SessionReference(
+				session_id=f"session-{i:04d}",
+				session_date=base_date + timedelta(days=i * 2),
+				project_context=f"project-{i % 5}",
+				evidence_snippet=f"Evidence of type {types[i % len(types)]} in project-{i % 5}",
+				evidence_type=types[i % len(types)],
+				confidence=0.5 + 0.5 * (i / max(n - 1, 1)),
+			)
+		)
 	return refs
 
 
@@ -144,27 +155,31 @@ def _make_profile(
 	pattern_types = list(PatternType)
 	for i, count in enumerate(pattern_evidence_counts):
 		evidence = _make_evidence(count)
-		patterns.append(ProblemSolvingPattern(
-			pattern_type=pattern_types[i % len(pattern_types)],
-			frequency="common",
-			strength="strong",
-			description=f"Pattern {i}",
-			evidence=evidence,
-		))
+		patterns.append(
+			ProblemSolvingPattern(
+				pattern_type=pattern_types[i % len(pattern_types)],
+				frequency="common",
+				strength="strong",
+				description=f"Pattern {i}",
+				evidence=evidence,
+			)
+		)
 
 	projects = []
 	for i, count in enumerate(project_evidence_counts):
 		evidence = _make_evidence(count)
-		projects.append(ProjectSummary(
-			project_name=f"project-{i}",
-			description=f"Project {i}",
-			complexity=ProjectComplexity.MODERATE,
-			technologies=["python"],
-			session_count=count,
-			date_range_start=evidence[0].session_date,
-			date_range_end=evidence[-1].session_date,
-			evidence=evidence,
-		))
+		projects.append(
+			ProjectSummary(
+				project_name=f"project-{i}",
+				description=f"Project {i}",
+				complexity=ProjectComplexity.MODERATE,
+				technologies=["python"],
+				session_count=count,
+				date_range_start=evidence[0].session_date,
+				date_range_end=evidence[-1].session_date,
+				evidence=evidence,
+			)
+		)
 
 	return CandidateProfile(
 		generated_at=datetime.now(),
@@ -247,14 +262,16 @@ class TestLocalHeuristicSelection:
 		base_date = datetime(2026, 1, 1)
 		# All same date and confidence, differ only by type
 		for i, etype in enumerate(["direct_usage", "architecture_decision", "debugging"]):
-			evidence.append(SessionReference(
-				session_id=f"s-{i}",
-				session_date=base_date,
-				project_context=f"proj-{i}",
-				evidence_snippet=f"Evidence {i}",
-				evidence_type=etype,
-				confidence=0.8,
-			))
+			evidence.append(
+				SessionReference(
+					session_id=f"s-{i}",
+					session_date=base_date,
+					project_context=f"proj-{i}",
+					evidence_snippet=f"Evidence {i}",
+					evidence_type=etype,
+					confidence=0.8,
+				)
+			)
 		indices = _local_select_evidence(evidence, max_select=2)
 		# architecture_decision (idx 1) and debugging (idx 2) should be preferred
 		assert 1 in indices
@@ -266,23 +283,27 @@ class TestLocalHeuristicSelection:
 		base_date = datetime(2026, 1, 1)
 		# 8 entries from project-A (high confidence), 2 from project-B (lower)
 		for i in range(8):
-			evidence.append(SessionReference(
-				session_id=f"s-{i}",
-				session_date=base_date + timedelta(days=i),
-				project_context="project-A",
-				evidence_snippet=f"High quality evidence {i}",
-				evidence_type="architecture_decision",
-				confidence=0.95,
-			))
+			evidence.append(
+				SessionReference(
+					session_id=f"s-{i}",
+					session_date=base_date + timedelta(days=i),
+					project_context="project-A",
+					evidence_snippet=f"High quality evidence {i}",
+					evidence_type="architecture_decision",
+					confidence=0.95,
+				)
+			)
 		for i in range(2):
-			evidence.append(SessionReference(
-				session_id=f"s-b-{i}",
-				session_date=base_date,
-				project_context="project-B",
-				evidence_snippet=f"Lower quality evidence {i}",
-				evidence_type="direct_usage",
-				confidence=0.5,
-			))
+			evidence.append(
+				SessionReference(
+					session_id=f"s-b-{i}",
+					session_date=base_date,
+					project_context="project-B",
+					evidence_snippet=f"Lower quality evidence {i}",
+					evidence_type="direct_usage",
+					confidence=0.5,
+				)
+			)
 
 		indices = _local_select_evidence(evidence, max_select=5)
 		selected_projects = {evidence[i].project_context for i in indices}
@@ -492,6 +513,7 @@ class TestFallback:
 		selected_projects = {evidence[i].project_context for i in indices}
 		assert len(selected_projects) >= 2
 
+	@pytest.mark.slow
 	def test_claude_failure_triggers_fallback(self):
 		"""When Claude call raises, fallback to local heuristic."""
 		profile = _make_profile(skill_evidence_counts=[60])
@@ -548,14 +570,16 @@ class TestBackwardCompatibility:
 			frequency=10,
 			recency=datetime(2026, 3, 1),
 			first_seen=datetime(2025, 9, 1),
-			evidence=[SessionReference(
-				session_id="s1",
-				session_date=datetime(2026, 3, 1),
-				project_context="proj",
-				evidence_snippet="Used python",
-				evidence_type="direct_usage",
-				confidence=0.9,
-			)],
+			evidence=[
+				SessionReference(
+					session_id="s1",
+					session_date=datetime(2026, 3, 1),
+					project_context="proj",
+					evidence_snippet="Used python",
+					evidence_type="direct_usage",
+					confidence=0.9,
+				)
+			],
 		)
 		assert skill.total_evidence_count is None
 		assert skill.compacted is False
@@ -566,14 +590,16 @@ class TestBackwardCompatibility:
 			frequency="common",
 			strength="strong",
 			description="Test",
-			evidence=[SessionReference(
-				session_id="s1",
-				session_date=datetime(2026, 3, 1),
-				project_context="proj",
-				evidence_snippet="Debugged systematically",
-				evidence_type="debugging",
-				confidence=0.9,
-			)],
+			evidence=[
+				SessionReference(
+					session_id="s1",
+					session_date=datetime(2026, 3, 1),
+					project_context="proj",
+					evidence_snippet="Debugged systematically",
+					evidence_type="debugging",
+					confidence=0.9,
+				)
+			],
 		)
 		assert pattern.total_evidence_count is None
 		assert pattern.compacted is False
@@ -587,14 +613,16 @@ class TestBackwardCompatibility:
 			session_count=5,
 			date_range_start=datetime(2025, 9, 1),
 			date_range_end=datetime(2026, 3, 1),
-			evidence=[SessionReference(
-				session_id="s1",
-				session_date=datetime(2026, 3, 1),
-				project_context="proj",
-				evidence_snippet="Worked on test",
-				evidence_type="direct_usage",
-				confidence=0.9,
-			)],
+			evidence=[
+				SessionReference(
+					session_id="s1",
+					session_date=datetime(2026, 3, 1),
+					project_context="proj",
+					evidence_snippet="Worked on test",
+					evidence_type="direct_usage",
+					confidence=0.9,
+				)
+			],
 		)
 		assert project.total_evidence_count is None
 		assert project.compacted is False

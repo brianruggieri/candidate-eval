@@ -14,26 +14,33 @@ from claude_candidate.schemas.fit_assessment import FitAssessment, SkillMatchDet
 from claude_candidate.schemas.merged_profile import MergedEvidenceProfile
 
 __all__ = [
-    "ClaudeCLIError",
-    "generate_resume_bullets",
-    "generate_cover_letter",
-    "generate_interview_prep",
-    "generate_narrative_verdict",
-    "generate_site_narrative",
+	"CLAUDE_TIMEOUTS",
+	"DEFAULT_CLAUDE_TIMEOUT",
+	"ClaudeCLIError",
+	"generate_resume_bullets",
+	"generate_cover_letter",
+	"generate_interview_prep",
+	"generate_narrative_verdict",
+	"generate_site_narrative",
 ]
 
-CLAUDE_TIMEOUT_SECONDS = 120
+CLAUDE_TIMEOUTS: dict[str, int] = {
+	"resume-bullets": 120,  # short list, fast
+	"cover-letter": 300,  # prose narrative, ~400 words
+	"interview-prep": 300,  # longer narrative
+}
+DEFAULT_CLAUDE_TIMEOUT = 180  # fallback for unknown / untyped callers
 
 # Match statuses considered "positive" evidence
 POSITIVE_STATUSES = {"strong_match", "exceeds", "partial_match"}
 
 # Match status display labels
 STATUS_LABELS: dict[str, str] = {
-    "exceeds": "exceeding requirements",
-    "strong_match": "strong proficiency",
-    "partial_match": "working knowledge",
-    "adjacent": "related experience",
-    "no_evidence": "no direct evidence",
+	"exceeds": "exceeding requirements",
+	"strong_match": "strong proficiency",
+	"partial_match": "working knowledge",
+	"adjacent": "related experience",
+	"no_evidence": "no direct evidence",
 }
 
 # Maximum number of bullet points to generate
@@ -42,15 +49,58 @@ MAX_BULLETS = 8
 # Maximum strong matches to highlight in cover letter body
 MAX_COVER_LETTER_HIGHLIGHTS = 3
 
+# ---------------------------------------------------------------------------
+# Domain-mismatch detection
+# ---------------------------------------------------------------------------
+
+DOMAIN_KEYWORDS: frozenset[str] = frozenset(
+	{
+		"healthcare",
+		"financial",
+		"fintech",
+		"regulated",
+		"hipaa",
+		"legal",
+		"insurance",
+		"pharma",
+	}
+)
+
+GENERAL_SKILLS_PRONE_TO_DOMAIN_MISMATCH: frozenset[str] = frozenset(
+	{
+		"security",
+		"testing",
+		"authentication",
+		"compliance",
+		"documentation",
+	}
+)
+
+
+def _is_domain_mismatch(match: SkillMatchDetail) -> bool:
+	"""Return True when a general skill has matched a domain-specific requirement.
+
+	False positives (claiming domain experience the evidence doesn't support) occur
+	when a general-purpose skill like 'security' matches a requirement that names a
+	specific regulated domain (healthcare, financial services, etc.).
+	"""
+	if match.matched_skill is None:
+		return False
+	if match.matched_skill not in GENERAL_SKILLS_PRONE_TO_DOMAIN_MISMATCH:
+		return False
+	req_lower = match.requirement.lower()
+	return any(kw in req_lower for kw in DOMAIN_KEYWORDS)
+
 
 # ---------------------------------------------------------------------------
 # Claude CLI integration
 # ---------------------------------------------------------------------------
 
 
-def _call_claude(prompt: str) -> str:
-    """Call Claude CLI. Raises ClaudeCLIError on any failure."""
-    return call_claude(prompt, timeout=CLAUDE_TIMEOUT_SECONDS)
+def _call_claude(prompt: str, deliverable_type: str = "") -> str:
+	"""Call Claude CLI with per-type timeout. Raises ClaudeCLIError on any failure."""
+	timeout = CLAUDE_TIMEOUTS.get(deliverable_type, DEFAULT_CLAUDE_TIMEOUT)
+	return call_claude(prompt, timeout=timeout)
 
 
 # ---------------------------------------------------------------------------
@@ -59,59 +109,79 @@ def _call_claude(prompt: str) -> str:
 
 
 def _build_bullet_prompt(
-    assessment: FitAssessment,
-    profile: MergedEvidenceProfile | None,
+	assessment: FitAssessment,
+	profile: MergedEvidenceProfile | None,
 ) -> str:
-    """Build a prompt for Claude to generate resume bullets."""
-    matches_text = _format_matches_for_prompt(assessment.skill_matches)
-    return (
-        f"Generate tailored resume bullet points for a {assessment.job_title} "
-        f"role at {assessment.company_name}.\n\n"
-        f"Skill matches:\n{matches_text}\n\n"
-        "Format: action verb + specific achievement + technology context. "
-        "Return only the bullet points, one per line, prefixed with a dash."
-    )
+	"""Build a prompt for Claude to generate resume bullets."""
+	matches_text = _format_matches_for_prompt(assessment.skill_matches, strip_domain_mismatch=True)
+	return (
+		f"Generate tailored resume bullet points for a {assessment.job_title} "
+		f"role at {assessment.company_name}.\n\n"
+		f"Skill matches:\n{matches_text}\n\n"
+		"Format: action verb + specific achievement + technology context. "
+		"Return only the bullet points, one per line, prefixed with a dash.\n\n"
+		"Important: Do not claim specific domain experience in named regulated "
+		"verticals unless the candidate_evidence text explicitly references that "
+		"domain. If the matched skill is a general-purpose skill, describe what "
+		"the evidence demonstrates — not what the requirement mentions."
+	)
 
 
 def _build_cover_letter_prompt(
-    assessment: FitAssessment,
-    profile: MergedEvidenceProfile | None,
+	assessment: FitAssessment,
+	profile: MergedEvidenceProfile | None,
 ) -> str:
-    """Build a prompt for Claude to generate a cover letter."""
-    matches_text = _format_matches_for_prompt(assessment.skill_matches)
-    return (
-        f"Write a professional cover letter for a {assessment.job_title} "
-        f"position at {assessment.company_name}.\n\n"
-        f"Candidate fit: {assessment.overall_summary}\n"
-        f"Skill matches:\n{matches_text}\n\n"
-        "Tone: professional but authentic. Length: 300-500 words. "
-        "Reference specific skills and evidence. Do not use placeholders."
-    )
+	"""Build a prompt for Claude to generate a cover letter."""
+	matches_text = _format_matches_for_prompt(assessment.skill_matches, strip_domain_mismatch=True)
+	return (
+		f"Write a professional cover letter for a {assessment.job_title} "
+		f"position at {assessment.company_name}.\n\n"
+		f"Candidate fit: {assessment.overall_summary}\n"
+		f"Skill matches:\n{matches_text}\n\n"
+		"Tone: professional but authentic. Length: 300-500 words. "
+		"Reference specific skills and evidence. Do not use placeholders.\n\n"
+		"Important: Do not claim specific domain experience in named regulated "
+		"verticals unless the candidate_evidence text explicitly references that "
+		"domain. If the matched skill is a general-purpose skill, describe what "
+		"the evidence demonstrates — not what the requirement mentions."
+	)
 
 
 def _build_interview_prompt(
-    assessment: FitAssessment,
-    profile: MergedEvidenceProfile | None,
+	assessment: FitAssessment,
+	profile: MergedEvidenceProfile | None,
 ) -> str:
-    """Build a prompt for Claude to generate interview prep notes."""
-    matches_text = _format_matches_for_prompt(assessment.skill_matches)
-    return (
-        f"Generate interview preparation notes for a {assessment.job_title} "
-        f"role at {assessment.company_name}.\n\n"
-        f"Skill matches:\n{matches_text}\n\n"
-        "Organize by: Technical Discussion Points, Behavioral Examples, "
-        "and Questions to Ask. Reference specific evidence."
-    )
+	"""Build a prompt for Claude to generate interview prep notes."""
+	matches_text = _format_matches_for_prompt(assessment.skill_matches, strip_domain_mismatch=True)
+	return (
+		f"Generate interview preparation notes for a {assessment.job_title} "
+		f"role at {assessment.company_name}.\n\n"
+		f"Skill matches:\n{matches_text}\n\n"
+		"Organize by: Technical Discussion Points, Behavioral Examples, "
+		"and Questions to Ask. Reference specific evidence.\n\n"
+		"Important: Do not claim specific domain experience in named regulated "
+		"verticals unless the candidate_evidence text explicitly references that "
+		"domain. If the matched skill is a general-purpose skill, describe what "
+		"the evidence demonstrates — not what the requirement mentions."
+	)
 
 
-def _format_matches_for_prompt(matches: list[SkillMatchDetail]) -> str:
-    """Format skill matches into a readable string for prompts."""
-    lines = []
-    for m in matches:
-        lines.append(
-            f"- {m.requirement} ({m.match_status}): {m.candidate_evidence}"
-        )
-    return "\n".join(lines)
+def _format_matches_for_prompt(
+	matches: list[SkillMatchDetail],
+	*,
+	strip_domain_mismatch: bool = False,
+) -> str:
+	"""Format skill matches into a readable string for prompts."""
+	lines = []
+	for m in matches:
+		if strip_domain_mismatch and _is_domain_mismatch(m):
+			# Replace requirement text with evidence-only framing to prevent
+			# the model from echoing domain claims the evidence doesn't support.
+			# Omit trailing evidence to avoid duplication (req_text IS the evidence).
+			lines.append(f"- {m.candidate_evidence} ({m.match_status})")
+		else:
+			lines.append(f"- {m.requirement} ({m.match_status}): {m.candidate_evidence}")
+	return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
@@ -120,57 +190,57 @@ def _format_matches_for_prompt(matches: list[SkillMatchDetail]) -> str:
 
 
 def generate_resume_bullets(
-    *,
-    assessment: FitAssessment,
-    profile: MergedEvidenceProfile | None = None,
+	*,
+	assessment: FitAssessment,
+	profile: MergedEvidenceProfile | None = None,
 ) -> list[str]:
-    """Generate tailored resume bullets from assessment data.
+	"""Generate tailored resume bullets from assessment data.
 
-    Raises:
-        ClaudeCLIError: If the Claude CLI is unavailable or returns an error.
-    """
-    prompt = _build_bullet_prompt(assessment, profile)
-    result = _call_claude(prompt)
-    bullets = _parse_bullet_lines(result)
-    return [scrub_deliverable(bullet) for bullet in bullets]
+	Raises:
+	    ClaudeCLIError: If the Claude CLI is unavailable or returns an error.
+	"""
+	prompt = _build_bullet_prompt(assessment, profile)
+	result = _call_claude(prompt, "resume-bullets")
+	bullets = _parse_bullet_lines(result)
+	return [scrub_deliverable(bullet) for bullet in bullets]
 
 
 def _parse_bullet_lines(text: str) -> list[str]:
-    """Parse Claude output into a list of bullet strings."""
-    lines = [
-        line.lstrip("- ").strip()
-        for line in text.splitlines()
-        if line.strip() and line.strip() != "-"
-    ]
-    return [line for line in lines if line]
+	"""Parse Claude output into a list of bullet strings."""
+	lines = [
+		line.lstrip("- ").strip()
+		for line in text.splitlines()
+		if line.strip() and line.strip() != "-"
+	]
+	return [line for line in lines if line]
 
 
 def generate_cover_letter(
-    *,
-    assessment: FitAssessment,
-    profile: MergedEvidenceProfile | None = None,
+	*,
+	assessment: FitAssessment,
+	profile: MergedEvidenceProfile | None = None,
 ) -> str:
-    """Generate a personalized cover letter.
+	"""Generate a personalized cover letter.
 
-    Raises:
-        ClaudeCLIError: If the Claude CLI is unavailable or returns an error.
-    """
-    prompt = _build_cover_letter_prompt(assessment, profile)
-    return scrub_deliverable(_call_claude(prompt))
+	Raises:
+	    ClaudeCLIError: If the Claude CLI is unavailable or returns an error.
+	"""
+	prompt = _build_cover_letter_prompt(assessment, profile)
+	return scrub_deliverable(_call_claude(prompt, "cover-letter"))
 
 
 def generate_interview_prep(
-    *,
-    assessment: FitAssessment,
-    profile: MergedEvidenceProfile | None = None,
+	*,
+	assessment: FitAssessment,
+	profile: MergedEvidenceProfile | None = None,
 ) -> str:
-    """Generate interview preparation notes.
+	"""Generate interview preparation notes.
 
-    Raises:
-        ClaudeCLIError: If the Claude CLI is unavailable or returns an error.
-    """
-    prompt = _build_interview_prompt(assessment, profile)
-    return scrub_deliverable(_call_claude(prompt))
+	Raises:
+	    ClaudeCLIError: If the Claude CLI is unavailable or returns an error.
+	"""
+	prompt = _build_interview_prompt(assessment, profile)
+	return scrub_deliverable(_call_claude(prompt, "interview-prep"))
 
 
 # ---------------------------------------------------------------------------
@@ -181,67 +251,65 @@ NARRATIVE_TIMEOUT_SECONDS = 30
 
 
 def generate_narrative_verdict(assessment_data: dict, company_research: dict) -> dict:
-    """Generate narrative verdict and receptivity signal via Claude.
+	"""Generate narrative verdict and receptivity signal via Claude.
 
-    Returns dict with keys: narrative, receptivity, receptivity_reason
-    """
-    import json as _json
+	Returns dict with keys: narrative, receptivity, receptivity_reason
+	"""
+	import json as _json
 
-    # Build context from assessment data
-    company = assessment_data.get("company_name", "Unknown")
-    title = assessment_data.get("job_title", "Unknown")
-    grade = assessment_data.get("overall_grade", "N/A")
-    strongest = assessment_data.get("strongest_match", "N/A")
-    biggest_gap = assessment_data.get("biggest_gap", "N/A")
+	# Build context from assessment data
+	company = assessment_data.get("company_name", "Unknown")
+	title = assessment_data.get("job_title", "Unknown")
+	grade = assessment_data.get("overall_grade", "N/A")
+	strongest = assessment_data.get("strongest_match", "N/A")
+	biggest_gap = assessment_data.get("biggest_gap", "N/A")
 
-    # Top 5 skill matches
-    skill_matches = assessment_data.get("skill_matches", [])
-    top_skills = skill_matches[:5]
-    skills_text = "\n".join(
-        f"- {m.get('requirement', 'N/A')} ({m.get('match_status', 'N/A')}): "
-        f"{m.get('candidate_evidence', 'N/A')}"
-        for m in top_skills
-    )
+	# Top 5 skill matches
+	skill_matches = assessment_data.get("skill_matches", [])
+	top_skills = skill_matches[:5]
+	skills_text = "\n".join(
+		f"- {m.get('requirement', 'N/A')} ({m.get('match_status', 'N/A')}): "
+		f"{m.get('candidate_evidence', 'N/A')}"
+		for m in top_skills
+	)
 
-    # Company research context
-    research_text = "\n".join(
-        f"- {k}: {v}" for k, v in company_research.items() if v
-    )
+	# Company research context
+	research_text = "\n".join(f"- {k}: {v}" for k, v in company_research.items() if v)
 
-    prompt = (
-        "You are evaluating a candidate's fit for a specific role. "
-        "Return ONLY valid JSON with these three keys:\n"
-        '- "narrative": 2-3 sentences — why this is or isn\'t a good fit, '
-        "the candidate's strongest angle, and what gap is most likely to come up\n"
-        '- "receptivity": "high", "medium", or "low" — would this company '
-        "value a transparent AI-powered portfolio application?\n"
-        '- "receptivity_reason": one sentence explaining the receptivity rating\n\n'
-        f"Company: {company}\n"
-        f"Job title: {title}\n"
-        f"Overall grade: {grade}\n"
-        f"Strongest match: {strongest}\n"
-        f"Biggest gap: {biggest_gap}\n\n"
-        f"Top skill matches:\n{skills_text}\n\n"
-        f"Company research:\n{research_text}\n"
-    )
+	prompt = (
+		"You are evaluating a candidate's fit for a specific role. "
+		"Return ONLY valid JSON with these three keys:\n"
+		'- "narrative": 2-3 sentences — why this is or isn\'t a good fit, '
+		"the candidate's strongest angle, and what gap is most likely to come up\n"
+		'- "receptivity": "high", "medium", or "low" — would this company '
+		"value a transparent AI-powered portfolio application?\n"
+		'- "receptivity_reason": one sentence explaining the receptivity rating\n\n'
+		f"Company: {company}\n"
+		f"Job title: {title}\n"
+		f"Overall grade: {grade}\n"
+		f"Strongest match: {strongest}\n"
+		f"Biggest gap: {biggest_gap}\n\n"
+		f"Top skill matches:\n{skills_text}\n\n"
+		f"Company research:\n{research_text}\n"
+	)
 
-    raw = call_claude(prompt, timeout=NARRATIVE_TIMEOUT_SECONDS)
+	raw = call_claude(prompt, timeout=NARRATIVE_TIMEOUT_SECONDS)
 
-    # Strip code fences if present
-    cleaned = raw.strip()
-    if cleaned.startswith("```"):
-        cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned
-    if cleaned.endswith("```"):
-        cleaned = cleaned.rsplit("```", 1)[0]
-    cleaned = cleaned.strip()
+	# Strip code fences if present
+	cleaned = raw.strip()
+	if cleaned.startswith("```"):
+		cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned
+	if cleaned.endswith("```"):
+		cleaned = cleaned.rsplit("```", 1)[0]
+	cleaned = cleaned.strip()
 
-    parsed = _json.loads(cleaned)
+	parsed = _json.loads(cleaned)
 
-    # Scrub PII from the narrative text
-    if parsed.get("narrative"):
-        parsed["narrative"] = scrub_deliverable(parsed["narrative"])
+	# Scrub PII from the narrative text
+	if parsed.get("narrative"):
+		parsed["narrative"] = scrub_deliverable(parsed["narrative"])
 
-    return parsed
+	return parsed
 
 
 # ---------------------------------------------------------------------------
@@ -250,54 +318,52 @@ def generate_narrative_verdict(assessment_data: dict, company_research: dict) ->
 
 
 def generate_site_narrative(assessment_data: dict, company_research: dict) -> str:
-    """Generate a 150-250 word pitch narrative for the cover letter site page.
+	"""Generate a 150-250 word pitch narrative for the cover letter site page.
 
-    The output is first-person, confident, and evidence-grounded — not a
-    traditional cover letter tone.  Think "what I would bring to this role"
-    rather than "I would love the opportunity."
+	The output is first-person, confident, and evidence-grounded — not a
+	traditional cover letter tone.  Think "what I would bring to this role"
+	rather than "I would love the opportunity."
 
-    PII scrubbing is applied before returning.
+	PII scrubbing is applied before returning.
 
-    Raises:
-        ClaudeCLIError: If the Claude CLI is unavailable or returns an error.
-    """
-    company = assessment_data.get("company_name", "Unknown")
-    title = assessment_data.get("job_title", "Unknown")
-    grade = assessment_data.get("overall_grade", "N/A")
-    strongest = assessment_data.get("strongest_match", "N/A")
-    biggest_gap = assessment_data.get("biggest_gap", "N/A")
+	Raises:
+	    ClaudeCLIError: If the Claude CLI is unavailable or returns an error.
+	"""
+	company = assessment_data.get("company_name", "Unknown")
+	title = assessment_data.get("job_title", "Unknown")
+	grade = assessment_data.get("overall_grade", "N/A")
+	strongest = assessment_data.get("strongest_match", "N/A")
+	biggest_gap = assessment_data.get("biggest_gap", "N/A")
 
-    skill_matches = assessment_data.get("skill_matches", [])
-    top_skills = skill_matches[:5]
-    skills_text = "\n".join(
-        f"- {m.get('requirement', 'N/A')} ({m.get('match_status', 'N/A')}): "
-        f"{m.get('candidate_evidence', 'N/A')}"
-        for m in top_skills
-    )
+	skill_matches = assessment_data.get("skill_matches", [])
+	top_skills = skill_matches[:5]
+	skills_text = "\n".join(
+		f"- {m.get('requirement', 'N/A')} ({m.get('match_status', 'N/A')}): "
+		f"{m.get('candidate_evidence', 'N/A')}"
+		for m in top_skills
+	)
 
-    research_text = "\n".join(
-        f"- {k}: {v}" for k, v in company_research.items() if v
-    )
+	research_text = "\n".join(f"- {k}: {v}" for k, v in company_research.items() if v)
 
-    prompt = (
-        "Write a first-person pitch paragraph (150-250 words) explaining why "
-        "I am a strong fit for this role. This is for a personal application "
-        "page, not a formal cover letter.\n\n"
-        "Rules:\n"
-        "- Lead with the strongest match\n"
-        "- Be specific — reference actual skills and evidence\n"
-        "- Confident but not arrogant\n"
-        "- No fluff, no 'I would love the opportunity' language\n"
-        "- No 'Dear Hiring Manager' or letter formatting\n"
-        "- 150-250 words, plain prose\n\n"
-        f"Company: {company}\n"
-        f"Job title: {title}\n"
-        f"Overall grade: {grade}\n"
-        f"Strongest match: {strongest}\n"
-        f"Biggest gap: {biggest_gap}\n\n"
-        f"Top skill matches:\n{skills_text}\n\n"
-        f"Company research:\n{research_text}\n"
-    )
+	prompt = (
+		"Write a first-person pitch paragraph (150-250 words) explaining why "
+		"I am a strong fit for this role. This is for a personal application "
+		"page, not a formal cover letter.\n\n"
+		"Rules:\n"
+		"- Lead with the strongest match\n"
+		"- Be specific — reference actual skills and evidence\n"
+		"- Confident but not arrogant\n"
+		"- No fluff, no 'I would love the opportunity' language\n"
+		"- No 'Dear Hiring Manager' or letter formatting\n"
+		"- 150-250 words, plain prose\n\n"
+		f"Company: {company}\n"
+		f"Job title: {title}\n"
+		f"Overall grade: {grade}\n"
+		f"Strongest match: {strongest}\n"
+		f"Biggest gap: {biggest_gap}\n\n"
+		f"Top skill matches:\n{skills_text}\n\n"
+		f"Company research:\n{research_text}\n"
+	)
 
-    raw = _call_claude(prompt)
-    return scrub_deliverable(raw.strip())
+	raw = _call_claude(prompt)
+	return scrub_deliverable(raw.strip())

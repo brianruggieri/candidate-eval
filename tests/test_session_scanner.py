@@ -153,11 +153,16 @@ class TestCanonicalProjectKey:
 		assert _canonical_project_key("-Users-x-git-proj--worktrees-feat") == "-Users-x-git-proj"
 
 	def test_claude_worktrees_split(self) -> None:
-		assert _canonical_project_key("-Users-x-git-proj--claude-worktrees-agent-abc") == "-Users-x-git-proj"
+		assert (
+			_canonical_project_key("-Users-x-git-proj--claude-worktrees-agent-abc")
+			== "-Users-x-git-proj"
+		)
 
 
 class TestDiscoverProjects:
-	def _make_project(self, root: Path, dir_name: str, session_count: int = 1, size: int = 10) -> None:
+	def _make_project(
+		self, root: Path, dir_name: str, session_count: int = 1, size: int = 10
+	) -> None:
 		"""Helper: create a project directory with N .jsonl files."""
 		project_dir = root / dir_name
 		project_dir.mkdir(parents=True, exist_ok=True)
@@ -193,7 +198,9 @@ class TestDiscoverProjects:
 
 	def test_groups_claude_worktrees(self, tmp_path: Path) -> None:
 		self._make_project(tmp_path, "-Users-u-git-proj-a", session_count=1)
-		self._make_project(tmp_path, "-Users-u-git-proj-a--claude-worktrees-agent-xxx", session_count=4)
+		self._make_project(
+			tmp_path, "-Users-u-git-proj-a--claude-worktrees-agent-xxx", session_count=4
+		)
 
 		results = discover_projects(tmp_path)
 

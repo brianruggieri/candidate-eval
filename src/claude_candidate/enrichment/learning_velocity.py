@@ -1,4 +1,5 @@
 """Enhanced sophistication classification using embeddings."""
+
 from __future__ import annotations
 
 
@@ -7,6 +8,7 @@ class SophisticationClassifier:
 
 	def __init__(self):
 		from sentence_transformers import SentenceTransformer
+
 		self._model = SentenceTransformer("all-MiniLM-L6-v2")
 
 	def classify_agent_prompt(self, prompt: str) -> int:

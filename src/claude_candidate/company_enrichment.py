@@ -123,8 +123,14 @@ _DOMAIN_SIGNALS: list[tuple[str, str]] = [
 	(r"devtool", "devtools"),
 	(r"developer platform", "devtools"),
 	(r"engineering platform", "devtools"),
-	(r"machine learning|deep learning|large language model|llm|generative ai|gen\s*ai|nlp", "ai-ml"),
-	(r"\bai\b.*(?:platform|tool|product|company)|(?:platform|tool|product|company).*\bai\b", "ai-ml"),
+	(
+		r"machine learning|deep learning|large language model|llm|generative ai|gen\s*ai|nlp",
+		"ai-ml",
+	),
+	(
+		r"\bai\b.*(?:platform|tool|product|company)|(?:platform|tool|product|company).*\bai\b",
+		"ai-ml",
+	),
 	(r"artificial intelligence", "ai-ml"),
 	(r"fintech|financial technology|payments|banking|lending|insurance tech", "fintech"),
 	(r"healthcare|health tech|medical|clinical|patient|ehr|emr", "healthcare"),
@@ -142,10 +148,13 @@ _DOMAIN_SIGNALS: list[tuple[str, str]] = [
 # HTML stripping utility
 # ---------------------------------------------------------------------------
 
+
 def _strip_html(html: str) -> str:
 	"""Remove HTML tags and decode common entities from a string."""
 	# Remove <script> and <style> blocks entirely
-	html = re.sub(r"<(script|style)[^>]*>.*?</(script|style)>", " ", html, flags=re.DOTALL | re.IGNORECASE)
+	html = re.sub(
+		r"<(script|style)[^>]*>.*?</(script|style)>", " ", html, flags=re.DOTALL | re.IGNORECASE
+	)
 	# Remove all remaining tags
 	html = re.sub(r"<[^>]+>", " ", html)
 	# Decode a handful of common HTML entities
@@ -170,6 +179,7 @@ def _strip_html(html: str) -> str:
 # Public: fetch_page_text
 # ---------------------------------------------------------------------------
 
+
 def fetch_page_text(url: str) -> str:
 	"""Fetch *url* with httpx (sync) and return plain text with HTML stripped.
 
@@ -187,6 +197,7 @@ def fetch_page_text(url: str) -> str:
 # ---------------------------------------------------------------------------
 # Public: extract_company_info
 # ---------------------------------------------------------------------------
+
 
 def extract_company_info(company_name: str, page_text: str, url: str) -> dict[str, Any]:
 	"""Heuristically extract company signals from *page_text*.
@@ -259,6 +270,7 @@ def extract_company_info(company_name: str, page_text: str, url: str) -> dict[st
 # ---------------------------------------------------------------------------
 # CompanyEnrichmentEngine
 # ---------------------------------------------------------------------------
+
 
 class CompanyEnrichmentEngine:
 	"""Fetch, extract, and cache company information.
