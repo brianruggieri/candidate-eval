@@ -1525,6 +1525,11 @@ class QuickMatchEngine:
 			experience_dim=experience_dim,
 			education_dim=education_dim,
 		)
+		pre_cap_grade: str | None = None
+		unmet_gates = [g for g in eligibility_gates if g.status == "unmet"]
+		if unmet_gates:
+			pre_cap_grade = score_to_grade(overall_score)
+			overall_score = 0.0
 		partial_percentage = round(overall_score * 100, 1)
 
 		if elapsed is None:
@@ -1543,6 +1548,7 @@ class QuickMatchEngine:
 			eligibility_gates=eligibility_gates,
 			eligibility_passed=eligibility_passed,
 			scorable_reqs=scorable_reqs,
+			pre_cap_grade=pre_cap_grade,
 		)
 
 	def _build_assessment(
@@ -1560,6 +1566,7 @@ class QuickMatchEngine:
 		eligibility_gates: list[EligibilityGate] | None = None,
 		eligibility_passed: bool = True,
 		scorable_reqs: list[QuickRequirement] | None = None,
+		pre_cap_grade: str | None = None,
 	) -> FitAssessment:
 		"""Assemble the final FitAssessment from scored dimensions."""
 		reqs_for_gaps = scorable_reqs if scorable_reqs is not None else inp.requirements
@@ -1602,6 +1609,7 @@ class QuickMatchEngine:
 			partial_percentage=partial_percentage,
 			eligibility_gates=eligibility_gates or [],
 			eligibility_passed=eligibility_passed,
+			pre_cap_grade=pre_cap_grade,
 		)
 
 	def _assemble_fit_assessment(
@@ -1624,9 +1632,30 @@ class QuickMatchEngine:
 		partial_percentage: float | None = None,
 		eligibility_gates: list[EligibilityGate] | None = None,
 		eligibility_passed: bool = True,
+		pre_cap_grade: str | None = None,
 	) -> FitAssessment:
 		"""Construct the FitAssessment pydantic model."""
 		is_partial = mission_dim is None and culture_dim is None
+		overall_summary = self._generate_summary(summary_inp)
+		action_items = self._generate_action_items(
+			overall_score,
+			gaps,
+			resume_gaps,
+			resume_unverified,
+			inp.company,
+		)
+		if pre_cap_grade is not None:
+			blocker_descriptions = "; ".join(
+				g.description for g in (eligibility_gates or []) if g.status == "unmet"
+			)
+			overall_summary = (
+				f"Eligibility blocked: {blocker_descriptions}. "
+				f"Skill fit would be {pre_cap_grade} if eligible."
+			)
+			action_items = [
+				f"Eligibility: {blocker_descriptions} — skip this role",
+				*action_items[:5],
+			]
 		return FitAssessment(
 			assessment_id=str(uuid.uuid4()),
 			assessed_at=datetime.now(),
@@ -1638,7 +1667,7 @@ class QuickMatchEngine:
 			partial_percentage=partial_percentage,
 			overall_score=round(overall_score, SCORE_PRECISION),
 			overall_grade=score_to_grade(overall_score),
-			overall_summary=self._generate_summary(summary_inp),
+			overall_summary=overall_summary,
 			skill_match=skill_dim,
 			experience_match=experience_dim,
 			education_match=education_dim,
@@ -1661,13 +1690,7 @@ class QuickMatchEngine:
 			eligibility_gates=eligibility_gates or [],
 			eligibility_passed=eligibility_passed,
 			should_apply=score_to_verdict(overall_score),
-			action_items=self._generate_action_items(
-				overall_score,
-				gaps,
-				resume_gaps,
-				resume_unverified,
-				inp.company,
-			),
+			action_items=action_items,
 			profile_hash=self.profile.profile_hash,
 			time_to_assess_seconds=round(elapsed, TIMING_PRECISION),
 		)

@@ -1635,6 +1635,178 @@ class TestEligibilityGateSchema:
 		assert restored.eligibility_passed is True
 
 
+class TestEligibilityHardCap:
+	"""Tests that unmet eligibility gates force grade to F."""
+
+	def _make_req(
+		self,
+		skill: str,
+		description: str = "",
+		priority: str = "must_have",
+		is_eligibility: bool = False,
+	) -> QuickRequirement:
+		return QuickRequirement(
+			description=description or skill,
+			skill_mapping=[skill],
+			priority=RequirementPriority(priority),
+			is_eligibility=is_eligibility,
+			source_text=description or skill,
+		)
+
+	def _clearance_req(self) -> QuickRequirement:
+		return self._make_req(
+			"security-clearance",
+			"Must hold active security clearance",
+			is_eligibility=True,
+		)
+
+	def test_unmet_gate_forces_f(self, candidate_profile, resume_profile):
+		from claude_candidate.merger import merge_profiles
+		from claude_candidate.quick_match import QuickMatchEngine
+		from claude_candidate.schemas.curated_resume import CandidateEligibility
+
+		merged = merge_profiles(candidate_profile, resume_profile)
+		engine = QuickMatchEngine(merged)
+		result = engine.assess(
+			requirements=[self._clearance_req(), self._make_req("python", priority="must_have")],
+			company="GovCo",
+			title="Engineer",
+			curated_eligibility=CandidateEligibility(has_clearance=False),
+		)
+		assert result.overall_grade == "F"
+		assert result.overall_score == 0.0
+		assert result.should_apply == "no"
+		assert result.eligibility_passed is False
+
+	def test_unmet_gate_summary_starts_with_blocker(self, candidate_profile, resume_profile):
+		from claude_candidate.merger import merge_profiles
+		from claude_candidate.quick_match import QuickMatchEngine
+		from claude_candidate.schemas.curated_resume import CandidateEligibility
+
+		merged = merge_profiles(candidate_profile, resume_profile)
+		engine = QuickMatchEngine(merged)
+		result = engine.assess(
+			requirements=[self._clearance_req()],
+			company="GovCo",
+			title="Engineer",
+			curated_eligibility=CandidateEligibility(has_clearance=False),
+		)
+		assert result.overall_summary.startswith("Eligibility blocked:")
+
+	def test_unmet_gate_first_action_item_is_eligibility(self, candidate_profile, resume_profile):
+		from claude_candidate.merger import merge_profiles
+		from claude_candidate.quick_match import QuickMatchEngine
+		from claude_candidate.schemas.curated_resume import CandidateEligibility
+
+		merged = merge_profiles(candidate_profile, resume_profile)
+		engine = QuickMatchEngine(merged)
+		result = engine.assess(
+			requirements=[self._clearance_req()],
+			company="GovCo",
+			title="Engineer",
+			curated_eligibility=CandidateEligibility(has_clearance=False),
+		)
+		assert result.action_items[0].startswith("Eligibility:")
+
+	def test_counterfactual_grade_in_summary(self, candidate_profile, resume_profile):
+		"""Summary includes 'if eligible' clause with counterfactual grade."""
+		from claude_candidate.merger import merge_profiles
+		from claude_candidate.quick_match import QuickMatchEngine
+		from claude_candidate.schemas.curated_resume import CandidateEligibility
+
+		merged = merge_profiles(candidate_profile, resume_profile)
+		engine = QuickMatchEngine(merged)
+		result = engine.assess(
+			requirements=[self._clearance_req()],
+			company="GovCo",
+			title="Engineer",
+			curated_eligibility=CandidateEligibility(has_clearance=False),
+		)
+		assert "if eligible" in result.overall_summary
+
+	def test_met_gates_no_cap(self, candidate_profile, resume_profile):
+		from claude_candidate.merger import merge_profiles
+		from claude_candidate.quick_match import QuickMatchEngine
+		from claude_candidate.schemas.curated_resume import CandidateEligibility
+
+		merged = merge_profiles(candidate_profile, resume_profile)
+		engine = QuickMatchEngine(merged)
+		req = self._make_req(
+			"us-work-authorization",
+			"Must be authorized to work in the US",
+			is_eligibility=True,
+		)
+		result = engine.assess(
+			requirements=[req, self._make_req("python", priority="must_have")],
+			company="TestCo",
+			title="Engineer",
+			curated_eligibility=CandidateEligibility(us_work_authorized=True),
+		)
+		assert result.overall_grade != "F"
+		assert result.overall_score > 0.0
+		assert not result.overall_summary.startswith("Eligibility blocked:")
+
+	def test_unknown_gates_no_cap(self, candidate_profile, resume_profile):
+		"""mission_alignment gates are always unknown — must not trigger cap."""
+		from claude_candidate.merger import merge_profiles
+		from claude_candidate.quick_match import QuickMatchEngine
+		from claude_candidate.schemas.curated_resume import CandidateEligibility
+
+		merged = merge_profiles(candidate_profile, resume_profile)
+		engine = QuickMatchEngine(merged)
+		mission_req = self._make_req(
+			"mission_alignment", "Belief in our mission", is_eligibility=True
+		)
+		result = engine.assess(
+			requirements=[mission_req, self._make_req("python", priority="must_have")],
+			company="TestCo",
+			title="Engineer",
+			curated_eligibility=CandidateEligibility(),
+		)
+		assert result.overall_grade != "F"
+
+	def test_no_eligibility_reqs_no_cap(self, candidate_profile, resume_profile):
+		from claude_candidate.merger import merge_profiles
+		from claude_candidate.quick_match import QuickMatchEngine
+
+		merged = merge_profiles(candidate_profile, resume_profile)
+		engine = QuickMatchEngine(merged)
+		result = engine.assess(
+			requirements=[self._make_req("python", priority="must_have")],
+			company="TestCo",
+			title="Engineer",
+		)
+		assert result.eligibility_gates == []
+		assert result.overall_grade != "F"
+
+	def test_multiple_unmet_gates_all_appear_in_output(self, candidate_profile, resume_profile):
+		"""All unmet gate descriptions are joined in summary and action item."""
+		from claude_candidate.merger import merge_profiles
+		from claude_candidate.quick_match import QuickMatchEngine
+		from claude_candidate.schemas.curated_resume import CandidateEligibility
+
+		merged = merge_profiles(candidate_profile, resume_profile)
+		engine = QuickMatchEngine(merged)
+		clearance_req = self._make_req(
+			"security-clearance", "Must hold active security clearance", is_eligibility=True
+		)
+		spanish_req = self._make_req("spanish", "Must be fluent in Spanish", is_eligibility=True)
+		result = engine.assess(
+			requirements=[clearance_req, spanish_req, self._make_req("python")],
+			company="GovCo",
+			title="Engineer",
+			curated_eligibility=CandidateEligibility(has_clearance=False),
+		)
+		assert result.overall_grade == "F"
+		# Both descriptions must appear in the summary
+		assert (
+			"clearance" in result.overall_summary.lower()
+			and "spanish" in result.overall_summary.lower()
+		)
+		# The action item should reference both
+		assert result.action_items[0].startswith("Eligibility:")
+
+
 class TestConflictingExpertConfidence:
 	"""Tests for CONFLICTING_EXPERT_CONF_FLOOR — expert/deep session evidence dominates."""
 

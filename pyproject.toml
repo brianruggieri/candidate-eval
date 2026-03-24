@@ -73,6 +73,7 @@ indent-style = "tab"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
 asyncio_mode = "auto"
 markers = [
     "slow: integration tests that spawn subprocesses or call real APIs (run with --run-slow; also skippable via -m 'not slow')",
