@@ -330,3 +330,63 @@ class TestPropertyBased:
 		assert restored.description == req.description
 		assert restored.priority == req.priority
 		assert restored.skill_mapping == req.skill_mapping
+
+
+# === CandidateEligibility ===
+
+
+class TestCandidateEligibility:
+	def test_defaults(self):
+		from claude_candidate.schemas.curated_resume import CandidateEligibility
+		e = CandidateEligibility()
+		assert e.us_work_authorized is True
+		assert e.max_travel_pct == 40
+		assert e.has_clearance is False
+		assert e.willing_to_relocate is True
+
+	def test_explicit_values(self):
+		from claude_candidate.schemas.curated_resume import CandidateEligibility
+		e = CandidateEligibility(
+			us_work_authorized=False, has_clearance=True, max_travel_pct=0, willing_to_relocate=False
+		)
+		assert e.us_work_authorized is False
+		assert e.has_clearance is True
+		assert e.max_travel_pct == 0
+		assert e.willing_to_relocate is False
+
+	def test_curated_resume_gets_default_eligibility(self):
+		"""CuratedResume JSON without 'eligibility' key loads with permissive defaults."""
+		from claude_candidate.schemas.curated_resume import CandidateEligibility, CuratedResume
+		from datetime import datetime, timezone
+		data = {
+			"profile_version": "0.1.0",
+			"parsed_at": datetime.now(tz=timezone.utc).isoformat(),
+			"source_file_hash": "abc123",
+			"source_format": "pdf",
+			"curated_skills": [{"name": "python", "depth": "applied"}],
+		}
+		resume = CuratedResume.model_validate(data)
+		# No 'eligibility' key in JSON → defaults kick in
+		assert isinstance(resume.eligibility, CandidateEligibility)
+		assert resume.eligibility.us_work_authorized is True
+
+	def test_curated_resume_with_eligibility_block(self):
+		"""CuratedResume JSON with 'eligibility' key loads correctly."""
+		from claude_candidate.schemas.curated_resume import CuratedResume
+		from datetime import datetime, timezone
+		data = {
+			"profile_version": "0.1.0",
+			"parsed_at": datetime.now(tz=timezone.utc).isoformat(),
+			"source_file_hash": "abc123",
+			"source_format": "pdf",
+			"curated_skills": [{"name": "python", "depth": "applied"}],
+			"eligibility": {
+				"us_work_authorized": True,
+				"max_travel_pct": 20,
+				"has_clearance": False,
+				"willing_to_relocate": False,
+			},
+		}
+		resume = CuratedResume.model_validate(data)
+		assert resume.eligibility.max_travel_pct == 20
+		assert resume.eligibility.willing_to_relocate is False
