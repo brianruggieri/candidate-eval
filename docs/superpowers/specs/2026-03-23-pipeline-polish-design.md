@@ -34,7 +34,7 @@ Three targeted fixes surfaced during a live walkthrough session. No new features
 3. `_build_assessment(...)` — already accepts `elapsed: float`; no signature change needed
 
 **Files:**
-- Modify: `src/claude_candidate/cli.py` — capture `start_time = time.time()` before parsing, compute `elapsed = time.time() - start_time` after `engine.assess()` returns, pass as `elapsed=elapsed`
+- Modify: `src/claude_candidate/cli.py` — capture `start_time = time.time()` before parsing, compute `elapsed = time.time() - start_time` immediately before calling `engine.assess()`, pass as `elapsed=elapsed`
 - Modify: `src/claude_candidate/quick_match.py` — thread optional `elapsed` through `assess()` and `_run_assessment()` as described above
 
 **Behaviour change:**
