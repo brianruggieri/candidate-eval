@@ -57,7 +57,7 @@ Job posting → requirement_parser → QuickRequirement[]
 ### Data files
 | File | Purpose |
 |------|---------|
-| `src/claude_candidate/data/taxonomy.json` | Skill taxonomy (33 entries: languages, frameworks, tools, platforms, domains, practices, soft skills) |
+| `src/claude_candidate/data/taxonomy.json` | Skill taxonomy (104 entries: languages, frameworks, tools, platforms, domains, practices, soft skills) |
 | `tests/golden_set/postings/*.json` | 24 real LinkedIn postings for accuracy benchmarking |
 | `tests/golden_set/expected_grades.json` | Expected grades for benchmark validation |
 | `tests/golden_set/benchmark_accuracy.py` | Benchmark script with stage diagnosis |
@@ -72,7 +72,7 @@ Job posting → requirement_parser → QuickRequirement[]
 
 ## Conventions
 
-- **Indentation:** Tabs (defer to editor config)
+- **Indentation:** 4-space indentation (ruff enforced; tabs only in legacy files)
 - **Line length:** 100 (ruff)
 - **Commits:** Brief imperative sentences. No Co-Authored-By trailers.
 - **Tests:** Real data strongly preferred over mocks. Use fixture files in `tests/fixtures/`.

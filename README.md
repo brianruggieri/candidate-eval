@@ -46,7 +46,7 @@ Full architecture, trust model, and roadmap: [PROJECT.md](PROJECT.md)
 | Metric | Value |
 |--------|-------|
 | Test coverage | Fully tested |
-| Canonical skills in taxonomy | 105 |
+| Canonical skills in taxonomy | 104 |
 | Sessions scanned (author) | 2,300+ |
 
 ---
