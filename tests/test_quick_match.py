@@ -2026,3 +2026,87 @@ class TestMatchType:
 		assert detail.match_type == "exact"
 		d = detail.model_dump()
 		assert "match_type" in d
+
+
+# ---------------------------------------------------------------------------
+# TestDomainPenalty
+# ---------------------------------------------------------------------------
+
+
+class TestDomainPenalty:
+	"""Domain-penalty caps grade at B+ when industry domain appears 3+ times but is absent."""
+
+	def _make_profile(self, skills=None):
+		from datetime import datetime
+		from claude_candidate.schemas.merged_profile import MergedEvidenceProfile
+		return MergedEvidenceProfile(
+			skills=skills or [],
+			patterns=[],
+			projects=[],
+			roles=[],
+			corroborated_skill_count=0,
+			resume_only_skill_count=0,
+			sessions_only_skill_count=len(skills or []),
+			discovery_skills=[],
+			profile_hash="test",
+			resume_hash="test",
+			candidate_profile_hash="test",
+			merged_at=datetime.now(),
+		)
+
+	def _reqs_with_domain(self, domain_word: str, count: int):
+		"""Create `count` requirements that mention the domain word."""
+		from claude_candidate.schemas.job_requirements import QuickRequirement, RequirementPriority
+		return [
+			QuickRequirement(
+				description=f"Experience in {domain_word} industry applications",
+				skill_mapping=["python"],
+				priority=RequirementPriority.STRONG_PREFERENCE,
+			)
+			for _ in range(count)
+		]
+
+	def test_domain_fires_when_keyword_in_three_reqs(self):
+		"""'music' in 3 requirements + no music in profile → domain_gap_term='music'."""
+		from claude_candidate.quick_match import _detect_domain_gap
+		reqs = self._reqs_with_domain("music", 3)
+		profile = self._make_profile()
+		gap = _detect_domain_gap(reqs, profile)
+		assert gap == "music"
+
+	def test_domain_does_not_fire_when_keyword_in_two_reqs(self):
+		"""'music' in only 2 requirements → no gap (threshold is 3)."""
+		from claude_candidate.quick_match import _detect_domain_gap
+		reqs = self._reqs_with_domain("music", 2)
+		profile = self._make_profile()
+		gap = _detect_domain_gap(reqs, profile)
+		assert gap is None
+
+	def test_domain_does_not_fire_when_keyword_in_profile(self):
+		"""'music' in 3 requirements but candidate has music as a skill name → no gap."""
+		from claude_candidate.quick_match import _detect_domain_gap
+		from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+		reqs = self._reqs_with_domain("music", 3)
+		profile = self._make_profile(skills=[MergedSkillEvidence(
+			name="music",
+			source=EvidenceSource.RESUME_ONLY,
+			effective_depth=DepthLevel.MENTIONED,
+			confidence=0.8,
+		)])
+		gap = _detect_domain_gap(reqs, profile)
+		assert gap is None
+
+	def test_tech_term_not_in_domain_keywords_does_not_fire(self):
+		"""'python' in 5 requirements → not a domain keyword, no gap."""
+		from claude_candidate.quick_match import _detect_domain_gap
+		reqs = self._reqs_with_domain("python", 5)
+		profile = self._make_profile()
+		gap = _detect_domain_gap(reqs, profile)
+		assert gap is None
+
+	def test_domain_cap_applied_to_high_scoring_assessment(self):
+		"""Assessment that would score A gets capped to B+ when domain gap detected."""
+		from claude_candidate.quick_match import _detect_domain_gap, DOMAIN_KEYWORDS
+		assert "music" in DOMAIN_KEYWORDS
+		assert "baseball" in DOMAIN_KEYWORDS

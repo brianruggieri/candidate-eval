@@ -154,6 +154,9 @@ class FitAssessment(BaseModel):
 	eligibility_gates: list[EligibilityGate] = Field(default_factory=list)
 	eligibility_passed: bool = True  # False if any gate is explicitly "unmet"
 
+	# Domain penalty (B+ cap when industry domain in 3+ reqs but absent from profile)
+	domain_gap_term: str | None = None
+
 	# Metadata
 	profile_hash: str
 	time_to_assess_seconds: float = Field(ge=0.0)
