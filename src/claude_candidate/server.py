@@ -298,11 +298,11 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 		"""
 		Run QuickMatchEngine (local-only, no Claude calls) and persist the result.
 
-		Returns the assessment dict. Raises HTTPException on missing profile.
+		Returns the assessment dict. Raises HTTPException on missing profile
+		or missing requirements.
 		"""
 		from claude_candidate.schemas.job_requirements import QuickRequirement
 		from claude_candidate.quick_match import QuickMatchEngine
-		from claude_candidate.cli import _extract_basic_requirements
 
 		store = get_store()
 
@@ -314,17 +314,19 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 			)
 
 		# Build requirements — filter out invalid entries from Claude
+		requirements = []
 		if req.requirements:
-			requirements = []
 			for r in req.requirements:
 				try:
 					requirements.append(QuickRequirement(**r))
 				except Exception:
 					continue  # Skip malformed requirements
-			if not requirements:
-				requirements = _extract_basic_requirements(req.posting_text)
-		else:
-			requirements = _extract_basic_requirements(req.posting_text)
+
+		if not requirements:
+			raise HTTPException(
+				status_code=422,
+				detail="No valid requirements provided — extraction required before assessment.",
+			)
 
 		# Run assessment
 		engine = QuickMatchEngine(merged)

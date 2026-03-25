@@ -217,6 +217,20 @@ SAMPLE_ASSESS_PAYLOAD = {
 	"company": "Acme Corp",
 	"title": "Senior Python Engineer",
 	"seniority": "senior",
+	"requirements": [
+		{
+			"description": "5+ years of Python experience",
+			"skill_mapping": ["python"],
+			"priority": "must_have",
+			"source_text": "5+ years of Python",
+		},
+		{
+			"description": "Experience with FastAPI or Django",
+			"skill_mapping": ["fastapi", "django"],
+			"priority": "must_have",
+			"source_text": "FastAPI or Django",
+		},
+	],
 }
 
 
@@ -1181,3 +1195,68 @@ class TestExtractPostingEndpoint:
 		assert "must_have" in prompt
 		assert "years_experience" in prompt
 		assert "education_level" in prompt
+
+
+# ---------------------------------------------------------------------------
+# Assess requires requirements (no keyword fallback)
+# ---------------------------------------------------------------------------
+
+
+class TestAssessRequiresRequirements:
+	"""Server must reject assessments when no requirements are provided."""
+
+	@pytest.mark.asyncio
+	async def test_assess_partial_rejects_null_requirements(self, app_with_profile):
+		async with LifespanManager(app_with_profile):
+			transport = ASGITransport(app=app_with_profile)
+			async with AsyncClient(transport=transport, base_url="http://test") as client:
+				resp = await client.post(
+					"/api/assess/partial",
+					json={
+						"posting_text": "We need a Python developer with Django experience.",
+						"company": "TestCo",
+						"title": "Software Engineer",
+						"requirements": None,
+					},
+				)
+				assert resp.status_code == 422
+				assert "requirements" in resp.json()["detail"].lower()
+
+	@pytest.mark.asyncio
+	async def test_assess_partial_rejects_empty_requirements(self, app_with_profile):
+		async with LifespanManager(app_with_profile):
+			transport = ASGITransport(app=app_with_profile)
+			async with AsyncClient(transport=transport, base_url="http://test") as client:
+				resp = await client.post(
+					"/api/assess/partial",
+					json={
+						"posting_text": "We need a Python developer.",
+						"company": "TestCo",
+						"title": "Software Engineer",
+						"requirements": [],
+					},
+				)
+				assert resp.status_code == 422
+
+	@pytest.mark.asyncio
+	async def test_assess_partial_accepts_valid_requirements(self, app_with_profile):
+		async with LifespanManager(app_with_profile):
+			transport = ASGITransport(app=app_with_profile)
+			async with AsyncClient(transport=transport, base_url="http://test") as client:
+				resp = await client.post(
+					"/api/assess/partial",
+					json={
+						"posting_text": "Python developer role",
+						"company": "TestCo",
+						"title": "Software Engineer",
+						"requirements": [
+							{
+								"description": "Python experience",
+								"skill_mapping": ["python"],
+								"priority": "must_have",
+								"source_text": "Must have Python",
+							}
+						],
+					},
+				)
+				assert resp.status_code == 200
