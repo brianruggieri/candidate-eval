@@ -20,6 +20,8 @@ from claude_candidate.schemas.candidate_profile import (
 )
 from claude_candidate.schemas.resume_profile import ResumeRole
 
+RANK_TO_DEPTH: dict[int, "DepthLevel"] = {v: k for k, v in DEPTH_RANK.items()}
+
 
 class EvidenceSource(str, Enum):
 	"""Where the evidence for a skill comes from."""
@@ -88,9 +90,8 @@ class MergedSkillEvidence(BaseModel):
 				s_rank = DEPTH_RANK.get(session_depth, 0)
 				if s_rank > r_rank:
 					# Sessions claim higher — one conservative rung above resume, capped at DEEP
-					depth_by_rank = {v: k for k, v in DEPTH_RANK.items()}
 					boosted_rank = min(r_rank + 1, DEPTH_RANK[DepthLevel.DEEP])
-					return depth_by_rank.get(boosted_rank, resume_depth)
+					return RANK_TO_DEPTH[boosted_rank]
 				else:
 					# Resume claims higher — trust resume as earned-expertise anchor
 					return resume_depth

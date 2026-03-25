@@ -914,9 +914,10 @@ def _best_available_depth(skill: MergedSkillEvidence) -> DepthLevel:
 	"""Return the most favorable depth for matching.
 
 	For CONFLICTING skills (resume and session depths diverge by 2+ levels),
-	the merger conservatively uses session_depth as effective_depth. But when
-	the resume claims a higher depth, we use it for matching — the resume is
-	human-curated and the session extractor may under-detect skills.
+	the merger anchors to resume depth (sessions can boost by at most one rung).
+	But when the resume claims a higher depth than effective_depth, we use it
+	for matching — the resume is human-curated and the session extractor may
+	under-detect skills.
 	"""
 	best = skill.effective_depth
 	if skill.source == EvidenceSource.CONFLICTING and skill.resume_depth:
