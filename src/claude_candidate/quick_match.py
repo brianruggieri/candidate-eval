@@ -312,7 +312,7 @@ SOURCE_LABEL: dict[EvidenceSource, str] = {
 	EvidenceSource.CORROBORATED: "Corroborated by both resume and sessions",
 	EvidenceSource.SESSIONS_ONLY: "Demonstrated in sessions (not on resume)",
 	EvidenceSource.RESUME_ONLY: "Listed on resume (no session evidence)",
-	EvidenceSource.CONFLICTING: "Evidence conflicts between resume and sessions",
+	EvidenceSource.CONFLICTING: "Resume depth anchored; sessions provided additional signal",
 }
 
 # Pattern strength → culture match value
@@ -1069,13 +1069,6 @@ def _find_best_skill(
 	return best_match, best_status
 
 
-# Confidence floor — prevent low-confidence skills from cratering scores.
-# CONFLICTING defaults to 0.40; sessions-only with low frequency get 0.45–0.65.
-# Floor at 0.65 prevents catastrophic penalties for these cases.
-# Resume-only (0.85 flat) and corroborated (0.70–1.0) always exceed the floor.
-CONFIDENCE_FLOOR = 0.65
-CONFLICTING_EXPERT_CONF_FLOOR = 0.80  # expert session evidence overrides resume "mentioned"
-
 
 def _score_requirement(
 	best_match: MergedSkillEvidence | None,
@@ -1100,18 +1093,9 @@ def _score_requirement(
 
 	req_score = STATUS_SCORE.get(best_status, STATUS_SCORE_NONE)
 	if best_match:
-		effective_confidence = max(best_match.confidence, CONFIDENCE_FLOOR)
-		# Expert/deep session skills marked CONFLICTING (resume "mentioned" vs sessions
-		# EXPERT): use a higher floor — session depth evidence dominates.
-		if best_match.source == EvidenceSource.CONFLICTING and best_match.effective_depth in (
-			DepthLevel.EXPERT,
-			DepthLevel.DEEP,
-		):
-			effective_confidence = max(effective_confidence, CONFLICTING_EXPERT_CONF_FLOOR)
-		# Scale confidence to a ~0.965–1.0 range (with floor at 0.65):
-		# corroborated/high-freq skills get near-full score (0.985–1.0),
-		# resume-only skills get modest penalty (~3.5% at floor).
-		adjustment = 0.90 + 0.10 * effective_confidence
+		# Scale confidence to ~0.972–1.0 range:
+		# corroborated/high-freq → 0.985–1.0, conflicting (0.72) → 0.972, resume-only (0.85) → 0.985
+		adjustment = 0.90 + 0.10 * best_match.confidence
 		req_score *= adjustment
 	return req_score
 
@@ -1741,7 +1725,7 @@ class QuickMatchEngine:
 					found = _find_skill_match(skill_name, self.profile)
 					if found:
 						status = _assess_depth_match(found, depth_floor, self.profile)
-						conf = max(found.confidence, CONFIDENCE_FLOOR)
+						conf = found.confidence
 						adj = 0.90 + 0.10 * conf
 						all_scores.append(STATUS_SCORE.get(status, 0.0) * adj)
 					else:
