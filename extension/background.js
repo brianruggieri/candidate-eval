@@ -43,12 +43,13 @@ async function handleCheckBackend() {
 
 async function handleAssess(payload) {
 	try {
-		// Map extension field names to server API field names
 		const body = {
 			posting_text: payload.description || '',
 			company: payload.company || 'Unknown Company',
 			title: payload.title || 'Unknown Position',
 			posting_url: payload.url || null,
+			requirements: payload.requirements || null,
+			seniority: payload.seniority || 'unknown',
 		};
 		const data = await apiFetch('/api/assess', {
 			method: 'POST',

@@ -97,7 +97,7 @@ class PostingExtraction(BaseModel):
 # ---------------------------------------------------------------------------
 
 _TRACKING_PARAMS = re.compile(
-	r"^(utm_\w+|trk|eBP|trackingId|tracking_id|ref|refId|fbclid|gclid|mc_[ce]id|_hsenc|_hsmi)$",
+	r"^(utm_\w+|trk|eBP|trackingId|tracking_id|refId|fbclid|gclid|mc_[ce]id|_hsenc|_hsmi)$",
 	re.IGNORECASE,
 )
 
@@ -121,10 +121,20 @@ def _normalize_cache_url(url: str) -> str:
 # Education auto-tagging
 # ---------------------------------------------------------------------------
 
+_DEGREE_CONTEXT = r"(?:\s+(?:in|or|degree|program|from|required|preferred|equivalent)|\s*[,;/]|$)"
+
 _EDUCATION_PATTERNS: list[tuple[str, re.Pattern]] = [
 	("phd", re.compile(r"\b(?:ph\.?d|doctorate|doctoral)\b", re.IGNORECASE)),
-	("master", re.compile(r"\b(?:m\.?s\.?c?|master'?s?|m\.?eng)\b", re.IGNORECASE)),
-	("bachelor", re.compile(r"\b(?:b\.?s\.?c?|bachelor'?s?|b\.?eng|b\.?a\.?)\b", re.IGNORECASE)),
+	("master", re.compile(r"\b(?:m\.?s\.?c|master'?s?|m\.?eng)\b", re.IGNORECASE)),
+	(
+		"master",
+		re.compile(r"\b(?:m\.?s\.?)" + _DEGREE_CONTEXT, re.IGNORECASE),
+	),
+	("bachelor", re.compile(r"\b(?:b\.?s\.?c|bachelor'?s?|b\.?eng)\b", re.IGNORECASE)),
+	(
+		"bachelor",
+		re.compile(r"\b(?:b\.?s\.?|b\.?a\.?)" + _DEGREE_CONTEXT, re.IGNORECASE),
+	),
 ]
 
 
@@ -882,6 +892,13 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 				"extract-posting: extracted %d requirements for %s", req_count, cache_url[:80]
 			)
 
+		# Coerce requirements to list[dict] or None to prevent Pydantic ValidationError
+		raw_reqs = parsed.get("requirements")
+		if isinstance(raw_reqs, list):
+			raw_reqs = [r for r in raw_reqs if isinstance(r, dict)]
+		else:
+			raw_reqs = None
+
 		source = _infer_source(req.url)
 		result = PostingExtraction(
 			company=parsed.get("company") or "",
@@ -893,7 +910,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 			seniority=parsed.get("seniority"),
 			remote=parsed.get("remote"),
 			salary=parsed.get("salary"),
-			requirements=parsed.get("requirements"),
+			requirements=raw_reqs,
 		)
 		result_dict = result.model_dump()
 		await store.cache_posting(url_hash, cache_url, result_dict)

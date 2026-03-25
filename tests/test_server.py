@@ -1302,7 +1302,7 @@ class TestUrlNormalization:
 	async def test_utm_params_stripped_from_any_url(self, client: AsyncClient):
 		"""UTM params should be stripped from non-LinkedIn URLs too."""
 		url_base = "https://greenhouse.io/jobs/senior-eng"
-		url_with_utm = url_base + "?utm_source=email&utm_medium=social&ref=abc"
+		url_with_utm = url_base + "?utm_source=email&utm_medium=social&fbclid=abc"
 
 		with (
 			patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
@@ -1382,6 +1382,42 @@ class TestEducationAutoTagging:
 		reqs = [{"description": "5+ years of Python experience", "skill_mapping": ["python"]}]
 		_auto_tag_education(reqs)
 		assert reqs[0].get("education_level") is None
+
+	def test_no_false_positive_ms_office(self):
+		from claude_candidate.server import _auto_tag_education
+
+		reqs = [
+			{"description": "Experience with MSBuild or MS Office", "skill_mapping": ["ms-office"]}
+		]
+		_auto_tag_education(reqs)
+		assert reqs[0].get("education_level") is None
+
+	def test_no_false_positive_ba_role(self):
+		from claude_candidate.server import _auto_tag_education
+
+		reqs = [
+			{"description": "Business Analyst (BA) experience", "skill_mapping": ["analyst"]}
+		]
+		_auto_tag_education(reqs)
+		assert reqs[0].get("education_level") is None
+
+	def test_ms_with_degree_context(self):
+		from claude_candidate.server import _auto_tag_education
+
+		reqs = [
+			{"description": "M.S. in Computer Science or equivalent", "skill_mapping": ["cs"]}
+		]
+		_auto_tag_education(reqs)
+		assert reqs[0]["education_level"] == "master"
+
+	def test_bs_with_degree_context(self):
+		from claude_candidate.server import _auto_tag_education
+
+		reqs = [
+			{"description": "B.S. in Engineering or related field", "skill_mapping": ["eng"]}
+		]
+		_auto_tag_education(reqs)
+		assert reqs[0]["education_level"] == "bachelor"
 
 	def test_skips_already_tagged(self):
 		from claude_candidate.server import _auto_tag_education

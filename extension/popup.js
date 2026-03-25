@@ -406,20 +406,20 @@ async function initialize() {
 	if (fresh && cacheMatchesTab && lastAssessment && lastAssessment.url === stored.url) {
 		currentPosting = stored;
 
-		if (fullReady && fullReady.assessmentId && fullReady.data) {
+		const cachedAid = lastAssessment.data.assessment_id;
+		if (fullReady && fullReady.assessmentId === cachedAid && fullReady.data) {
 			// Full assessment is ready — render it directly
 			renderResults(fullReady.data);
 		} else {
 			// Show partial results, then poll for full
 			renderResults(lastAssessment.data);
 
-			const aid = lastAssessment.data.assessment_id;
-			if (aid) sendToBackground({ action: 'startFullAssess', assessmentId: aid });
+			if (cachedAid) sendToBackground({ action: 'startFullAssess', assessmentId: cachedAid });
 			const pollInterval = setInterval(async () => {
 				const ready = await new Promise(r => {
 					chrome.storage.local.get('fullAssessmentReady', res => r(res.fullAssessmentReady || null));
 				});
-				if (ready && ready.assessmentId && ready.data) {
+				if (ready && ready.assessmentId === cachedAid && ready.data) {
 					clearInterval(pollInterval);
 					renderResults(ready.data);
 				}
@@ -435,7 +435,7 @@ async function initialize() {
 
 	// Resolve posting (from cache or fresh extraction)
 	let posting = null;
-	if (fresh && stored.description) {
+	if (fresh && stored.description && stored.requirements && stored.requirements.length) {
 		posting = stored;
 	}
 
