@@ -135,3 +135,100 @@ class TestGradeOrder:
 		assert GRADE_ORDER.index("A+") < GRADE_ORDER.index("B")
 		assert GRADE_ORDER.index("B") < GRADE_ORDER.index("C")
 		assert GRADE_ORDER.index("C") < GRADE_ORDER.index("F")
+
+
+# ---------------------------------------------------------------------------
+# Export command
+# ---------------------------------------------------------------------------
+
+import hashlib
+from click.testing import CliRunner
+from claude_candidate.corpus_cli import corpus
+
+
+def _url_hash(url: str) -> str:
+	return hashlib.sha256(url.encode()).hexdigest()[:16]
+
+
+def _seed_posting_and_assessment(store, url: str, company: str, title: str, grade: str) -> str:
+	"""Helper: inserts a posting + assessment into the store. Returns assessment_id."""
+	import uuid
+	url_hash = _url_hash(url)
+	posting = {"company": company, "title": title, "description": "Some job", "url": url, "requirements": []}
+	run(store.cache_posting(url_hash, url, posting))
+	aid = str(uuid.uuid4())
+	run(store.save_assessment({
+		"assessment_id": aid,
+		"assessed_at": datetime.now().isoformat(),
+		"job_title": title,
+		"company_name": company,
+		"posting_url": url,
+		"overall_score": 0.77,
+		"overall_grade": grade,
+		"should_apply": "yes",
+		"data": {"overall_grade": grade, "posting_url": url},
+	}))
+	return aid
+
+
+class TestCorpusExport:
+	def test_writes_posting_json(self, store, corpus_dir, db_path):
+		_seed_posting_and_assessment(store, "https://stripe.com/job/1", "Stripe", "SWE", "B+")
+		runner = CliRunner()
+		result = runner.invoke(corpus, ["export", "--db", str(db_path), "--corpus-dir", str(corpus_dir)])
+		assert result.exit_code == 0, result.output
+		postings = list((corpus_dir / "postings").glob("*.json"))
+		assert len(postings) == 1
+		data = json.loads(postings[0].read_text())
+		assert data["company"] == "Stripe"
+		assert data["url"] == "https://stripe.com/job/1"
+
+	def test_writes_expected_grades(self, store, corpus_dir, db_path):
+		aid = _seed_posting_and_assessment(store, "https://stripe.com/job/2", "Stripe", "SWE", "B+")
+		runner = CliRunner()
+		runner.invoke(corpus, ["export", "--db", str(db_path), "--corpus-dir", str(corpus_dir)])
+		grades = load_regression_grades(corpus_dir)
+		assert len(grades) == 1
+		entry = list(grades.values())[0]
+		assert entry["grade"] == "B+"
+		assert entry["source"] == "auto"
+		assert entry["assessment_id"] == aid
+		assert "url_hash" in entry
+		assert "exported_at" in entry
+
+	def test_deduplicates_by_url_hash(self, store, corpus_dir, db_path):
+		_seed_posting_and_assessment(store, "https://stripe.com/job/3", "Stripe", "SWE", "B+")
+		runner = CliRunner()
+		runner.invoke(corpus, ["export", "--db", str(db_path), "--corpus-dir", str(corpus_dir)])
+		runner.invoke(corpus, ["export", "--db", str(db_path), "--corpus-dir", str(corpus_dir)])
+		postings = list((corpus_dir / "postings").glob("*.json"))
+		assert len(postings) == 1
+		grades = load_regression_grades(corpus_dir)
+		assert len(grades) == 1
+
+	def test_since_filter(self, store, corpus_dir, db_path):
+		from datetime import timedelta
+		# Seed two postings then backdate one to 20 days ago
+		_seed_posting_and_assessment(store, "https://old.com/job", "Old Co", "Eng", "C")
+		_seed_posting_and_assessment(store, "https://new.com/job", "New Co", "Eng", "B")
+		old_ts = (datetime.now() - timedelta(days=20)).isoformat()
+		async def _backdate():
+			await store._conn.execute(
+				"UPDATE posting_cache SET extracted_at = ? WHERE url = 'https://old.com/job'", (old_ts,)
+			)
+			await store._conn.commit()
+		run(_backdate())
+		runner = CliRunner()
+		runner.invoke(corpus, ["export", "--db", str(db_path), "--corpus-dir", str(corpus_dir), "--since", "7"])
+		grades = load_regression_grades(corpus_dir)
+		assert len(grades) == 1
+		posting_data = json.loads(list((corpus_dir / "postings").glob("*.json"))[0].read_text())
+		assert posting_data["company"] == "New Co"
+
+	def test_skips_posting_with_no_assessment(self, store, corpus_dir, db_path):
+		# Cache a posting but no assessment
+		url_hash = _url_hash("https://orphan.com/job")
+		run(store.cache_posting(url_hash, "https://orphan.com/job", {"company": "Orphan", "title": "Dev", "url": "https://orphan.com/job"}))
+		runner = CliRunner()
+		runner.invoke(corpus, ["export", "--db", str(db_path), "--corpus-dir", str(corpus_dir)])
+		assert len(list((corpus_dir / "postings").glob("*.json"))) == 0
