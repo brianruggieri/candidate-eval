@@ -107,13 +107,12 @@ class MergedSkillEvidence(BaseModel):
 		"""
 		Compute confidence score based on evidence quality.
 
-		Bands:
-		- corroborated + high frequency → 0.85–1.0
-		- corroborated + low frequency → 0.7–0.85
-		- sessions_only + high frequency → 0.75–0.9
-		- sessions_only + low frequency → 0.4–0.6
-		- resume_only with specific context → 0.4–0.6
-		- resume_only with vague context → 0.2–0.4
+		Actual return values:
+		- corroborated: 0.70 + min(freq/50, 0.30) → 0.70–1.0
+		- sessions_only + freq ≥ 20 → 0.85
+		- sessions_only + freq 5–19 → 0.65
+		- sessions_only + freq < 5 → 0.45
+		- resume_only → 0.85 (resume is legitimate work evidence; no penalty for missing sessions)
 		- conflicting → 0.72 (both sources present; depth uncertainty handled separately)
 		"""
 		freq = session_frequency or 0

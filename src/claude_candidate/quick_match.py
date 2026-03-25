@@ -1093,8 +1093,8 @@ def _score_requirement(
 
 	req_score = STATUS_SCORE.get(best_status, STATUS_SCORE_NONE)
 	if best_match:
-		# Scale confidence to ~0.972–1.0 range:
-		# corroborated/high-freq → 0.985–1.0, conflicting (0.72) → 0.972, resume-only (0.85) → 0.985
+		# Apply confidence as a minor (±10%) adjustment to the base status score using
+		# the raw best_match.confidence: 0.90 + 0.10 * confidence → multiplier in ~0.90–1.0.
 		adjustment = 0.90 + 0.10 * best_match.confidence
 		req_score *= adjustment
 	return req_score

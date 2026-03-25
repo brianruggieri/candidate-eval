@@ -257,6 +257,11 @@ function renderResults(data) {
 	const matches = data.skill_matches || [];
 	const matchList = el('skill-match-list');
 	matchList.innerHTML = '';
+	// Reset confidence layer so stale state from a previous assessment doesn't persist
+	const _sbContainer = el('signal-bars');
+	if (_sbContainer) _sbContainer.classList.add('hidden');
+	const _summaryEl = el('section-evidence-summary');
+	if (_summaryEl) _summaryEl.classList.add('hidden');
 	if (matches.length > 0) {
 		el('tag-skills').textContent = matches.length;
 		matches.forEach(m => {
