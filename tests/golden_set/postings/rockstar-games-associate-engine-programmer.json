@@ -10,7 +10,7 @@
   "salary": "$82,600 - $106,200",
   "requirements": [
     {
-      "description": "Computer Science degree or equivalent experience",
+      "description": "Computer Science degree or equivalent experience for gaming industry",
       "skill_mapping": [
         "computer-science"
       ],
@@ -19,7 +19,7 @@
       "education_level": "bachelor"
     },
     {
-      "description": "Demonstrable C/C++ programming experience",
+      "description": "Demonstrable C/C++ programming experience in gaming or real-time applications",
       "skill_mapping": [
         "c",
         "c"
@@ -77,7 +77,7 @@
       "education_level": null
     },
     {
-      "description": "Core game engine technology: memory management, data streaming, rendering pipeline, scene management",
+      "description": "Core gaming engine technology: memory management, data streaming, rendering pipeline, and scripting engine development",
       "skill_mapping": [
         "game-development",
         "performance-optimization"

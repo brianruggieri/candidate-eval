@@ -10,7 +10,7 @@
   "salary": "$240,000 - $270,000",
   "requirements": [
     {
-      "description": "Proficiency in Go as primary backend language",
+      "description": "Proficiency in Go as primary backend language for financial infrastructure",
       "skill_mapping": [
         "go",
         "backend-development"
@@ -49,7 +49,7 @@
       "education_level": null
     },
     {
-      "description": "Data layer experience with Postgres, Redis, and Kafka",
+      "description": "Data layer experience with Postgres, Redis, and Kafka for financial transaction processing",
       "skill_mapping": [
         "postgresql",
         "redis",
@@ -101,7 +101,7 @@
       "education_level": null
     },
     {
-      "description": "Design stable APIs for custody and transfers with idempotent job flows and audit trails",
+      "description": "Design stable financial APIs for custody and transfers with idempotent job flows and audit trails",
       "skill_mapping": [
         "api-design",
         "security",
