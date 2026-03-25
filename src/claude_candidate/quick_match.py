@@ -999,6 +999,19 @@ def _find_skill_match(
 	return None, "none"
 
 
+# Session count thresholds for depth levels. Sessions-only skills with
+# fewer sessions than the threshold are capped at the lower depth.
+# This prevents the extractor's optimistic depth claims from inflating
+# scores for skills the candidate barely touched (e.g. 9 sessions of C++).
+_SESSION_DEPTH_CAPS: list[tuple[int, DepthLevel]] = [
+	(50, DepthLevel.EXPERT),   # >=50 sessions → expert allowed
+	(20, DepthLevel.DEEP),     # >=20 sessions → deep allowed
+	(10, DepthLevel.APPLIED),  # >=10 sessions → applied allowed
+	(3, DepthLevel.USED),      # >=3 sessions → used allowed
+	(0, DepthLevel.MENTIONED), # <3 sessions → mentioned
+]
+
+
 def _best_available_depth(skill: MergedSkillEvidence) -> DepthLevel:
 	"""Return the most favorable depth for matching.
 
@@ -1007,6 +1020,9 @@ def _best_available_depth(skill: MergedSkillEvidence) -> DepthLevel:
 	But when the resume claims a higher depth than effective_depth, we use it
 	for matching — the resume is human-curated and the session extractor may
 	under-detect skills.
+
+	For sessions-only skills, caps depth based on session count to prevent
+	inflated expert claims from few sessions.
 	"""
 	best = skill.effective_depth
 	if skill.source == EvidenceSource.CONFLICTING and skill.resume_depth:
@@ -1014,6 +1030,18 @@ def _best_available_depth(skill: MergedSkillEvidence) -> DepthLevel:
 		effective_rank = DEPTH_RANK.get(best, 0)
 		if resume_rank > effective_rank:
 			best = skill.resume_depth
+
+	# Cap sessions-only skills by session count
+	if skill.source == EvidenceSource.SESSIONS_ONLY and skill.session_frequency:
+		sessions = skill.session_frequency
+		for threshold, max_depth in _SESSION_DEPTH_CAPS:
+			if sessions >= threshold:
+				best_rank = DEPTH_RANK.get(best, 0)
+				cap_rank = DEPTH_RANK.get(max_depth, 0)
+				if best_rank > cap_rank:
+					best = max_depth
+				break
+
 	return best
 
 

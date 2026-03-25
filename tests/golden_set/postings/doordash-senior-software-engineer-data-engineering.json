@@ -19,7 +19,7 @@
       "education_level": null
     },
     {
-      "description": "3+ years in data engineering, business intelligence, or related roles",
+      "description": "3+ years in data engineering, business intelligence, or ETL pipeline roles",
       "skill_mapping": [
         "data-engineering"
       ],
@@ -59,7 +59,7 @@
       "education_level": null
     },
     {
-      "description": "3+ years with distributed data systems (Spark, Hive, Druid, Presto) and streaming (Kafka/Flink)",
+      "description": "3+ years with distributed data systems (Spark, Hive, Druid, Presto) and streaming platforms for ETL",
       "skill_mapping": [
         "distributed-systems",
         "data-engineering"
@@ -79,7 +79,7 @@
       "education_level": null
     },
     {
-      "description": "Develop large-scale, performant data models and pipelines for data lakes and warehouses",
+      "description": "Develop large-scale, performant data models and ETL pipelines for data lakes and warehouses",
       "skill_mapping": [
         "data-engineering",
         "system-design"

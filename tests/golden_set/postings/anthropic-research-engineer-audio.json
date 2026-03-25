@@ -20,7 +20,7 @@
       "education_level": null
     },
     {
-      "description": "Balanced interest in both research and engineering (~50/50 split)",
+      "description": "Balanced interest in both audio research and engineering (~50/50 split)",
       "skill_mapping": [
         "machine-learning",
         "software-engineering"
@@ -30,7 +30,7 @@
       "education_level": null
     },
     {
-      "description": "Proficiency across abstraction levels, from signal processing to large-scale training",
+      "description": "Proficiency across audio abstraction levels, from signal processing to large-scale training pipelines",
       "skill_mapping": [
         "machine-learning",
         "data-science"
@@ -40,7 +40,7 @@
       "education_level": null
     },
     {
-      "description": "Deep expertise with JAX, PyTorch, or distributed training frameworks",
+      "description": "Deep expertise with JAX, PyTorch, or distributed audio training frameworks",
       "skill_mapping": [
         "pytorch",
         "distributed-systems"

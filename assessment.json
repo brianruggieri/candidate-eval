@@ -1,0 +1,222 @@
+{
+  "assessment_id": "50a012a1-452e-45c8-b1e9-a2f69868cf47",
+  "assessed_at": "2026-03-23T20:14:10.403953",
+  "job_title": "Senior Product Engineer (AI & Growth Systems)",
+  "company_name": "Cubby Beds",
+  "posting_url": null,
+  "source": "cli",
+  "assessment_phase": "partial",
+  "partial_percentage": 94.7,
+  "overall_score": 0.947,
+  "overall_grade": "A",
+  "overall_summary": "Overall A fit for Senior Product Engineer (AI & Growth Systems) at Cubby Beds. 7/7 must-haves met. Strongest dimension: Skills (A+). Weakest dimension: Experience (A). This is a strong fit worth pursuing.",
+  "narrative_verdict": null,
+  "receptivity_level": null,
+  "receptivity_reason": null,
+  "skill_match": {
+    "dimension": "skill_match",
+    "score": 0.973,
+    "grade": "A+",
+    "weight": 0.65,
+    "summary": "14 requirements strongly matched, 0 partial, 1 gaps.",
+    "details": [
+      "[++] 4+ years experience building and shipping production systems, automation, or internal tools: exceeds",
+      "[++] Ability to integrate APIs, data systems, and modern AI tooling: exceeds",
+      "[++] Experience applying LLM-powered workflows or AI systems in real-world environments: exceeds",
+      "[++] Comfort building with AI-assisted development tools such as Claude, Copilot, or Cursor: exceeds",
+      "[++] Strong product instincts and ability to connect technical work to business outcomes: exceeds"
+    ],
+    "confidence": 1.0,
+    "insufficient_data": false
+  },
+  "experience_match": {
+    "dimension": "experience_match",
+    "score": 0.9,
+    "grade": "A",
+    "weight": 0.25,
+    "summary": "No specific experience-years required — effectively met",
+    "details": [
+      "No years requirement stated; no bar to clear"
+    ],
+    "confidence": 1.0,
+    "insufficient_data": true
+  },
+  "education_match": {
+    "dimension": "education_match",
+    "score": 0.9,
+    "grade": "A",
+    "weight": 0.1,
+    "summary": "No specific education or tech stack required — effectively met",
+    "details": [
+      "No education or tech stack requirement stated; no bar to clear"
+    ],
+    "confidence": 1.0,
+    "insufficient_data": true
+  },
+  "mission_alignment": null,
+  "culture_fit": null,
+  "skill_matches": [
+    {
+      "requirement": "4+ years experience building and shipping production systems, automation, or internal tools",
+      "priority": "must_have",
+      "match_status": "exceeds",
+      "candidate_evidence": "Demonstrated in sessions (not on resume). 233 sessions. depth: expert",
+      "evidence_source": "sessions_only",
+      "confidence": 0.85,
+      "matched_skill": "testing"
+    },
+    {
+      "requirement": "Ability to integrate APIs, data systems, and modern AI tooling",
+      "priority": "must_have",
+      "match_status": "exceeds",
+      "candidate_evidence": "Corroborated by both resume and sessions. 943 sessions. Listed in skills section. depth: expert",
+      "evidence_source": "corroborated",
+      "confidence": 1.0,
+      "matched_skill": "api-design"
+    },
+    {
+      "requirement": "Experience applying LLM-powered workflows or AI systems in real-world environments",
+      "priority": "must_have",
+      "match_status": "exceeds",
+      "candidate_evidence": "Corroborated by both resume and sessions. 725 sessions. Listed in skills section. depth: expert",
+      "evidence_source": "corroborated",
+      "confidence": 1.0,
+      "matched_skill": "llm"
+    },
+    {
+      "requirement": "Comfort building with AI-assisted development tools such as Claude, Copilot, or Cursor",
+      "priority": "must_have",
+      "match_status": "exceeds",
+      "candidate_evidence": "Corroborated by both resume and sessions. 725 sessions. Listed in skills section. depth: expert",
+      "evidence_source": "corroborated",
+      "confidence": 1.0,
+      "matched_skill": "llm"
+    },
+    {
+      "requirement": "Strong product instincts and ability to connect technical work to business outcomes",
+      "priority": "must_have",
+      "match_status": "exceeds",
+      "candidate_evidence": "Demonstrated in sessions (not on resume). 75 sessions. depth: expert",
+      "evidence_source": "sessions_only",
+      "confidence": 0.85,
+      "matched_skill": "product-development"
+    },
+    {
+      "requirement": "Comfort operating in ambiguous environments without detailed specs",
+      "priority": "must_have",
+      "match_status": "exceeds",
+      "candidate_evidence": "Demonstrated in sessions (not on resume). 446 sessions. depth: expert",
+      "evidence_source": "sessions_only",
+      "confidence": 0.85,
+      "matched_skill": "adaptability"
+    },
+    {
+      "requirement": "Bias toward shipping solutions and iterating quickly",
+      "priority": "must_have",
+      "match_status": "exceeds",
+      "candidate_evidence": "Corroborated by both resume and sessions. 81 sessions. Listed in skills section. depth: expert",
+      "evidence_source": "corroborated",
+      "confidence": 1.0,
+      "matched_skill": "prototyping"
+    },
+    {
+      "requirement": "Experience with prompt engineering, AI agents, or automation workflows",
+      "priority": "nice_to_have",
+      "match_status": "exceeds",
+      "candidate_evidence": "Corroborated by both resume and sessions. 749 sessions. Listed in skills section. depth: expert",
+      "evidence_source": "corroborated",
+      "confidence": 1.0,
+      "matched_skill": "prompt-engineering"
+    },
+    {
+      "requirement": "Background in highly regulated industries such as healthcare or financial services",
+      "priority": "nice_to_have",
+      "match_status": "exceeds",
+      "candidate_evidence": "Demonstrated in sessions (not on resume). 138 sessions. depth: expert",
+      "evidence_source": "sessions_only",
+      "confidence": 0.85,
+      "matched_skill": "security"
+    },
+    {
+      "requirement": "Experience building product at early-stage startups or in high-ambiguity environments",
+      "priority": "nice_to_have",
+      "match_status": "exceeds",
+      "candidate_evidence": "Demonstrated in sessions (not on resume). 180 sessions. depth: expert",
+      "evidence_source": "sessions_only",
+      "confidence": 0.85,
+      "matched_skill": "startup-experience"
+    },
+    {
+      "requirement": "Design and deploy AI-powered workflows tied to measurable operational or revenue impact",
+      "priority": "implied",
+      "match_status": "no_evidence",
+      "candidate_evidence": "No evidence found",
+      "evidence_source": "resume_only",
+      "confidence": 0.0,
+      "matched_skill": null
+    },
+    {
+      "requirement": "Implement monitoring, documentation, fallback logic, and quality controls for AI systems",
+      "priority": "implied",
+      "match_status": "exceeds",
+      "candidate_evidence": "Demonstrated in sessions (not on resume). 208 sessions. depth: expert",
+      "evidence_source": "sessions_only",
+      "confidence": 0.85,
+      "matched_skill": "metrics"
+    },
+    {
+      "requirement": "Report metrics on usage, performance, and ROI of deployed AI systems",
+      "priority": "implied",
+      "match_status": "exceeds",
+      "candidate_evidence": "Demonstrated in sessions (not on resume). 9 sessions. depth: expert",
+      "evidence_source": "sessions_only",
+      "confidence": 0.65,
+      "matched_skill": "data-science"
+    },
+    {
+      "requirement": "Cross-functional collaboration with Sales, Marketing, CX, Product, and Operations stakeholders",
+      "priority": "implied",
+      "match_status": "exceeds",
+      "candidate_evidence": "Demonstrated in sessions (not on resume). 1001 sessions. depth: expert",
+      "evidence_source": "sessions_only",
+      "confidence": 0.85,
+      "matched_skill": "collaboration"
+    },
+    {
+      "requirement": "Build customer-facing web pages, marketing systems, and data-driven growth infrastructure",
+      "priority": "implied",
+      "match_status": "exceeds",
+      "candidate_evidence": "Demonstrated in sessions (not on resume). 408 sessions. depth: expert",
+      "evidence_source": "sessions_only",
+      "confidence": 0.85,
+      "matched_skill": "frontend-development"
+    }
+  ],
+  "must_have_coverage": "7/7 must-haves met",
+  "strongest_match": "4+ years experience building and shipping production systems, automation, or internal tools",
+  "biggest_gap": "None — all requirements addressed",
+  "resume_gaps_discovered": [
+    "agile",
+    "collaboration",
+    "communication",
+    "metrics"
+  ],
+  "resume_unverified": [],
+  "company_profile_summary": "No enrichment data available for Cubby Beds",
+  "company_enrichment_quality": "none",
+  "should_apply": "strong_yes",
+  "action_items": [
+    "Generate full application package for this role",
+    "Update resume to include: agile, collaboration, communication (demonstrated in sessions but missing from resume)"
+  ],
+  "eligibility_gates": [
+    {
+      "description": "Hybrid in-office requirement: Monday–Wednesday in Denver HQ",
+      "status": "unknown",
+      "requirement_text": "Hybrid Work Model: Monday-Wednesday in the office, optional work from home Thursday-Friday"
+    }
+  ],
+  "eligibility_passed": true,
+  "profile_hash": "a8f0e9f1dfb4ff4989fb4709d263136a09a2860decac55db2fdcd457a26a472f",
+  "time_to_assess_seconds": 0.1
+}

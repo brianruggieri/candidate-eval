@@ -10,7 +10,7 @@
   "salary": "$141,900 - $190,300",
   "requirements": [
     {
-      "description": "5+ years developing console, PC, mobile games, or interactive digital entertainment",
+      "description": "5+ years developing console, PC, mobile games, or interactive digital entertainment with gameplay systems",
       "skill_mapping": [
         "game-development"
       ],
@@ -28,7 +28,7 @@
       "education_level": null
     },
     {
-      "description": "Shipped commercial products as a hands-on programmer; authored major gameplay systems",
+      "description": "Shipped commercial gameplay products as a hands-on programmer; authored major gameplay systems",
       "skill_mapping": [
         "game-development",
         "product-development"
@@ -56,7 +56,7 @@
       "education_level": null
     },
     {
-      "description": "Game mathematics proficiency",
+      "description": "Game mathematics proficiency for gameplay systems (linear algebra, physics, collision)",
       "skill_mapping": [
         "game-development",
         "computer-science"

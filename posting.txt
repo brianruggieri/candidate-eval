@@ -1,0 +1,80 @@
+We’re Cubby Beds 👋
+
+A fast-growing and high-impact startup that makes smart beds for people with cognitive conditions like Epilepsy, Cerebral Palsy, Dementia and Autism. Our mission is to improve the lives of special needs kids and their families through our innovative products and go to market strategies. Since launch, we have changed the lives of thousands of families, been insurance covered in all 50 states, achieved profitability, and are building a growing team in our Denver HQ.
+
+The next stage of the business is all about scaling our team, product, systems, and customer journey to help thousands more families get the safe sleep they deserve.
+
+This is where you come in
+
+When you join Cubby, you’re joining a team of builders and problem-solvers working to create meaningful change for families who need it most.
+
+As our Senior Product Engineer (AI & Growth Systems), you will design, build, and deploy AI-powered workflows, growth infrastructure, and internal tools that directly improve how Cubby operates and scales.
+
+This role sits at the intersection of engineering, product thinking, and go-to-market systems. You will build both internal operational tools and customer-facing growth infrastructure—from automating workflows for Sales and CX teams to launching new website pages, marketing systems, and data-driven experiences that help families discover and access Cubby.
+
+Your success will be measured not by experimentation alone, but by real adoption, measurable efficiency gains, and tangible business outcomes.
+
+You will work closely with leaders across Sales, Marketing, CX, Product, and Operations to identify high-leverage opportunities, ship systems teams rely on daily, and continuously improve them based on real-world usage.
+
+This role is ideal for someone who enjoys building practical systems that make a company run better—combining AI tools, APIs, business systems, and web infrastructure to deliver meaningful impact.
+
+Here’s What You’ll Be Doing
+
+Shipping High-Impact AI Workflows – Design, build, and deploy AI-powered workflows, customer experiences or internal tools that are actively used by business teams and tied to measurable operational or revenue impact.
+Delivering Measurable Efficiency Gains – Reduce manual work, turnaround time, or error rates in targeted workflows, resulting in documented time savings or cost reduction.
+Establishing Practical AI Standards & Guardrails – Implement monitoring, documentation, fallback logic, and quality controls to ensure AI systems are reliable and trustworthy.
+Driving Adoption Across Teams – Partner with cross-functional stakeholders to ensure tools are adopted, understood, and continuously improved based on real feedback.
+Providing Leadership Visibility into Impact – Report clear metrics on usage, performance, and ROI of AI systems deployed.
+Help define what this role looks like at Cubby—there's no playbook yet
+
+Here’s What We’re Looking For
+
+4+ years experience building and shipping production systems, automation, or internal tools
+Ability to integrate APIs, data systems, and modern AI tooling
+Experience applying LLM-powered workflows or AI systems in real-world environments
+Comfort building with AI-assisted development tools (Claude, Copilot, Cursor, etc.)
+Strong product instincts and the ability to connect technical work to business outcomes
+Comfort operating in ambiguous environments without detailed specs
+A bias toward shipping solutions and iterating quickly
+
+Ideally you also have…
+
+A passion for exploring and implementing modern AI approaches such as prompt engineering, agents, or automation workflows
+Background in highly regulated spaces like healthcare and financial services
+Experience building product in early-stage startups or high-ambiguity environments
+
+To Apply: All applications must be submitted through the Job Openings section of the Cubby Beds Careers site
+
+Don’t feel like you have all of the qualifications?
+
+The description above indicates our current vision for the role. You could be a viable candidate even if you don't fit everything we've described above and may also have important skills we haven't thought of. If that's you - even if you’re unsure - we encourage you to apply and help us get to know you!
+
+Benefits & Perks✨
+
+Compensation: At Cubby, we reward great performance with clear, motivating compensation. We believe in aligning incentives and sharing wins.
+Total Comp for this Role: $150,000-180,000
+This includes:
+Base Salary: $136,000-164,000
+Performance Bonus: Up to 10% of your base salary if targets are hit
+Stock Options - Equity Ownership
+Health, Dental, and Vision Insurance
+Unlimited PTO & Sick/Wellness Hours
+12 paid holidays, a paid Volunteer Day and a Powder Day
+401k with a company match
+Hybrid Work Model: Monday-Wednesday in the office, optional work from home Thursday-Friday
+Mac, standing desk, and high-end accessories at the office + a work-from-home stipend to ﻿purchase equipment needed for home offices
+Paid parking
+Annual staff retreat
+Stocked kitchen and bimonthly team lunches in our beautiful Denver HQ
+Growth opportunities at a start-up with a life-changing mission
+
+If you have the desire to build meaningful AI-driven products and workflows in a high-growth org that also changes lives, we want to meet you! Interested? Apply now! 👩🏻‍💻
+
+Cubby Beds is committed to creating a diverse environment and is proud to be an equal-opportunity employer. All qualified applicants will receive consideration for employment without regard to race, color, religion, gender, gender identity or expression, sexual orientation, national origin, genetics, disability, age, or veteran status. Cubby Beds is also committed to compliance with all fair employment practices regarding citizenship and immigration status. For data removal requests from our Applicant Tracking System, please email recruiting@cubbybeds.com.
+
+This position will remain open until filled.
+
+Compensation Range: $150K - $180K
+
+
+
