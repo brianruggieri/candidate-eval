@@ -1729,9 +1729,8 @@ class QuickMatchEngine:
 			# to the weak ratio. Threshold is higher (40%) to avoid over-penalizing
 			# postings with a few legitimate related matches.
 			if weak_ratio > 0.40:
-				penalty_factor = 1.0 - (weak_ratio - 0.40) * 0.6  # 40%→1.0, 90%→0.7
-				# Floor depends on whether domain gap is also active (avoid stacking)
-				floor = 0.70 if domain_gap_term else 0.65
+				penalty_factor = 1.0 - (weak_ratio - 0.40) * 0.7  # 40%→1.0, 90%→0.65
+				floor = 0.65
 				overall_score *= max(penalty_factor, floor)
 
 		partial_percentage = round(overall_score * 100, 1)
