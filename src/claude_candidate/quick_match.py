@@ -312,7 +312,7 @@ SOURCE_LABEL: dict[EvidenceSource, str] = {
 	EvidenceSource.CORROBORATED: "Corroborated by both resume and sessions",
 	EvidenceSource.SESSIONS_ONLY: "Demonstrated in sessions (not on resume)",
 	EvidenceSource.RESUME_ONLY: "Listed on resume (no session evidence)",
-	EvidenceSource.CONFLICTING: "Evidence conflicts between resume and sessions",
+	EvidenceSource.CONFLICTING: "Resume depth anchored; sessions provided additional signal",
 }
 
 # Pattern strength → culture match value
@@ -914,9 +914,10 @@ def _best_available_depth(skill: MergedSkillEvidence) -> DepthLevel:
 	"""Return the most favorable depth for matching.
 
 	For CONFLICTING skills (resume and session depths diverge by 2+ levels),
-	the merger conservatively uses session_depth as effective_depth. But when
-	the resume claims a higher depth, we use it for matching — the resume is
-	human-curated and the session extractor may under-detect skills.
+	the merger anchors to resume depth (sessions can boost by at most one rung).
+	But when the resume claims a higher depth than effective_depth, we use it
+	for matching — the resume is human-curated and the session extractor may
+	under-detect skills.
 	"""
 	best = skill.effective_depth
 	if skill.source == EvidenceSource.CONFLICTING and skill.resume_depth:
@@ -1068,13 +1069,6 @@ def _find_best_skill(
 	return best_match, best_status
 
 
-# Confidence floor — prevent low-confidence skills from cratering scores.
-# CONFLICTING defaults to 0.40; sessions-only with low frequency get 0.45–0.65.
-# Floor at 0.65 prevents catastrophic penalties for these cases.
-# Resume-only (0.85 flat) and corroborated (0.70–1.0) always exceed the floor.
-CONFIDENCE_FLOOR = 0.65
-CONFLICTING_EXPERT_CONF_FLOOR = 0.80  # expert session evidence overrides resume "mentioned"
-
 
 def _score_requirement(
 	best_match: MergedSkillEvidence | None,
@@ -1099,18 +1093,9 @@ def _score_requirement(
 
 	req_score = STATUS_SCORE.get(best_status, STATUS_SCORE_NONE)
 	if best_match:
-		effective_confidence = max(best_match.confidence, CONFIDENCE_FLOOR)
-		# Expert/deep session skills marked CONFLICTING (resume "mentioned" vs sessions
-		# EXPERT): use a higher floor — session depth evidence dominates.
-		if best_match.source == EvidenceSource.CONFLICTING and best_match.effective_depth in (
-			DepthLevel.EXPERT,
-			DepthLevel.DEEP,
-		):
-			effective_confidence = max(effective_confidence, CONFLICTING_EXPERT_CONF_FLOOR)
-		# Scale confidence to a ~0.965–1.0 range (with floor at 0.65):
-		# corroborated/high-freq skills get near-full score (0.985–1.0),
-		# resume-only skills get modest penalty (~3.5% at floor).
-		adjustment = 0.90 + 0.10 * effective_confidence
+		# Apply confidence as a minor (±10%) adjustment to the base status score using
+		# the raw best_match.confidence: 0.90 + 0.10 * confidence → multiplier in ~0.90–1.0.
+		adjustment = 0.90 + 0.10 * best_match.confidence
 		req_score *= adjustment
 	return req_score
 
@@ -1740,7 +1725,7 @@ class QuickMatchEngine:
 					found = _find_skill_match(skill_name, self.profile)
 					if found:
 						status = _assess_depth_match(found, depth_floor, self.profile)
-						conf = max(found.confidence, CONFIDENCE_FLOOR)
+						conf = found.confidence
 						adj = 0.90 + 0.10 * conf
 						all_scores.append(STATUS_SCORE.get(status, 0.0) * adj)
 					else:

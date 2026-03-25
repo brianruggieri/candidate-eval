@@ -254,11 +254,12 @@ class TestMergedSkillEvidence:
 		)
 		assert depth == DepthLevel.DEEP
 
-	def test_compute_effective_depth_conflicting_uses_sessions(self):
+	def test_compute_effective_depth_conflicting_resume_anchors(self):
+		# resume=EXPERT, session=USED (session lower) → resume anchors → EXPERT
 		depth = MergedSkillEvidence.compute_effective_depth(
 			EvidenceSource.CONFLICTING, DepthLevel.EXPERT, DepthLevel.USED
 		)
-		assert depth == DepthLevel.USED  # Sessions win in conflict
+		assert depth == DepthLevel.EXPERT  # Resume anchors when resume > session
 
 	def test_compute_confidence_corroborated_high_freq(self):
 		conf = MergedSkillEvidence.compute_confidence(

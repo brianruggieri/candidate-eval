@@ -20,6 +20,8 @@ from claude_candidate.schemas.candidate_profile import (
 )
 from claude_candidate.schemas.resume_profile import ResumeRole
 
+RANK_TO_DEPTH: dict[int, "DepthLevel"] = {v: k for k, v in DEPTH_RANK.items()}
+
 
 class EvidenceSource(str, Enum):
 	"""Where the evidence for a skill comes from."""
@@ -68,7 +70,7 @@ class MergedSkillEvidence(BaseModel):
 		- corroborated: max(resume, session) — both agree, use strongest
 		- resume_only: resume depth, flagged as unverified
 		- sessions_only: session depth — demonstrated > claimed
-		- conflicting: session depth (observed behavior > self-report)
+		- conflicting: resume anchors depth; sessions boost by at most one level
 		"""
 		if source == EvidenceSource.CORROBORATED:
 			r_rank = DEPTH_RANK.get(resume_depth, 0) if resume_depth else 0
@@ -80,8 +82,21 @@ class MergedSkillEvidence(BaseModel):
 			return resume_depth or DepthLevel.MENTIONED
 		elif source == EvidenceSource.SESSIONS_ONLY:
 			return session_depth or DepthLevel.MENTIONED
-		else:  # CONFLICTING
-			return session_depth or resume_depth or DepthLevel.MENTIONED
+		else:  # CONFLICTING — both sources present, depths diverge by 2+ levels.
+			# Resume anchors: earned expertise > short-duration agentic sessions.
+			# Sessions can boost resume by one rung but cannot leapfrog it.
+			if resume_depth is not None and session_depth is not None:
+				r_rank = DEPTH_RANK.get(resume_depth, 0)
+				s_rank = DEPTH_RANK.get(session_depth, 0)
+				if s_rank > r_rank:
+					# Sessions claim higher — one conservative rung above resume, capped at DEEP
+					boosted_rank = min(r_rank + 1, DEPTH_RANK[DepthLevel.DEEP])
+					return RANK_TO_DEPTH[boosted_rank]
+				else:
+					# Resume claims higher — trust resume as earned-expertise anchor
+					return resume_depth
+			# Only one side present — resume preferred
+			return resume_depth or session_depth or DepthLevel.MENTIONED
 
 	@staticmethod
 	def compute_confidence(
@@ -92,14 +107,13 @@ class MergedSkillEvidence(BaseModel):
 		"""
 		Compute confidence score based on evidence quality.
 
-		Bands:
-		- corroborated + high frequency → 0.85–1.0
-		- corroborated + low frequency → 0.7–0.85
-		- sessions_only + high frequency → 0.75–0.9
-		- sessions_only + low frequency → 0.4–0.6
-		- resume_only with specific context → 0.4–0.6
-		- resume_only with vague context → 0.2–0.4
-		- conflicting → 0.3–0.5
+		Actual return values:
+		- corroborated: 0.70 + min(freq/50, 0.30) → 0.70–1.0
+		- sessions_only + freq ≥ 20 → 0.85
+		- sessions_only + freq 5–19 → 0.65
+		- sessions_only + freq < 5 → 0.45
+		- resume_only → 0.85 (resume is legitimate work evidence; no penalty for missing sessions)
+		- conflicting → 0.72 (both sources present; depth uncertainty handled separately)
 		"""
 		freq = session_frequency or 0
 
@@ -119,8 +133,8 @@ class MergedSkillEvidence(BaseModel):
 			# Depth accuracy is handled by the depth matching system, not
 			# confidence. No penalty for skills not demonstrated in sessions.
 			return 0.85
-		else:  # CONFLICTING
-			return 0.4
+		else:  # CONFLICTING — both sources have the skill; depth reconciled in compute_effective_depth
+			return 0.72
 
 
 class MergedEvidenceProfile(BaseModel):

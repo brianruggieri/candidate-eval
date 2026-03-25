@@ -52,11 +52,59 @@ function scoreToGrade(s) {
 	if (s >= 0.63) return 'D+'; if (s >= 0.60) return 'D'; return 'F';
 }
 
+function escHtml(s) {
+	return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function barColor(score) {
 	if (score >= 0.75) return 'green';
 	if (score >= 0.50) return 'yellow';
 	if (score >= 0.30) return 'blue';
 	return 'red';
+}
+
+function categorizeSkill(m) {
+	if (m.match_status === 'no_evidence') return 'missing';
+	if (m.evidence_source === 'corroborated') return 'direct';
+	// resume_only, sessions_only, conflicting → inferred.
+	// sessions_only is intentionally "inferred": agentic sessions without
+	// resume corroboration are not guaranteed personal mastery.
+	// Note: "fuzzy" (alias/approximate skill resolution) requires a match_type
+	// field from the API — m.requirement is the full JD sentence, not a skill
+	// token, so frontend comparison against matched_skill is always wrong.
+	return 'inferred';
+}
+
+function renderSignalBars(matches) {
+	const withEvidence = matches.filter(m => m.match_status !== 'no_evidence');
+	if (!withEvidence.length) return;
+	const directCount = withEvidence.filter(m => categorizeSkill(m) === 'direct').length;
+	const ratio = directCount / withEvidence.length;
+	const litCount = ratio >= 0.75 ? 4 : ratio >= 0.5 ? 3 : ratio >= 0.25 ? 2 : 1;
+	for (let i = 1; i <= 4; i++) {
+		const bar = el(`sb${i}`);
+		if (bar) bar.classList.toggle('lit', i <= litCount);
+	}
+	const sbContainer = el('signal-bars');
+	if (sbContainer) sbContainer.classList.remove('hidden');
+}
+
+function renderEvidenceSummary(matches) {
+	const counts = { direct: 0, inferred: 0, fuzzy: 0, missing: 0 };
+	matches.forEach(m => counts[categorizeSkill(m)]++);
+	['direct', 'inferred', 'fuzzy', 'missing'].forEach(cat => {
+		const chip = el(`chip-${cat}`);
+		const countEl = el(`chip-${cat}-count`);
+		if (!chip) return;
+		if (counts[cat] > 0) {
+			if (countEl) countEl.textContent = `${counts[cat]} ${cat}`;
+			chip.classList.remove('hidden');
+		} else {
+			chip.classList.add('hidden');
+		}
+	});
+	const summaryEl = el('section-evidence-summary');
+	if (summaryEl && matches.length > 0) summaryEl.classList.remove('hidden');
 }
 
 function pct(score) { return Math.round(score * 100) + '%'; }
@@ -73,11 +121,12 @@ function renderResults(data) {
 	el('results-company').textContent = data.company_name || currentPosting?.company || '';
 	el('results-title').textContent = data.job_title || currentPosting?.title || 'Unknown Role';
 
-	// Hero display: percentage for partial, letter grade for full
+	// Hero display: target #hero-text child so signal-bars sibling is preserved
 	const heroEl = el('results-hero');
+	const heroText = el('hero-text');
 	if (phase === 'full') {
 		const grade = data.overall_grade || scoreToGrade(data.overall_score || 0);
-		heroEl.textContent = grade;
+		if (heroText) heroText.textContent = grade;
 		heroEl.dataset.grade = grade;
 		heroEl.classList.add('hero-grade');
 		heroEl.classList.remove('hero-pct');
@@ -85,7 +134,7 @@ function renderResults(data) {
 		const partial = data.partial_percentage != null
 			? Math.round(data.partial_percentage)
 			: Math.round((data.overall_score || 0) * 100);
-		heroEl.textContent = partial + '%';
+		if (heroText) heroText.textContent = partial + '%';
 		heroEl.dataset.grade = '';
 		heroEl.classList.add('hero-pct');
 		heroEl.classList.remove('hero-grade');
@@ -179,6 +228,7 @@ function renderResults(data) {
 	el('detail-must-haves').textContent = data.must_have_coverage || '--';
 	el('detail-strongest-match').textContent = data.strongest_match || '--';
 	el('detail-biggest-gap').textContent = data.biggest_gap || 'None';
+	el('detail-direct-evid').textContent = '--';
 
 	// Eligibility gates
 	const gates = data.eligibility_gates || [];
@@ -193,8 +243,8 @@ function renderResults(data) {
 			div.className = 'match-item';
 			div.innerHTML = `
 				<span class="match-icon ${iconClass}">${iconChar}</span>
-				<span class="match-name">${g.description || ''}</span>
-				<span class="match-source">${g.status || 'unknown'}</span>
+				<span class="match-name">${escHtml(g.description || '')}</span>
+				<span class="match-source">${escHtml(g.status || 'unknown')}</span>
 			`;
 			eligList.appendChild(div);
 		});
@@ -207,6 +257,11 @@ function renderResults(data) {
 	const matches = data.skill_matches || [];
 	const matchList = el('skill-match-list');
 	matchList.innerHTML = '';
+	// Reset confidence layer so stale state from a previous assessment doesn't persist
+	const _sbContainer = el('signal-bars');
+	if (_sbContainer) _sbContainer.classList.add('hidden');
+	const _summaryEl = el('section-evidence-summary');
+	if (_summaryEl) _summaryEl.classList.add('hidden');
 	if (matches.length > 0) {
 		el('tag-skills').textContent = matches.length;
 		matches.forEach(m => {
@@ -214,16 +269,42 @@ function renderResults(data) {
 			const iconClass = status.includes('strong') || status === 'exceeds' ? 'hit'
 				: status === 'no_evidence' ? 'miss' : 'partial';
 			const iconChar = iconClass === 'hit' ? '+' : iconClass === 'miss' ? 'x' : '~';
+			const cat = categorizeSkill(m);
+			const isMissing = cat === 'missing';
+			const conf = m.confidence || 0;
+			const confFill = conf >= 0.75 ? 'high' : conf >= 0.50 ? 'medium' : 'low';
+			const confDisplay = isMissing ? '—' : conf.toFixed(2);
+			const confValStyle = isMissing ? ' style="color:#d1d5db"' : '';
+			const sourceHtml = isMissing
+				? `<span style="font-family:'SF Mono','Fira Code',monospace;font-size:9px;color:#d1d5db;flex-shrink:0">—</span>`
+				: `<span class="source-chip ${cat}">${cat}</span>`;
 			const div = document.createElement('div');
-			div.className = 'match-item';
+			div.className = 'match-item' + (!isMissing && conf <= 0.70 ? ' low-conf' : '');
 			div.innerHTML = `
 				<span class="match-icon ${iconClass}">${iconChar}</span>
-				<span class="match-name">${m.requirement || ''}</span>
-				<span class="match-source">${m.evidence_source || ''}</span>
+				<span class="match-name">${escHtml(m.requirement || '')}</span>
+				<div class="conf-bar-wrap">
+					<div class="conf-bar">
+						<div class="conf-bar-fill ${isMissing ? '' : confFill}" style="width:${isMissing ? 0 : Math.round(conf * 100)}%"></div>
+					</div>
+					<span class="conf-val"${confValStyle}>${confDisplay}</span>
+				</div>
+				${sourceHtml}
 			`;
 			matchList.appendChild(div);
 		});
 		el('section-skills').classList.remove('hidden');
+
+		// Compute and render confidence layer from full matches array
+		const withEvidence = matches.filter(m => m.match_status !== 'no_evidence');
+		const directCount = withEvidence.filter(m => categorizeSkill(m) === 'direct').length;
+		const directPct = withEvidence.length
+			? Math.round(directCount / withEvidence.length * 100) + '%'
+			: '--';
+		el('detail-direct-evid').textContent = directPct;
+
+		renderEvidenceSummary(matches);
+		renderSignalBars(matches);
 	}
 
 	// Discoveries
@@ -460,16 +541,6 @@ document.addEventListener('DOMContentLoaded', () => {
 		navigator.clipboard.writeText(row);
 		btnCopy.textContent = 'Copied!';
 		setTimeout(() => { btnCopy.textContent = '\u{1F4CB}'; }, 1500);
-	});
-
-	const btnBatch = el('btn-batch');
-	if (btnBatch) btnBatch.addEventListener('click', () => {
-		btnBatch.disabled = true;
-		btnBatch.textContent = '⏳ Starting...';
-		// Fire-and-forget — background handles everything including opening dashboard
-		sendToBackground({ action: 'batchAssess' });
-		// Close popup after a beat to let the message send
-		setTimeout(() => window.close(), 300);
 	});
 
 	initialize();
