@@ -453,16 +453,16 @@ async function initialize() {
 				chrome.storage.local.set({ currentPosting: posting });
 			}
 		}
-
-		if (!posting) {
-			const fallback = await injectAndSend({ action: 'extractFallback' });
-			if (fallback.success && fallback.posting && fallback.posting.description) {
-				posting = { ...fallback.posting, extractedAt: Date.now() };
-			}
-		}
 	}
 
+	// Gate: require extracted posting with requirements before proceeding
 	if (!posting || !posting.description) { showState('no-job'); return; }
+	if (!posting.requirements || !posting.requirements.length) {
+		el('error-message').textContent =
+			'Couldn\u2019t extract job requirements. Try refreshing the page and reopening the extension.';
+		showState('error');
+		return;
+	}
 	currentPosting = posting;
 
 	const ac = el('assessing-company');
