@@ -68,7 +68,7 @@ class MergedSkillEvidence(BaseModel):
 		- corroborated: max(resume, session) — both agree, use strongest
 		- resume_only: resume depth, flagged as unverified
 		- sessions_only: session depth — demonstrated > claimed
-		- conflicting: session depth (observed behavior > self-report)
+		- conflicting: resume anchors depth; sessions boost by at most one level
 		"""
 		if source == EvidenceSource.CORROBORATED:
 			r_rank = DEPTH_RANK.get(resume_depth, 0) if resume_depth else 0
@@ -80,8 +80,22 @@ class MergedSkillEvidence(BaseModel):
 			return resume_depth or DepthLevel.MENTIONED
 		elif source == EvidenceSource.SESSIONS_ONLY:
 			return session_depth or DepthLevel.MENTIONED
-		else:  # CONFLICTING
-			return session_depth or resume_depth or DepthLevel.MENTIONED
+		else:  # CONFLICTING — both sources present, depths diverge by 2+ levels.
+			# Resume anchors: earned expertise > short-duration agentic sessions.
+			# Sessions can boost resume by one rung but cannot leapfrog it.
+			if resume_depth is not None and session_depth is not None:
+				r_rank = DEPTH_RANK.get(resume_depth, 0)
+				s_rank = DEPTH_RANK.get(session_depth, 0)
+				if s_rank > r_rank:
+					# Sessions claim higher — one conservative rung above resume, capped at DEEP
+					depth_by_rank = {v: k for k, v in DEPTH_RANK.items()}
+					boosted_rank = min(r_rank + 1, DEPTH_RANK[DepthLevel.DEEP])
+					return depth_by_rank.get(boosted_rank, resume_depth)
+				else:
+					# Resume claims higher — trust resume as earned-expertise anchor
+					return resume_depth
+			# Only one side present — resume preferred
+			return resume_depth or session_depth or DepthLevel.MENTIONED
 
 	@staticmethod
 	def compute_confidence(

@@ -1872,6 +1872,47 @@ class TestConflictingExpertConfidence:
 		assert 0.984 <= score <= 0.986, f"Expected ~0.985 for CORROBORATED, got {score}"
 
 
+class TestConflictingDepthDirection:
+	"""CONFLICTING depth: resume anchors, sessions boost by at most one rung."""
+
+	def _make_conflicting(self, resume_depth, session_depth):
+		from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
+		return MergedSkillEvidence.compute_effective_depth(
+			EvidenceSource.CONFLICTING,
+			resume_depth=resume_depth,
+			session_depth=session_depth,
+		)
+
+	def test_sessions_higher_caps_at_one_above_resume(self):
+		"""Sessions=EXPERT, resume=MENTIONED → effective=USED (one above MENTIONED)."""
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+		result = self._make_conflicting(DepthLevel.MENTIONED, DepthLevel.EXPERT)
+		assert result == DepthLevel.USED
+
+	def test_sessions_higher_from_applied_caps_at_deep(self):
+		"""Sessions=EXPERT, resume=APPLIED → effective=DEEP (one above APPLIED)."""
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+		result = self._make_conflicting(DepthLevel.APPLIED, DepthLevel.EXPERT)
+		assert result == DepthLevel.DEEP
+
+	def test_resume_higher_trusts_resume(self):
+		"""Resume=DEEP, sessions=MENTIONED → effective=DEEP (resume wins)."""
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+		result = self._make_conflicting(DepthLevel.DEEP, DepthLevel.MENTIONED)
+		assert result == DepthLevel.DEEP
+
+	def test_one_side_missing_uses_resume_preferred(self):
+		"""Only resume present → use resume depth."""
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+		from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
+		result = MergedSkillEvidence.compute_effective_depth(
+			EvidenceSource.CONFLICTING,
+			resume_depth=DepthLevel.APPLIED,
+			session_depth=None,
+		)
+		assert result == DepthLevel.APPLIED
+
+
 # ---------------------------------------------------------------------------
 # Timer tests
 # ---------------------------------------------------------------------------
