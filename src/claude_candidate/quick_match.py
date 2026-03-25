@@ -315,6 +315,60 @@ SOURCE_LABEL: dict[EvidenceSource, str] = {
 	EvidenceSource.CONFLICTING: "Resume depth anchored; sessions provided additional signal",
 }
 
+# Industry/domain keywords — non-technical terms that appear repeatedly in domain-specific JDs.
+# If any of these appears in 3+ requirements but is absent from the candidate's profile,
+# the grade is capped at B+ (domain fit cannot be proven without evidence).
+DOMAIN_KEYWORDS: frozenset[str] = frozenset({
+	# Music / audio
+	"music", "audio", "sound", "recording", "podcast",
+	# Sports
+	"sports", "baseball", "football", "basketball", "soccer", "athletics",
+	# Healthcare / biotech
+	"healthcare", "medical", "clinical", "patient", "biotech", "pharma",
+	# Finance
+	"fintech", "banking", "financial", "trading", "insurance",
+	# Legal
+	"legal", "compliance", "regulatory",
+	# Automotive
+	"automotive", "vehicle",
+	# Education
+	"edtech", "educational", "curriculum",
+	# Gaming
+	"gaming", "esports",
+	# Real estate
+	"real estate", "construction",
+	# Energy
+	"energy", "utilities",
+	# Retail / logistics
+	"retail", "ecommerce", "logistics",
+})
+
+
+def _detect_domain_gap(
+	requirements: "list[QuickRequirement]",
+	profile: "MergedEvidenceProfile",
+) -> str | None:
+	"""Return the first domain keyword in 3+ requirements that is absent from the profile.
+
+	Checks candidate skills, project names (word-split), and role domains.
+	Returns the keyword string if a gap is detected, None otherwise.
+	"""
+	candidate_terms: set[str] = set()
+	for skill in profile.skills:
+		candidate_terms.add(skill.name.lower())
+	for project in (profile.projects or []):
+		for word in project.project_name.lower().split():
+			candidate_terms.add(word)
+	for role in (profile.roles or []):
+		if role.domain:
+			candidate_terms.add(role.domain.lower())
+
+	for kw in sorted(DOMAIN_KEYWORDS):  # sorted for deterministic output
+		count = sum(1 for r in requirements if kw in r.description.lower())
+		if count >= 3 and kw not in candidate_terms:
+			return kw
+	return None
+
 # Pattern strength → culture match value
 CULTURE_PATTERN_STRENGTH_SCORE: dict[str, float] = {
 	"exceptional": 1.0,
@@ -1538,6 +1592,19 @@ class QuickMatchEngine:
 		if unmet_gates:
 			pre_cap_grade = score_to_grade(overall_score)
 			overall_score = 0.0
+
+		# Domain penalty: cap at B+ if industry domain appears 3+ times in requirements
+		# but is absent from the candidate's profile.
+		_GRADE_ORDER = ["A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D", "F"]
+		domain_gap_term = _detect_domain_gap(scorable_reqs, self.profile)
+		if domain_gap_term and not unmet_gates:  # eligibility cap already zeros score; skip
+			candidate_grade = score_to_grade(overall_score)
+			if _GRADE_ORDER.index(candidate_grade) < _GRADE_ORDER.index("B+"):  # grade better than B+
+				if pre_cap_grade is None:  # don't overwrite eligibility pre_cap_grade
+					pre_cap_grade = candidate_grade
+				# Drop score to top of the B+ band (0.80)
+				overall_score = min(overall_score, 0.799)
+
 		partial_percentage = round(overall_score * 100, 1)
 
 		if elapsed is None:
@@ -1557,6 +1624,7 @@ class QuickMatchEngine:
 			eligibility_passed=eligibility_passed,
 			scorable_reqs=scorable_reqs,
 			pre_cap_grade=pre_cap_grade,
+			domain_gap_term=domain_gap_term,
 		)
 
 	def _build_assessment(
@@ -1575,6 +1643,7 @@ class QuickMatchEngine:
 		eligibility_passed: bool = True,
 		scorable_reqs: list[QuickRequirement] | None = None,
 		pre_cap_grade: str | None = None,
+		domain_gap_term: str | None = None,
 	) -> FitAssessment:
 		"""Assemble the final FitAssessment from scored dimensions."""
 		reqs_for_gaps = scorable_reqs if scorable_reqs is not None else inp.requirements
@@ -1618,6 +1687,7 @@ class QuickMatchEngine:
 			eligibility_gates=eligibility_gates or [],
 			eligibility_passed=eligibility_passed,
 			pre_cap_grade=pre_cap_grade,
+			domain_gap_term=domain_gap_term,
 		)
 
 	def _assemble_fit_assessment(
@@ -1641,6 +1711,7 @@ class QuickMatchEngine:
 		eligibility_gates: list[EligibilityGate] | None = None,
 		eligibility_passed: bool = True,
 		pre_cap_grade: str | None = None,
+		domain_gap_term: str | None = None,
 	) -> FitAssessment:
 		"""Construct the FitAssessment pydantic model."""
 		is_partial = mission_dim is None and culture_dim is None
@@ -1697,6 +1768,7 @@ class QuickMatchEngine:
 			),
 			eligibility_gates=eligibility_gates or [],
 			eligibility_passed=eligibility_passed,
+			domain_gap_term=domain_gap_term,
 			should_apply=score_to_verdict(overall_score),
 			action_items=action_items,
 			profile_hash=self.profile.profile_hash,
