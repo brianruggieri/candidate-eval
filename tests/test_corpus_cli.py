@@ -396,3 +396,144 @@ class TestCorpusPromote:
 		)
 		assert result.exit_code != 0
 		assert "grades entry not found" in result.output.lower() or "cleanup" in result.output.lower()
+
+
+# ---------------------------------------------------------------------------
+# Benchmark regression tier
+# ---------------------------------------------------------------------------
+
+import subprocess
+import sys
+
+
+def _make_fixture_profile(tmp_path: Path) -> Path:
+	"""Write a minimal CandidateProfile with no skills to a tmp data dir."""
+	from datetime import timezone
+	from claude_candidate.schemas.candidate_profile import CandidateProfile
+	data_dir = tmp_path / "data"
+	data_dir.mkdir()
+	now = datetime.now(tz=timezone.utc)
+	profile = CandidateProfile(
+		generated_at=now,
+		session_count=0,
+		date_range_start=now,
+		date_range_end=now,
+		manifest_hash="fixture",
+		skills=[],
+		primary_languages=[],
+		primary_domains=[],
+		problem_solving_patterns=[],
+		working_style_summary="",
+		projects=[],
+		communication_style="",
+		documentation_tendency="minimal",
+		extraction_notes="",
+		confidence_assessment="low",
+	)
+	(data_dir / "candidate_profile.json").write_text(profile.model_dump_json())
+	return data_dir
+
+
+def _make_regression_fixture(corpus_dir: Path, slug: str, stored_grade: str) -> None:
+	"""Write a posting + expected_grades entry to corpus_dir."""
+	postings_dir = corpus_dir / "postings"
+	postings_dir.mkdir(parents=True, exist_ok=True)
+	posting = {
+		"company": "Test Co",
+		"title": "Engineer",
+		"description": "Test posting",
+		"url": "https://testco.com/job/1",
+		"requirements": [
+			{"description": "Python", "skill_mapping": ["python"], "priority": "must_have", "years_experience": None, "education_level": None, "is_eligibility": False}
+		],
+	}
+	(postings_dir / f"{slug}.json").write_text(json.dumps(posting))
+	grades = {
+		slug: {
+			"grade": stored_grade,
+			"source": "auto",
+			"assessment_id": "test-aid",
+			"url_hash": "testhash",
+			"exported_at": datetime.now().isoformat(),
+		}
+	}
+	(corpus_dir / "expected_grades.json").write_text(json.dumps(grades))
+
+
+class TestBenchmarkRegressionTier:
+	def test_flags_grade_shifts(self, tmp_path):
+		corpus_dir = tmp_path / "regression_corpus"
+		data_dir = _make_fixture_profile(tmp_path)
+		# Stored grade is A+ but profile has no Python skill -> will score low
+		_make_regression_fixture(corpus_dir, "testco-engineer-2026-03-24", "A+")
+
+		result = subprocess.run(
+			[
+				sys.executable, "tests/golden_set/benchmark_accuracy.py",
+				"--tier", "regression",
+				"--corpus-dir", str(corpus_dir),
+				"--data-dir", str(data_dir),
+			],
+			capture_output=True, text=True
+		)
+		# Must exit cleanly
+		assert result.returncode == 0, result.stderr
+		# Parse JSON output and assert regression was flagged
+		import re
+		json_match = re.search(r'\{.*\}', result.stdout, re.DOTALL)
+		assert json_match, f"No JSON in output: {result.stdout}"
+		out = json.loads(json_match.group())
+		assert "accuracy" not in out
+		assert out["regressions"] >= 1, f"Expected at least 1 regression, got: {out}"
+		assert any(e["direction"] == "regression" for e in out["changed"])
+
+	def test_no_accuracy_key_in_output(self, tmp_path):
+		corpus_dir = tmp_path / "regression_corpus"
+		data_dir = _make_fixture_profile(tmp_path)
+		_make_regression_fixture(corpus_dir, "testco-engineer-2026-03-24", "B+")
+
+		result = subprocess.run(
+			[
+				sys.executable, "tests/golden_set/benchmark_accuracy.py",
+				"--tier", "regression",
+				"--corpus-dir", str(corpus_dir),
+				"--data-dir", str(data_dir),
+			],
+			capture_output=True, text=True
+		)
+		assert "\"accuracy\"" not in result.stdout
+
+	def test_regression_history_written_separately(self, tmp_path):
+		corpus_dir = tmp_path / "regression_corpus"
+		data_dir = _make_fixture_profile(tmp_path)
+		_make_regression_fixture(corpus_dir, "testco-engineer-2026-03-24", "B+")
+
+		subprocess.run(
+			[
+				sys.executable, "tests/golden_set/benchmark_accuracy.py",
+				"--tier", "regression",
+				"--corpus-dir", str(corpus_dir),
+				"--data-dir", str(data_dir),
+			],
+			capture_output=True, text=True
+		)
+		assert (corpus_dir / "benchmark_history.jsonl").exists()
+		# Golden set history NOT written
+		assert not (tmp_path / "golden_set" / "benchmark_history.jsonl").exists()
+
+	def test_empty_corpus_returns_stable(self, tmp_path):
+		corpus_dir = tmp_path / "regression_corpus"
+		corpus_dir.mkdir()
+		data_dir = _make_fixture_profile(tmp_path)
+
+		result = subprocess.run(
+			[
+				sys.executable, "tests/golden_set/benchmark_accuracy.py",
+				"--tier", "regression",
+				"--corpus-dir", str(corpus_dir),
+				"--data-dir", str(data_dir),
+			],
+			capture_output=True, text=True
+		)
+		assert result.returncode == 0
+		assert "0" in result.stdout  # total=0
