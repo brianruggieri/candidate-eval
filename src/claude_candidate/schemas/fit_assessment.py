@@ -44,6 +44,7 @@ class SkillMatchDetail(BaseModel):
 	evidence_source: EvidenceSource
 	confidence: float = Field(ge=0.0, le=1.0)
 	matched_skill: str | None = None  # Canonical skill name that resolved this requirement
+	match_type: str = "exact"  # "exact" | "fuzzy" | "none" — how skill was resolved
 
 
 def score_to_grade(score: float) -> str:

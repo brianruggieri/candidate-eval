@@ -800,7 +800,7 @@ def test_find_best_skill_related_fallback():
 		priority=RequirementPriority.MUST_HAVE,
 	)
 
-	match, status = _find_best_skill(req, profile, DepthLevel.APPLIED)
+	match, status, _mtype = _find_best_skill(req, profile, DepthLevel.APPLIED)
 	assert match is not None, "Should find anthropic as a related match"
 	assert status == "related"
 
@@ -838,9 +838,9 @@ def test_find_skill_match_canonicalizes_hyphens():
 	)
 
 	# These should all resolve to the same canonical skill
-	assert _find_skill_match("ci-cd", profile) is not None
-	assert _find_skill_match("ci/cd", profile) is not None
-	assert _find_skill_match("continuous-integration", profile) is not None
+	assert _find_skill_match("ci-cd", profile)[0] is not None
+	assert _find_skill_match("ci/cd", profile)[0] is not None
+	assert _find_skill_match("continuous-integration", profile)[0] is not None
 
 
 def test_score_requirement_uses_raw_confidence_no_floor():
@@ -1938,3 +1938,91 @@ def test_conflicting_confidence_is_072():
 		resume_context="Listed on resume",
 	)
 	assert conf == 0.72, f"Expected 0.72, got {conf}"
+
+
+# ---------------------------------------------------------------------------
+# TestMatchType
+# ---------------------------------------------------------------------------
+
+
+class TestMatchType:
+	"""match_type correctly classifies exact vs fuzzy skill resolution."""
+
+	def _make_profile(self, skills=None):
+		from datetime import datetime
+		from claude_candidate.schemas.merged_profile import MergedEvidenceProfile
+		return MergedEvidenceProfile(
+			skills=skills or [],
+			patterns=[],
+			projects=[],
+			roles=[],
+			corroborated_skill_count=0,
+			resume_only_skill_count=0,
+			sessions_only_skill_count=len(skills or []),
+			discovery_skills=[],
+			profile_hash="test",
+			resume_hash="test",
+			candidate_profile_hash="test",
+			merged_at=datetime.now(),
+		)
+
+	def _profile_with(self, skill_name: str, source="corroborated") -> "MergedEvidenceProfile":
+		from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+		return self._make_profile(skills=[MergedSkillEvidence(
+			name=skill_name,
+			source=EvidenceSource[source.upper()],
+			effective_depth=DepthLevel.APPLIED,
+			confidence=0.85,
+		)])
+
+	def _req(self, skill: str):
+		from claude_candidate.schemas.job_requirements import QuickRequirement, RequirementPriority
+		return QuickRequirement(
+			description=f"Experience with {skill}",
+			skill_mapping=[skill],
+			priority=RequirementPriority.STRONG_PREFERENCE,
+		)
+
+	def test_exact_name_match_returns_exact(self):
+		"""Direct name match → match_type='exact'."""
+		from claude_candidate.quick_match import _find_best_skill
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+		profile = self._profile_with("python")
+		req = self._req("python")
+		match, status, mtype = _find_best_skill(req, profile, DepthLevel.USED)
+		assert match is not None
+		assert mtype == "exact"
+
+	def test_taxonomy_alias_returns_exact(self):
+		"""Taxonomy alias resolution (ci/cd → ci-cd) → match_type='exact'."""
+		from claude_candidate.quick_match import _find_best_skill
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+		profile = self._profile_with("ci-cd")
+		req = self._req("ci/cd")  # alias in taxonomy
+		match, status, mtype = _find_best_skill(req, profile, DepthLevel.USED)
+		assert match is not None
+		assert mtype == "exact"
+
+	def test_no_evidence_returns_none_type(self):
+		"""Unmatched requirement → match_type='none'."""
+		from claude_candidate.quick_match import _find_best_skill
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+		profile = self._profile_with("python")
+		req = self._req("cobol")
+		match, status, mtype = _find_best_skill(req, profile, DepthLevel.USED)
+		assert match is None
+		assert mtype == "none"
+		assert status == "no_evidence"
+
+	def test_skill_match_detail_has_match_type_field(self):
+		"""SkillMatchDetail serialises match_type in the API-facing dict."""
+		from claude_candidate.quick_match import _find_best_skill, _build_skill_detail
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+		profile = self._profile_with("python")
+		req = self._req("python")
+		match, status, mtype = _find_best_skill(req, profile, DepthLevel.USED)
+		detail = _build_skill_detail(req, match, status, mtype)
+		assert detail.match_type == "exact"
+		d = detail.model_dump()
+		assert "match_type" in d

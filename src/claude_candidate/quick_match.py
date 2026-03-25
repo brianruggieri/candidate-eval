@@ -890,24 +890,37 @@ def _infer_virtual_skill(
 def _find_skill_match(
 	skill_name: str,
 	profile: MergedEvidenceProfile,
-) -> MergedSkillEvidence | None:
-	"""Find a skill in the merged profile via exact, fuzzy, pattern, or inference."""
+) -> tuple[MergedSkillEvidence | None, str]:
+	"""Find a skill in the merged profile via exact, fuzzy, pattern, or inference.
+
+	Returns (skill, match_type) where match_type is:
+	  "exact"  — canonical name or taxonomy alias resolved to an exact profile hit
+	  "fuzzy"  — substring, pattern, or inferred virtual skill
+	  "none"   — no match found
+	"""
 	taxonomy = _get_taxonomy()
 	# Canonicalize through taxonomy first (handles aliases like ci/cd -> ci-cd)
 	canonical = taxonomy.match(skill_name)
 	if canonical:
 		found = _find_exact_match(canonical.lower(), profile)
 		if found:
-			return found
+			return found, "exact"
 
 	# Fallback to original normalized form
 	normalized = skill_name.lower().strip()
-	return (
-		_find_exact_match(normalized, profile)
-		or _find_fuzzy_match(normalized, profile)
-		or _find_pattern_match(normalized, profile)
-		or _infer_virtual_skill(skill_name, profile)
-	)
+	exact = _find_exact_match(normalized, profile)
+	if exact:
+		return exact, "exact"
+	fuzzy = _find_fuzzy_match(normalized, profile)
+	if fuzzy:
+		return fuzzy, "fuzzy"
+	pattern = _find_pattern_match(normalized, profile)
+	if pattern:
+		return pattern, "fuzzy"
+	inferred = _infer_virtual_skill(skill_name, profile)
+	if inferred:
+		return inferred, "fuzzy"
+	return None, "none"
 
 
 def _best_available_depth(skill: MergedSkillEvidence) -> DepthLevel:
@@ -1013,20 +1026,26 @@ def _find_best_skill(
 	req: QuickRequirement,
 	profile: MergedEvidenceProfile,
 	depth_floor: DepthLevel,
-) -> tuple[MergedSkillEvidence | None, str]:
-	"""Find the best matching skill for a requirement across all mappings."""
+) -> tuple[MergedSkillEvidence | None, str, str]:
+	"""Find the best matching skill for a requirement across all mappings.
+
+	Returns (best_match, best_status, match_type).
+	match_type is "exact", "fuzzy", or "none".
+	"""
 	taxonomy = _get_taxonomy()
 	best_match: MergedSkillEvidence | None = None
 	best_status = "no_evidence"
+	best_match_type = "none"
 
 	for skill_name in req.skill_mapping:
 		# Try direct match (exact, fuzzy, pattern)
-		found = _find_skill_match(skill_name, profile)
+		found, mtype = _find_skill_match(skill_name, profile)
 		if found:
 			status = _assess_depth_match(found, depth_floor, profile)
 			if STATUS_RANK.get(status, 0) > STATUS_RANK.get(best_status, 0):
 				best_match = found
 				best_status = status
+				best_match_type = mtype
 			continue
 
 		# Try related skill fallback
@@ -1039,6 +1058,7 @@ def _find_best_skill(
 				if STATUS_RANK.get("related", 0) > STATUS_RANK.get(best_status, 0):
 					best_match = profile_skill
 					best_status = "related"
+					best_match_type = "fuzzy"
 				break  # Take first related match
 
 	# Years experience boost: if requirement specifies years and skill has duration data
@@ -1065,8 +1085,9 @@ def _find_best_skill(
 				effective_depth=DepthLevel.APPLIED,
 				confidence=0.5,
 			)
+			best_match_type = "fuzzy"
 
-	return best_match, best_status
+	return best_match, best_status, best_match_type
 
 
 
@@ -1104,6 +1125,7 @@ def _build_skill_detail(
 	req: QuickRequirement,
 	best_match: MergedSkillEvidence | None,
 	best_status: str,
+	match_type: str = "exact",
 ) -> SkillMatchDetail:
 	"""Build a SkillMatchDetail for one requirement."""
 	return SkillMatchDetail(
@@ -1114,6 +1136,7 @@ def _build_skill_detail(
 		evidence_source=(best_match.source if best_match else EvidenceSource.RESUME_ONLY),
 		confidence=best_match.confidence if best_match else 0.0,
 		matched_skill=best_match.name if best_match else None,
+		match_type=match_type,
 	)
 
 
@@ -1711,7 +1734,7 @@ class QuickMatchEngine:
 				weight *= effective_discount
 
 			total_weight += weight
-			best_match, best_status = _find_best_skill(
+			best_match, best_status, best_match_type = _find_best_skill(
 				req,
 				self.profile,
 				depth_floor,
@@ -1722,7 +1745,7 @@ class QuickMatchEngine:
 			if len(req.skill_mapping) > 1:
 				all_scores = []
 				for skill_name in req.skill_mapping:
-					found = _find_skill_match(skill_name, self.profile)
+					found, _mtype = _find_skill_match(skill_name, self.profile)
 					if found:
 						status = _assess_depth_match(found, depth_floor, self.profile)
 						conf = found.confidence
@@ -1734,7 +1757,7 @@ class QuickMatchEngine:
 				req_score = max(req_score, avg_score)
 
 			weighted_score += req_score * weight
-			details.append(_build_skill_detail(req, best_match, best_status))
+			details.append(_build_skill_detail(req, best_match, best_status, best_match_type))
 
 		score = weighted_score / total_weight if total_weight > 0 else 0.0
 		return _build_skill_dimension(score, details), details
