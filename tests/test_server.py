@@ -1009,7 +1009,8 @@ class TestExtractPostingEndpoint:
 		with (
 			patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
 			patch(
-				"claude_candidate.claude_cli.call_claude", return_value=SAMPLE_CLAUDE_JSON
+				"claude_candidate.claude_cli.call_claude",
+				return_value=SAMPLE_CLAUDE_JSON_WITH_REQUIREMENTS,
 			) as mock_claude,
 		):
 			await client.post("/api/extract-posting", json=SAMPLE_EXTRACT_PAYLOAD)
@@ -1278,7 +1279,8 @@ class TestUrlNormalization:
 		with (
 			patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
 			patch(
-				"claude_candidate.claude_cli.call_claude", return_value=SAMPLE_CLAUDE_JSON
+				"claude_candidate.claude_cli.call_claude",
+				return_value=SAMPLE_CLAUDE_JSON_WITH_REQUIREMENTS,
 			) as mock_claude,
 		):
 			r1 = await client.post(
@@ -1307,7 +1309,8 @@ class TestUrlNormalization:
 		with (
 			patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
 			patch(
-				"claude_candidate.claude_cli.call_claude", return_value=SAMPLE_CLAUDE_JSON
+				"claude_candidate.claude_cli.call_claude",
+				return_value=SAMPLE_CLAUDE_JSON_WITH_REQUIREMENTS,
 			) as mock_claude,
 		):
 			r1 = await client.post(

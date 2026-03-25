@@ -400,7 +400,17 @@ async function initialize() {
 	const fresh = stored && stored.extractedAt && (Date.now() - stored.extractedAt) < POSTING_TTL_MS;
 
 	// Cache only valid if it matches the current tab's URL
-	const normalizeUrl = (u) => (u || '').replace(/\?.*$/, '').replace(/\/+$/, '');
+	// Strip tracking params (aligned with server-side _normalize_cache_url)
+	const TRACKING_PARAMS = /^(utm_\w+|trk|eBP|trackingId|tracking_id|refId|fbclid|gclid|mc_[ce]id|_hsenc|_hsmi)$/i;
+	const normalizeUrl = (u) => {
+		try {
+			const url = new URL(u || '');
+			[...url.searchParams.keys()].forEach(k => { if (TRACKING_PARAMS.test(k)) url.searchParams.delete(k); });
+			url.searchParams.sort();
+			url.hash = '';
+			return url.origin + url.pathname.replace(/\/+$/, '') + url.search;
+		} catch { return (u || '').replace(/[?#].*$/, '').replace(/\/+$/, ''); }
+	};
 	const cacheMatchesTab = stored && normalizeUrl(stored.url) === normalizeUrl(currentTabUrl);
 
 	if (fresh && cacheMatchesTab && lastAssessment && lastAssessment.url === stored.url) {

@@ -107,13 +107,22 @@ def _normalize_cache_url(url: str) -> str:
 
 	Job boards and email links append session-specific params that change
 	per visit. The path (and any non-tracking params) is the canonical identifier.
+	Fragments are always stripped; remaining params are sorted for stable hashing.
 	"""
 	parsed = urlparse(url)
 	if not parsed.query:
-		return url
+		# Still strip fragment for consistency
+		return urlunparse(parsed._replace(fragment="")) if parsed.fragment else url
 	params = parse_qs(parsed.query, keep_blank_values=True)
 	filtered = {k: v for k, v in params.items() if not _TRACKING_PARAMS.match(k)}
-	new_query = urlencode(filtered, doseq=True) if filtered else ""
+	if filtered:
+		sorted_items: list[tuple[str, str]] = []
+		for key in sorted(filtered.keys()):
+			for value in sorted(filtered[key]):
+				sorted_items.append((key, value))
+		new_query = urlencode(sorted_items)
+	else:
+		new_query = ""
 	return urlunparse(parsed._replace(query=new_query, fragment=""))
 
 
@@ -141,9 +150,11 @@ _EDUCATION_PATTERNS: list[tuple[str, re.Pattern]] = [
 def _auto_tag_education(requirements: list[dict]) -> None:
 	"""Set education_level on requirements that mention degrees but weren't tagged by extraction."""
 	for req in requirements:
+		if not isinstance(req, dict):
+			continue
 		if req.get("education_level"):
 			continue  # already tagged
-		desc = req.get("description", "")
+		desc = str(req.get("description", ""))
 		for level, pattern in _EDUCATION_PATTERNS:
 			if pattern.search(desc):
 				req["education_level"] = level
@@ -877,6 +888,17 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 				detail="Extraction failed: invalid response from Claude",
 			) from exc
 
+		if not isinstance(parsed, dict):
+			logger.warning(
+				"extract-posting: non-object JSON from Claude for %s (type=%s)",
+				cache_url[:80],
+				type(parsed).__name__,
+			)
+			raise HTTPException(
+				status_code=502,
+				detail="Extraction failed: invalid response from Claude",
+			)
+
 		# Normalize skill mappings through taxonomy + auto-tag education
 		if "requirements" in parsed and isinstance(parsed["requirements"], list):
 			from claude_candidate.requirement_parser import normalize_skill_mappings
@@ -884,12 +906,25 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 			normalize_skill_mappings(parsed["requirements"])
 			_auto_tag_education(parsed["requirements"])
 
-		req_count = len(parsed.get("requirements", []) or [])
-		if req_count == 0:
-			logger.warning("extract-posting: Claude returned 0 requirements for %s", cache_url[:80])
+		if "requirements" not in parsed:
+			logger.info(
+				"extract-posting: Claude response missing requirements field for %s",
+				cache_url[:80],
+			)
+		elif not isinstance(parsed["requirements"], list):
+			logger.warning(
+				"extract-posting: Claude returned non-list requirements for %s",
+				cache_url[:80],
+			)
+		elif len(parsed["requirements"]) == 0:
+			logger.warning(
+				"extract-posting: Claude returned 0 requirements for %s", cache_url[:80]
+			)
 		else:
 			logger.info(
-				"extract-posting: extracted %d requirements for %s", req_count, cache_url[:80]
+				"extract-posting: extracted %d requirements for %s",
+				len(parsed["requirements"]),
+				cache_url[:80],
 			)
 
 		# Coerce requirements to list[dict] or None to prevent Pydantic ValidationError
@@ -904,7 +939,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 			company=parsed.get("company") or "",
 			title=parsed.get("title") or "",
 			description=parsed.get("description") or "",
-			url=req.url,
+			url=cache_url,
 			source=source,
 			location=parsed.get("location"),
 			seniority=parsed.get("seniority"),
@@ -913,7 +948,14 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 			requirements=raw_reqs,
 		)
 		result_dict = result.model_dump()
-		await store.cache_posting(url_hash, cache_url, result_dict)
+		# Don't cache extractions with 0 requirements — allows immediate retry
+		if raw_reqs:
+			await store.cache_posting(url_hash, cache_url, result_dict)
+		else:
+			logger.info(
+				"extract-posting: skipping cache write (0 requirements) for %s",
+				cache_url[:80],
+			)
 		return result_dict
 
 	return app
