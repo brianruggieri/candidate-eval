@@ -270,3 +270,35 @@ class TestCorpusList:
 		result = runner.invoke(corpus, ["list", "--corpus-dir", str(corpus_dir)])
 		assert result.exit_code == 0
 		assert "0 posting" in result.output or result.output.strip() == "" or "No postings" in result.output
+
+
+# ---------------------------------------------------------------------------
+# Remove command
+# ---------------------------------------------------------------------------
+
+class TestCorpusRemove:
+	def test_removes_posting_and_grade_entry(self, store, corpus_dir, db_path):
+		_seed_posting_and_assessment(store, "https://stripe.com/rm/1", "Stripe", "SWE", "B+")
+		runner = CliRunner()
+		runner.invoke(corpus, ["export", "--db", str(db_path), "--corpus-dir", str(corpus_dir)])
+		slug = list(load_regression_grades(corpus_dir).keys())[0]
+		result = runner.invoke(corpus, ["remove", slug, "--corpus-dir", str(corpus_dir)])
+		assert result.exit_code == 0
+		assert not (corpus_dir / "postings" / f"{slug}.json").exists()
+		assert slug not in load_regression_grades(corpus_dir)
+
+	def test_partial_state_removes_what_exists(self, corpus_dir):
+		# grades entry exists but no file
+		grades = {"ghost-2026-03-24": {"grade": "B", "source": "auto", "assessment_id": "x", "url_hash": "y", "exported_at": "2026-03-24T00:00:00"}}
+		save_regression_grades(corpus_dir, grades)
+		runner = CliRunner()
+		result = runner.invoke(corpus, ["remove", "ghost-2026-03-24", "--corpus-dir", str(corpus_dir)])
+		assert result.exit_code == 0
+		assert "ghost-2026-03-24" not in load_regression_grades(corpus_dir)
+		assert "warning" in result.output.lower() or "missing" in result.output.lower()
+
+	def test_missing_is_noop(self, corpus_dir):
+		runner = CliRunner()
+		result = runner.invoke(corpus, ["remove", "nonexistent-2026-03-24", "--corpus-dir", str(corpus_dir)])
+		assert result.exit_code == 0
+		assert "not found" in result.output.lower()
