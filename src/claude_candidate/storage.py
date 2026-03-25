@@ -393,8 +393,10 @@ class AssessmentStore:
 		params: list[Any] = []
 		where = ""
 		if since is not None:
-			where = "WHERE extracted_at > ?"
-			params.append(since.isoformat())
+			# Use julianday() to safely compare against SQLite's datetime('now') format
+			# (stored as "YYYY-MM-DD HH:MM:SS"), avoiding ISO-T-separator issues.
+			where = "WHERE julianday(extracted_at) > julianday(?)"
+			params.append(since.strftime("%Y-%m-%d %H:%M:%S"))
 		order = "ORDER BY extracted_at DESC"
 		lim = ""
 		if limit is not None:

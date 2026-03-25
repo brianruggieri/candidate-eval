@@ -139,6 +139,8 @@ def run_regression(corpus_dir: Path, profile: MergedEvidenceProfile) -> dict:
 	grades_path = corpus_dir / "expected_grades.json"
 	history_path = corpus_dir / "benchmark_history.jsonl"
 
+	corpus_dir.mkdir(parents=True, exist_ok=True)
+
 	if not grades_path.exists():
 		print("=== REGRESSION BENCHMARK (0 postings) ===")
 		print("No regression_corpus/expected_grades.json found.")
@@ -178,11 +180,15 @@ def run_regression(corpus_dir: Path, profile: MergedEvidenceProfile) -> dict:
 		stored_grade = expected[slug]["grade"]
 		current_grade = assessment.overall_grade
 		try:
-			dist = abs(GRADE_ORDER.index(current_grade) - GRADE_ORDER.index(stored_grade))
+			current_idx = GRADE_ORDER.index(current_grade)
+			stored_idx = GRADE_ORDER.index(stored_grade)
+			dist = abs(current_idx - stored_idx)
 		except ValueError:
+			current_idx = None
+			stored_idx = None
 			dist = 99
-		if dist >= 1:
-			direction = "improvement" if GRADE_ORDER.index(current_grade) < GRADE_ORDER.index(stored_grade) else "regression"
+		if dist >= 1 and current_idx is not None and stored_idx is not None:
+			direction = "improvement" if current_idx < stored_idx else "regression"
 			changed.append({"posting_id": slug, "stored_grade": stored_grade, "current_grade": current_grade, "direction": direction})
 
 	stable = total - len(changed)

@@ -1993,9 +1993,13 @@ def site_render(company: str | None, output_dir: str, db: str | None) -> None:
 		)
 
 
-# Register corpus subcommand group
-from claude_candidate.corpus_cli import corpus as _corpus_group
-main.add_command(_corpus_group, name="corpus")
+# Register corpus subcommand group (deferred import avoids E402 lint warning)
+def _register_corpus_commands() -> None:
+	from claude_candidate.corpus_cli import corpus as _corpus_group
+	main.add_command(_corpus_group, name="corpus")
+
+
+_register_corpus_commands()
 
 
 if __name__ == "__main__":

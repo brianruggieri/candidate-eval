@@ -353,19 +353,21 @@ def _detect_domain_gap(
 	Checks candidate skills, project names (word-split), and role domains.
 	Returns the keyword string if a gap is detected, None otherwise.
 	"""
-	candidate_terms: set[str] = set()
+	# Build a single text blob for substring matching — handles both single-word
+	# and multi-word phrase keywords (e.g. "real estate") correctly.
+	candidate_parts: list[str] = []
 	for skill in profile.skills:
-		candidate_terms.add(skill.name.lower())
+		candidate_parts.append(skill.name.lower())
 	for project in (profile.projects or []):
-		for word in project.project_name.lower().split():
-			candidate_terms.add(word)
+		candidate_parts.append(project.project_name.lower())
 	for role in (profile.roles or []):
 		if role.domain:
-			candidate_terms.add(role.domain.lower())
+			candidate_parts.append(role.domain.lower())
+	candidate_text = " ".join(candidate_parts)
 
 	for kw in sorted(DOMAIN_KEYWORDS):  # sorted for deterministic output
 		count = sum(1 for r in requirements if kw in r.description.lower())
-		if count >= 3 and kw not in candidate_terms:
+		if count >= 3 and kw not in candidate_text:
 			return kw
 	return None
 
@@ -1602,8 +1604,8 @@ class QuickMatchEngine:
 			if _GRADE_ORDER.index(candidate_grade) < _GRADE_ORDER.index("B+"):  # grade better than B+
 				if pre_cap_grade is None:  # don't overwrite eligibility pre_cap_grade
 					pre_cap_grade = candidate_grade
-				# Drop score to top of the B+ band (0.80)
-				overall_score = min(overall_score, 0.799)
+				# Drop score to top of B+ band (just below A- threshold of 0.85)
+				overall_score = min(overall_score, 0.849)
 
 		partial_percentage = round(overall_score * 100, 1)
 

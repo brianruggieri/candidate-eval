@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 from claude_candidate.schemas.merged_profile import EvidenceSource
 
@@ -44,7 +44,7 @@ class SkillMatchDetail(BaseModel):
 	evidence_source: EvidenceSource
 	confidence: float = Field(ge=0.0, le=1.0)
 	matched_skill: str | None = None  # Canonical skill name that resolved this requirement
-	match_type: str = "exact"  # "exact" | "fuzzy" | "none" — how skill was resolved
+	match_type: Literal["exact", "fuzzy", "none"] = "exact"  # how skill was resolved
 
 
 def score_to_grade(score: float) -> str:

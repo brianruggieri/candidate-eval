@@ -2107,6 +2107,36 @@ class TestDomainPenalty:
 
 	def test_domain_cap_applied_to_high_scoring_assessment(self):
 		"""Assessment that would score A gets capped to B+ when domain gap detected."""
-		from claude_candidate.quick_match import _detect_domain_gap, DOMAIN_KEYWORDS
+		from claude_candidate.quick_match import QuickMatchEngine, _detect_domain_gap, DOMAIN_KEYWORDS
+		from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+
 		assert "music" in DOMAIN_KEYWORDS
 		assert "baseball" in DOMAIN_KEYWORDS
+
+		# Build 3 requirements that reference the 'music' domain keyword
+		reqs = self._reqs_with_domain("music", 3)
+
+		# Profile with strong python evidence (would otherwise score high)
+		profile = self._make_profile(skills=[
+			MergedSkillEvidence(
+				name="python",
+				source=EvidenceSource.SESSIONS_ONLY,
+				effective_depth=DepthLevel.EXPERT,
+				confidence=1.0,
+				session_frequency=100,
+			),
+		])
+
+		# Confirm domain-gap detector fires
+		assert _detect_domain_gap(reqs, profile) == "music"
+
+		# Full assessment via engine — should be capped at B+
+		engine = QuickMatchEngine(profile)
+		assessment = engine.assess(
+			requirements=reqs,
+			company="Music AI Corp",
+			title="Senior Music ML Engineer",
+		)
+		assert assessment.domain_gap_term == "music"
+		assert assessment.overall_grade == "B+"

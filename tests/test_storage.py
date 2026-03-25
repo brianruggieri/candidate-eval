@@ -390,9 +390,24 @@ class TestListCachedPostings:
 		assert len(rows) == 3
 
 	def test_returns_newest_first(self, store: AssessmentStore):
+		from datetime import datetime, timedelta
+
 		run(store.cache_posting("hash1", "https://example.com/1", {"company": "First"}))
 		run(store.cache_posting("hash2", "https://example.com/2", {"company": "Second"}))
+
+		# Backdate hash1 so hash2 is definitively the newest
+		older_ts = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
+
+		async def _backdate():
+			await store._conn.execute(
+				"UPDATE posting_cache SET extracted_at = ? WHERE url_hash = 'hash1'",
+				(older_ts,),
+			)
+			await store._conn.commit()
+
+		run(_backdate())
+
 		rows = run(store.list_cached_postings())
-		# Both inserted, order by extracted_at DESC — second insert should be first
-		assert rows[0]["url_hash"] in ("hash1", "hash2")  # order depends on timing; just assert both present
 		assert len(rows) == 2
+		assert rows[0]["url_hash"] == "hash2"
+		assert rows[1]["url_hash"] == "hash1"

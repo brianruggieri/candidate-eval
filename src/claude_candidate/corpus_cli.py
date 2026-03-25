@@ -83,6 +83,7 @@ def export_cmd(db_path: str | None, since_days: int | None, limit: int | None, c
 	db = Path(db_path) if db_path else data_dir / "assessments.db"
 
 	loop = asyncio.new_event_loop()
+	store = None
 	try:
 		store = AssessmentStore(db)
 		loop.run_until_complete(store.initialize())
@@ -95,7 +96,8 @@ def export_cmd(db_path: str | None, since_days: int | None, limit: int | None, c
 		postings = loop.run_until_complete(store.list_cached_postings(since=since_dt, limit=limit))
 		assessments = loop.run_until_complete(store.list_assessments(limit=10000))
 	finally:
-		loop.run_until_complete(store.close())
+		if store is not None:
+			loop.run_until_complete(store.close())
 		loop.close()
 
 	# Build url → latest assessment map
