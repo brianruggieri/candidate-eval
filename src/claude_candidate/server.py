@@ -810,19 +810,23 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 
 		cached = await store.get_cached_posting(url_hash)
 		if cached is not None:
+			logger.info("extract-posting cache hit: %s", cache_url[:80])
 			return cached
 
 		if not _claude_cli.check_claude_available():
+			logger.warning("extract-posting: Claude CLI not available")
 			raise HTTPException(status_code=503, detail="Claude CLI not available for extraction")
 
 		import asyncio
 
+		logger.info("extract-posting: extracting %s (%d chars)", cache_url[:80], len(req.text))
 		prompt = _build_extraction_prompt(req.title, req.text)
 		try:
 			raw = await asyncio.get_event_loop().run_in_executor(
-				None, lambda: _claude_cli.call_claude(prompt, timeout=90)
+				None, lambda: _claude_cli.call_claude(prompt, timeout=120)
 			)
 		except _claude_cli.ClaudeCLIError as exc:
+			logger.warning("extract-posting: Claude CLI error for %s: %s", cache_url[:80], exc)
 			raise HTTPException(status_code=503, detail=f"Claude CLI error: {exc}") from exc
 
 		try:
@@ -834,6 +838,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 			cleaned = cleaned.strip()
 			parsed = json.loads(cleaned)
 		except (json.JSONDecodeError, ValueError) as exc:
+			logger.warning("extract-posting: invalid JSON from Claude for %s", cache_url[:80])
 			raise HTTPException(
 				status_code=502,
 				detail="Extraction failed: invalid response from Claude",
@@ -844,6 +849,14 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 			from claude_candidate.requirement_parser import normalize_skill_mappings
 
 			normalize_skill_mappings(parsed["requirements"])
+
+		req_count = len(parsed.get("requirements", []) or [])
+		if req_count == 0:
+			logger.warning("extract-posting: Claude returned 0 requirements for %s", cache_url[:80])
+		else:
+			logger.info(
+				"extract-posting: extracted %d requirements for %s", req_count, cache_url[:80]
+			)
 
 		source = _infer_source(req.url)
 		result = PostingExtraction(
