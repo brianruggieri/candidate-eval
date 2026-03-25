@@ -790,7 +790,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 		prompt = _build_extraction_prompt(req.title, req.text)
 		try:
 			raw = await asyncio.get_event_loop().run_in_executor(
-				None, lambda: _claude_cli.call_claude(prompt, timeout=30)
+				None, lambda: _claude_cli.call_claude(prompt, timeout=90)
 			)
 		except _claude_cli.ClaudeCLIError as exc:
 			raise HTTPException(status_code=503, detail=f"Claude CLI error: {exc}") from exc
