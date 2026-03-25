@@ -1165,6 +1165,20 @@ def _find_best_skill(
 					best_match_type = "fuzzy"
 				break  # Take first related match
 
+	# Resume corroboration check for programming languages: sessions-only language
+	# skills that match as "exceeds" are suspicious — mentioning a language in
+	# sessions (e.g. discussing Rust pros/cons) doesn't mean proficiency. If the
+	# candidate truly knew the language, it would be on their resume. Cap at
+	# "partial_match" for unresumé'd languages specifically.
+	_LANGUAGE_CATEGORY = "language"
+	if (
+		best_match
+		and best_match.source == EvidenceSource.SESSIONS_ONLY
+		and best_match.category == _LANGUAGE_CATEGORY
+		and STATUS_RANK.get(best_status, 0) > STATUS_RANK.get("partial_match", 0)
+	):
+		best_status = "partial_match"
+
 	# Years experience boost: if requirement specifies years and skill has duration data
 	if req.years_experience and best_match and best_match.resume_duration:
 		candidate_years = _parse_duration_years(best_match.resume_duration)
