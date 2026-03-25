@@ -300,7 +300,7 @@ body {
 .verdict-label {
 	display: block; font-size: 10px; font-weight: 600;
 	text-transform: uppercase; letter-spacing: 0.06em;
-	color: #9ca3af; margin-bottom: 3px;
+	color: #9ca3af; margin-bottom: 3px; text-align: center;
 }
 #verdict-text {
 	display: block; font-size: 13px; font-weight: 600;
@@ -320,9 +320,9 @@ body {
 
 /* ── Button row ───────────────────────────────────────────────────── */
 .btn-row {
-	display: flex; gap: 8px; padding: 10px 16px 14px; justify-content: flex-end;
-	align-items: center;
+	display: flex; gap: 8px; padding: 10px 16px 14px; align-items: center;
 }
+#btn-shortlist { flex: 1; }
 
 /* ── Signal bars — absolute overlay on grade badge ───────────────── */
 #results-hero { position: relative; }
