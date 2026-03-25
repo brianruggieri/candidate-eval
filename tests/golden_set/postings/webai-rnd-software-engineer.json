@@ -19,7 +19,7 @@
       "education_level": "bachelor"
     },
     {
-      "description": "5+ years prototype development experience in R&D or high-growth environments",
+      "description": "5+ years prototype development experience in embedded R&D or high-growth environments",
       "skill_mapping": [
         "prototyping",
         "software-engineering"
@@ -50,7 +50,6 @@
     {
       "description": "Proficiency in C/C++",
       "skill_mapping": [
-        "c",
         "c"
       ],
       "priority": "must_have",
@@ -88,7 +87,7 @@
       "education_level": null
     },
     {
-      "description": "Design, build, and test AI/ML prototypes for emerging technologies",
+      "description": "Design, build, and test embedded AI/ML prototypes for emerging technologies",
       "skill_mapping": [
         "machine-learning",
         "prototyping"
@@ -108,7 +107,7 @@
       "education_level": null
     },
     {
-      "description": "Distributed AI systems or edge computing knowledge",
+      "description": "Distributed embedded AI systems or edge computing knowledge",
       "skill_mapping": [
         "distributed-systems",
         "machine-learning"
