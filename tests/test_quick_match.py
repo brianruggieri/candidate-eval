@@ -1973,3 +1973,18 @@ def test_assess_accepts_elapsed_kwarg(minimal_engine):
 			elapsed=5.0,
 		)
 	assert assessment.time_to_assess_seconds == pytest.approx(5.0, abs=0.01)
+
+
+def test_conflicting_confidence_is_072():
+	"""CONFLICTING evidence source should return 0.72 confidence, not 0.40.
+
+	Both sources have the skill. Uncertainty is about depth level only,
+	which is handled in compute_effective_depth, not here.
+	"""
+	from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
+	conf = MergedSkillEvidence.compute_confidence(
+		EvidenceSource.CONFLICTING,
+		session_frequency=5,
+		resume_context="Listed on resume",
+	)
+	assert conf == 0.72, f"Expected 0.72, got {conf}"

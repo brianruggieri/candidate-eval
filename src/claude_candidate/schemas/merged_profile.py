@@ -114,7 +114,7 @@ class MergedSkillEvidence(BaseModel):
 		- sessions_only + low frequency → 0.4–0.6
 		- resume_only with specific context → 0.4–0.6
 		- resume_only with vague context → 0.2–0.4
-		- conflicting → 0.3–0.5
+		- conflicting → 0.72 (both sources present; depth uncertainty handled separately)
 		"""
 		freq = session_frequency or 0
 
@@ -134,8 +134,8 @@ class MergedSkillEvidence(BaseModel):
 			# Depth accuracy is handled by the depth matching system, not
 			# confidence. No penalty for skills not demonstrated in sessions.
 			return 0.85
-		else:  # CONFLICTING
-			return 0.4
+		else:  # CONFLICTING — both sources have the skill; depth reconciled in compute_effective_depth
+			return 0.72
 
 
 class MergedEvidenceProfile(BaseModel):
