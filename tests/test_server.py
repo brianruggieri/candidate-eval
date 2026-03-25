@@ -1260,3 +1260,73 @@ class TestAssessRequiresRequirements:
 					},
 				)
 				assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# URL normalization for cache keys
+# ---------------------------------------------------------------------------
+
+
+class TestUrlNormalization:
+	"""Tracking params should not defeat the posting cache."""
+
+	async def test_linkedin_tracking_params_normalized(self, client: AsyncClient):
+		"""Same LinkedIn job with different tracking params should hit cache."""
+		url_base = "https://www.linkedin.com/jobs/view/4385180576/"
+		url_with_params = url_base + "?trk=eml-email_job_alert&eBP=abc123&trackingId=xyz"
+
+		with (
+			patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
+			patch(
+				"claude_candidate.claude_cli.call_claude", return_value=SAMPLE_CLAUDE_JSON
+			) as mock_claude,
+		):
+			r1 = await client.post(
+				"/api/extract-posting",
+				json={"url": url_base, "title": "Test", "text": "Senior Engineer role."},
+			)
+			assert r1.status_code == 200
+
+			r2 = await client.post(
+				"/api/extract-posting",
+				json={
+					"url": url_with_params,
+					"title": "Test",
+					"text": "Senior Engineer role.",
+				},
+			)
+			assert r2.status_code == 200
+			assert r2.json()["company"] == "Acme Corp"
+			mock_claude.assert_called_once()
+
+	async def test_utm_params_stripped_from_any_url(self, client: AsyncClient):
+		"""UTM params should be stripped from non-LinkedIn URLs too."""
+		url_base = "https://greenhouse.io/jobs/senior-eng"
+		url_with_utm = url_base + "?utm_source=email&utm_medium=social&ref=abc"
+
+		with (
+			patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
+			patch(
+				"claude_candidate.claude_cli.call_claude", return_value=SAMPLE_CLAUDE_JSON
+			) as mock_claude,
+		):
+			r1 = await client.post(
+				"/api/extract-posting",
+				json={"url": url_base, "title": "Test", "text": "Some job"},
+			)
+			assert r1.status_code == 200
+
+			r2 = await client.post(
+				"/api/extract-posting",
+				json={"url": url_with_utm, "title": "Test", "text": "Some job"},
+			)
+			assert r2.status_code == 200
+			mock_claude.assert_called_once()
+
+	async def test_non_tracking_params_preserved(self, client: AsyncClient):
+		"""Non-tracking query params (like job IDs) should be preserved."""
+		from claude_candidate.server import _normalize_cache_url
+
+		url = "https://boards.greenhouse.io/company/jobs/123?gh_jid=456"
+		normalized = _normalize_cache_url(url)
+		assert "gh_jid=456" in normalized

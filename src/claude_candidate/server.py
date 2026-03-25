@@ -10,9 +10,11 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +90,31 @@ class PostingExtraction(BaseModel):
 	remote: bool | None = None
 	salary: str | None = None
 	requirements: list[dict] | None = None
+
+
+# ---------------------------------------------------------------------------
+# URL normalization
+# ---------------------------------------------------------------------------
+
+_TRACKING_PARAMS = re.compile(
+	r"^(utm_\w+|trk|eBP|trackingId|tracking_id|ref|refId|fbclid|gclid|mc_[ce]id|_hsenc|_hsmi)$",
+	re.IGNORECASE,
+)
+
+
+def _normalize_cache_url(url: str) -> str:
+	"""Strip tracking params from URLs for cache key stability.
+
+	Job boards and email links append session-specific params that change
+	per visit. The path (and any non-tracking params) is the canonical identifier.
+	"""
+	parsed = urlparse(url)
+	if not parsed.query:
+		return url
+	params = parse_qs(parsed.query, keep_blank_values=True)
+	filtered = {k: v for k, v in params.items() if not _TRACKING_PARAMS.match(k)}
+	new_query = urlencode(filtered, doseq=True) if filtered else ""
+	return urlunparse(parsed._replace(query=new_query, fragment=""))
 
 
 # ---------------------------------------------------------------------------
@@ -778,7 +805,8 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 	@app.post("/api/extract-posting")
 	async def extract_posting(req: ExtractPostingRequest):
 		store = get_store()
-		url_hash = hashlib.sha256(req.url.encode()).hexdigest()[:16]
+		cache_url = _normalize_cache_url(req.url)
+		url_hash = hashlib.sha256(cache_url.encode()).hexdigest()[:16]
 
 		cached = await store.get_cached_posting(url_hash)
 		if cached is not None:
@@ -831,7 +859,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 			requirements=parsed.get("requirements"),
 		)
 		result_dict = result.model_dump()
-		await store.cache_posting(url_hash, req.url, result_dict)
+		await store.cache_posting(url_hash, cache_url, result_dict)
 		return result_dict
 
 	return app
