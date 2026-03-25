@@ -1330,3 +1330,68 @@ class TestUrlNormalization:
 		url = "https://boards.greenhouse.io/company/jobs/123?gh_jid=456"
 		normalized = _normalize_cache_url(url)
 		assert "gh_jid=456" in normalized
+
+
+# ---------------------------------------------------------------------------
+# Education auto-tagging
+# ---------------------------------------------------------------------------
+
+
+class TestEducationAutoTagging:
+	"""Requirements mentioning degrees should get education_level set."""
+
+	def test_auto_tag_phd(self):
+		from claude_candidate.server import _auto_tag_education
+
+		reqs = [
+			{
+				"description": "PhD in Computer Science or related field",
+				"skill_mapping": ["computer-science"],
+			}
+		]
+		_auto_tag_education(reqs)
+		assert reqs[0]["education_level"] == "phd"
+
+	def test_auto_tag_masters(self):
+		from claude_candidate.server import _auto_tag_education
+
+		reqs = [
+			{
+				"description": "MSc or PhD in Electrical Engineering, Applied Math, or a related field",
+				"skill_mapping": ["electrical-engineering"],
+			}
+		]
+		_auto_tag_education(reqs)
+		assert reqs[0]["education_level"] == "phd"  # highest mentioned
+
+	def test_auto_tag_bachelors(self):
+		from claude_candidate.server import _auto_tag_education
+
+		reqs = [
+			{
+				"description": "Bachelor's degree in Computer Science",
+				"skill_mapping": ["computer-science"],
+			}
+		]
+		_auto_tag_education(reqs)
+		assert reqs[0]["education_level"] == "bachelor"
+
+	def test_no_false_positive(self):
+		from claude_candidate.server import _auto_tag_education
+
+		reqs = [{"description": "5+ years of Python experience", "skill_mapping": ["python"]}]
+		_auto_tag_education(reqs)
+		assert reqs[0].get("education_level") is None
+
+	def test_skips_already_tagged(self):
+		from claude_candidate.server import _auto_tag_education
+
+		reqs = [
+			{
+				"description": "PhD in CS",
+				"skill_mapping": ["computer-science"],
+				"education_level": "master",
+			}
+		]
+		_auto_tag_education(reqs)
+		assert reqs[0]["education_level"] == "master"  # not overwritten

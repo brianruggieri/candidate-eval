@@ -118,6 +118,29 @@ def _normalize_cache_url(url: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Education auto-tagging
+# ---------------------------------------------------------------------------
+
+_EDUCATION_PATTERNS: list[tuple[str, re.Pattern]] = [
+	("phd", re.compile(r"\b(?:ph\.?d|doctorate|doctoral)\b", re.IGNORECASE)),
+	("master", re.compile(r"\b(?:m\.?s\.?c?|master'?s?|m\.?eng)\b", re.IGNORECASE)),
+	("bachelor", re.compile(r"\b(?:b\.?s\.?c?|bachelor'?s?|b\.?eng|b\.?a\.?)\b", re.IGNORECASE)),
+]
+
+
+def _auto_tag_education(requirements: list[dict]) -> None:
+	"""Set education_level on requirements that mention degrees but weren't tagged by extraction."""
+	for req in requirements:
+		if req.get("education_level"):
+			continue  # already tagged
+		desc = req.get("description", "")
+		for level, pattern in _EDUCATION_PATTERNS:
+			if pattern.search(desc):
+				req["education_level"] = level
+				break
+
+
+# ---------------------------------------------------------------------------
 # Application factory
 # ---------------------------------------------------------------------------
 
@@ -844,11 +867,12 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 				detail="Extraction failed: invalid response from Claude",
 			) from exc
 
-		# Normalize skill mappings through taxonomy
+		# Normalize skill mappings through taxonomy + auto-tag education
 		if "requirements" in parsed and isinstance(parsed["requirements"], list):
 			from claude_candidate.requirement_parser import normalize_skill_mappings
 
 			normalize_skill_mappings(parsed["requirements"])
+			_auto_tag_education(parsed["requirements"])
 
 		req_count = len(parsed.get("requirements", []) or [])
 		if req_count == 0:
