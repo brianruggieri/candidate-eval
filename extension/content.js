@@ -64,6 +64,8 @@
 		};
 	}
 
+	if (!chrome?.runtime?.onMessage) return; // extension context invalidated — tab needs reload
+
 	chrome.runtime.onMessage.addListener(function (request, _sender, sendResponse) {
 		try {
 			if (request.action === 'extractJobPosting') {

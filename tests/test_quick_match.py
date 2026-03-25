@@ -876,8 +876,12 @@ def test_score_requirement_uses_raw_confidence_no_floor():
 	expected_resume = STATUS_SCORE["strong_match"] * (0.90 + 0.10 * 0.85)
 	expected_conflicting = STATUS_SCORE["strong_match"] * (0.90 + 0.10 * 0.72)
 
-	assert abs(resume_score - expected_resume) < 0.001, f"resume_only: expected {expected_resume:.4f}, got {resume_score:.4f}"
-	assert abs(conflicting_score - expected_conflicting) < 0.001, f"conflicting: expected {expected_conflicting:.4f}, got {conflicting_score:.4f}"
+	assert abs(resume_score - expected_resume) < 0.001, (
+		f"resume_only: expected {expected_resume:.4f}, got {resume_score:.4f}"
+	)
+	assert abs(conflicting_score - expected_conflicting) < 0.001, (
+		f"conflicting: expected {expected_conflicting:.4f}, got {conflicting_score:.4f}"
+	)
 
 
 def test_soft_skill_requirement_discounted():
@@ -1938,6 +1942,7 @@ def test_conflicting_confidence_is_072():
 		resume_context="Listed on resume",
 	)
 	assert conf == 0.72, f"Expected 0.72, got {conf}"
+
 
 
 # ---------------------------------------------------------------------------

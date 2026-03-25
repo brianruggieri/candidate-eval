@@ -144,7 +144,7 @@ Add to the existing parametrized skill-match tests:
 
 | Case | Input | Expected |
 |---|---|---|
-| Sessions > resume by 2+ levels | sessions=EXPERT, resume=MENTIONED | effective_depth = BASIC (one above MENTIONED) |
+| Sessions > resume by 2+ levels | sessions=EXPERT, resume=MENTIONED | effective_depth = USED (one above MENTIONED) |
 | Sessions > resume, resume at APPLIED | sessions=EXPERT, resume=APPLIED | effective_depth = DEEP (one above APPLIED, capped at DEEP) |
 | Resume > sessions by 2+ levels | resume=DEEP, sessions=MENTIONED | effective_depth = DEEP (resume wins) |
 | CONFLICTING confidence | CONFLICTING source | confidence = 0.72 |
