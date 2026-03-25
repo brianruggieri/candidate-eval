@@ -400,26 +400,36 @@ async function initialize() {
 	const fresh = stored && stored.extractedAt && (Date.now() - stored.extractedAt) < POSTING_TTL_MS;
 
 	// Cache only valid if it matches the current tab's URL
-	const normalizeUrl = (u) => (u || '').replace(/\?.*$/, '').replace(/\/+$/, '');
+	// Strip tracking params (aligned with server-side _normalize_cache_url)
+	const TRACKING_PARAMS = /^(utm_\w+|trk|eBP|trackingId|tracking_id|refId|fbclid|gclid|mc_[ce]id|_hsenc|_hsmi)$/i;
+	const normalizeUrl = (u) => {
+		try {
+			const url = new URL(u || '');
+			[...url.searchParams.keys()].forEach(k => { if (TRACKING_PARAMS.test(k)) url.searchParams.delete(k); });
+			url.searchParams.sort();
+			url.hash = '';
+			return url.origin + url.pathname.replace(/\/+$/, '') + url.search;
+		} catch { return (u || '').replace(/[?#].*$/, '').replace(/\/+$/, ''); }
+	};
 	const cacheMatchesTab = stored && normalizeUrl(stored.url) === normalizeUrl(currentTabUrl);
 
 	if (fresh && cacheMatchesTab && lastAssessment && lastAssessment.url === stored.url) {
 		currentPosting = stored;
 
-		if (fullReady && fullReady.assessmentId && fullReady.data) {
+		const cachedAid = lastAssessment.data.assessment_id;
+		if (fullReady && fullReady.assessmentId === cachedAid && fullReady.data) {
 			// Full assessment is ready — render it directly
 			renderResults(fullReady.data);
 		} else {
 			// Show partial results, then poll for full
 			renderResults(lastAssessment.data);
 
-			const aid = lastAssessment.data.assessment_id;
-			if (aid) sendToBackground({ action: 'startFullAssess', assessmentId: aid });
+			if (cachedAid) sendToBackground({ action: 'startFullAssess', assessmentId: cachedAid });
 			const pollInterval = setInterval(async () => {
 				const ready = await new Promise(r => {
 					chrome.storage.local.get('fullAssessmentReady', res => r(res.fullAssessmentReady || null));
 				});
-				if (ready && ready.assessmentId && ready.data) {
+				if (ready && ready.assessmentId === cachedAid && ready.data) {
 					clearInterval(pollInterval);
 					renderResults(ready.data);
 				}
@@ -435,7 +445,7 @@ async function initialize() {
 
 	// Resolve posting (from cache or fresh extraction)
 	let posting = null;
-	if (fresh && stored.description) {
+	if (fresh && stored.description && stored.requirements && stored.requirements.length) {
 		posting = stored;
 	}
 
@@ -453,16 +463,16 @@ async function initialize() {
 				chrome.storage.local.set({ currentPosting: posting });
 			}
 		}
-
-		if (!posting) {
-			const fallback = await injectAndSend({ action: 'extractFallback' });
-			if (fallback.success && fallback.posting && fallback.posting.description) {
-				posting = { ...fallback.posting, extractedAt: Date.now() };
-			}
-		}
 	}
 
+	// Gate: require extracted posting with requirements before proceeding
 	if (!posting || !posting.description) { showState('no-job'); return; }
+	if (!posting.requirements || !posting.requirements.length) {
+		el('error-message').textContent =
+			'Couldn\u2019t extract job requirements. Try refreshing the page and reopening the extension.';
+		showState('error');
+		return;
+	}
 	currentPosting = posting;
 
 	const ac = el('assessing-company');
@@ -471,6 +481,7 @@ async function initialize() {
 		: posting.title || '';
 	showState('assessing');
 
+	chrome.storage.local.remove('fullAssessmentReady');
 	const partial = await sendToBackground({ action: 'assessPartial', payload: posting });
 	if (!partial.success && partial.error) {
 		el('error-message').textContent = partial.error;
@@ -492,11 +503,12 @@ async function initialize() {
 	sendToBackground({ action: 'startFullAssess', assessmentId });
 
 	// Poll for completion (if popup stays open) — update in-place
+	const currentAssessmentId = assessmentId;
 	const pollInterval = setInterval(async () => {
 		const ready = await new Promise(r => {
 			chrome.storage.local.get('fullAssessmentReady', res => r(res.fullAssessmentReady || null));
 		});
-		if (ready && ready.assessmentId && ready.data) {
+		if (ready && ready.assessmentId === currentAssessmentId && ready.data) {
 			clearInterval(pollInterval);
 			if (deepBanner) deepBanner.classList.add('hidden');
 			renderResults(ready.data);

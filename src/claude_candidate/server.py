@@ -10,9 +10,11 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +90,75 @@ class PostingExtraction(BaseModel):
 	remote: bool | None = None
 	salary: str | None = None
 	requirements: list[dict] | None = None
+
+
+# ---------------------------------------------------------------------------
+# URL normalization
+# ---------------------------------------------------------------------------
+
+_TRACKING_PARAMS = re.compile(
+	r"^(utm_\w+|trk|eBP|trackingId|tracking_id|refId|fbclid|gclid|mc_[ce]id|_hsenc|_hsmi)$",
+	re.IGNORECASE,
+)
+
+
+def _normalize_cache_url(url: str) -> str:
+	"""Strip tracking params from URLs for cache key stability.
+
+	Job boards and email links append session-specific params that change
+	per visit. The path (and any non-tracking params) is the canonical identifier.
+	Fragments are always stripped; remaining params are sorted for stable hashing.
+	"""
+	parsed = urlparse(url)
+	if not parsed.query:
+		# Still strip fragment for consistency
+		return urlunparse(parsed._replace(fragment="")) if parsed.fragment else url
+	params = parse_qs(parsed.query, keep_blank_values=True)
+	filtered = {k: v for k, v in params.items() if not _TRACKING_PARAMS.match(k)}
+	if filtered:
+		sorted_items: list[tuple[str, str]] = []
+		for key in sorted(filtered.keys()):
+			for value in sorted(filtered[key]):
+				sorted_items.append((key, value))
+		new_query = urlencode(sorted_items)
+	else:
+		new_query = ""
+	return urlunparse(parsed._replace(query=new_query, fragment=""))
+
+
+# ---------------------------------------------------------------------------
+# Education auto-tagging
+# ---------------------------------------------------------------------------
+
+_DEGREE_CONTEXT = r"(?:\s+(?:in|or|degree|program|from|required|preferred|equivalent)|\s*[,;/]|$)"
+
+_EDUCATION_PATTERNS: list[tuple[str, re.Pattern]] = [
+	("phd", re.compile(r"\b(?:ph\.?d|doctorate|doctoral)\b", re.IGNORECASE)),
+	("master", re.compile(r"\b(?:m\.?s\.?c|master'?s?|m\.?eng)\b", re.IGNORECASE)),
+	(
+		"master",
+		re.compile(r"\b(?:m\.?s\.?)" + _DEGREE_CONTEXT, re.IGNORECASE),
+	),
+	("bachelor", re.compile(r"\b(?:b\.?s\.?c|bachelor'?s?|b\.?eng)\b", re.IGNORECASE)),
+	(
+		"bachelor",
+		re.compile(r"\b(?:b\.?s\.?|b\.?a\.?)" + _DEGREE_CONTEXT, re.IGNORECASE),
+	),
+]
+
+
+def _auto_tag_education(requirements: list[dict]) -> None:
+	"""Set education_level on requirements that mention degrees but weren't tagged by extraction."""
+	for req in requirements:
+		if not isinstance(req, dict):
+			continue
+		if req.get("education_level"):
+			continue  # already tagged
+		desc = str(req.get("description", ""))
+		for level, pattern in _EDUCATION_PATTERNS:
+			if pattern.search(desc):
+				req["education_level"] = level
+				break
 
 
 # ---------------------------------------------------------------------------
@@ -298,11 +369,11 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 		"""
 		Run QuickMatchEngine (local-only, no Claude calls) and persist the result.
 
-		Returns the assessment dict. Raises HTTPException on missing profile.
+		Returns the assessment dict. Raises HTTPException on missing profile
+		or missing requirements.
 		"""
 		from claude_candidate.schemas.job_requirements import QuickRequirement
 		from claude_candidate.quick_match import QuickMatchEngine
-		from claude_candidate.cli import _extract_basic_requirements
 
 		store = get_store()
 
@@ -314,17 +385,19 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 			)
 
 		# Build requirements — filter out invalid entries from Claude
+		requirements = []
 		if req.requirements:
-			requirements = []
 			for r in req.requirements:
 				try:
 					requirements.append(QuickRequirement(**r))
 				except Exception:
 					continue  # Skip malformed requirements
-			if not requirements:
-				requirements = _extract_basic_requirements(req.posting_text)
-		else:
-			requirements = _extract_basic_requirements(req.posting_text)
+
+		if not requirements:
+			raise HTTPException(
+				status_code=422,
+				detail="No valid requirements provided — extraction required before assessment.",
+			)
 
 		# Run assessment
 		engine = QuickMatchEngine(merged)
@@ -776,23 +849,28 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 	@app.post("/api/extract-posting")
 	async def extract_posting(req: ExtractPostingRequest):
 		store = get_store()
-		url_hash = hashlib.sha256(req.url.encode()).hexdigest()[:16]
+		cache_url = _normalize_cache_url(req.url)
+		url_hash = hashlib.sha256(cache_url.encode()).hexdigest()[:16]
 
 		cached = await store.get_cached_posting(url_hash)
 		if cached is not None:
+			logger.info("extract-posting cache hit: %s", cache_url[:80])
 			return cached
 
 		if not _claude_cli.check_claude_available():
+			logger.warning("extract-posting: Claude CLI not available")
 			raise HTTPException(status_code=503, detail="Claude CLI not available for extraction")
 
 		import asyncio
 
+		logger.info("extract-posting: extracting %s (%d chars)", cache_url[:80], len(req.text))
 		prompt = _build_extraction_prompt(req.title, req.text)
 		try:
 			raw = await asyncio.get_event_loop().run_in_executor(
-				None, lambda: _claude_cli.call_claude(prompt, timeout=90)
+				None, lambda: _claude_cli.call_claude(prompt, timeout=120)
 			)
 		except _claude_cli.ClaudeCLIError as exc:
+			logger.warning("extract-posting: Claude CLI error for %s: %s", cache_url[:80], exc)
 			raise HTTPException(status_code=503, detail=f"Claude CLI error: {exc}") from exc
 
 		try:
@@ -804,32 +882,80 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 			cleaned = cleaned.strip()
 			parsed = json.loads(cleaned)
 		except (json.JSONDecodeError, ValueError) as exc:
+			logger.warning("extract-posting: invalid JSON from Claude for %s", cache_url[:80])
 			raise HTTPException(
 				status_code=502,
 				detail="Extraction failed: invalid response from Claude",
 			) from exc
 
-		# Normalize skill mappings through taxonomy
+		if not isinstance(parsed, dict):
+			logger.warning(
+				"extract-posting: non-object JSON from Claude for %s (type=%s)",
+				cache_url[:80],
+				type(parsed).__name__,
+			)
+			raise HTTPException(
+				status_code=502,
+				detail="Extraction failed: invalid response from Claude",
+			)
+
+		# Normalize skill mappings through taxonomy + auto-tag education
 		if "requirements" in parsed and isinstance(parsed["requirements"], list):
 			from claude_candidate.requirement_parser import normalize_skill_mappings
 
 			normalize_skill_mappings(parsed["requirements"])
+			_auto_tag_education(parsed["requirements"])
+
+		if "requirements" not in parsed:
+			logger.info(
+				"extract-posting: Claude response missing requirements field for %s",
+				cache_url[:80],
+			)
+		elif not isinstance(parsed["requirements"], list):
+			logger.warning(
+				"extract-posting: Claude returned non-list requirements for %s",
+				cache_url[:80],
+			)
+		elif len(parsed["requirements"]) == 0:
+			logger.warning(
+				"extract-posting: Claude returned 0 requirements for %s", cache_url[:80]
+			)
+		else:
+			logger.info(
+				"extract-posting: extracted %d requirements for %s",
+				len(parsed["requirements"]),
+				cache_url[:80],
+			)
+
+		# Coerce requirements to list[dict] or None to prevent Pydantic ValidationError
+		raw_reqs = parsed.get("requirements")
+		if isinstance(raw_reqs, list):
+			raw_reqs = [r for r in raw_reqs if isinstance(r, dict)]
+		else:
+			raw_reqs = None
 
 		source = _infer_source(req.url)
 		result = PostingExtraction(
 			company=parsed.get("company") or "",
 			title=parsed.get("title") or "",
 			description=parsed.get("description") or "",
-			url=req.url,
+			url=cache_url,
 			source=source,
 			location=parsed.get("location"),
 			seniority=parsed.get("seniority"),
 			remote=parsed.get("remote"),
 			salary=parsed.get("salary"),
-			requirements=parsed.get("requirements"),
+			requirements=raw_reqs,
 		)
 		result_dict = result.model_dump()
-		await store.cache_posting(url_hash, req.url, result_dict)
+		# Don't cache extractions with 0 requirements — allows immediate retry
+		if raw_reqs:
+			await store.cache_posting(url_hash, cache_url, result_dict)
+		else:
+			logger.info(
+				"extract-posting: skipping cache write (0 requirements) for %s",
+				cache_url[:80],
+			)
 		return result_dict
 
 	return app

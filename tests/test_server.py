@@ -217,6 +217,20 @@ SAMPLE_ASSESS_PAYLOAD = {
 	"company": "Acme Corp",
 	"title": "Senior Python Engineer",
 	"seniority": "senior",
+	"requirements": [
+		{
+			"description": "5+ years of Python experience",
+			"skill_mapping": ["python"],
+			"priority": "must_have",
+			"source_text": "5+ years of Python",
+		},
+		{
+			"description": "Experience with FastAPI or Django",
+			"skill_mapping": ["fastapi", "django"],
+			"priority": "must_have",
+			"source_text": "FastAPI or Django",
+		},
+	],
 }
 
 
@@ -995,7 +1009,8 @@ class TestExtractPostingEndpoint:
 		with (
 			patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
 			patch(
-				"claude_candidate.claude_cli.call_claude", return_value=SAMPLE_CLAUDE_JSON
+				"claude_candidate.claude_cli.call_claude",
+				return_value=SAMPLE_CLAUDE_JSON_WITH_REQUIREMENTS,
 			) as mock_claude,
 		):
 			await client.post("/api/extract-posting", json=SAMPLE_EXTRACT_PAYLOAD)
@@ -1181,3 +1196,241 @@ class TestExtractPostingEndpoint:
 		assert "must_have" in prompt
 		assert "years_experience" in prompt
 		assert "education_level" in prompt
+
+
+# ---------------------------------------------------------------------------
+# Assess requires requirements (no keyword fallback)
+# ---------------------------------------------------------------------------
+
+
+class TestAssessRequiresRequirements:
+	"""Server must reject assessments when no requirements are provided."""
+
+	@pytest.mark.asyncio
+	async def test_assess_partial_rejects_null_requirements(self, app_with_profile):
+		async with LifespanManager(app_with_profile):
+			transport = ASGITransport(app=app_with_profile)
+			async with AsyncClient(transport=transport, base_url="http://test") as client:
+				resp = await client.post(
+					"/api/assess/partial",
+					json={
+						"posting_text": "We need a Python developer with Django experience.",
+						"company": "TestCo",
+						"title": "Software Engineer",
+						"requirements": None,
+					},
+				)
+				assert resp.status_code == 422
+				assert "requirements" in resp.json()["detail"].lower()
+
+	@pytest.mark.asyncio
+	async def test_assess_partial_rejects_empty_requirements(self, app_with_profile):
+		async with LifespanManager(app_with_profile):
+			transport = ASGITransport(app=app_with_profile)
+			async with AsyncClient(transport=transport, base_url="http://test") as client:
+				resp = await client.post(
+					"/api/assess/partial",
+					json={
+						"posting_text": "We need a Python developer.",
+						"company": "TestCo",
+						"title": "Software Engineer",
+						"requirements": [],
+					},
+				)
+				assert resp.status_code == 422
+
+	@pytest.mark.asyncio
+	async def test_assess_partial_accepts_valid_requirements(self, app_with_profile):
+		async with LifespanManager(app_with_profile):
+			transport = ASGITransport(app=app_with_profile)
+			async with AsyncClient(transport=transport, base_url="http://test") as client:
+				resp = await client.post(
+					"/api/assess/partial",
+					json={
+						"posting_text": "Python developer role",
+						"company": "TestCo",
+						"title": "Software Engineer",
+						"requirements": [
+							{
+								"description": "Python experience",
+								"skill_mapping": ["python"],
+								"priority": "must_have",
+								"source_text": "Must have Python",
+							}
+						],
+					},
+				)
+				assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# URL normalization for cache keys
+# ---------------------------------------------------------------------------
+
+
+class TestUrlNormalization:
+	"""Tracking params should not defeat the posting cache."""
+
+	async def test_linkedin_tracking_params_normalized(self, client: AsyncClient):
+		"""Same LinkedIn job with different tracking params should hit cache."""
+		url_base = "https://www.linkedin.com/jobs/view/4385180576/"
+		url_with_params = url_base + "?trk=eml-email_job_alert&eBP=abc123&trackingId=xyz"
+
+		with (
+			patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
+			patch(
+				"claude_candidate.claude_cli.call_claude",
+				return_value=SAMPLE_CLAUDE_JSON_WITH_REQUIREMENTS,
+			) as mock_claude,
+		):
+			r1 = await client.post(
+				"/api/extract-posting",
+				json={"url": url_base, "title": "Test", "text": "Senior Engineer role."},
+			)
+			assert r1.status_code == 200
+
+			r2 = await client.post(
+				"/api/extract-posting",
+				json={
+					"url": url_with_params,
+					"title": "Test",
+					"text": "Senior Engineer role.",
+				},
+			)
+			assert r2.status_code == 200
+			assert r2.json()["company"] == "Acme Corp"
+			mock_claude.assert_called_once()
+
+	async def test_utm_params_stripped_from_any_url(self, client: AsyncClient):
+		"""UTM params should be stripped from non-LinkedIn URLs too."""
+		url_base = "https://greenhouse.io/jobs/senior-eng"
+		url_with_utm = url_base + "?utm_source=email&utm_medium=social&fbclid=abc"
+
+		with (
+			patch("claude_candidate.claude_cli.check_claude_available", return_value=True),
+			patch(
+				"claude_candidate.claude_cli.call_claude",
+				return_value=SAMPLE_CLAUDE_JSON_WITH_REQUIREMENTS,
+			) as mock_claude,
+		):
+			r1 = await client.post(
+				"/api/extract-posting",
+				json={"url": url_base, "title": "Test", "text": "Some job"},
+			)
+			assert r1.status_code == 200
+
+			r2 = await client.post(
+				"/api/extract-posting",
+				json={"url": url_with_utm, "title": "Test", "text": "Some job"},
+			)
+			assert r2.status_code == 200
+			mock_claude.assert_called_once()
+
+	async def test_non_tracking_params_preserved(self, client: AsyncClient):
+		"""Non-tracking query params (like job IDs) should be preserved."""
+		from claude_candidate.server import _normalize_cache_url
+
+		url = "https://boards.greenhouse.io/company/jobs/123?gh_jid=456"
+		normalized = _normalize_cache_url(url)
+		assert "gh_jid=456" in normalized
+
+
+# ---------------------------------------------------------------------------
+# Education auto-tagging
+# ---------------------------------------------------------------------------
+
+
+class TestEducationAutoTagging:
+	"""Requirements mentioning degrees should get education_level set."""
+
+	def test_auto_tag_phd(self):
+		from claude_candidate.server import _auto_tag_education
+
+		reqs = [
+			{
+				"description": "PhD in Computer Science or related field",
+				"skill_mapping": ["computer-science"],
+			}
+		]
+		_auto_tag_education(reqs)
+		assert reqs[0]["education_level"] == "phd"
+
+	def test_auto_tag_masters(self):
+		from claude_candidate.server import _auto_tag_education
+
+		reqs = [
+			{
+				"description": "MSc or PhD in Electrical Engineering, Applied Math, or a related field",
+				"skill_mapping": ["electrical-engineering"],
+			}
+		]
+		_auto_tag_education(reqs)
+		assert reqs[0]["education_level"] == "phd"  # highest mentioned
+
+	def test_auto_tag_bachelors(self):
+		from claude_candidate.server import _auto_tag_education
+
+		reqs = [
+			{
+				"description": "Bachelor's degree in Computer Science",
+				"skill_mapping": ["computer-science"],
+			}
+		]
+		_auto_tag_education(reqs)
+		assert reqs[0]["education_level"] == "bachelor"
+
+	def test_no_false_positive(self):
+		from claude_candidate.server import _auto_tag_education
+
+		reqs = [{"description": "5+ years of Python experience", "skill_mapping": ["python"]}]
+		_auto_tag_education(reqs)
+		assert reqs[0].get("education_level") is None
+
+	def test_no_false_positive_ms_office(self):
+		from claude_candidate.server import _auto_tag_education
+
+		reqs = [
+			{"description": "Experience with MSBuild or MS Office", "skill_mapping": ["ms-office"]}
+		]
+		_auto_tag_education(reqs)
+		assert reqs[0].get("education_level") is None
+
+	def test_no_false_positive_ba_role(self):
+		from claude_candidate.server import _auto_tag_education
+
+		reqs = [
+			{"description": "Business Analyst (BA) experience", "skill_mapping": ["analyst"]}
+		]
+		_auto_tag_education(reqs)
+		assert reqs[0].get("education_level") is None
+
+	def test_ms_with_degree_context(self):
+		from claude_candidate.server import _auto_tag_education
+
+		reqs = [
+			{"description": "M.S. in Computer Science or equivalent", "skill_mapping": ["cs"]}
+		]
+		_auto_tag_education(reqs)
+		assert reqs[0]["education_level"] == "master"
+
+	def test_bs_with_degree_context(self):
+		from claude_candidate.server import _auto_tag_education
+
+		reqs = [
+			{"description": "B.S. in Engineering or related field", "skill_mapping": ["eng"]}
+		]
+		_auto_tag_education(reqs)
+		assert reqs[0]["education_level"] == "bachelor"
+
+	def test_skips_already_tagged(self):
+		from claude_candidate.server import _auto_tag_education
+
+		reqs = [
+			{
+				"description": "PhD in CS",
+				"skill_mapping": ["computer-science"],
+				"education_level": "master",
+			}
+		]
+		_auto_tag_education(reqs)
+		assert reqs[0]["education_level"] == "master"  # not overwritten
