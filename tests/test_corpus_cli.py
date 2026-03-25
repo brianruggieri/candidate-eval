@@ -232,3 +232,41 @@ class TestCorpusExport:
 		runner = CliRunner()
 		runner.invoke(corpus, ["export", "--db", str(db_path), "--corpus-dir", str(corpus_dir)])
 		assert len(list((corpus_dir / "postings").glob("*.json"))) == 0
+
+
+# ---------------------------------------------------------------------------
+# List command
+# ---------------------------------------------------------------------------
+
+class TestCorpusList:
+	def test_shows_corpus_contents(self, store, corpus_dir, db_path):
+		_seed_posting_and_assessment(store, "https://stripe.com/list/1", "Stripe", "SWE", "B+")
+		_seed_posting_and_assessment(store, "https://vercel.com/list/1", "Vercel", "Platform Eng", "A-")
+		runner = CliRunner()
+		runner.invoke(corpus, ["export", "--db", str(db_path), "--corpus-dir", str(corpus_dir)])
+		result = runner.invoke(corpus, ["list", "--corpus-dir", str(corpus_dir)])
+		assert result.exit_code == 0
+		assert "Stripe" in result.output
+		assert "Vercel" in result.output
+
+	def test_missing_json_shows_placeholder(self, corpus_dir):
+		grades = {
+			"ghost-posting-2026-03-24": {
+				"grade": "B",
+				"source": "auto",
+				"assessment_id": "x",
+				"url_hash": "y",
+				"exported_at": "2026-03-24T00:00:00",
+			}
+		}
+		save_regression_grades(corpus_dir, grades)
+		# No posting JSON file written
+		runner = CliRunner()
+		result = runner.invoke(corpus, ["list", "--corpus-dir", str(corpus_dir)])
+		assert "[file missing]" in result.output
+
+	def test_empty_corpus_shows_nothing(self, corpus_dir):
+		runner = CliRunner()
+		result = runner.invoke(corpus, ["list", "--corpus-dir", str(corpus_dir)])
+		assert result.exit_code == 0
+		assert "0 posting" in result.output or result.output.strip() == "" or "No postings" in result.output
