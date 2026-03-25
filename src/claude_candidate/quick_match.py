@@ -315,6 +315,62 @@ SOURCE_LABEL: dict[EvidenceSource, str] = {
 	EvidenceSource.CONFLICTING: "Resume depth anchored; sessions provided additional signal",
 }
 
+# Industry/domain keywords — non-technical terms that appear repeatedly in domain-specific JDs.
+# If any of these appears in 3+ requirements but is absent from the candidate's profile,
+# the grade is capped at B+ (domain fit cannot be proven without evidence).
+DOMAIN_KEYWORDS: frozenset[str] = frozenset({
+	# Music / audio
+	"music", "audio", "sound", "recording", "podcast",
+	# Sports
+	"sports", "baseball", "football", "basketball", "soccer", "athletics",
+	# Healthcare / biotech
+	"healthcare", "medical", "clinical", "patient", "biotech", "pharma",
+	# Finance
+	"fintech", "banking", "financial", "trading", "insurance",
+	# Legal
+	"legal", "compliance", "regulatory",
+	# Automotive
+	"automotive", "vehicle",
+	# Education
+	"edtech", "educational", "curriculum",
+	# Gaming
+	"gaming", "esports",
+	# Real estate
+	"real estate", "construction",
+	# Energy
+	"energy", "utilities",
+	# Retail / logistics
+	"retail", "ecommerce", "logistics",
+})
+
+
+def _detect_domain_gap(
+	requirements: "list[QuickRequirement]",
+	profile: "MergedEvidenceProfile",
+) -> str | None:
+	"""Return the first domain keyword in 3+ requirements that is absent from the profile.
+
+	Checks candidate skills, project names (word-split), and role domains.
+	Returns the keyword string if a gap is detected, None otherwise.
+	"""
+	# Build a single text blob for substring matching — handles both single-word
+	# and multi-word phrase keywords (e.g. "real estate") correctly.
+	candidate_parts: list[str] = []
+	for skill in profile.skills:
+		candidate_parts.append(skill.name.lower())
+	for project in (profile.projects or []):
+		candidate_parts.append(project.project_name.lower())
+	for role in (profile.roles or []):
+		if role.domain:
+			candidate_parts.append(role.domain.lower())
+	candidate_text = " ".join(candidate_parts)
+
+	for kw in sorted(DOMAIN_KEYWORDS):  # sorted for deterministic output
+		count = sum(1 for r in requirements if kw in r.description.lower())
+		if count >= 3 and kw not in candidate_text:
+			return kw
+	return None
+
 # Pattern strength → culture match value
 CULTURE_PATTERN_STRENGTH_SCORE: dict[str, float] = {
 	"exceptional": 1.0,
@@ -890,24 +946,37 @@ def _infer_virtual_skill(
 def _find_skill_match(
 	skill_name: str,
 	profile: MergedEvidenceProfile,
-) -> MergedSkillEvidence | None:
-	"""Find a skill in the merged profile via exact, fuzzy, pattern, or inference."""
+) -> tuple[MergedSkillEvidence | None, str]:
+	"""Find a skill in the merged profile via exact, fuzzy, pattern, or inference.
+
+	Returns (skill, match_type) where match_type is:
+	  "exact"  — canonical name or taxonomy alias resolved to an exact profile hit
+	  "fuzzy"  — substring, pattern, or inferred virtual skill
+	  "none"   — no match found
+	"""
 	taxonomy = _get_taxonomy()
 	# Canonicalize through taxonomy first (handles aliases like ci/cd -> ci-cd)
 	canonical = taxonomy.match(skill_name)
 	if canonical:
 		found = _find_exact_match(canonical.lower(), profile)
 		if found:
-			return found
+			return found, "exact"
 
 	# Fallback to original normalized form
 	normalized = skill_name.lower().strip()
-	return (
-		_find_exact_match(normalized, profile)
-		or _find_fuzzy_match(normalized, profile)
-		or _find_pattern_match(normalized, profile)
-		or _infer_virtual_skill(skill_name, profile)
-	)
+	exact = _find_exact_match(normalized, profile)
+	if exact:
+		return exact, "exact"
+	fuzzy = _find_fuzzy_match(normalized, profile)
+	if fuzzy:
+		return fuzzy, "fuzzy"
+	pattern = _find_pattern_match(normalized, profile)
+	if pattern:
+		return pattern, "fuzzy"
+	inferred = _infer_virtual_skill(skill_name, profile)
+	if inferred:
+		return inferred, "fuzzy"
+	return None, "none"
 
 
 def _best_available_depth(skill: MergedSkillEvidence) -> DepthLevel:
@@ -1013,20 +1082,26 @@ def _find_best_skill(
 	req: QuickRequirement,
 	profile: MergedEvidenceProfile,
 	depth_floor: DepthLevel,
-) -> tuple[MergedSkillEvidence | None, str]:
-	"""Find the best matching skill for a requirement across all mappings."""
+) -> tuple[MergedSkillEvidence | None, str, str]:
+	"""Find the best matching skill for a requirement across all mappings.
+
+	Returns (best_match, best_status, match_type).
+	match_type is "exact", "fuzzy", or "none".
+	"""
 	taxonomy = _get_taxonomy()
 	best_match: MergedSkillEvidence | None = None
 	best_status = "no_evidence"
+	best_match_type = "none"
 
 	for skill_name in req.skill_mapping:
 		# Try direct match (exact, fuzzy, pattern)
-		found = _find_skill_match(skill_name, profile)
+		found, mtype = _find_skill_match(skill_name, profile)
 		if found:
 			status = _assess_depth_match(found, depth_floor, profile)
 			if STATUS_RANK.get(status, 0) > STATUS_RANK.get(best_status, 0):
 				best_match = found
 				best_status = status
+				best_match_type = mtype
 			continue
 
 		# Try related skill fallback
@@ -1039,6 +1114,7 @@ def _find_best_skill(
 				if STATUS_RANK.get("related", 0) > STATUS_RANK.get(best_status, 0):
 					best_match = profile_skill
 					best_status = "related"
+					best_match_type = "fuzzy"
 				break  # Take first related match
 
 	# Years experience boost: if requirement specifies years and skill has duration data
@@ -1065,8 +1141,9 @@ def _find_best_skill(
 				effective_depth=DepthLevel.APPLIED,
 				confidence=0.5,
 			)
+			best_match_type = "fuzzy"
 
-	return best_match, best_status
+	return best_match, best_status, best_match_type
 
 
 
@@ -1104,6 +1181,7 @@ def _build_skill_detail(
 	req: QuickRequirement,
 	best_match: MergedSkillEvidence | None,
 	best_status: str,
+	match_type: str = "exact",
 ) -> SkillMatchDetail:
 	"""Build a SkillMatchDetail for one requirement."""
 	return SkillMatchDetail(
@@ -1114,6 +1192,7 @@ def _build_skill_detail(
 		evidence_source=(best_match.source if best_match else EvidenceSource.RESUME_ONLY),
 		confidence=best_match.confidence if best_match else 0.0,
 		matched_skill=best_match.name if best_match else None,
+		match_type=match_type,
 	)
 
 
@@ -1515,6 +1594,19 @@ class QuickMatchEngine:
 		if unmet_gates:
 			pre_cap_grade = score_to_grade(overall_score)
 			overall_score = 0.0
+
+		# Domain penalty: cap at B+ if industry domain appears 3+ times in requirements
+		# but is absent from the candidate's profile.
+		_GRADE_ORDER = ["A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D", "F"]
+		domain_gap_term = _detect_domain_gap(scorable_reqs, self.profile)
+		if domain_gap_term and not unmet_gates:  # eligibility cap already zeros score; skip
+			candidate_grade = score_to_grade(overall_score)
+			if _GRADE_ORDER.index(candidate_grade) < _GRADE_ORDER.index("B+"):  # grade better than B+
+				if pre_cap_grade is None:  # don't overwrite eligibility pre_cap_grade
+					pre_cap_grade = candidate_grade
+				# Drop score to top of B+ band (just below A- threshold of 0.85)
+				overall_score = min(overall_score, 0.849)
+
 		partial_percentage = round(overall_score * 100, 1)
 
 		if elapsed is None:
@@ -1534,6 +1626,7 @@ class QuickMatchEngine:
 			eligibility_passed=eligibility_passed,
 			scorable_reqs=scorable_reqs,
 			pre_cap_grade=pre_cap_grade,
+			domain_gap_term=domain_gap_term,
 		)
 
 	def _build_assessment(
@@ -1552,6 +1645,7 @@ class QuickMatchEngine:
 		eligibility_passed: bool = True,
 		scorable_reqs: list[QuickRequirement] | None = None,
 		pre_cap_grade: str | None = None,
+		domain_gap_term: str | None = None,
 	) -> FitAssessment:
 		"""Assemble the final FitAssessment from scored dimensions."""
 		reqs_for_gaps = scorable_reqs if scorable_reqs is not None else inp.requirements
@@ -1595,6 +1689,7 @@ class QuickMatchEngine:
 			eligibility_gates=eligibility_gates or [],
 			eligibility_passed=eligibility_passed,
 			pre_cap_grade=pre_cap_grade,
+			domain_gap_term=domain_gap_term,
 		)
 
 	def _assemble_fit_assessment(
@@ -1618,6 +1713,7 @@ class QuickMatchEngine:
 		eligibility_gates: list[EligibilityGate] | None = None,
 		eligibility_passed: bool = True,
 		pre_cap_grade: str | None = None,
+		domain_gap_term: str | None = None,
 	) -> FitAssessment:
 		"""Construct the FitAssessment pydantic model."""
 		is_partial = mission_dim is None and culture_dim is None
@@ -1674,6 +1770,7 @@ class QuickMatchEngine:
 			),
 			eligibility_gates=eligibility_gates or [],
 			eligibility_passed=eligibility_passed,
+			domain_gap_term=domain_gap_term,
 			should_apply=score_to_verdict(overall_score),
 			action_items=action_items,
 			profile_hash=self.profile.profile_hash,
@@ -1711,7 +1808,7 @@ class QuickMatchEngine:
 				weight *= effective_discount
 
 			total_weight += weight
-			best_match, best_status = _find_best_skill(
+			best_match, best_status, best_match_type = _find_best_skill(
 				req,
 				self.profile,
 				depth_floor,
@@ -1722,7 +1819,7 @@ class QuickMatchEngine:
 			if len(req.skill_mapping) > 1:
 				all_scores = []
 				for skill_name in req.skill_mapping:
-					found = _find_skill_match(skill_name, self.profile)
+					found, _mtype = _find_skill_match(skill_name, self.profile)
 					if found:
 						status = _assess_depth_match(found, depth_floor, self.profile)
 						conf = found.confidence
@@ -1734,7 +1831,7 @@ class QuickMatchEngine:
 				req_score = max(req_score, avg_score)
 
 			weighted_score += req_score * weight
-			details.append(_build_skill_detail(req, best_match, best_status))
+			details.append(_build_skill_detail(req, best_match, best_status, best_match_type))
 
 		score = weighted_score / total_weight if total_weight > 0 else 0.0
 		return _build_skill_dimension(score, details), details

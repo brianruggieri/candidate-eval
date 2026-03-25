@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -381,6 +382,36 @@ class AssessmentStore:
 			(url_hash, url, json.dumps(data)),
 		)
 		await self._conn.commit()
+
+	async def list_cached_postings(
+		self,
+		since: datetime | None = None,
+		limit: int | None = None,
+	) -> list[dict[str, Any]]:
+		"""Return cached postings ordered by extracted_at DESC."""
+		assert self._conn is not None, "Store not initialized"
+		params: list[Any] = []
+		where = ""
+		if since is not None:
+			# Use julianday() to safely compare against SQLite's datetime('now') format
+			# (stored as "YYYY-MM-DD HH:MM:SS"), avoiding ISO-T-separator issues.
+			where = "WHERE julianday(extracted_at) > julianday(?)"
+			params.append(since.strftime("%Y-%m-%d %H:%M:%S"))
+		order = "ORDER BY extracted_at DESC"
+		lim = ""
+		if limit is not None:
+			lim = "LIMIT ?"
+			params.append(limit)
+		sql = f"SELECT url_hash, url, data, extracted_at FROM posting_cache {where} {order} {lim};"
+		async with self._conn.execute(sql, params) as cursor:
+			rows = await cursor.fetchall()
+		result = []
+		for row in rows:
+			d = dict(row)
+			if "data" in d and isinstance(d["data"], str):
+				d["data"] = json.loads(d["data"])
+			result.append(d)
+		return result
 
 	# ------------------------------------------------------------------
 	# Company research cache

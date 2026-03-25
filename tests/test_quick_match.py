@@ -800,7 +800,7 @@ def test_find_best_skill_related_fallback():
 		priority=RequirementPriority.MUST_HAVE,
 	)
 
-	match, status = _find_best_skill(req, profile, DepthLevel.APPLIED)
+	match, status, _mtype = _find_best_skill(req, profile, DepthLevel.APPLIED)
 	assert match is not None, "Should find anthropic as a related match"
 	assert status == "related"
 
@@ -838,9 +838,9 @@ def test_find_skill_match_canonicalizes_hyphens():
 	)
 
 	# These should all resolve to the same canonical skill
-	assert _find_skill_match("ci-cd", profile) is not None
-	assert _find_skill_match("ci/cd", profile) is not None
-	assert _find_skill_match("continuous-integration", profile) is not None
+	assert _find_skill_match("ci-cd", profile)[0] is not None
+	assert _find_skill_match("ci/cd", profile)[0] is not None
+	assert _find_skill_match("continuous-integration", profile)[0] is not None
 
 
 def test_score_requirement_uses_raw_confidence_no_floor():
@@ -1938,3 +1938,205 @@ def test_conflicting_confidence_is_072():
 		resume_context="Listed on resume",
 	)
 	assert conf == 0.72, f"Expected 0.72, got {conf}"
+
+
+# ---------------------------------------------------------------------------
+# TestMatchType
+# ---------------------------------------------------------------------------
+
+
+class TestMatchType:
+	"""match_type correctly classifies exact vs fuzzy skill resolution."""
+
+	def _make_profile(self, skills=None):
+		from datetime import datetime
+		from claude_candidate.schemas.merged_profile import MergedEvidenceProfile
+		return MergedEvidenceProfile(
+			skills=skills or [],
+			patterns=[],
+			projects=[],
+			roles=[],
+			corroborated_skill_count=0,
+			resume_only_skill_count=0,
+			sessions_only_skill_count=len(skills or []),
+			discovery_skills=[],
+			profile_hash="test",
+			resume_hash="test",
+			candidate_profile_hash="test",
+			merged_at=datetime.now(),
+		)
+
+	def _profile_with(self, skill_name: str, source="corroborated") -> "MergedEvidenceProfile":
+		from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+		return self._make_profile(skills=[MergedSkillEvidence(
+			name=skill_name,
+			source=EvidenceSource[source.upper()],
+			effective_depth=DepthLevel.APPLIED,
+			confidence=0.85,
+		)])
+
+	def _req(self, skill: str):
+		from claude_candidate.schemas.job_requirements import QuickRequirement, RequirementPriority
+		return QuickRequirement(
+			description=f"Experience with {skill}",
+			skill_mapping=[skill],
+			priority=RequirementPriority.STRONG_PREFERENCE,
+		)
+
+	def test_exact_name_match_returns_exact(self):
+		"""Direct name match → match_type='exact'."""
+		from claude_candidate.quick_match import _find_best_skill
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+		profile = self._profile_with("python")
+		req = self._req("python")
+		match, status, mtype = _find_best_skill(req, profile, DepthLevel.USED)
+		assert match is not None
+		assert mtype == "exact"
+
+	def test_taxonomy_alias_returns_exact(self):
+		"""Taxonomy alias resolution (ci/cd → ci-cd) → match_type='exact'."""
+		from claude_candidate.quick_match import _find_best_skill
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+		profile = self._profile_with("ci-cd")
+		req = self._req("ci/cd")  # alias in taxonomy
+		match, status, mtype = _find_best_skill(req, profile, DepthLevel.USED)
+		assert match is not None
+		assert mtype == "exact"
+
+	def test_no_evidence_returns_none_type(self):
+		"""Unmatched requirement → match_type='none'."""
+		from claude_candidate.quick_match import _find_best_skill
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+		profile = self._profile_with("python")
+		req = self._req("cobol")
+		match, status, mtype = _find_best_skill(req, profile, DepthLevel.USED)
+		assert match is None
+		assert mtype == "none"
+		assert status == "no_evidence"
+
+	def test_skill_match_detail_has_match_type_field(self):
+		"""SkillMatchDetail serialises match_type in the API-facing dict."""
+		from claude_candidate.quick_match import _find_best_skill, _build_skill_detail
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+		profile = self._profile_with("python")
+		req = self._req("python")
+		match, status, mtype = _find_best_skill(req, profile, DepthLevel.USED)
+		detail = _build_skill_detail(req, match, status, mtype)
+		assert detail.match_type == "exact"
+		d = detail.model_dump()
+		assert "match_type" in d
+
+
+# ---------------------------------------------------------------------------
+# TestDomainPenalty
+# ---------------------------------------------------------------------------
+
+
+class TestDomainPenalty:
+	"""Domain-penalty caps grade at B+ when industry domain appears 3+ times but is absent."""
+
+	def _make_profile(self, skills=None):
+		from datetime import datetime
+		from claude_candidate.schemas.merged_profile import MergedEvidenceProfile
+		return MergedEvidenceProfile(
+			skills=skills or [],
+			patterns=[],
+			projects=[],
+			roles=[],
+			corroborated_skill_count=0,
+			resume_only_skill_count=0,
+			sessions_only_skill_count=len(skills or []),
+			discovery_skills=[],
+			profile_hash="test",
+			resume_hash="test",
+			candidate_profile_hash="test",
+			merged_at=datetime.now(),
+		)
+
+	def _reqs_with_domain(self, domain_word: str, count: int):
+		"""Create `count` requirements that mention the domain word."""
+		from claude_candidate.schemas.job_requirements import QuickRequirement, RequirementPriority
+		return [
+			QuickRequirement(
+				description=f"Experience in {domain_word} industry applications",
+				skill_mapping=["python"],
+				priority=RequirementPriority.STRONG_PREFERENCE,
+			)
+			for _ in range(count)
+		]
+
+	def test_domain_fires_when_keyword_in_three_reqs(self):
+		"""'music' in 3 requirements + no music in profile → domain_gap_term='music'."""
+		from claude_candidate.quick_match import _detect_domain_gap
+		reqs = self._reqs_with_domain("music", 3)
+		profile = self._make_profile()
+		gap = _detect_domain_gap(reqs, profile)
+		assert gap == "music"
+
+	def test_domain_does_not_fire_when_keyword_in_two_reqs(self):
+		"""'music' in only 2 requirements → no gap (threshold is 3)."""
+		from claude_candidate.quick_match import _detect_domain_gap
+		reqs = self._reqs_with_domain("music", 2)
+		profile = self._make_profile()
+		gap = _detect_domain_gap(reqs, profile)
+		assert gap is None
+
+	def test_domain_does_not_fire_when_keyword_in_profile(self):
+		"""'music' in 3 requirements but candidate has music as a skill name → no gap."""
+		from claude_candidate.quick_match import _detect_domain_gap
+		from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+		reqs = self._reqs_with_domain("music", 3)
+		profile = self._make_profile(skills=[MergedSkillEvidence(
+			name="music",
+			source=EvidenceSource.RESUME_ONLY,
+			effective_depth=DepthLevel.MENTIONED,
+			confidence=0.8,
+		)])
+		gap = _detect_domain_gap(reqs, profile)
+		assert gap is None
+
+	def test_tech_term_not_in_domain_keywords_does_not_fire(self):
+		"""'python' in 5 requirements → not a domain keyword, no gap."""
+		from claude_candidate.quick_match import _detect_domain_gap
+		reqs = self._reqs_with_domain("python", 5)
+		profile = self._make_profile()
+		gap = _detect_domain_gap(reqs, profile)
+		assert gap is None
+
+	def test_domain_cap_applied_to_high_scoring_assessment(self):
+		"""Assessment that would score A gets capped to B+ when domain gap detected."""
+		from claude_candidate.quick_match import QuickMatchEngine, _detect_domain_gap, DOMAIN_KEYWORDS
+		from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+
+		assert "music" in DOMAIN_KEYWORDS
+		assert "baseball" in DOMAIN_KEYWORDS
+
+		# Build 3 requirements that reference the 'music' domain keyword
+		reqs = self._reqs_with_domain("music", 3)
+
+		# Profile with strong python evidence (would otherwise score high)
+		profile = self._make_profile(skills=[
+			MergedSkillEvidence(
+				name="python",
+				source=EvidenceSource.SESSIONS_ONLY,
+				effective_depth=DepthLevel.EXPERT,
+				confidence=1.0,
+				session_frequency=100,
+			),
+		])
+
+		# Confirm domain-gap detector fires
+		assert _detect_domain_gap(reqs, profile) == "music"
+
+		# Full assessment via engine — should be capped at B+
+		engine = QuickMatchEngine(profile)
+		assessment = engine.assess(
+			requirements=reqs,
+			company="Music AI Corp",
+			title="Senior Music ML Engineer",
+		)
+		assert assessment.domain_gap_term == "music"
+		assert assessment.overall_grade == "B+"

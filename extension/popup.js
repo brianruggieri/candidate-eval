@@ -5,6 +5,14 @@ const POSTING_TTL_MS = 5 * 60 * 1000;
 
 function el(id) { return document.getElementById(id); }
 
+function categorizeSkill(m) {
+	if (m.match_status === 'no_evidence') return 'missing';
+	if (m.evidence_source === 'corroborated') return 'direct';
+	// match_type from API: "fuzzy" = substring/pattern/inferred resolution
+	if (m.match_type === 'fuzzy') return 'fuzzy';
+	return 'inferred';
+}
+
 function showState(name) {
 	STATES.forEach(s => {
 		const node = el(`state-${s}`);
