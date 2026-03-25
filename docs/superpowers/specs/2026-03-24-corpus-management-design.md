@@ -15,9 +15,9 @@ The Chrome extension already extracts and assesses every job posting browsed —
 A two-tier corpus:
 
 - **`tests/golden_set/`** — existing, human-verified grades. Used for accuracy measurement. Unchanged.
-- **`tests/regression_corpus/`** — new, auto-graded from `assessments.db`. Used for regression detection only. Grade source is always `"auto"`.
+- **`tests/regression_corpus/`** — new, auto-graded from `assessments.db`. Used for regression detection only.
 
-A `corpus` CLI command group manages export, promotion, removal, and listing. The existing benchmark script gains a `--tier` flag.
+A `corpus` CLI command group manages export, promotion, removal, and listing. The existing benchmark script gains `--tier` and `--data-dir` flags.
 
 ## Directory Structure
 
@@ -31,7 +31,7 @@ tests/
 
   regression_corpus/        # new — auto-graded
     postings/               # same JSON format as golden_set/postings/
-    expected_grades.json    # grade + source: "auto" + assessment_id + exported_at
+    expected_grades.json    # nested format (see Data Formats)
     benchmark_history.jsonl # separate history — never mixed with golden set
 ```
 
@@ -47,15 +47,21 @@ claude-candidate corpus export [--limit N] [--db PATH] [--since DAYS]
 
 Reads the posting cache from `assessments.db`. For each cached posting that has an associated assessment:
 
-1. Generates a slug filename: `{company}-{title-kebab}-{YYYY-MM-DD}.json`
+1. Generates a slug filename (see Slug Generation below)
 2. Writes posting JSON to `tests/regression_corpus/postings/`
-3. Appends to `tests/regression_corpus/expected_grades.json` with:
-   - `grade`: taken from stored `overall_grade`
-   - `source`: `"auto"`
-   - `assessment_id`: the stored assessment ID
-   - `exported_at`: ISO timestamp
+3. Appends to `tests/regression_corpus/expected_grades.json` with grade, source, assessment_id, url_hash, exported_at
 
-Deduplication by URL hash — exporting the same posting twice is a no-op. `--since DAYS` filters to postings cached within the last N days. `--limit N` caps the export batch size.
+**Slug generation:** Lowercase company and title, replace spaces and non-alphanumeric characters with hyphens, collapse consecutive hyphens, truncate company to 20 chars and title to 40 chars. The date is the export date (today). Example: `"Stripe"` + `"Senior Software Engineer"` exported on 2026-03-24 → `stripe-senior-software-engineer-2026-03-24`.
+
+**Slug collision tiebreaker:** If that slug already exists in `regression_corpus/expected_grades.json` for a different URL hash, append a 6-char prefix of the URL hash: `stripe-senior-software-engineer-2026-03-24-a1b2c3`. If that also collides (extremely unlikely), append a counter: `-2`, `-3`, etc.
+
+**Deduplication:** Before writing, build a set of `url_hash` values already present in `regression_corpus/expected_grades.json`. If the current posting's URL hash is in that set, skip silently and print a skip message. This check requires only reading `expected_grades.json`, not scanning posting files.
+
+**`--since DAYS` filter:** Includes postings where `cached_at > (now - N * 86400 seconds)` — exclusive lower bound. Postings with `NULL` `cached_at` are excluded. Without `--since`, all postings with a valid assessment are exported.
+
+**`--limit N`:** Caps total postings exported. Applied after `--since` filter, newest first by `cached_at`.
+
+**Initial state:** Creates `tests/regression_corpus/postings/` and initialises `tests/regression_corpus/expected_grades.json` as `{}` if they do not exist.
 
 ### `corpus promote <posting_id>`
 
@@ -63,15 +69,21 @@ Deduplication by URL hash — exporting the same posting twice is a no-op. `--si
 claude-candidate corpus promote <posting_id>
 ```
 
+`posting_id` is the filename stem (e.g. `stripe-senior-software-engineer-2026-03-24`). It is both the filename stem in `regression_corpus/postings/` and the key in `regression_corpus/expected_grades.json`. `corpus list` shows available IDs. Does not query `assessments.db` at promotion time.
+
 Interactive workflow:
 
-1. Shows a summary of the posting (company, title, overall_score, skill match, gaps)
-2. Prompts for a human grade: `A+/A/A-/B+/B/B-/C+/C/C-/D+/D/F`
-3. Copies the posting JSON from `regression_corpus/postings/` to `golden_set/postings/`
-4. Appends to `golden_set/expected_grades.json` with `"source": "human"`
-5. Removes the posting from `regression_corpus/postings/` and its entry from `regression_corpus/expected_grades.json`
+1. Reads `regression_corpus/postings/<posting_id>.json`. Errors if file is missing.
+2. Reads the `grade` field from `regression_corpus/expected_grades.json[posting_id]`. Errors if the grades entry is missing (message: "grades entry not found — run `corpus remove <posting_id>` to clean up orphaned file").
+3. Shows summary: company, title, grade from step 2, first 300 chars of description.
+4. Prompts for a human grade: `A+/A/A-/B+/B/B-/C+/C/C-/D+/D/F`. Re-prompts on invalid input. If stdin is exhausted without a valid grade (non-TTY / piped input), raises `click.Abort()` and exits non-zero.
+5. Errors if `posting_id` already exists as a key in `golden_set/expected_grades.json` — prevents silent overwrite.
+6. Copies posting JSON to `golden_set/postings/<posting_id>.json`.
+7. Appends `{"<posting_id>": "<grade>"}` to `golden_set/expected_grades.json` — **flat format, no nested fields** (golden set format is unchanged).
+8. Removes the `posting_id` key from `regression_corpus/expected_grades.json`.
+9. Deletes `regression_corpus/postings/<posting_id>.json`.
 
-`posting_id` is the filename stem (e.g. `stripe-swe-2026-03-24`). `corpus list` shows available IDs.
+**Atomicity:** Steps 6–9 are not transactional. If the process fails after step 6 but before step 9, the posting exists in both tiers. Recovery: run `corpus remove <posting_id>` to clean up the regression side.
 
 ### `corpus remove <posting_id>`
 
@@ -79,7 +91,12 @@ Interactive workflow:
 claude-candidate corpus remove <posting_id>
 ```
 
-Deletes the posting JSON from `regression_corpus/postings/` and removes its entry from `regression_corpus/expected_grades.json`. Used to suppress duplicates, non-SE roles, and junk extractions.
+Deletes whatever exists for `posting_id` in the regression corpus:
+
+- If `regression_corpus/postings/<posting_id>.json` exists, deletes it.
+- If `regression_corpus/expected_grades.json[posting_id]` exists, removes the entry.
+- If only one of the two exists (partial state), deletes what is present and prints a warning about the missing counterpart.
+- If neither exists, prints "Not found in regression corpus" and exits cleanly (no error).
 
 ### `corpus list`
 
@@ -87,8 +104,14 @@ Deletes the posting JSON from `regression_corpus/postings/` and removes its entr
 claude-candidate corpus list
 ```
 
-Prints a table of all entries in `regression_corpus/expected_grades.json`:
-`posting_id | company | title | auto_grade | exported_at`
+Reads `regression_corpus/expected_grades.json`. For each entry, reads the corresponding posting JSON to get `company` and `title`. Prints:
+
+```
+posting_id                                   | company  | title                    | grade | exported_at
+stripe-senior-software-engineer-2026-03-24   | Stripe   | Senior Software Engineer | B+    | 2026-03-24 14:32
+```
+
+`exported_at` is displayed as `YYYY-MM-DD HH:MM`. If the posting JSON file is missing, prints `[file missing]` for company and title.
 
 ## Data Formats
 
@@ -96,32 +119,58 @@ Prints a table of all entries in `regression_corpus/expected_grades.json`:
 
 ```json
 {
-  "stripe-swe-2026-03-24": {
+  "stripe-senior-software-engineer-2026-03-24": {
     "grade": "B+",
     "source": "auto",
     "assessment_id": "abc123def456",
+    "url_hash": "d4e5f6a1b2c3",
     "exported_at": "2026-03-24T14:32:00"
   }
 }
 ```
 
+The `url_hash` field (first 16 chars of SHA-256 of the posting URL) is stored here for O(1) deduplication on subsequent exports.
+
 ### Posting JSON
 
 Same schema as `tests/golden_set/postings/*.json`. Fields: `company`, `title`, `description`, `url`, `requirements` (array of `QuickRequirement`-compatible dicts), `location`, `seniority`, `remote`, `salary`.
 
+### `golden_set/expected_grades.json` (flat format — unchanged)
+
+```json
+{
+  "stripe-senior-software-engineer-2026-03-24": "B+"
+}
+```
+
+`corpus promote` writes in this exact format. No nested fields are ever written to `golden_set/expected_grades.json`.
+
 ## Benchmark Changes
 
-`tests/golden_set/benchmark_accuracy.py` gains a `--tier` flag:
+`tests/golden_set/benchmark_accuracy.py` gains two optional flags:
 
-| Invocation | Behavior |
-|---|---|
-| `benchmark_accuracy.py` | Existing behavior — golden set, accuracy metrics |
-| `benchmark_accuracy.py --tier regression` | Regression corpus, stability metrics only |
-| `benchmark_accuracy.py --tier all` | Both tiers, each with appropriate metrics |
+| Flag | Default | Purpose |
+|---|---|---|
+| `--tier` | `golden` | `golden`, `regression`, or `all` |
+| `--data-dir PATH` | `~/.claude-candidate/` | Override merged profile directory (used by tests to inject fixture profiles) |
+
+**`--tier all` writes to both history files independently:** the golden result is appended to `golden_set/benchmark_history.jsonl` and the regression result is appended to `regression_corpus/benchmark_history.jsonl`. Console output shows both sequentially. Combined output schema:
+
+```json
+{
+  "golden": { "<existing accuracy output schema>" },
+  "regression": { "<stability output schema>" }
+}
+```
+
+When `regression_corpus/expected_grades.json` is absent or empty:
+```json
+{"tier": "regression", "total": 0, "stable": 0, "regressions": 0, "improvements": 0, "stability_pct": 100.0, "changed": []}
+```
 
 ### Regression tier output
 
-Reports **stability**, not accuracy. Output JSON schema:
+Reports **stability**, not accuracy:
 
 ```json
 {
@@ -132,28 +181,44 @@ Reports **stability**, not accuracy. Output JSON schema:
   "improvements": 1,
   "stability_pct": 95.7,
   "changed": [
-    {"posting_id": "openai-research-2026-03-20", "auto_grade": "B", "current_grade": "C+", "direction": "regression"},
-    {"posting_id": "anthropic-infra-2026-03-18", "auto_grade": "A", "current_grade": "A+", "direction": "improvement"}
+    {"posting_id": "openai-research-2026-03-20", "stored_grade": "B", "current_grade": "C+", "direction": "regression"},
+    {"posting_id": "anthropic-infra-2026-03-18", "stored_grade": "A", "current_grade": "A+", "direction": "improvement"}
   ]
 }
 ```
 
-The regression output **never** includes an accuracy percentage. The grades are self-assigned — reporting accuracy against them would be misleading.
+No `"accuracy"` key is ever present in regression output.
 
-**Grade shift threshold:** ≥1 full letter step (B+ → B is flagged; floating-point noise that doesn't cross a step boundary is not).
+**Grade shift threshold:** Any grade change is flagged. Canonical ordered scale (12 grades):
 
-Regression runs append to `tests/regression_corpus/benchmark_history.jsonl` — separate from `golden_set/benchmark_history.jsonl` so the two trend histories remain independent.
+```
+A+  A  A-  B+  B  B-  C+  C  C-  D+  D  F
+ 0   1   2   3  4   5   6  7   8   9  10  11
+```
+
+Flagged when `abs(current_index - stored_index) >= 1`. `D-` is not a valid grade.
+
+Regression runs append to `tests/regression_corpus/benchmark_history.jsonl` only. `--tier all` appends one entry to each respective `.jsonl` file.
 
 ## Storage Layer
 
-`corpus export` reads from two tables via `AssessmentStore`:
+**`list_cached_postings` (new method on `AssessmentStore`):**
 
-- **Posting cache** (`get_cached_posting` / `list_cached_postings`): full extracted posting JSON including `description` and `requirements`
-- **Assessments** (`list_assessments`): `overall_grade`, `assessment_id`, `assessed_at`
+```sql
+SELECT url, url_hash, data, cached_at FROM posting_cache
+[WHERE cached_at > :since]
+ORDER BY cached_at DESC
+[LIMIT :limit]
+```
 
-Joined on `posting_url`. Postings without a corresponding assessment are skipped (no grade to export).
+**`corpus export` join logic (Python-side, not SQL):**
 
-If `AssessmentStore` doesn't expose `list_cached_postings`, a new method is added — it's a simple `SELECT * FROM posting_cache` with optional `WHERE cached_at > ?` for the `--since` filter.
+1. Call `list_cached_postings(since=..., limit=...)` to get posting rows
+2. For each posting row, call `list_assessments()` filtered by `posting_url` — or do a single `list_assessments()` call upfront and build a `{url: assessment}` dict
+3. If multiple assessments exist for a URL, use the one with the latest `assessed_at`
+4. Skip postings with no matching assessment
+
+**Schema migration:** `cached_at` is added to `posting_cache` via `AssessmentStore.initialize()`, the existing migration hook. Migration uses `ALTER TABLE posting_cache ADD COLUMN cached_at TEXT` wrapped in a `try/except` for `OperationalError: duplicate column` (SQLite's idiomatic idempotent migration pattern). Pre-migration rows have `cached_at = NULL` and are excluded from `--since` filtering.
 
 ## Tests
 
@@ -161,16 +226,25 @@ New file: `tests/test_corpus_cli.py`. All tests are fast tier (no Claude CLI cal
 
 | Test | What it covers |
 |---|---|
-| `test_export_writes_posting_json` | Seeds DB with fixture posting + assessment, asserts JSON written |
-| `test_export_writes_expected_grades_with_auto_source` | Verifies grade, source, assessment_id, exported_at in grades file |
-| `test_export_deduplicates_by_url` | Export same posting twice → one file, no duplicate grade entry |
-| `test_export_since_filter` | Two postings at different timestamps, `--since 3` exports only recent |
+| `test_export_writes_posting_json` | Seeds DB with fixture posting + assessment; asserts JSON written to regression_corpus/postings/ with correct fields |
+| `test_export_writes_expected_grades` | Verifies grade, source, assessment_id, url_hash, exported_at in expected_grades.json |
+| `test_export_deduplicates_by_url_hash` | Export same URL twice → one file; second run is a no-op (url_hash already in expected_grades.json) |
+| `test_export_since_filter` | Two postings: one cached 1 day ago, one 10 days ago; `--since 3` exports only the recent one |
+| `test_export_since_skips_null_cached_at` | Pre-migration row with NULL cached_at is excluded when --since is used |
 | `test_remove_deletes_posting_and_grade_entry` | Export then remove → both file and grades entry gone |
-| `test_promote_moves_to_golden_set` | Export, promote with "B+" → removed from regression, added to golden with source="human" |
-| `test_list_shows_corpus_contents` | Export two postings, list output contains both |
-| `test_regression_tier_flags_grade_shifts` | Seeds regression corpus, shifts scoring, benchmark flags regression |
-| `test_regression_tier_no_accuracy_metric` | Regression output JSON has no "accuracy" key |
-| `test_regression_history_separate_from_golden` | `--tier regression` appends to regression_corpus/benchmark_history.jsonl only |
+| `test_remove_partial_state` | Grades entry exists but file is missing → remove deletes grades entry, prints warning, exits cleanly |
+| `test_remove_missing_is_noop` | `corpus remove` on nonexistent posting_id exits cleanly with "Not found" message |
+| `test_promote_moves_to_golden_set` | Export, promote with "B+" → removed from regression_corpus/; posting JSON in golden_set/postings/; golden_set/expected_grades.json has flat `{"<id>": "B+"}` |
+| `test_promote_errors_if_already_in_golden` | Promote a posting_id already in golden_set/expected_grades.json → error before any writes |
+| `test_promote_rejects_invalid_grade` | Pipe invalid input then valid grade via CliRunner; assert re-prompt, then success |
+| `test_promote_aborts_on_eof` | CliRunner with only invalid input exhausted → Click.Abort, non-zero exit |
+| `test_promote_errors_on_missing_grade_entry` | Posting file exists but grades entry is missing → error with cleanup hint |
+| `test_list_shows_corpus_contents` | Export two postings; list output has both rows with company+title from posting JSON |
+| `test_list_missing_file_shows_placeholder` | Grades entry exists but JSON file is missing → list shows `[file missing]` |
+| `test_regression_tier_flags_grade_shifts` | Writes regression_corpus/ fixture: posting JSON requiring Python (must_have), expected_grades with `grade: "B+"`; passes `--data-dir` pointing to a tmp fixture dir containing a merged profile with no Python skill (forces low score → C+ or below); asserts `changed` list has one regression entry. Real QuickMatchEngine, no mocks. |
+| `test_regression_tier_no_accuracy_metric` | Regression output JSON has no `"accuracy"` key |
+| `test_regression_history_separate_from_golden` | `--tier regression` appends to regression_corpus/benchmark_history.jsonl only; golden_set/benchmark_history.jsonl unchanged |
+| `test_regression_tier_all_empty_corpus` | `--tier all` with empty regression_corpus → regression section has total=0, stability_pct=100.0 |
 
 ## Out of Scope
 
