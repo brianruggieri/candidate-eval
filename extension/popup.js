@@ -471,6 +471,7 @@ async function initialize() {
 		: posting.title || '';
 	showState('assessing');
 
+	chrome.storage.local.remove('fullAssessmentReady');
 	const partial = await sendToBackground({ action: 'assessPartial', payload: posting });
 	if (!partial.success && partial.error) {
 		el('error-message').textContent = partial.error;
@@ -492,11 +493,12 @@ async function initialize() {
 	sendToBackground({ action: 'startFullAssess', assessmentId });
 
 	// Poll for completion (if popup stays open) — update in-place
+	const currentAssessmentId = assessmentId;
 	const pollInterval = setInterval(async () => {
 		const ready = await new Promise(r => {
 			chrome.storage.local.get('fullAssessmentReady', res => r(res.fullAssessmentReady || null));
 		});
-		if (ready && ready.assessmentId && ready.data) {
+		if (ready && ready.assessmentId === currentAssessmentId && ready.data) {
 			clearInterval(pollInterval);
 			if (deepBanner) deepBanner.classList.add('hidden');
 			renderResults(ready.data);
