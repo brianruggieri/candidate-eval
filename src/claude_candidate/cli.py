@@ -1993,5 +1993,10 @@ def site_render(company: str | None, output_dir: str, db: str | None) -> None:
 		)
 
 
+# Register corpus subcommand group
+from claude_candidate.corpus_cli import corpus as _corpus_group
+main.add_command(_corpus_group, name="corpus")
+
+
 if __name__ == "__main__":
 	main()
