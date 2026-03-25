@@ -52,6 +52,10 @@ function scoreToGrade(s) {
 	if (s >= 0.63) return 'D+'; if (s >= 0.60) return 'D'; return 'F';
 }
 
+function escHtml(s) {
+	return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function barColor(score) {
 	if (score >= 0.75) return 'green';
 	if (score >= 0.50) return 'yellow';
@@ -78,9 +82,11 @@ function renderSignalBars(matches) {
 	const ratio = directCount / withEvidence.length;
 	const litCount = ratio >= 0.75 ? 4 : ratio >= 0.5 ? 3 : ratio >= 0.25 ? 2 : 1;
 	for (let i = 1; i <= 4; i++) {
-		el(`sb${i}`).classList.toggle('lit', i <= litCount);
+		const bar = el(`sb${i}`);
+		if (bar) bar.classList.toggle('lit', i <= litCount);
 	}
-	el('signal-bars').classList.remove('hidden');
+	const sbContainer = el('signal-bars');
+	if (sbContainer) sbContainer.classList.remove('hidden');
 }
 
 function renderEvidenceSummary(matches) {
@@ -88,14 +94,17 @@ function renderEvidenceSummary(matches) {
 	matches.forEach(m => counts[categorizeSkill(m)]++);
 	['direct', 'inferred', 'fuzzy', 'missing'].forEach(cat => {
 		const chip = el(`chip-${cat}`);
+		const countEl = el(`chip-${cat}-count`);
+		if (!chip) return;
 		if (counts[cat] > 0) {
-			el(`chip-${cat}-count`).textContent = `${counts[cat]} ${cat}`;
+			if (countEl) countEl.textContent = `${counts[cat]} ${cat}`;
 			chip.classList.remove('hidden');
 		} else {
 			chip.classList.add('hidden');
 		}
 	});
-	if (matches.length > 0) el('section-evidence-summary').classList.remove('hidden');
+	const summaryEl = el('section-evidence-summary');
+	if (summaryEl && matches.length > 0) summaryEl.classList.remove('hidden');
 }
 
 function pct(score) { return Math.round(score * 100) + '%'; }
@@ -117,7 +126,7 @@ function renderResults(data) {
 	const heroText = el('hero-text');
 	if (phase === 'full') {
 		const grade = data.overall_grade || scoreToGrade(data.overall_score || 0);
-		heroText.textContent = grade;
+		if (heroText) heroText.textContent = grade;
 		heroEl.dataset.grade = grade;
 		heroEl.classList.add('hero-grade');
 		heroEl.classList.remove('hero-pct');
@@ -125,7 +134,7 @@ function renderResults(data) {
 		const partial = data.partial_percentage != null
 			? Math.round(data.partial_percentage)
 			: Math.round((data.overall_score || 0) * 100);
-		heroText.textContent = partial + '%';
+		if (heroText) heroText.textContent = partial + '%';
 		heroEl.dataset.grade = '';
 		heroEl.classList.add('hero-pct');
 		heroEl.classList.remove('hero-grade');
@@ -234,8 +243,8 @@ function renderResults(data) {
 			div.className = 'match-item';
 			div.innerHTML = `
 				<span class="match-icon ${iconClass}">${iconChar}</span>
-				<span class="match-name">${g.description || ''}</span>
-				<span class="match-source">${g.status || 'unknown'}</span>
+				<span class="match-name">${escHtml(g.description || '')}</span>
+				<span class="match-source">${escHtml(g.status || 'unknown')}</span>
 			`;
 			eligList.appendChild(div);
 		});
@@ -268,7 +277,7 @@ function renderResults(data) {
 			div.className = 'match-item' + (!isMissing && conf <= 0.70 ? ' low-conf' : '');
 			div.innerHTML = `
 				<span class="match-icon ${iconClass}">${iconChar}</span>
-				<span class="match-name">${m.requirement || ''}</span>
+				<span class="match-name">${escHtml(m.requirement || '')}</span>
 				<div class="conf-bar-wrap">
 					<div class="conf-bar">
 						<div class="conf-bar-fill ${isMissing ? '' : confFill}" style="width:${isMissing ? 0 : Math.round(conf * 100)}%"></div>
