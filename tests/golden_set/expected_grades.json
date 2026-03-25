@@ -77,11 +77,11 @@
   },
   "substack-full-stack-product-engineer-creator-activation": {
     "expected": "A+",
-    "rationale": "Substack — Full Stack Product Engineer. Expert full-stack, product-development, API design. Recalibrated to A+ (from A-) — 97.1% score is A+ territory. CONFLICTING confidence fix raised this significantly."
+    "rationale": "Substack — Full Stack Product Engineer. TypeScript/React/Postgres stack fully evidenced. Recalibrated to A+ (from A-) — 97.1% score is A+ territory. CONFLICTING confidence fix raised this significantly."
   },
   "suno-staff-software-engineer": {
     "expected": "A",
-    "rationale": "Suno — Staff Software Engineer. Music/audio domain not in profile, but general SWE skills match strongly. Recalibrated to A (from B+) — 92.5% score reflects strong skills coverage. Domain gap does not factor into scoring beyond missing skill requirements."
+    "rationale": "Suno — Staff Software Engineer. Domain penalty (music) does not fire — 'music' appears in only 1 requirement description, below the 3+ threshold. Recalibrated to A (from B+) — 92.5% score reflects strong skills coverage."
   },
   "the-walt-disney-company-software-engineer-interactive-visual": {
     "expected": "A-",

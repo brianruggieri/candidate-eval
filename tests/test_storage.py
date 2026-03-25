@@ -334,3 +334,80 @@ class TestCompanyResearchCache:
 		run(store.cache_company_research("Acme", {"version": 2}))
 		result = run(store.get_cached_company_research("Acme"))
 		assert result["version"] == 2
+
+
+# ---------------------------------------------------------------------------
+# list_cached_postings
+# ---------------------------------------------------------------------------
+
+
+class TestListCachedPostings:
+	def test_returns_all_cached_postings(self, store: AssessmentStore):
+		run(store.cache_posting("hash1", "https://example.com/job/1", {"company": "Stripe", "title": "SWE"}))
+		run(store.cache_posting("hash2", "https://example.com/job/2", {"company": "Vercel", "title": "Platform"}))
+		rows = run(store.list_cached_postings())
+		assert len(rows) == 2
+		urls = {r["url"] for r in rows}
+		assert urls == {"https://example.com/job/1", "https://example.com/job/2"}
+
+	def test_each_row_has_expected_fields(self, store: AssessmentStore):
+		run(store.cache_posting("hash1", "https://example.com/job/1", {"company": "Stripe"}))
+		rows = run(store.list_cached_postings())
+		row = rows[0]
+		assert "url" in row
+		assert "url_hash" in row
+		assert "data" in row
+		assert "extracted_at" in row
+		assert row["url_hash"] == "hash1"
+		assert row["data"]["company"] == "Stripe"
+
+	def test_since_filter_excludes_old_postings(self, store: AssessmentStore):
+		from datetime import datetime, timedelta
+
+		# Insert one recent (now) and one old (20 days ago) posting
+		run(store.cache_posting("recent", "https://example.com/recent", {"company": "New"}))
+		old_ts = (datetime.now() - timedelta(days=20)).isoformat()
+		# Directly update extracted_at to simulate old posting
+		async def _backdate():
+			await store._conn.execute(
+				"UPDATE posting_cache SET extracted_at = ? WHERE url_hash = 'recent'",
+				(old_ts,)
+			)
+			await store._conn.commit()
+
+		run(_backdate())
+		run(store.cache_posting("new", "https://example.com/new", {"company": "New"}))
+
+		cutoff = datetime.now() - timedelta(days=10)
+		rows = run(store.list_cached_postings(since=cutoff))
+		assert len(rows) == 1
+		assert rows[0]["url_hash"] == "new"
+
+	def test_limit_caps_results(self, store: AssessmentStore):
+		for i in range(5):
+			run(store.cache_posting(f"hash{i}", f"https://example.com/{i}", {"company": f"Co{i}"}))
+		rows = run(store.list_cached_postings(limit=3))
+		assert len(rows) == 3
+
+	def test_returns_newest_first(self, store: AssessmentStore):
+		from datetime import datetime, timedelta
+
+		run(store.cache_posting("hash1", "https://example.com/1", {"company": "First"}))
+		run(store.cache_posting("hash2", "https://example.com/2", {"company": "Second"}))
+
+		# Backdate hash1 so hash2 is definitively the newest
+		older_ts = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
+
+		async def _backdate():
+			await store._conn.execute(
+				"UPDATE posting_cache SET extracted_at = ? WHERE url_hash = 'hash1'",
+				(older_ts,),
+			)
+			await store._conn.commit()
+
+		run(_backdate())
+
+		rows = run(store.list_cached_postings())
+		assert len(rows) == 2
+		assert rows[0]["url_hash"] == "hash2"
+		assert rows[1]["url_hash"] == "hash1"
