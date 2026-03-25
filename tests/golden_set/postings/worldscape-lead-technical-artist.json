@@ -1,0 +1,97 @@
+{
+  "company": "Worldscape",
+  "title": "Lead Technical Artist",
+  "description": "Worldscape is a cutting-edge platform designed to unify distributed data, sensors, and intelligent agents across cloud, on-prem, and edge environments. By combining geospatial intelligence, physics-based 3D simulation, and reward-driven AI, Worldscape enables organizations to build immersive digital twins for predictive modeling, scenario planning, and adaptive decision-making. With a zero-trust security framework, seamless integration with legacy systems, and robust developer tools, Worldscape empowers rapid deployment of agentic applications that drive resilience and efficiency in sectors like logistics, telecom, defense, and infrastructure.\n\nWorldscape is seeking a Lead Technical Artist to serve as the critical bridge between art and engineering, driving the technical direction of content creation and ensuring visual quality, efficiency, and performance across the project. You will be reporting into the Studio Head and responsible for defining workflows, optimizing pipelines, delivering innovative tools and visual solutions, as well as working with partner teams in outsourced art and VFX assets. The ideal candidate combines deep artistic understanding with strong technical expertise to support world-class content creation and elevate the visual bar of the product.\n\nThis is an onsite role located in Redmond, WA.\n\nResponsibilities\n\nLead, mentor, and develop a team of Technical Artists, fostering both artistic and technical excellence.\nDefine, maintain, and optimize art content pipelines, workflows, and toolchains across multiple projects.\nCollaborate closely with Art, Design, Engineering, and Production to ensure seamless integration of assets and features.\nDrive performance profiling, debugging, and optimization on target platforms.\nDevelop tools, scripts, and automation solutions that increase team efficiency and reduce production bottlenecks.\nPartner with graphics engineering team to ensure the highest fidelity and quality of our rendering engine and ensure technical feasibility.\nIdentify and solve complex visual, performance, and workflow challenges throughout production.\nEstablish best practices, documentation, and guidelines for art creation and technical standards.\nEvaluate new technologies, tools, techniques, and processes to improve the project's overall quality and efficiency.\nTranslate deep technical art topics into actionable insights for studio and platform teams and leadership.\n\nProfessional Qualifications\n\n7+ years of experience as a Technical Artist in game development or interactive media.\nProven experience shipping at least one AAA or large-scale project.\nStrong proficiency in modern game engines.\nCommand of art pipelines and performance optimization for real-time rendering.\nSolid experience with scripting or programming languages (e.g., Python, C#, HLSL/GLSL).\nProficiency with major DCC tools such as Maya, Blender, Houdini, Substance, or similar.\nDeep understanding of rendering fundamentals, asset workflows, and real-time performance constraints and modern rendering techniques.\nDemonstrated leadership or mentorship experience within multidisciplinary internal and external art/tech teams.\nExcellent problem solving, communication, and cross-team collaboration skills.\n\nPreferred Qualifications\n\nExpert in shader development, material authoring, or rendering pipelines.\nKnowledge of procedural content creation (e.g., Houdini) or advanced simulation workflows.\nFamiliarity with ML/AI-assisted content creation tools and modern automation strategies.\nBackground in technical direction, pipeline architecture, or team management for large teams.\nStrong artistic sensibilities with the ability to critique art and contribute creatively.\nExperience with source control systems, CI/CD pipelines, and production tooling.\nPassion for pushing the boundaries of visual quality and improving team workflows.\n\nWhat We Offer\n\nCompetitive salary and meaningful equity\nAttractive benefits package\nFlexible time off policy\nMedical, Dental and Vision insurance\nHSA health insurance options\n401k plan\nBasic and Voluntary Life Insurance\nFast paced environment with flexibility and ownership",
+  "url": "https://www.linkedin.com/jobs/view/4380828442",
+  "source": "linkedin",
+  "location": "Redmond, WA",
+  "seniority": "senior",
+  "remote": false,
+  "salary": "$140,000 - $190,000",
+  "requirements": [
+    {
+      "description": "7+ years of experience as a Technical Artist in game development or interactive media",
+      "skill_mapping": ["game-development", "real-time-graphics"],
+      "priority": "must_have",
+      "years_experience": 7,
+      "education_level": null
+    },
+    {
+      "description": "Proven experience shipping at least one AAA or large-scale project",
+      "skill_mapping": ["game-development", "production-systems"],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Strong proficiency in modern game engines with command of art pipelines and performance optimization for real-time rendering",
+      "skill_mapping": ["real-time-graphics", "performance-optimization"],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Solid experience with scripting or programming languages (e.g., Python, C#, HLSL/GLSL)",
+      "skill_mapping": ["python", "csharp"],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Proficiency with major DCC tools such as Maya, Blender, Houdini, Substance, or similar",
+      "skill_mapping": ["creative-tools"],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Deep understanding of rendering fundamentals, asset workflows, and real-time performance constraints",
+      "skill_mapping": ["real-time-graphics", "webgl"],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Demonstrated leadership or mentorship experience within multidisciplinary art/tech teams",
+      "skill_mapping": ["leadership", "collaboration"],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Develop tools, scripts, and automation solutions that increase team efficiency",
+      "skill_mapping": ["developer-tools", "python"],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Expert in shader development, material authoring, or rendering pipelines",
+      "skill_mapping": ["real-time-graphics"],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Familiarity with ML/AI-assisted content creation tools and modern automation strategies",
+      "skill_mapping": ["generative-ai", "machine-learning"],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience with source control systems, CI/CD pipelines, and production tooling",
+      "skill_mapping": ["git", "ci-cd"],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Knowledge of procedural content creation or advanced simulation workflows",
+      "skill_mapping": ["animation", "creative-tools"],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    }
+  ]
+}

@@ -1,0 +1,142 @@
+{
+  "company": "Remesh",
+  "title": "Software Engineer",
+  "description": "Founded in 2014, Remesh has raised over $65 million to develop a platform enabling live conversation with your audience at scale, using AI to analyze and organize their responses in real-time. The company operates within the $70+ billion insights industry.\n\nEngineers will develop and maintain features using modern AI-assisted development workflows, collaborating with product managers and cross-functional teams. The position emphasizes transitioning toward an AI-first development workflow, leveraging tools like Claude Code, Cursor, and similar AI coding assistants.\n\nCore Responsibilities:\n- Writing, maintaining, and testing code with AI-assisted tools\n- Debugging and resolving issues using AI-augmented analysis\n- Collaborating on scalable software solutions integrating third-party APIs and LLMs\n- Building and integrating AI agents and agentic workflows\n- Contributing to AI-first development practices\n\nMinimum Qualifications:\n- 3-5 years professional software development experience\n- 3+ years JavaScript or TypeScript proficiency\n- 2+ years proficiency in Python, Ruby, Java, Go, or Rust\n- Experience with AI-assisted development tools\n- 2+ years with web technologies and testing best practices\n- Strong critical thinking for evaluating AI-generated code\n- Cloud platform experience (GCP, AWS, or Azure)\n\nPreferred Qualifications:\n- 5+ years development experience\n- AI agents and agentic systems experience\n- Python and Django expertise\n- Kubernetes and Docker knowledge\n- React experience\n- RAG patterns and vector database understanding\n\nBenefits: Four-day work week, medical/dental/vision, $500 WFH allowance, $150 monthly stipend, 28 days PTO, 401(k), equity, sabbatical leave.",
+  "url": "https://job-boards.greenhouse.io/remesh/jobs/8450776002",
+  "source": "web",
+  "location": "Remote, US",
+  "seniority": "mid",
+  "remote": true,
+  "salary": "$135,000 - $170,000",
+  "requirements": [
+    {
+      "description": "3-5 years professional software development experience",
+      "skill_mapping": [
+        "software-engineering"
+      ],
+      "priority": "must_have",
+      "years_experience": 3,
+      "education_level": null
+    },
+    {
+      "description": "3+ years JavaScript or TypeScript proficiency",
+      "skill_mapping": [
+        "javascript",
+        "typescript"
+      ],
+      "priority": "must_have",
+      "years_experience": 3,
+      "education_level": null
+    },
+    {
+      "description": "2+ years proficiency in Python, Ruby, Java, Go, or Rust",
+      "skill_mapping": [
+        "python",
+        "go",
+        "java"
+      ],
+      "priority": "must_have",
+      "years_experience": 2,
+      "education_level": null
+    },
+    {
+      "description": "Experience with AI-assisted development tools (Claude Code, Cursor)",
+      "skill_mapping": [
+        "developer-tools",
+        "generative-ai"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "2+ years with web technologies and testing best practices",
+      "skill_mapping": [
+        "frontend-development",
+        "testing"
+      ],
+      "priority": "must_have",
+      "years_experience": 2,
+      "education_level": null
+    },
+    {
+      "description": "Cloud platform experience (GCP, AWS, or Azure)",
+      "skill_mapping": [
+        "aws",
+        "gcp",
+        "azure"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Building and integrating AI agents and agentic workflows with LLMs",
+      "skill_mapping": [
+        "agentic-workflows",
+        "llm"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Strong critical thinking for evaluating AI-generated code",
+      "skill_mapping": [
+        "code-review",
+        "problem-solving"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "AI agents and agentic systems experience",
+      "skill_mapping": [
+        "agentic-workflows"
+      ],
+      "priority": "strong_preference",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Python and Django expertise",
+      "skill_mapping": [
+        "python",
+        "backend-development"
+      ],
+      "priority": "strong_preference",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Kubernetes and Docker knowledge",
+      "skill_mapping": [
+        "kubernetes",
+        "docker"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "React experience",
+      "skill_mapping": [
+        "react"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "RAG patterns and vector database understanding",
+      "skill_mapping": [
+        "rag",
+        "data-engineering"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    }
+  ]
+}

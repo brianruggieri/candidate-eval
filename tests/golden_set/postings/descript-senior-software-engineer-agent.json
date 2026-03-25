@@ -1,0 +1,126 @@
+{
+  "company": "Descript",
+  "title": "Senior Software Engineer, Agent",
+  "description": "Descript is building an AI-powered platform for audio and video content creation. The Agent team, launched in July 2025, focuses on building the future of Agentic Video Editing through chat-based editing capabilities.\n\nKey Responsibilities\n\nThe role involves three primary focus areas:\n\n1. Agent Quality: Experimentation to enhance video editing agent performance, including harness design, token optimization, and multimodal capabilities\n2. Product Experience: Building intuitive interactions for agentic video editing, improving user retention through prompt tuning and product workflows\n3. Developer Experience: Creating logging systems, evaluation frameworks, and monitoring feedback loops for agent development\n\nMinimum Qualifications\n\n- 5+ years of professional product engineering or fullstack experience\n- Proficiency with TypeScript, React, and RESTful APIs\n- Strong CS fundamentals (data structures, algorithms, databases like Postgres/Redis)\n- High ownership and growth mindset\n- Collaborative team approach\n\nPreferred Qualifications\n\n- Creative tool development experience or regular use of media editing software\n- Agent building, evaluation infrastructure, or LLM-powered product design experience\n\nAdditional Information\n\nThe posting encourages applicants who don't meet every qualification to apply. Descript operates with a flat structure where engineering titles are unified, though staff-level scope roles are actively sought. The company offers healthcare, 401k matching, catered lunches, and flexible vacation time.",
+  "url": "https://www.linkedin.com/jobs/view/4386517089",
+  "source": "linkedin",
+  "location": "San Francisco, CA",
+  "seniority": "senior",
+  "remote": false,
+  "salary": "$180,000 - $286,000",
+  "requirements": [
+    {
+      "description": "5+ years of professional product engineering or fullstack experience",
+      "skill_mapping": [
+        "full-stack",
+        "software-engineering"
+      ],
+      "priority": "must_have",
+      "years_experience": 5,
+      "education_level": null
+    },
+    {
+      "description": "Proficiency with TypeScript",
+      "skill_mapping": [
+        "typescript"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Proficiency with React and RESTful APIs",
+      "skill_mapping": [
+        "react",
+        "api-design"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Strong CS fundamentals including data structures, algorithms, and databases like Postgres/Redis",
+      "skill_mapping": [
+        "computer-science",
+        "postgresql",
+        "redis"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "High ownership and growth mindset",
+      "skill_mapping": [
+        "ownership",
+        "adaptability"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Collaborative team approach",
+      "skill_mapping": [
+        "collaboration",
+        "communication"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Building agentic video editing through chat-based capabilities with token optimization and multimodal features",
+      "skill_mapping": [
+        "agentic-workflows",
+        "llm",
+        "multimodal-ai"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Creating evaluation frameworks, logging systems, and monitoring feedback loops for agent development",
+      "skill_mapping": [
+        "ai-evaluation",
+        "metrics",
+        "developer-tools"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Prompt tuning and product workflow optimization for user retention",
+      "skill_mapping": [
+        "prompt-engineering",
+        "product-development"
+      ],
+      "priority": "strong_preference",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Creative tool development experience or regular use of media editing software",
+      "skill_mapping": [
+        "creative-tools",
+        "product-development"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Agent building, evaluation infrastructure, or LLM-powered product design experience",
+      "skill_mapping": [
+        "agentic-workflows",
+        "ai-evaluation",
+        "llm"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    }
+  ]
+}

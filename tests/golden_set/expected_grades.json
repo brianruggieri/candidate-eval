@@ -94,5 +94,98 @@
   "the-walt-disney-company-sr-staff-r-d-engineer": {
     "expected": "B+",
     "rationale": "Disney — Sr Staff R&D Engineer. R&D research focus doesn't match practitioner/builder profile. Has creative-tools but lacks research methodology evidence. Recalibrated to B+ (from B) — 83.0% score is B+ territory after CONFLICTING confidence fix."
+  },
+
+  "anthropic-design-engineer-ai-capability-development": {
+    "expected": "A-",
+    "rationale": "Anthropic — Design Engineer, Education Labs. Strong frontend + edtech domain alignment + emerging AI. Anthropic's high bar and newness of AI depth (3mo) keeps this below A."
+  },
+  "anthropic-research-engineer-agents": {
+    "expected": "B+",
+    "rationale": "Anthropic — Research Engineer, Agents. Agent alignment is strong but 'research engineer' implies deep ML/AI rigor. 3 months AI depth is insufficient for research-grade expectations."
+  },
+  "anthropic-research-engineer-audio": {
+    "expected": "C+",
+    "rationale": "Anthropic — Research Engineer, Audio. Engineering skills transfer but audio ML research domain is completely foreign. No audio processing or speech ML experience."
+  },
+  "bastion-senior-software-engineer": {
+    "expected": "B",
+    "rationale": "Bastion — Senior SWE. Go is primary backend language (must_have) which Brian lacks. Has TS/Node/API skills and Postgres/Redis but Go + Rust + Kafka + Kubernetes-heavy infra requirements are gaps."
+  },
+  "baylor-genetics-lead-bioinformatics-scientist": {
+    "expected": "D",
+    "rationale": "Baylor Genetics — Lead Bioinformatics Scientist. Domain negative (biotech/healthcare). Requires PhD, genomics pipelines, clinical diagnostics. Python is only overlap. Complete domain mismatch."
+  },
+  "cubby-beds-senior-product-engineer-ai-growth": {
+    "expected": "A",
+    "rationale": "Cubby Beds — Senior Product Engineer (AI & Growth). Strong alignment: product engineering + AI workflows + startup mindset + rapid shipping. Healthcare nice_to_have doesn't hurt."
+  },
+  "decagon-senior-software-engineer-agent-orchestration": {
+    "expected": "A+",
+    "rationale": "Decagon — Senior SWE, Agent Orchestration. Direct alignment with core strengths: agentic workflows + full-stack + system design. Agent orchestration is exactly what Brian builds."
+  },
+  "descript-senior-software-engineer-agent": {
+    "expected": "A",
+    "rationale": "Descript — Senior SWE, Agent. Agentic engineering at a creative tools company. Both domains (agents + creative tools) are strengths."
+  },
+  "disney-senior-gameplay-engineer": {
+    "expected": "C+",
+    "rationale": "Disney — Senior Gameplay Engineer. Has game dev background (Unity/C#) but role requires Unreal Engine/C++ which are different engine/language. VR/XR is 15-year-old academic work. Game math mapped too generically."
+  },
+  "doordash-senior-software-engineer-data-engineering": {
+    "expected": "C",
+    "rationale": "DoorDash — Senior SWE, Data Engineering. Pure data infrastructure: Spark, Kafka, Airflow, Snowflake. Python/engineering overlap exists but data engineering stack and domain are completely foreign."
+  },
+  "duolingo-staff-ios-engineer-app-builds": {
+    "expected": "D+",
+    "rationale": "Duolingo — Staff iOS Engineer, App Builds. Swift, Xcode, Bazel, native iOS tooling. Published Unity apps to iOS is tangential — no native Swift/iOS SDK experience."
+  },
+  "fellow-firmware-engineer": {
+    "expected": "D",
+    "rationale": "Fellow — Firmware Engineer. IoT firmware, C/C++, RTOS, LVGL, hardware debugging. Zero overlap except general engineering discipline."
+  },
+  "harvey-software-engineer-ai-platform": {
+    "expected": "A-",
+    "rationale": "Harvey — Software Engineer, AI Platform. Strong engineering + AI platform work. Legal domain is neutral for platform engineering. AI depth (3mo) keeps below A."
+  },
+  "meet-life-sciences-staff-firmware-engineer": {
+    "expected": "D",
+    "rationale": "Meet Life Sciences — Staff Firmware Engineer. Embedded C, ARM Cortex-M, RTOS, medical devices. Complete domain and tech stack mismatch. Zero transferable skills."
+  },
+  "mobasi-founding-engineer": {
+    "expected": "B-",
+    "rationale": "Mobasi — Founding Engineer. Rust is must_have primary language (Brian has zero Rust). Has TS/Python/Docker overlap but Rust + security compliance (CJIS/SOC2) are significant gaps."
+  },
+  "modus-create-senior-ai-ml-engineer": {
+    "expected": "B+",
+    "rationale": "Modus Create — Senior AI/ML Engineer. Engineering + emerging AI align, but senior ML depth expectations exceed 3 months. Python proficiency helps."
+  },
+  "new-york-mets-applied-ai-engineer": {
+    "expected": "A-",
+    "rationale": "NY Mets — Applied AI Engineer. Sports domain interest + engineering + emerging AI. AI depth (3mo) and sports analytics specifics keep below A."
+  },
+  "podium-staff-ai-engineer": {
+    "expected": "B+",
+    "rationale": "Podium — Staff AI Engineer. Strong engineering but staff-level AI expectations significantly exceed 3 months of depth. Good full-stack foundation."
+  },
+  "remesh-software-engineer": {
+    "expected": "A+",
+    "rationale": "Remesh — Software Engineer. Mid-level role requiring JS/TS, Python, AI agents, Claude Code. Brian exceeds all requirements significantly (13yrs vs 3-5 required). Perfect stack match."
+  },
+  "rockstar-games-associate-engine-programmer": {
+    "expected": "C-",
+    "rationale": "Rockstar Games — Associate Engine Programmer. Low-level C++ game engine, SIMD, x86 disassembly, 3D math. Game dev context helps slightly but wrong level and language entirely."
+  },
+  "temporal-staff-software-engineer-ai-sdk": {
+    "expected": "A",
+    "rationale": "Temporal — Staff SWE, AI SDK. Developer tools expertise + AI + system design align well. SDK/tooling is a core strength."
+  },
+  "webai-rnd-software-engineer": {
+    "expected": "C+",
+    "rationale": "webAI — R&D Software Engineer. Python overlaps but C/C++ is must_have (barely any experience). ML/computer vision depth requirements exceed 3 months. R&D orientation doesn't match builder profile."
+  },
+  "worldscape-lead-technical-artist": {
+    "expected": "B-",
+    "rationale": "Worldscape — Lead Technical Artist. Creative tools overlap (Unity, WebGL) but role is art-focused (shaders, materials, pipelines), not engineering. Different discipline."
   }
 }

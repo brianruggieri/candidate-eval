@@ -325,6 +325,7 @@ DOMAIN_KEYWORDS: frozenset[str] = frozenset({
 	"sports", "baseball", "football", "basketball", "soccer", "athletics",
 	# Healthcare / biotech
 	"healthcare", "medical", "clinical", "patient", "biotech", "pharma",
+	"bioinformatics", "genomics", "genomic", "sequencing", "variant",
 	# Finance
 	"fintech", "banking", "financial", "trading", "insurance",
 	# Legal
@@ -333,14 +334,20 @@ DOMAIN_KEYWORDS: frozenset[str] = frozenset({
 	"automotive", "vehicle",
 	# Education
 	"edtech", "educational", "curriculum",
-	# Gaming
-	"gaming", "esports",
+	# Gaming / game engines
+	"gaming", "esports", "unreal", "gameplay",
 	# Real estate
 	"real estate", "construction",
 	# Energy
 	"energy", "utilities",
 	# Retail / logistics
 	"retail", "ecommerce", "logistics",
+	# Hardware / embedded
+	"firmware", "embedded", "microcontroller", "rtos",
+	# Native mobile
+	"ios", "swift", "xcode", "android", "kotlin",
+	# Data infrastructure
+	"etl", "warehouse", "airflow", "spark",
 })
 
 
@@ -365,11 +372,16 @@ def _detect_domain_gap(
 			candidate_parts.append(role.domain.lower())
 	candidate_text = " ".join(candidate_parts)
 
-	for kw in sorted(DOMAIN_KEYWORDS):  # sorted for deterministic output
+	# Find the domain keyword with the HIGHEST occurrence count (above threshold)
+	# to determine severity correctly — e.g. "genomic" (6x) beats "bioinformatics" (3x).
+	best_kw: str | None = None
+	best_count = 0
+	for kw in sorted(DOMAIN_KEYWORDS):  # sorted for deterministic tiebreaking
 		count = sum(1 for r in requirements if kw in r.description.lower())
-		if count >= 3 and kw not in candidate_text:
-			return kw
-	return None
+		if count >= 3 and kw not in candidate_text and count > best_count:
+			best_kw = kw
+			best_count = count
+	return best_kw
 
 # Pattern strength → culture match value
 CULTURE_PATTERN_STRENGTH_SCORE: dict[str, float] = {
@@ -445,10 +457,18 @@ def _find_fuzzy_match(
 	normalized: str,
 	profile: MergedEvidenceProfile,
 ) -> MergedSkillEvidence | None:
-	"""Return a fuzzy skill match (substring or known variant)."""
+	"""Return a fuzzy skill match (substring or known variant).
+
+	Requires minimum length of 3 characters for substring matching to avoid
+	false positives like 'c' matching 'ci-cd' or 'r' matching 'react'.
+	"""
+	MIN_SUBSTRING_LEN = 3
 	for skill in profile.skills:
-		if normalized in skill.name or skill.name in normalized:
-			return skill
+		# Substring match only when the shorter string is long enough
+		shorter_len = min(len(normalized), len(skill.name))
+		if shorter_len >= MIN_SUBSTRING_LEN:
+			if normalized in skill.name or skill.name in normalized:
+				return skill
 		if _is_variant_match(normalized, skill.name):
 			return skill
 	return None
@@ -1595,17 +1615,63 @@ class QuickMatchEngine:
 			pre_cap_grade = score_to_grade(overall_score)
 			overall_score = 0.0
 
-		# Domain penalty: cap at B+ if industry domain appears 3+ times in requirements
+		# Domain penalty: cap score if industry domain appears 3+ times in requirements
 		# but is absent from the candidate's profile.
+		# Mild gap (3-4 keyword occurrences): cap at B+ (0.849)
+		# Strong gap (5+ keyword occurrences): cap at C+ (0.699)
 		_GRADE_ORDER = ["A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D", "F"]
 		domain_gap_term = _detect_domain_gap(scorable_reqs, self.profile)
 		if domain_gap_term and not unmet_gates:  # eligibility cap already zeros score; skip
+			# Count how many times the gap keyword appears to determine severity
+			gap_count = sum(
+				1 for r in scorable_reqs if domain_gap_term in r.description.lower()
+			)
+			if gap_count >= 5:
+				cap_grade = "B"
+				cap_score = 0.799
+			else:
+				cap_grade = "B+"
+				cap_score = 0.849
 			candidate_grade = score_to_grade(overall_score)
-			if _GRADE_ORDER.index(candidate_grade) < _GRADE_ORDER.index("B+"):  # grade better than B+
-				if pre_cap_grade is None:  # don't overwrite eligibility pre_cap_grade
+			if _GRADE_ORDER.index(candidate_grade) < _GRADE_ORDER.index(cap_grade):
+				if pre_cap_grade is None:
 					pre_cap_grade = candidate_grade
-				# Drop score to top of B+ band (just below A- threshold of 0.85)
-				overall_score = min(overall_score, 0.849)
+				overall_score = min(overall_score, cap_score)
+
+		# Skill concentration penalty: when a single GENERIC matched skill accounts
+		# for a disproportionate share of all matches, it signals the posting is in
+		# a domain where the candidate only has generic/tangential coverage.
+		# Domain-specific skills (agentic-workflows, react, llm, etc.) are exempt
+		# because high concentration in a specific domain IS genuine expertise.
+		_GENERIC_SKILLS = frozenset({
+			"software-engineering", "computer-science", "testing",
+			"performance-optimization", "leadership", "collaboration",
+			"communication", "problem-solving", "adaptability", "ownership",
+			"agile", "metrics", "technical-writing", "prototyping",
+			"security", "production-systems", "code-review",
+		})
+		if not unmet_gates and not domain_gap_term:
+			from collections import Counter
+			matched_skills = [
+				d.matched_skill for d in skill_details if d.match_status != "no_evidence"
+			]
+			if matched_skills:
+				skill_counts = Counter(matched_skills)
+				top_skill, top_count = skill_counts.most_common(1)[0]
+				concentration = top_count / len(matched_skills)
+				unique_ratio = len(skill_counts) / len(matched_skills)
+				# Only fire for generic skills — domain-specific concentration is valid
+				if (
+					concentration >= 0.40
+					and unique_ratio < 0.60
+					and top_skill in _GENERIC_SKILLS
+				):
+					candidate_grade = score_to_grade(overall_score)
+					if _GRADE_ORDER.index(candidate_grade) < _GRADE_ORDER.index("B"):
+						if pre_cap_grade is None:
+							pre_cap_grade = candidate_grade
+						overall_score = min(overall_score, 0.799)  # Cap at top of B band
+						domain_gap_term = f"skill_concentration:{top_skill}"
 
 		partial_percentage = round(overall_score * 100, 1)
 

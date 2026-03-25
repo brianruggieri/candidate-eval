@@ -1,0 +1,131 @@
+{
+  "company": "Harvey",
+  "title": "Software Engineer, AI Platform",
+  "description": "Harvey transforms legal and professional services through frontier agentic AI and enterprise-grade platforms. The company serves 1000+ customers across 60+ countries with strong product-market fit and investor backing.\n\nThe AI Platform team builds foundational infrastructure supporting all Harvey products. This includes the model layer and agent systems that determine work quality. Legal domain complexity — hundreds of pages per document, millions of files per matter, zero error tolerance — demands sophisticated AI solutions.\n\nKey Responsibilities:\n- Design platform-level abstractions enhancing all agentic products\n- Own model integration, routing, and evaluation infrastructure\n- Build evaluation frameworks enabling systematic AI quality improvement\n- Partner with product, engineering, and design teams on cutting-edge features\n- Evaluate and integrate emerging AI advancements and agentic systems\n\nRepresentative Projects:\n- Context Engineering & Agent Infrastructure: Platform-level systems for context management, session state, and memory\n- Model Integration & Routing: Infrastructure enabling rapid foundation model onboarding and intelligent task routing\n- Evaluation Infrastructure: Shared tooling frameworks for measuring and improving AI quality\n- Shared Abstractions: SDKs, platform primitives, and developer tooling for feature shipping\n\nRequired Qualifications:\n- 5+ years building backend systems; 1+ year AI/ML engineering focus\n- Production experience with multi-model or multi-provider AI systems\n- Understanding of context management, session state, or memory systems\n- Track record building adopted internal platforms, SDKs, or shared infrastructure\n- Strong judgment about design abstractions; pragmatic shipping approach\n- Excitement about agentic AI and autonomous system reliability challenges\n- Full ownership mentality; navigates ambiguity independently\n\nPreferred Qualifications:\n- Evaluation framework development experience\n- Agent/function-calling architecture familiarity\n- Legal or high-stakes professional services domain knowledge\n- Early-stage or hyper-growth startup experience\n\nCompensation: $220,000 - $300,000 with equity and bonus eligibility. Comprehensive health, dental, and vision coverage; 401(k) matching; flexible PTO.",
+  "url": "https://jobs.ashbyhq.com/harvey/f47e1925-2a89-4264-8a1b-09cd9215f4dd",
+  "source": "web",
+  "location": "San Francisco, CA",
+  "seniority": "senior",
+  "remote": false,
+  "salary": "$220,000 - $300,000",
+  "requirements": [
+    {
+      "description": "5+ years building backend systems with 1+ year AI/ML engineering focus",
+      "skill_mapping": [
+        "backend-development",
+        "software-engineering"
+      ],
+      "priority": "must_have",
+      "years_experience": 5,
+      "education_level": null
+    },
+    {
+      "description": "Production experience with multi-model or multi-provider AI systems",
+      "skill_mapping": [
+        "llm",
+        "production-systems"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Understanding of context management, session state, or memory systems for AI",
+      "skill_mapping": [
+        "agentic-workflows",
+        "system-design"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Track record building adopted internal platforms, SDKs, or shared infrastructure",
+      "skill_mapping": [
+        "api-design",
+        "developer-tools"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Design platform-level abstractions enhancing all agentic products",
+      "skill_mapping": [
+        "system-design",
+        "api-design"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Own model integration, routing, and evaluation infrastructure",
+      "skill_mapping": [
+        "llm",
+        "ai-evaluation"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Full ownership mentality; navigates ambiguity independently",
+      "skill_mapping": [
+        "ownership",
+        "problem-solving"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Build evaluation frameworks enabling systematic AI quality improvement",
+      "skill_mapping": [
+        "ai-evaluation",
+        "testing"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Evaluation framework development experience",
+      "skill_mapping": [
+        "ai-evaluation",
+        "metrics"
+      ],
+      "priority": "strong_preference",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Agent/function-calling architecture familiarity",
+      "skill_mapping": [
+        "agentic-workflows",
+        "generative-ai"
+      ],
+      "priority": "strong_preference",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Early-stage or hyper-growth startup experience",
+      "skill_mapping": [
+        "startup-experience"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Legal or high-stakes professional services domain knowledge",
+      "skill_mapping": [
+        "product-development"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    }
+  ]
+}

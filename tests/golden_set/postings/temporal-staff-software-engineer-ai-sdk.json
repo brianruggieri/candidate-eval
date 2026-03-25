@@ -1,0 +1,104 @@
+{
+  "company": "Temporal Technologies",
+  "title": "Staff Software Engineer - AI SDK",
+  "description": "Temporal Technologies seeks a Staff Software Engineer to develop AI SDK features. The company provides durable execution infrastructure used by organizations like OpenAI, Lovable, and Replit.\n\nPrimary Responsibilities:\n- Design and implement AI SDK features across multiple frameworks and libraries\n- Develop expertise in AI application architecture and emerging patterns\n- Work primarily with Python and TypeScript codebases\n- Leverage AI coding tools to maintain quality across numerous integrations\n- Own features end-to-end with focus on reliability and developer experience\n- Serve as domain expert on AI design patterns with internal and external teams\n- Engage directly with developer community for debugging and feedback\n- Create technical documentation for public libraries\n- Travel 1-2 times annually for team meetings\n\nCore Requirements:\n- 7+ years software engineering experience post-graduation\n- Passion for generative AI, particularly agents and coding applications\n- Deep understanding of concurrent programming (mutexes, atomics, primitives)\n- Fluency in multiple programming languages\n- Open source contribution history including third-party libraries\n- API design and documentation experience for public modules\n- Strong English communication (written and verbal)\n- BS/MS in Computer Science or equivalent production software experience\n- Experience with distributed systems\n- Concurrent code writing expertise\n\nNice-to-Have Qualifications:\n- Familiarity with Temporal's programming model\n- Machine learning or ML systems background\n- Large-scale distributed systems architecture experience\n- Graduate degree in Computer Science\n\nCompensation: $224,000 - $302,400. Benefits include unlimited PTO plus 12 holidays, 100% medical/dental/vision coverage, 401(k), professional development stipend ($1,800/year), and home office reimbursement.",
+  "url": "https://job-boards.greenhouse.io/temporaltechnologies/jobs/4853421007",
+  "source": "web",
+  "location": "United States",
+  "seniority": "staff",
+  "remote": true,
+  "salary": "$224,000 - $302,400",
+  "requirements": [
+    {
+      "description": "7+ years software engineering experience post-graduation",
+      "skill_mapping": ["software-engineering"],
+      "priority": "must_have",
+      "years_experience": 7,
+      "education_level": null
+    },
+    {
+      "description": "BS/MS in Computer Science or equivalent production software experience",
+      "skill_mapping": ["computer-science"],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": "bachelor"
+    },
+    {
+      "description": "Deep understanding of concurrent programming (mutexes, atomics, primitives)",
+      "skill_mapping": ["concurrent-programming"],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Fluency in multiple programming languages, working primarily with Python and TypeScript",
+      "skill_mapping": ["python", "typescript"],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience with distributed systems",
+      "skill_mapping": ["distributed-systems"],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Passion for generative AI, particularly agents and coding applications",
+      "skill_mapping": ["generative-ai", "agentic-workflows"],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Open source contribution history including third-party libraries",
+      "skill_mapping": ["open-source"],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "API design and documentation experience for public modules",
+      "skill_mapping": ["api-design", "technical-writing"],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Design and implement AI SDK features across multiple frameworks and libraries",
+      "skill_mapping": ["developer-tools", "llm"],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Strong English communication (written and verbal)",
+      "skill_mapping": ["communication"],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Machine learning or ML systems background",
+      "skill_mapping": ["machine-learning", "mlops"],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Large-scale distributed systems architecture experience",
+      "skill_mapping": ["distributed-systems", "system-design"],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Graduate degree in Computer Science",
+      "skill_mapping": ["computer-science"],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": "master"
+    }
+  ]
+}
