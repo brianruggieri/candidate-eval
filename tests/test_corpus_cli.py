@@ -302,3 +302,97 @@ class TestCorpusRemove:
 		result = runner.invoke(corpus, ["remove", "nonexistent-2026-03-24", "--corpus-dir", str(corpus_dir)])
 		assert result.exit_code == 0
 		assert "not found" in result.output.lower()
+
+
+# ---------------------------------------------------------------------------
+# Promote command
+# ---------------------------------------------------------------------------
+
+class TestCorpusPromote:
+	def test_moves_to_golden_set(self, store, corpus_dir, golden_dir, db_path):
+		_seed_posting_and_assessment(store, "https://stripe.com/promo/1", "Stripe", "SWE", "B+")
+		runner = CliRunner()
+		runner.invoke(corpus, ["export", "--db", str(db_path), "--corpus-dir", str(corpus_dir)])
+		slug = list(load_regression_grades(corpus_dir).keys())[0]
+
+		result = runner.invoke(
+			corpus,
+			["promote", slug, "--corpus-dir", str(corpus_dir), "--golden-dir", str(golden_dir)],
+			input="B+\n",
+		)
+		assert result.exit_code == 0
+
+		# Removed from regression
+		assert slug not in load_regression_grades(corpus_dir)
+		assert not (corpus_dir / "postings" / f"{slug}.json").exists()
+
+		# Added to golden set
+		golden_grades = json.loads((golden_dir / "expected_grades.json").read_text())
+		assert slug in golden_grades
+		assert golden_grades[slug]["expected"] == "B+"
+		assert (golden_dir / "postings" / f"{slug}.json").exists()
+
+	def test_errors_if_already_in_golden(self, store, corpus_dir, golden_dir, db_path):
+		_seed_posting_and_assessment(store, "https://stripe.com/promo/2", "Stripe", "SWE", "B+")
+		runner = CliRunner()
+		runner.invoke(corpus, ["export", "--db", str(db_path), "--corpus-dir", str(corpus_dir)])
+		slug = list(load_regression_grades(corpus_dir).keys())[0]
+
+		# Pre-populate golden set with same slug
+		existing = json.loads((golden_dir / "expected_grades.json").read_text())
+		existing[slug] = {"expected": "A", "rationale": "already here"}
+		(golden_dir / "expected_grades.json").write_text(json.dumps(existing))
+
+		result = runner.invoke(
+			corpus,
+			["promote", slug, "--corpus-dir", str(corpus_dir), "--golden-dir", str(golden_dir)],
+			input="B+\n",
+		)
+		assert result.exit_code != 0
+		# Should NOT have written anything new
+		golden_grades = json.loads((golden_dir / "expected_grades.json").read_text())
+		assert golden_grades[slug]["expected"] == "A"  # unchanged
+
+	def test_rejects_invalid_grade(self, store, corpus_dir, golden_dir, db_path):
+		_seed_posting_and_assessment(store, "https://stripe.com/promo/3", "Stripe", "SWE", "B+")
+		runner = CliRunner()
+		runner.invoke(corpus, ["export", "--db", str(db_path), "--corpus-dir", str(corpus_dir)])
+		slug = list(load_regression_grades(corpus_dir).keys())[0]
+
+		# First input invalid, second valid
+		result = runner.invoke(
+			corpus,
+			["promote", slug, "--corpus-dir", str(corpus_dir), "--golden-dir", str(golden_dir)],
+			input="ZZ\nB+\n",
+		)
+		assert result.exit_code == 0
+		golden_grades = json.loads((golden_dir / "expected_grades.json").read_text())
+		assert golden_grades[slug]["expected"] == "B+"
+
+	def test_aborts_on_eof(self, store, corpus_dir, golden_dir, db_path):
+		_seed_posting_and_assessment(store, "https://stripe.com/promo/4", "Stripe", "SWE", "B+")
+		runner = CliRunner()
+		runner.invoke(corpus, ["export", "--db", str(db_path), "--corpus-dir", str(corpus_dir)])
+		slug = list(load_regression_grades(corpus_dir).keys())[0]
+
+		result = runner.invoke(
+			corpus,
+			["promote", slug, "--corpus-dir", str(corpus_dir), "--golden-dir", str(golden_dir)],
+			input="ZZ\n",  # only invalid input — EOF after one try
+		)
+		assert result.exit_code != 0
+
+	def test_errors_on_missing_grade_entry(self, corpus_dir, golden_dir):
+		# posting file exists but no grades entry
+		slug = "orphan-2026-03-24"
+		(corpus_dir / "postings" / f"{slug}.json").write_text(
+			json.dumps({"company": "X", "title": "Y", "description": "Z", "url": "https://x.com"})
+		)
+		runner = CliRunner()
+		result = runner.invoke(
+			corpus,
+			["promote", slug, "--corpus-dir", str(corpus_dir), "--golden-dir", str(golden_dir)],
+			input="B+\n",
+		)
+		assert result.exit_code != 0
+		assert "grades entry not found" in result.output.lower() or "cleanup" in result.output.lower()
