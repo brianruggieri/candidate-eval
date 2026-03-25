@@ -4,7 +4,71 @@
 
 **Goal:** Surface per-skill evidence quality and signal confidence in the extension popup, so the user can see at a glance which parts of their score are backed by direct session evidence vs. inferred or fuzzy matches. Simultaneously fix a design flaw in the CONFLICTING evidence source that causes depth to be set incorrectly and confidence to be artificially low.
 
-**Reference visual:** `extension/preview/confidence-metrics.html` — the right-hand "Proposed" popup is the exact target. All color values, sizes, and layout decisions in this spec are derived directly from that file.
+**Reference visual:** `extension/preview/confidence-metrics.html` — the right-hand "Proposed" popup is the **exact pixel target**. All color values, sizes, and layout decisions in this spec are derived verbatim from that file.
+
+> ⚠️ **Before implementing Part 2:** Open `extension/preview/confidence-metrics.html` in a browser (double-click, or `open extension/preview/confidence-metrics.html` from the repo root). The right-hand popup is the implementation target. Match it exactly — every color, spacing, font, bar size, and chip shape. Do not approximate. If the spec and the HTML ever conflict, **the HTML wins.**
+
+The preview file is self-contained and canonical. The style reference section below reproduces the exact CSS tokens from it; the preview is the authority if anything here diverges.
+
+---
+
+## Style Reference (from `extension/preview/confidence-metrics.html`)
+
+These values are extracted verbatim from the preview. Copy them exactly.
+
+### Colors
+
+| Token | Hex | Used for |
+|---|---|---|
+| Lit signal bar | `#06b6d4` | Signal bars — active bars |
+| Unlit signal bar | `#d1d5db` | Signal bars — inactive bars |
+| direct bg | `#ecfdf5` | Evidence chip, source chip |
+| direct text | `#065f46` | Evidence chip, source chip |
+| direct border | `#a7f3d0` | Evidence chip border |
+| direct dot | `#10b981` | Evidence dot |
+| inferred bg | `#fffbeb` | Evidence chip, source chip, low-conf gradient |
+| inferred text | `#78350f` | Evidence chip, source chip |
+| inferred border | `#fde68a` | Evidence chip border, low-conf left border |
+| inferred dot | `#f59e0b` | Evidence dot |
+| fuzzy bg | `#faf5ff` | Evidence chip, source chip |
+| fuzzy text | `#4c1d95` | Evidence chip, source chip |
+| fuzzy border | `#ddd6fe` | Evidence chip border |
+| fuzzy dot | `#8b5cf6` | Evidence dot |
+| missing bg | `#fff1f2` | Evidence chip |
+| missing text | `#881337` | Evidence chip |
+| missing border | `#fecdd3` | Evidence chip border |
+| missing dot | `#f43f5e` | Evidence dot |
+| conf-bar high | `#10b981` | Confidence fill ≥ 0.75 |
+| conf-bar medium | `#f59e0b` | Confidence fill 0.50–0.74 |
+| conf-bar low | `#f43f5e` | Confidence fill < 0.50 |
+| signal stat bg | `#f0fdfa` | Direct Evid. stat cell background |
+| signal stat text | `#0d9488` | Direct Evid. stat value |
+| missing dash | `#d1d5db` | Conf val and source dash for no-evidence skills |
+
+### Sizing
+
+| Element | Spec |
+|---|---|
+| Signal bars container | `background: #fff; border-radius: 4px; padding: 2px 3px; box-shadow: 0 1px 4px rgba(0,0,0,0.15)` |
+| Signal bar widths | `3px` each, gap `2px` |
+| Signal bar heights | `4px / 6px / 8px / 10px` (bars 1–4) |
+| Confidence bar | `width: 44px; height: 4px; border-radius: 2px` |
+| Confidence value | `font-size: 9px; width: 26px; text-align: right` |
+| Source chip | `font-size: 9px; padding: 1px 5px; border-radius: 3px` |
+| Evidence chip | `font-size: 10px; padding: 2px 7px; border-radius: 4px` |
+| Evidence dot | `width: 5px; height: 5px; border-radius: 50%` |
+| Low-conf border | `border-left: 2px solid #f59e0b` |
+| Low-conf gradient | `background: linear-gradient(to right, #fffbeb 0%, transparent 100%)` |
+
+### Fonts
+
+The preview uses Google Fonts (`JetBrains Mono`). The extension popup cannot load external fonts. Use the following fallback stack everywhere the preview uses a monospace font:
+
+```css
+font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+```
+
+This applies to: `.evidence-label`, `.evidence-chip`, `.conf-val`, `.source-chip`.
 
 ---
 
