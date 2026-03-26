@@ -238,7 +238,7 @@
     "content_patterns": ["mentoring", "onboard", "delegate", "architecture decision"]
   },
   "problem-solving": {
-    "aliases": ["analytical thinking", "critical thinking", "troubleshooting", "problem solving", "analytical-thinking", "critical-thinking", "debugging", "systems thinking", "attention-to-detail", "attention to detail"],
+    "aliases": ["analytical thinking", "critical thinking", "troubleshooting", "problem solving", "analytical-thinking", "critical-thinking", "debugging", "attention-to-detail", "attention to detail"],
     "category": "soft_skill",
     "related": ["system-design"],
     "parent": null,
@@ -315,7 +315,7 @@
     "content_patterns": ["refactor", "code review", "pull request", "technical debt"]
   },
   "system-design": {
-    "aliases": ["system design", "system_design", "system-architecture", "system architecture", "systems design", "systems architecture", "architecture-design", "software architecture", "software-architecture", "monorepo", "bff", "backend-for-frontend", "solution-architecture", "codebase-architecture", "cloud-architecture", "event_driven_architecture", "scalable_systems", "web-architecture", "web architecture"],
+    "aliases": ["system design", "system_design", "system-architecture", "system architecture", "systems design", "systems architecture", "architecture-design", "software architecture", "software-architecture", "monorepo", "bff", "backend-for-frontend", "solution-architecture", "codebase-architecture", "cloud-architecture", "event_driven_architecture", "scalable_systems", "web-architecture", "web architecture", "systems thinking", "systems-thinking", "holistic thinking", "end-to-end thinking"],
     "category": "practice",
     "related": ["software-engineering", "distributed-systems", "api-design"],
     "parent": null,
@@ -700,7 +700,7 @@
     "content_patterns": ["VR", "virtual reality", "XR", "headset", "immersive"]
   },
   "ux-design": {
-    "aliases": ["ux design", "ux_design", "ui-design", "ui design", "ux-engineering", "ux engineering", "ux_engineering", "product-design", "product design", "interaction design", "interaction-design", "hci", "human-computer-interaction", "interface design", "interface-design", "visual design", "visual-design"],
+    "aliases": ["ux", "ux design", "ux_design", "ui-design", "ui design", "ux-engineering", "ux engineering", "ux_engineering", "product-design", "product design", "interaction design", "interaction-design", "hci", "human-computer-interaction", "interface design", "interface-design", "visual design", "visual-design"],
     "category": "practice",
     "related": ["frontend-development", "product-development", "user-research"],
     "parent": null,

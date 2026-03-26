@@ -621,3 +621,47 @@ class TestNewAliases:
 	def test_ai_augmented_dev_tooling_resolves(self) -> None:
 		tax = SkillTaxonomy.load(Path("src/claude_candidate/data/taxonomy.json"))
 		assert tax.canonicalize("ai-augmented development tooling") == "developer-tools"
+
+
+# ---------------------------------------------------------------------------
+# Systems thinking → system-design (not problem-solving)
+# ---------------------------------------------------------------------------
+
+
+class TestSystemsThinkingMapping:
+	"""systems thinking must map to system-design, not problem-solving.
+
+	Rationale: job requirements like "Systems thinking — understand how memory,
+	latency, evaluation, and UX interact" are architectural/design requirements,
+	not soft-skill/problem-solving requirements. Mapping them to problem-solving
+	caused false matches via ux-design → frontend-development → profile hit.
+	"""
+
+	def test_systems_thinking_phrase_maps_to_system_design(self) -> None:
+		tax = SkillTaxonomy.load(Path("src/claude_candidate/data/taxonomy.json"))
+		assert tax.canonicalize("systems thinking") == "system-design"
+
+	def test_systems_thinking_hyphenated_maps_to_system_design(self) -> None:
+		tax = SkillTaxonomy.load(Path("src/claude_candidate/data/taxonomy.json"))
+		assert tax.canonicalize("systems-thinking") == "system-design"
+
+	def test_systems_thinking_not_problem_solving(self) -> None:
+		tax = SkillTaxonomy.load(Path("src/claude_candidate/data/taxonomy.json"))
+		assert tax.canonicalize("systems thinking") != "problem-solving"
+
+	def test_holistic_thinking_maps_to_system_design(self) -> None:
+		tax = SkillTaxonomy.load(Path("src/claude_candidate/data/taxonomy.json"))
+		assert tax.canonicalize("holistic thinking") == "system-design"
+
+	def test_end_to_end_thinking_maps_to_system_design(self) -> None:
+		tax = SkillTaxonomy.load(Path("src/claude_candidate/data/taxonomy.json"))
+		assert tax.canonicalize("end-to-end thinking") == "system-design"
+
+	def test_ux_maps_to_ux_design_directly(self) -> None:
+		"""'ux' must canonicalize to ux-design via exact alias, not fuzzy."""
+		tax = SkillTaxonomy.load(Path("src/claude_candidate/data/taxonomy.json"))
+		assert tax.canonicalize("ux") == "ux-design"
+
+	def test_ux_match_resolves_ux_design(self) -> None:
+		tax = SkillTaxonomy.load(Path("src/claude_candidate/data/taxonomy.json"))
+		assert tax.match("ux") == "ux-design"
