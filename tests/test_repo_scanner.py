@@ -4,6 +4,41 @@ from pathlib import Path
 from claude_candidate.repo_scanner import scan_local_repo
 
 
+class TestBuildRepoProfile:
+	def test_aggregate_skill_evidence(self) -> None:
+		"""Multiple repos aggregate into per-skill evidence."""
+		from claude_candidate.repo_scanner import build_repo_profile
+
+		repo_path = Path(__file__).parent.parent  # project root
+		profile = build_repo_profile(
+			local_repos=[repo_path],
+			github_repos=[],
+		)
+
+		assert profile.repo_timeline_days > 0
+		assert "python" in profile.skill_evidence
+		python_ev = profile.skill_evidence["python"]
+		assert python_ev.repos >= 1
+		assert python_ev.total_bytes > 0
+		assert profile.repos_with_tests >= 1
+
+	def test_timeline_scales_with_repos(self) -> None:
+		"""Timeline span covers earliest to latest across all repos."""
+		from claude_candidate.repo_scanner import build_repo_profile
+
+		repo_path = Path(__file__).parent.parent
+		profile = build_repo_profile(
+			local_repos=[repo_path],
+			github_repos=[],
+		)
+
+		assert profile.repo_timeline_start <= profile.repo_timeline_end
+		assert (
+			profile.repo_timeline_days
+			== (profile.repo_timeline_end - profile.repo_timeline_start).days
+		)
+
+
 class TestScanLocalRepo:
 	def test_scan_candidate_eval(self) -> None:
 		"""Scan this repo itself as a known baseline."""

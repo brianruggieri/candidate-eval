@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from claude_candidate.schemas.repo_profile import RepoEvidence
+from claude_candidate.schemas.repo_profile import RepoEvidence, RepoProfile, SkillRepoEvidence
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -262,12 +262,8 @@ def _extract_package_json_deps(
 	data: dict[str, Any],
 	pkg_map: dict[str, str],
 ) -> tuple[list[str], list[str]]:
-	prod = [
-		_resolve_package(k, pkg_map) for k in data.get("dependencies", {})
-	]
-	dev = [
-		_resolve_package(k, pkg_map) for k in data.get("devDependencies", {})
-	]
+	prod = [_resolve_package(k, pkg_map) for k in data.get("dependencies", {})]
+	dev = [_resolve_package(k, pkg_map) for k in data.get("devDependencies", {})]
 	return prod, dev
 
 
@@ -725,15 +721,13 @@ def _compute_ai_maturity(signals: dict[str, Any]) -> str:
 	# Expert requires: (handoffs OR grill_sessions) + (ralph_loops OR settings_local)
 	# + (memory_files OR worktree_discipline)
 	has_protocol = (
-		signals.get("claude_handoffs_count", 0) > 0
-		or signals.get("claude_grill_sessions", 0) > 0
+		signals.get("claude_handoffs_count", 0) > 0 or signals.get("claude_grill_sessions", 0) > 0
 	)
 	has_workflow_tools = signals.get("has_ralph_loops", False) or signals.get(
 		"has_settings_local", False
 	)
-	has_persistence = (
-		signals.get("claude_memory_files", 0) > 0
-		or signals.get("has_worktree_discipline", False)
+	has_persistence = signals.get("claude_memory_files", 0) > 0 or signals.get(
+		"has_worktree_discipline", False
 	)
 
 	if has_protocol and has_workflow_tools and has_persistence:
@@ -1080,3 +1074,242 @@ def scan_github_repo(
 	)
 
 	return evidence
+
+
+# ---------------------------------------------------------------------------
+# Repo Profile Aggregation
+# ---------------------------------------------------------------------------
+
+# Map GitHub-style language names (from FILE_EXTENSION_MAP values / GH API)
+# to canonical taxonomy skill names.
+_LANGUAGE_TO_SKILL: dict[str, str] = {
+	"Python": "python",
+	"TypeScript": "typescript",
+	"JavaScript": "javascript",
+	"Shell": "shell",
+	"Rust": "rust",
+	"Go": "go",
+	"Java": "java",
+	"Ruby": "ruby",
+	"C": "c",
+	"C++": "cpp",
+	"C#": "csharp",
+	"Swift": "swift",
+	"Kotlin": "kotlin",
+	"Dart": "dart",
+	"HTML": "html",
+	"CSS": "css",
+	"SQL": "sql",
+	"Vue": "vue",
+	"Svelte": "svelte",
+}
+
+# Map test file extensions back to language names for test_coverage detection.
+_TEST_EXT_TO_LANGUAGE: dict[str, str] = {
+	".py": "Python",
+	".ts": "TypeScript",
+	".tsx": "TypeScript",
+	".js": "JavaScript",
+	".jsx": "JavaScript",
+	".rs": "Rust",
+	".go": "Go",
+	".sh": "Shell",
+}
+
+
+def _detect_test_languages(repo: RepoEvidence, path: Path | None = None) -> set[str]:
+	"""
+	Return the set of GitHub-style language names that have test coverage
+	in this repo, based on test file extensions found.
+	"""
+	languages_with_tests: set[str] = set()
+
+	if not repo.has_tests:
+		return languages_with_tests
+
+	# If we have the path, actually scan for test files and their extensions
+	if path is not None:
+		for pat in _TEST_FILE_PATTERNS:
+			for f in path.rglob(pat):
+				if any(part in SKIP_DIRS for part in f.parts):
+					continue
+				lang = _TEST_EXT_TO_LANGUAGE.get(f.suffix.lower())
+				if lang:
+					languages_with_tests.add(lang)
+	else:
+		# Infer from test_framework
+		framework = repo.test_framework
+		if framework in ("pytest",):
+			languages_with_tests.add("Python")
+		elif framework in ("jest", "vitest", "bun"):
+			languages_with_tests.add("JavaScript")
+			languages_with_tests.add("TypeScript")
+		elif framework in ("cargo",):
+			languages_with_tests.add("Rust")
+
+	return languages_with_tests
+
+
+def build_repo_profile(
+	local_repos: list[Path] | None = None,
+	github_repos: list[str] | None = None,
+	output_path: Path | None = None,
+) -> RepoProfile:
+	"""
+	Aggregate multiple repo scans into a single RepoProfile.
+
+	Scans all local and GitHub repos, then rolls up per-skill evidence
+	(language bytes, dependency signals, timeline, test coverage) and
+	computes maturity stats.
+
+	Args:
+		local_repos:  List of local filesystem paths to scan.
+		github_repos: List of ``owner/repo`` slugs to scan via GitHub API.
+		output_path:  If provided, write the profile JSON to this path.
+
+	Returns:
+		:class:`~claude_candidate.schemas.repo_profile.RepoProfile`
+	"""
+	from claude_candidate.skill_taxonomy import SkillTaxonomy
+
+	taxonomy = SkillTaxonomy.load_default()
+
+	all_evidence: list[RepoEvidence] = []
+	# Track the local paths for test language detection
+	repo_paths: list[Path | None] = []
+
+	# 1. Scan local repos
+	for path in local_repos or []:
+		evidence = scan_local_repo(path)
+		all_evidence.append(evidence)
+		repo_paths.append(path)
+
+	# 2. Scan GitHub repos
+	for slug in github_repos or []:
+		evidence = scan_github_repo(slug)
+		all_evidence.append(evidence)
+		repo_paths.append(None)  # no local path for cached clones
+
+	if not all_evidence:
+		now = datetime.now(tz=timezone.utc)
+		profile = RepoProfile(
+			repos=[],
+			scan_date=now,
+			repo_timeline_start=now,
+			repo_timeline_end=now,
+			repo_timeline_days=0,
+			skill_evidence={},
+			repos_with_tests=0,
+			repos_with_ci=0,
+			repos_with_releases=0,
+			repos_with_ai_signals=0,
+		)
+		if output_path is not None:
+			output_path.parent.mkdir(parents=True, exist_ok=True)
+			output_path.write_text(profile.model_dump_json(indent=2))
+		return profile
+
+	# 3. Aggregate per-skill evidence
+	# Intermediate accumulator: skill_name -> {repos: set, bytes: int, ...}
+	skill_acc: dict[str, dict] = {}
+
+	def _ensure_skill(skill: str) -> dict:
+		if skill not in skill_acc:
+			skill_acc[skill] = {
+				"repos": set(),
+				"total_bytes": 0,
+				"first_seen": None,
+				"last_seen": None,
+				"frameworks": set(),
+				"test_coverage": False,
+			}
+		return skill_acc[skill]
+
+	def _update_dates(acc: dict, created: datetime, pushed: datetime) -> None:
+		if acc["first_seen"] is None or created < acc["first_seen"]:
+			acc["first_seen"] = created
+		if acc["last_seen"] is None or pushed > acc["last_seen"]:
+			acc["last_seen"] = pushed
+
+	for i, repo in enumerate(all_evidence):
+		repo_path = repo_paths[i] if i < len(repo_paths) else None
+
+		# Detect which languages have test coverage in this repo
+		test_languages = _detect_test_languages(repo, repo_path)
+
+		# 3a. Languages -> skill evidence
+		for lang_name, byte_count in repo.languages.items():
+			skill = _LANGUAGE_TO_SKILL.get(lang_name)
+			if skill is None:
+				# Fall back to taxonomy canonicalization
+				skill = taxonomy.canonicalize(lang_name)
+			acc = _ensure_skill(skill)
+			acc["repos"].add(repo.name)
+			acc["total_bytes"] += byte_count
+			_update_dates(acc, repo.created_at, repo.last_pushed)
+			if lang_name in test_languages:
+				acc["test_coverage"] = True
+
+		# 3b. Dependencies -> skill evidence (0 bytes, dependency-detected)
+		for dep_skill in repo.dependencies:
+			canonical = taxonomy.canonicalize(dep_skill)
+			acc = _ensure_skill(canonical)
+			acc["repos"].add(repo.name)
+			# Don't add bytes — these are dependency signals, not language bytes
+			_update_dates(acc, repo.created_at, repo.last_pushed)
+			acc["frameworks"].add(canonical)
+
+		# 3c. Dev dependencies -> skill evidence
+		for dep_skill in repo.dev_dependencies:
+			canonical = taxonomy.canonicalize(dep_skill)
+			acc = _ensure_skill(canonical)
+			acc["repos"].add(repo.name)
+			_update_dates(acc, repo.created_at, repo.last_pushed)
+			acc["frameworks"].add(canonical)
+
+	# Convert accumulators to SkillRepoEvidence
+	skill_evidence: dict[str, SkillRepoEvidence] = {}
+	for skill, acc in skill_acc.items():
+		skill_evidence[skill] = SkillRepoEvidence(
+			repos=len(acc["repos"]),
+			total_bytes=acc["total_bytes"],
+			first_seen=acc["first_seen"],
+			last_seen=acc["last_seen"],
+			frameworks=sorted(acc["frameworks"]),
+			test_coverage=acc["test_coverage"],
+		)
+
+	# 4. Compute timeline: earliest created_at -> latest last_pushed
+	earliest = min(r.created_at for r in all_evidence)
+	latest = max(r.last_pushed for r in all_evidence)
+	timeline_days = max(0, (latest - earliest).days)
+
+	# 5. Compute maturity stats
+	repos_with_tests = sum(1 for r in all_evidence if r.has_tests)
+	repos_with_ci = sum(1 for r in all_evidence if r.has_ci)
+	repos_with_releases = sum(1 for r in all_evidence if r.releases > 0)
+	repos_with_ai_signals = sum(
+		1
+		for r in all_evidence
+		if r.has_claude_md or r.has_agents_md or r.has_copilot_instructions or r.llm_imports
+	)
+
+	profile = RepoProfile(
+		repos=all_evidence,
+		scan_date=datetime.now(tz=timezone.utc),
+		repo_timeline_start=earliest,
+		repo_timeline_end=latest,
+		repo_timeline_days=timeline_days,
+		skill_evidence=skill_evidence,
+		repos_with_tests=repos_with_tests,
+		repos_with_ci=repos_with_ci,
+		repos_with_releases=repos_with_releases,
+		repos_with_ai_signals=repos_with_ai_signals,
+	)
+
+	# 6. Optionally write to disk
+	if output_path is not None:
+		output_path.parent.mkdir(parents=True, exist_ok=True)
+		output_path.write_text(profile.model_dump_json(indent=2))
+
+	return profile
