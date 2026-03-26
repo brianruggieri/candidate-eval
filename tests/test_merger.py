@@ -292,10 +292,269 @@ def test_merge_with_curated_malformed_role_skipped(candidate_profile):
 		)
 
 
+class TestMergeTriad:
+	"""Tests for the v0.7 resume + repo merge function."""
+
+	def _make_resume(self):
+		"""Minimal curated resume with known skills."""
+		from datetime import datetime, timezone
+		from claude_candidate.schemas.curated_resume import CuratedResume, CuratedSkill
+
+		return CuratedResume(
+			profile_version="1.0",
+			parsed_at=datetime.now(timezone.utc),
+			source_file_hash="test",
+			source_format="pdf",
+			name="Test User",
+			roles=[],
+			total_years_experience=13,
+			skills=[],
+			education=["B.S. Computer Science"],
+			curated_skills=[
+				CuratedSkill(name="typescript", depth=DepthLevel.EXPERT, duration="8 years"),
+				CuratedSkill(name="python", depth=DepthLevel.DEEP, duration="2 years"),
+				CuratedSkill(name="unity", depth=DepthLevel.EXPERT, duration="6 years"),
+			],
+			curated=True,
+		)
+
+	def _make_repo_profile(self):
+		"""Repo profile with typescript, python, and fastapi."""
+		from datetime import datetime, timezone
+		from claude_candidate.schemas.repo_profile import RepoProfile, SkillRepoEvidence
+
+		now = datetime.now(timezone.utc)
+		return RepoProfile(
+			repos=[],
+			scan_date=now,
+			repo_timeline_start=datetime(2026, 1, 30, tzinfo=timezone.utc),
+			repo_timeline_end=datetime(2026, 3, 25, tzinfo=timezone.utc),
+			repo_timeline_days=55,
+			skill_evidence={
+				"typescript": SkillRepoEvidence(
+					repos=5,
+					total_bytes=2_800_000,
+					first_seen=datetime(2026, 1, 30, tzinfo=timezone.utc),
+					last_seen=datetime(2026, 3, 25, tzinfo=timezone.utc),
+					frameworks=["react", "vitest"],
+					test_coverage=True,
+				),
+				"python": SkillRepoEvidence(
+					repos=1,
+					total_bytes=100_000,
+					first_seen=datetime(2026, 2, 19, tzinfo=timezone.utc),
+					last_seen=datetime(2026, 3, 25, tzinfo=timezone.utc),
+					frameworks=["fastapi", "pytest"],
+					test_coverage=True,
+				),
+				"fastapi": SkillRepoEvidence(
+					repos=1,
+					total_bytes=50_000,
+					first_seen=datetime(2026, 2, 19, tzinfo=timezone.utc),
+					last_seen=datetime(2026, 3, 25, tzinfo=timezone.utc),
+					frameworks=[],
+					test_coverage=True,
+				),
+			},
+			repos_with_tests=7,
+			repos_with_ci=5,
+			repos_with_releases=2,
+			repos_with_ai_signals=4,
+		)
+
+	def test_resume_depth_is_anchor(self) -> None:
+		"""Resume depth is never overridden by repo evidence."""
+		from claude_candidate.merger import merge_triad
+
+		profile = merge_triad(self._make_resume(), self._make_repo_profile())
+		ts = profile.get_skill("typescript")
+		assert ts is not None
+		assert ts.effective_depth == DepthLevel.EXPERT  # resume says expert
+		assert ts.source.value == "resume_and_repo"
+		assert ts.repo_confirmed is True
+
+	def test_repo_only_skill_capped_by_timeline(self) -> None:
+		"""Skills in repos but not resume are scoped to repo timeline."""
+		from claude_candidate.merger import merge_triad
+
+		profile = merge_triad(self._make_resume(), self._make_repo_profile())
+		fastapi = profile.get_skill("fastapi")
+		assert fastapi is not None
+		assert fastapi.source.value == "repo_only"
+		# 55 days = ~2 months -> Applied max
+		assert fastapi.effective_depth == DepthLevel.APPLIED
+
+	def test_resume_only_skill_preserved(self) -> None:
+		"""Skills on resume but not in repos are preserved."""
+		from claude_candidate.merger import merge_triad
+
+		profile = merge_triad(self._make_resume(), self._make_repo_profile())
+		unity = profile.get_skill("unity")
+		assert unity is not None
+		assert unity.source.value == "resume_only"
+		assert unity.effective_depth == DepthLevel.EXPERT
+
+	def test_no_session_languages_in_profile(self) -> None:
+		"""Rust/Go/etc should not appear -- only resume + repo skills."""
+		from claude_candidate.merger import merge_triad
+
+		profile = merge_triad(self._make_resume(), self._make_repo_profile())
+		assert profile.get_skill("rust") is None
+		assert profile.get_skill("go") is None
+		assert profile.get_skill("kotlin") is None
+
+	def test_repo_evidence_fields_populated(self) -> None:
+		"""Repo evidence fields should be populated for skills with repo data."""
+		from claude_candidate.merger import merge_triad
+
+		profile = merge_triad(self._make_resume(), self._make_repo_profile())
+		ts = profile.get_skill("typescript")
+		assert ts is not None
+		assert ts.repo_count == 5
+		assert ts.repo_bytes == 2_800_000
+		assert ts.repo_first_seen is not None
+		assert ts.repo_last_seen is not None
+		assert ts.repo_frameworks == ["react", "vitest"]
+
+	def test_aggregate_counts(self) -> None:
+		"""Aggregate counts should reflect source classification."""
+		from claude_candidate.merger import merge_triad
+
+		profile = merge_triad(self._make_resume(), self._make_repo_profile())
+		# typescript + python = 2 resume_and_repo (counted as corroborated)
+		assert profile.corroborated_skill_count == 2
+		# unity = resume only
+		assert profile.resume_only_skill_count == 1
+		# fastapi = repo only (no sessions in v0.7)
+		assert profile.sessions_only_skill_count == 0
+		# repo_confirmed = typescript + python + fastapi = 3
+		assert profile.repo_confirmed_skill_count == 3
+
+	def test_resume_metadata_propagated(self) -> None:
+		"""Resume-level metadata should propagate to merged profile."""
+		from claude_candidate.merger import merge_triad
+
+		profile = merge_triad(self._make_resume(), self._make_repo_profile())
+		assert profile.total_years_experience == 13
+		assert "B.S. Computer Science" in profile.education
+
+	def test_no_confidence_set(self) -> None:
+		"""confidence field should be None for v0.7 skills (deprecated)."""
+		from claude_candidate.merger import merge_triad
+
+		profile = merge_triad(self._make_resume(), self._make_repo_profile())
+		for skill in profile.skills:
+			assert skill.confidence is None
+
+	def test_sessions_parked(self) -> None:
+		"""No session data should appear in the merged profile."""
+		from claude_candidate.merger import merge_triad
+
+		profile = merge_triad(self._make_resume(), self._make_repo_profile())
+		assert profile.patterns == []
+		assert profile.projects == []
+		assert profile.discovery_skills == []
+		for skill in profile.skills:
+			assert skill.session_depth is None
+			assert skill.session_frequency is None
+			assert skill.session_evidence_count is None
+
+	def test_resume_duration_propagated(self) -> None:
+		"""Resume duration should be passed through for resume skills."""
+		from claude_candidate.merger import merge_triad
+
+		profile = merge_triad(self._make_resume(), self._make_repo_profile())
+		ts = profile.get_skill("typescript")
+		assert ts is not None
+		assert ts.resume_duration == "8 years"
+		py = profile.get_skill("python")
+		assert py is not None
+		assert py.resume_duration == "2 years"
+
+	def test_category_from_taxonomy(self) -> None:
+		"""Skills should get their category from the taxonomy."""
+		from claude_candidate.merger import merge_triad
+
+		profile = merge_triad(self._make_resume(), self._make_repo_profile())
+		ts = profile.get_skill("typescript")
+		assert ts is not None
+		assert ts.category == "language"
+		fastapi = profile.get_skill("fastapi")
+		assert fastapi is not None
+		assert fastapi.category == "framework"
+
+	def test_long_timeline_repo_only_gets_deep(self) -> None:
+		"""Repo-only skill with 180+ day timeline gets DEEP depth."""
+		from datetime import datetime, timezone
+		from claude_candidate.merger import merge_triad
+		from claude_candidate.schemas.repo_profile import RepoProfile, SkillRepoEvidence
+
+		now = datetime.now(timezone.utc)
+		repo = RepoProfile(
+			repos=[],
+			scan_date=now,
+			repo_timeline_start=datetime(2025, 6, 1, tzinfo=timezone.utc),
+			repo_timeline_end=datetime(2026, 3, 25, tzinfo=timezone.utc),
+			repo_timeline_days=297,
+			skill_evidence={
+				"go": SkillRepoEvidence(
+					repos=3,
+					total_bytes=500_000,
+					first_seen=datetime(2025, 6, 1, tzinfo=timezone.utc),
+					last_seen=datetime(2026, 3, 25, tzinfo=timezone.utc),
+					frameworks=[],
+					test_coverage=True,
+				),
+			},
+			repos_with_tests=3,
+			repos_with_ci=2,
+			repos_with_releases=1,
+			repos_with_ai_signals=1,
+		)
+		profile = merge_triad(self._make_resume(), repo)
+		go = profile.get_skill("go")
+		assert go is not None
+		assert go.source.value == "repo_only"
+		assert go.effective_depth == DepthLevel.DEEP
+
+	def test_very_long_timeline_repo_only_gets_expert(self) -> None:
+		"""Repo-only skill with 540+ day timeline gets EXPERT depth."""
+		from datetime import datetime, timezone
+		from claude_candidate.merger import merge_triad
+		from claude_candidate.schemas.repo_profile import RepoProfile, SkillRepoEvidence
+
+		now = datetime.now(timezone.utc)
+		repo = RepoProfile(
+			repos=[],
+			scan_date=now,
+			repo_timeline_start=datetime(2024, 6, 1, tzinfo=timezone.utc),
+			repo_timeline_end=datetime(2026, 3, 25, tzinfo=timezone.utc),
+			repo_timeline_days=663,
+			skill_evidence={
+				"rust": SkillRepoEvidence(
+					repos=10,
+					total_bytes=2_000_000,
+					first_seen=datetime(2024, 6, 1, tzinfo=timezone.utc),
+					last_seen=datetime(2026, 3, 25, tzinfo=timezone.utc),
+					frameworks=[],
+					test_coverage=True,
+				),
+			},
+			repos_with_tests=10,
+			repos_with_ci=8,
+			repos_with_releases=5,
+			repos_with_ai_signals=3,
+		)
+		profile = merge_triad(self._make_resume(), repo)
+		rust = profile.get_skill("rust")
+		assert rust is not None
+		assert rust.source.value == "repo_only"
+		assert rust.effective_depth == DepthLevel.EXPERT
+
+
 def test_corroboration_with_name_variants(candidate_profile):
 	"""Skills with different names (React.js vs react) should still corroborate."""
 	import json
-	from pathlib import Path
 	from claude_candidate.merger import merge_profiles
 	from claude_candidate.schemas.candidate_profile import DepthLevel
 	from claude_candidate.schemas.resume_profile import ResumeProfile, ResumeSkill
@@ -307,7 +566,6 @@ def test_corroboration_with_name_variants(candidate_profile):
 	from datetime import datetime, timezone
 
 	now = datetime.now(tz=timezone.utc)
-	first_skill = candidate_profile.skills[0]
 
 	resume = ResumeProfile(
 		parsed_at=now,
