@@ -1289,9 +1289,10 @@ def _score_requirement(
 
 	req_score = STATUS_SCORE.get(best_status, STATUS_SCORE_NONE)
 	if best_match:
-		# Apply confidence as a minor (±10%) adjustment to the base status score using
-		# the raw best_match.confidence: 0.90 + 0.10 * confidence → multiplier in ~0.90–1.0.
-		adjustment = 0.90 + 0.10 * best_match.confidence
+		# Apply confidence as a minor (±10%) adjustment to the base status score.
+		# confidence may be None (v0.7 merge_triad) — default to 1.0 (no penalty).
+		conf = best_match.confidence if best_match.confidence is not None else 1.0
+		adjustment = 0.90 + 0.10 * conf
 		req_score *= adjustment
 	return req_score
 
@@ -1309,7 +1310,7 @@ def _build_skill_detail(
 		match_status=best_status,
 		candidate_evidence=(_evidence_summary(best_match) if best_match else "No evidence found"),
 		evidence_source=(best_match.source if best_match else EvidenceSource.RESUME_ONLY),
-		confidence=best_match.confidence if best_match else 0.0,
+		confidence=(best_match.confidence if best_match and best_match.confidence is not None else 0.0),
 		matched_skill=best_match.name if best_match else None,
 		match_type=match_type,
 	)
@@ -1941,7 +1942,7 @@ class QuickMatchEngine:
 					found, _mtype = _find_skill_match(skill_name, self.profile)
 					if found:
 						status = _assess_depth_match(found, depth_floor, self.profile)
-						conf = found.confidence
+						conf = found.confidence if found.confidence is not None else 1.0
 						adj = 0.90 + 0.10 * conf
 						all_scores.append(STATUS_SCORE.get(status, 0.0) * adj)
 					else:
