@@ -995,10 +995,24 @@ def _infer_virtual_skill(
 		# Count how many constituents the profile has
 		matched = sum(1 for c in constituents if c in profile_names)
 		if matched >= min_count:
+			# Derive source from the constituent skills that exist in the profile.
+			# If any matched constituent has session evidence, the virtual skill is
+			# session-derived; otherwise it is inferred from resume/repo evidence only.
+			# This prevents sessions_only labels when sessions are parked (merge_triad).
+			session_sources = {EvidenceSource.SESSIONS_ONLY, EvidenceSource.CORROBORATED}
+			has_session_evidence = any(
+				s.source in session_sources
+				for s in profile.skills
+				if s.name.lower() in constituents
+			)
+			virtual_source = (
+				EvidenceSource.SESSIONS_ONLY if has_session_evidence else EvidenceSource.RESUME_ONLY
+			)
 			return MergedSkillEvidence(
 				name=rule_name,
-				source=EvidenceSource.SESSIONS_ONLY,
-				session_depth=depth,
+				source=virtual_source,
+				session_depth=depth if has_session_evidence else None,
+				resume_depth=depth if not has_session_evidence else None,
 				effective_depth=depth,
 				confidence=min(0.7, 0.4 + matched * 0.1),
 				discovery_flag=False,
