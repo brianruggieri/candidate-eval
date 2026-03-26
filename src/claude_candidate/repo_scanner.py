@@ -328,6 +328,8 @@ _TEST_FILE_PATTERNS = [
 	"*.spec.js",
 	"*_test.rs",
 	"*_test.go",
+	"test*.sh",
+	"*_test.sh",
 ]
 
 
@@ -866,3 +868,215 @@ def _count_architecture_signals(path: Path) -> tuple[int, int, int]:
 		pass
 
 	return file_count, max_depth, source_modules
+
+
+# ---------------------------------------------------------------------------
+# GitHub API scanner
+# ---------------------------------------------------------------------------
+
+_DEFAULT_CACHE_DIR = Path.home() / ".claude-candidate" / "repo-cache"
+_DEFAULT_SEARCH_DIRS = [
+	Path.home() / "git",
+	Path.home() / "projects",
+	Path.home() / "code",
+	Path.home() / "repos",
+]
+
+
+def _gh_api(endpoint: str) -> dict:
+	"""
+	Call `gh api <endpoint>` and return the parsed JSON result.
+
+	Raises RuntimeError if gh is not authenticated or the call fails.
+	"""
+	try:
+		result = subprocess.run(
+			["gh", "api", endpoint],
+			capture_output=True,
+			text=True,
+			timeout=30,
+		)
+	except FileNotFoundError:
+		raise RuntimeError(
+			"gh CLI not found. Install it from https://cli.github.com/ and run `gh auth login`."
+		)
+
+	if result.returncode != 0:
+		raise RuntimeError(
+			f"gh api {endpoint!r} failed (exit {result.returncode}): {result.stderr.strip()}"
+		)
+
+	try:
+		return json.loads(result.stdout)
+	except json.JSONDecodeError as exc:
+		raise RuntimeError(
+			f"gh api {endpoint!r} returned non-JSON output: {result.stdout[:200]!r}"
+		) from exc
+
+
+def _find_local_clone(
+	repo_name: str,
+	search_dirs: list[Path] | None = None,
+) -> Path | None:
+	"""
+	Look for an existing local clone of *repo_name* in common directories.
+
+	*repo_name* is the short name (the part after the slash in owner/repo).
+	Returns the clone path if found, None otherwise.
+	"""
+	dirs = search_dirs if search_dirs is not None else _DEFAULT_SEARCH_DIRS
+	for base in dirs:
+		candidate = base / repo_name
+		if candidate.is_dir() and (candidate / ".git").exists():
+			return candidate
+	return None
+
+
+def scan_github_repo(
+	repo_slug: str,
+	cache_dir: Path | None = None,
+) -> "RepoEvidence":
+	"""
+	Scan a GitHub repository and return RepoEvidence.
+
+	Strategy (local-first):
+	  1. Check common local directories for an existing clone.
+	     If found, delegate to ``scan_local_repo()`` and set the URL from the slug.
+	  2. If not found locally, check the cache dir (~/.claude-candidate/repo-cache/).
+	     Re-clone only if the cache entry is absent or older than 24 hours.
+	  3. Fetch repo metadata (created_at, description, pushed_at) and language bytes
+	     from the GitHub API and override the values from the local/cached clone
+	     (API data is more accurate for these fields).
+	  4. Use the GitHub API release count instead of the local tag count (tags are
+	     not fetched in treeless clones).
+
+	Args:
+		repo_slug: ``owner/repo`` string, e.g. ``"brianruggieri/claude-code-pulse"``.
+		cache_dir:  Directory to store clones. Defaults to
+		            ``~/.claude-candidate/repo-cache/``.
+
+	Returns:
+		:class:`~claude_candidate.schemas.repo_profile.RepoEvidence`
+	"""
+	import shutil
+	from datetime import timedelta
+
+	if "/" not in repo_slug:
+		raise ValueError(f"repo_slug must be 'owner/repo', got: {repo_slug!r}")
+
+	repo_name = repo_slug.split("/", 1)[1]
+	clone_url = f"https://github.com/{repo_slug}.git"
+	html_url = f"https://github.com/{repo_slug}"
+
+	effective_cache_dir = cache_dir or _DEFAULT_CACHE_DIR
+
+	# ------------------------------------------------------------------
+	# 1. Local-first lookup
+	# ------------------------------------------------------------------
+	local_path = _find_local_clone(repo_name)
+	if local_path is not None:
+		evidence = scan_local_repo(local_path)
+		# Override URL with canonical GitHub URL
+		evidence = evidence.model_copy(update={"url": html_url})
+		# Still fetch API metadata for accuracy
+		try:
+			meta = _gh_api(f"repos/{repo_slug}")
+			lang_bytes = _gh_api(f"repos/{repo_slug}/languages")
+			releases_data = _gh_api(f"repos/{repo_slug}/releases")
+			created_at = datetime.fromisoformat(meta["created_at"].replace("Z", "+00:00"))
+			last_pushed = datetime.fromisoformat(meta["pushed_at"].replace("Z", "+00:00"))
+			evidence = evidence.model_copy(
+				update={
+					"created_at": created_at,
+					"last_pushed": last_pushed,
+					"description": meta.get("description"),
+					"languages": lang_bytes,
+					"releases": len(releases_data),
+				}
+			)
+		except Exception:
+			pass
+		return evidence
+
+	# ------------------------------------------------------------------
+	# 2. Cache-based clone
+	# ------------------------------------------------------------------
+	effective_cache_dir.mkdir(parents=True, exist_ok=True)
+	clone_path = effective_cache_dir / repo_name
+
+	_24h = timedelta(hours=24)
+	needs_clone = True
+	if clone_path.exists() and (clone_path / ".git").exists():
+		# Check age via git log timestamp of the HEAD commit
+		try:
+			result = subprocess.run(
+				["git", "-C", str(clone_path), "log", "-1", "--format=%ct"],
+				capture_output=True,
+				text=True,
+				timeout=10,
+			)
+			commit_ts = int(result.stdout.strip())
+			commit_time = datetime.fromtimestamp(commit_ts, tz=timezone.utc)
+			age = datetime.now(tz=timezone.utc) - commit_time
+			# Re-clone if older than 24 hours
+			if age < _24h:
+				needs_clone = False
+		except Exception:
+			# Can't determine age — re-clone to be safe
+			needs_clone = True
+
+	if needs_clone:
+		if clone_path.exists():
+			shutil.rmtree(clone_path)
+		# Treeless clone: full commit graph, no blob content fetched eagerly.
+		# This is fast and still supports git log for commit span.
+		subprocess.run(
+			["git", "clone", "--filter=blob:none", clone_url, str(clone_path)],
+			capture_output=True,
+			check=True,
+			timeout=300,
+		)
+
+	# ------------------------------------------------------------------
+	# 3. Run local scanner on the cached clone
+	# ------------------------------------------------------------------
+	evidence = scan_local_repo(clone_path)
+
+	# ------------------------------------------------------------------
+	# 4. Override with GitHub API data (more accurate)
+	# ------------------------------------------------------------------
+	description: str | None = evidence.description
+	created_at: datetime = evidence.created_at
+	last_pushed: datetime = evidence.last_pushed
+	lang_bytes: dict[str, int] = evidence.languages
+	releases_count: int = evidence.releases
+
+	try:
+		meta = _gh_api(f"repos/{repo_slug}")
+		lang_bytes = _gh_api(f"repos/{repo_slug}/languages")
+		releases_data = _gh_api(f"repos/{repo_slug}/releases")
+		description = meta.get("description")
+		created_at = datetime.fromisoformat(meta["created_at"].replace("Z", "+00:00"))
+		last_pushed = datetime.fromisoformat(meta["pushed_at"].replace("Z", "+00:00"))
+		releases_count = len(releases_data)
+	except Exception:
+		# Fall back to locally-derived values already assigned above
+		pass
+
+	# Recompute commit_span_days from API timestamps (more reliable than treeless clone)
+	commit_span_days = max(0, (last_pushed - created_at).days)
+
+	evidence = evidence.model_copy(
+		update={
+			"name": repo_name,
+			"url": html_url,
+			"description": description,
+			"created_at": created_at,
+			"last_pushed": last_pushed,
+			"commit_span_days": commit_span_days,
+			"languages": lang_bytes,
+			"releases": releases_count,
+		}
+	)
+
+	return evidence

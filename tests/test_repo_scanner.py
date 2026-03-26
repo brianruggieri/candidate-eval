@@ -1,3 +1,4 @@
+import pytest
 from pathlib import Path
 
 from claude_candidate.repo_scanner import scan_local_repo
@@ -44,3 +45,20 @@ class TestScanLocalRepo:
 
 		assert evidence.commit_span_days > 0
 		assert evidence.created_at < evidence.last_pushed
+
+
+class TestScanGitHubRepo:
+	@pytest.mark.slow
+	def test_scan_public_repo(self) -> None:
+		"""Scan a known public repo via GitHub API."""
+		from claude_candidate.repo_scanner import scan_github_repo
+
+		evidence = scan_github_repo("brianruggieri/claude-code-pulse")
+
+		assert evidence.name == "claude-code-pulse"
+		assert evidence.url == "https://github.com/brianruggieri/claude-code-pulse"
+		assert "Shell" in evidence.languages
+		assert evidence.has_tests is True
+		assert evidence.has_ci is True
+		assert evidence.releases >= 5
+		assert evidence.commit_span_days > 0
