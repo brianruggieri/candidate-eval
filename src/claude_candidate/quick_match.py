@@ -1269,12 +1269,13 @@ def _find_best_skill(
 					best_status = "partial_match"
 			else:
 				# Candidate has the skill but not enough years — downgrade
-				shortfall = req.years_experience - candidate_years
-				if shortfall >= 2:
-					# Major shortfall (e.g. 3mo vs 2yr) — drop to partial
+				# Use ratio: <50% of required → major, <100% → minor
+				ratio = candidate_years / req.years_experience
+				if ratio < 0.5:
+					# Major shortfall (e.g. 3mo vs 2yr) — cap at partial_match
 					if STATUS_RANK.get(best_status, 0) > STATUS_RANK.get("partial_match", 0):
 						best_status = "partial_match"
-				elif shortfall >= 1:
+				else:
 					# Minor shortfall — cap at strong_match (no exceeds)
 					if STATUS_RANK.get(best_status, 0) > STATUS_RANK.get("strong_match", 0):
 						best_status = "strong_match"
