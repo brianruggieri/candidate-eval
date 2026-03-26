@@ -273,8 +273,11 @@ def _skill_mentioned_in_text(skill: str, text: str) -> bool:
 
 	Both ``skill`` and ``text`` must already be lowercased.
 	"""
-	# Direct name check
+	# Direct name check (also try hyphen↔space since canonical names use hyphens)
 	if skill in text:
+		return True
+	dehyphenated = skill.replace("-", " ")
+	if dehyphenated != skill and dehyphenated in text:
 		return True
 	# Common variant checks
 	for variant in _SKILL_VARIANTS.get(skill, []):
@@ -1223,13 +1226,19 @@ def _find_best_skill(
 				best_match_type = mtype
 			continue
 
-		# Try related skill fallback
+		# Try related skill fallback — but don't cross categories for languages.
+		# A language requirement (Go, Rust, etc.) should only match other languages,
+		# not related tools (Docker, Kubernetes) that happen to be in the same ecosystem.
 		canonical = taxonomy.match(skill_name)
 		if not canonical:
 			continue
+		req_category = taxonomy.get_category(canonical)
 		for profile_skill in profile.skills:
 			profile_canonical = taxonomy.canonicalize(profile_skill.name)
 			if taxonomy.are_related(canonical, profile_canonical):
+				profile_category = taxonomy.get_category(profile_canonical)
+				if req_category == "language" and profile_category != "language":
+					continue  # Don't match a language req to a non-language skill
 				if STATUS_RANK.get("related", 0) > STATUS_RANK.get(best_status, 0):
 					best_match = profile_skill
 					best_status = "related"
@@ -2045,7 +2054,9 @@ class QuickMatchEngine:
 			culture_signals,
 			company_profile,
 		)
-		if not all_signals or not self.profile.patterns:
+		if not self.profile.patterns:
+			return None  # No behavioral data (sessions parked) — omit dimension
+		if not all_signals:
 			return self._neutral_culture_dimension()
 
 		matches, total_signals, details = self._evaluate_culture_signals(
