@@ -1274,6 +1274,17 @@ def _find_best_skill(
 					best_match_type = "fuzzy"
 				break  # Take first related match
 
+	# AI-context penalty: requirements about AI teams or AI-powered metrics
+	# shouldn't get full credit from generic leadership/product skills
+	_AI_CONTEXT_WORDS = {"ai", "ml", "intelligence", "machine learning"}
+	if best_match and best_match.name in ("leadership", "product-development", "problem-solving", "project-management"):
+		req_lower = req.description.lower()
+		has_ai_context = any(w in req_lower for w in _AI_CONTEXT_WORDS)
+		has_team_or_scale = any(w in req_lower for w in ("team", "scale", "retention", "metrics"))
+		if has_ai_context and has_team_or_scale:
+			if STATUS_RANK.get(best_status, 0) > STATUS_RANK.get("partial_match", 0):
+				best_status = "partial_match"
+
 	# Years experience check: boost if candidate meets/exceeds, downgrade if short
 	if req.years_experience and best_match and best_match.resume_duration:
 		candidate_years = _parse_duration_years(best_match.resume_duration)
@@ -1327,6 +1338,31 @@ def _find_best_skill(
 				# Moderate gap (team vs consumer) — cap at strong_match
 				if STATUS_RANK.get(best_status, 0) > STATUS_RANK.get("strong_match", 0):
 					best_status = "strong_match"
+
+	# AI-qualified scale check: when requirement mentions AI and a non-AI skill matched,
+	# use the candidate's actual AI skill scale for the penalty instead.
+	# This prevents general skills (system-design, product-development) with consumer
+	# scale from masking that the candidate's AI experience is only at personal/team scale.
+	if best_match and _requirement_mentions_ai(req.description):
+		required_scale = _detect_required_scale(req.description)
+		if required_scale:
+			_SCALE_RANK = {"personal": 0, "team": 1, "startup": 2, "enterprise": 3, "consumer": 4}
+			matched_rank = _SCALE_RANK.get(best_match.scale or "enterprise", 3)
+			ai_scale = _candidate_ai_scale(profile)
+			ai_rank = _SCALE_RANK.get(ai_scale or "personal", 0)
+			req_rank = _SCALE_RANK.get(required_scale, 2)
+			# Only override when AI scale is lower than the matched skill's scale
+			# and the requirement's scale exceeds the AI scale
+			if ai_rank < matched_rank and req_rank > ai_rank:
+				gap = req_rank - ai_rank
+				if gap >= 3:
+					# Major AI scale gap — cap at partial_match
+					if STATUS_RANK.get(best_status, 0) > STATUS_RANK.get("partial_match", 0):
+						best_status = "partial_match"
+				elif gap >= 2:
+					# Moderate AI scale gap — cap at strong_match
+					if STATUS_RANK.get(best_status, 0) > STATUS_RANK.get("strong_match", 0):
+						best_status = "strong_match"
 
 	return best_match, best_status, best_match_type
 
