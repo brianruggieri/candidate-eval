@@ -351,7 +351,9 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 	@app.get("/api/health")
 	async def health():
 		profiles = get_profiles()
-		profile_loaded = bool(profiles.get("candidate"))
+		profile_loaded = bool(
+		profiles.get("curated_resume") or profiles.get("candidate")
+	)
 		return {
 			"status": "ok",
 			"version": __version__,

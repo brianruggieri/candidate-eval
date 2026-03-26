@@ -53,6 +53,35 @@ async def client_with_profile(app_with_profile):
 			yield c
 
 
+@pytest.fixture
+def app_with_curated_resume(tmp_path: Path):
+	"""App with only curated_resume (v0.7 primary path, no candidate_profile.json)."""
+	curated = {
+		"skills": [
+			{"name": "python", "depth": "expert", "years": 10, "context": "Backend"}
+		],
+		"roles": [
+			{
+				"company": "Test Corp",
+				"title": "Engineer",
+				"start_date": "2020-01",
+				"end_date": "2024-01",
+			}
+		],
+		"eligibility": {},
+	}
+	(tmp_path / "curated_resume.json").write_text(json.dumps(curated))
+	return create_app(data_dir=tmp_path)
+
+
+@pytest.fixture
+async def client_with_curated_resume(app_with_curated_resume):
+	async with LifespanManager(app_with_curated_resume) as manager:
+		transport = ASGITransport(app=manager.app)
+		async with AsyncClient(transport=transport, base_url="http://test") as c:
+			yield c
+
+
 # ---------------------------------------------------------------------------
 # Health
 # ---------------------------------------------------------------------------
@@ -76,6 +105,13 @@ class TestHealthEndpoint:
 
 	async def test_health_profile_loaded_true_with_profile(self, client_with_profile: AsyncClient):
 		resp = await client_with_profile.get("/api/health")
+		assert resp.json()["profile_loaded"] is True
+
+	async def test_health_profile_loaded_true_with_curated_resume(
+		self, client_with_curated_resume: AsyncClient
+	):
+		"""v0.7 primary path: curated_resume alone should report profile_loaded=True."""
+		resp = await client_with_curated_resume.get("/api/health")
 		assert resp.json()["profile_loaded"] is True
 
 
