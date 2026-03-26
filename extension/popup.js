@@ -5,6 +5,29 @@ const POSTING_TTL_MS = 5 * 60 * 1000;
 
 function el(id) { return document.getElementById(id); }
 
+/** Apply HSL background gradient to a stat card based on a 0–1 score. */
+function _colorStat(rowId, score) {
+	const row = el(rowId);
+	if (!row) return;
+	// Clamp to 0–1
+	const s = Math.max(0, Math.min(1, score));
+	// Hue: 0 (red) → 45 (amber) → 145 (green)
+	const hue = Math.round(s * 145);
+	const sat = 70 + Math.round((1 - Math.abs(s - 0.5) * 2) * 15); // slightly richer mid-range
+	const light = 95 - Math.round(s * 8); // 95% (pale red) → 87% (richer green)
+	row.style.background = `hsl(${hue}, ${sat}%, ${light}%)`;
+	// Subtle left border accent
+	row.style.borderLeft = `3px solid hsl(${hue}, ${sat}%, ${Math.max(light - 30, 35)}%)`;
+}
+
+/** Parse "10/12 must-haves met" → 0.83 ratio. */
+function _parseMustHaveRatio(text) {
+	if (!text) return 0;
+	const m = text.match(/(\d+)\s*\/\s*(\d+)/);
+	if (m) return parseInt(m[1]) / parseInt(m[2]);
+	return 0;
+}
+
 function categorizeSkill(m) {
 	if (m.match_status === 'no_evidence') return 'missing';
 	if (m.evidence_source === 'corroborated') return 'direct';
@@ -229,11 +252,14 @@ function renderResults(data) {
 		receptivitySection.classList.add('hidden');
 	}
 
-	// Stats
+	// Stats with color coding
 	el('detail-must-haves').textContent = data.must_have_coverage || '--';
 	el('detail-strongest-match').textContent = data.strongest_match || '--';
 	el('detail-biggest-gap').textContent = data.biggest_gap || 'None';
 	el('detail-direct-evid').textContent = '--';
+	_colorStat('row-must-haves', _parseMustHaveRatio(data.must_have_coverage));
+	_colorStat('row-strongest', 1.0); // Strongest is always best
+	_colorStat('row-gap', 0.0); // Biggest gap is always worst
 
 	// Eligibility gates
 	const gates = data.eligibility_gates || [];
@@ -307,6 +333,7 @@ function renderResults(data) {
 			? Math.round(directCount / withEvidence.length * 100) + '%'
 			: '--';
 		el('detail-direct-evid').textContent = directPct;
+		_colorStat('row-direct-evid', withEvidence.length ? directCount / withEvidence.length : 0);
 
 		renderEvidenceSummary(matches);
 		renderSignalBars(matches);
@@ -329,22 +356,9 @@ function renderResults(data) {
 		discSection.classList.add('hidden');
 	}
 
-	// Unverified
-	const unver = data.resume_unverified || [];
+	// Unverified — hidden in v0.7 (sessions parked, section is misleading)
 	const unverSection = el('section-unverified');
-	const unverList = el('unverified-list');
-	unverList.innerHTML = '';
-	if (unver.length > 0) {
-		unver.forEach(u => {
-			const chip = document.createElement('span');
-			chip.className = 'chip amber';
-			chip.textContent = u;
-			unverList.appendChild(chip);
-		});
-		unverSection.classList.remove('hidden');
-	} else {
-		unverSection.classList.add('hidden');
-	}
+	if (unverSection) unverSection.classList.add('hidden');
 
 	// Action items
 	const actions = data.action_items || [];
