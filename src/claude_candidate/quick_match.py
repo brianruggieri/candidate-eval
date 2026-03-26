@@ -1374,7 +1374,14 @@ def _build_skill_dimension(
 
 
 def _candidate_domain_set(profile: MergedEvidenceProfile) -> set[str]:
-	"""Collect candidate domain keywords from projects and roles."""
+	"""Collect candidate domain keywords from projects, roles, and skills.
+
+	Scans multiple sources to build a comprehensive domain signal:
+	- Project technologies (session-derived)
+	- Role domain field (if populated)
+	- Role company names and descriptions (tokenized)
+	- Skill names (especially domain-category skills)
+	"""
 	domains: set[str] = set()
 	for proj in profile.projects:
 		for tech in proj.technologies:
@@ -1382,6 +1389,16 @@ def _candidate_domain_set(profile: MergedEvidenceProfile) -> set[str]:
 	for role in profile.roles:
 		if role.domain:
 			domains.add(role.domain.lower())
+		# Scan company name and description for domain keywords
+		role_text = f"{role.company} {role.description or ''}".lower()
+		for word in role_text.split():
+			# Clean punctuation from tokens
+			clean = word.strip(".,;:()[]{}\"'")
+			if len(clean) >= 3:
+				domains.add(clean)
+	# Include skill names — covers domain skills like edtech, healthcare, etc.
+	for skill in profile.skills:
+		domains.add(skill.name.lower())
 	return domains
 
 
@@ -1394,12 +1411,27 @@ def _score_domain_overlap(
 	profile: MergedEvidenceProfile,
 	company_profile: CompanyProfile,
 ) -> tuple[float, list[str]]:
-	"""Score domain overlap; return (bonus, detail_lines)."""
+	"""Score domain overlap; return (bonus, detail_lines).
+
+	Uses both exact set intersection and substring matching to handle
+	compound domain terms (e.g. 'edtech' matching 'education' or 'educational').
+	"""
 	candidate_domains = _candidate_domain_set(profile)
 	company_domains = {d.lower() for d in company_profile.product_domain}
+	# Exact match first
 	overlap = candidate_domains & company_domains
 	if overlap:
 		return MISSION_DOMAIN_BONUS, [f"Domain overlap: {', '.join(sorted(overlap))}"]
+	# Substring match: check if any company domain appears in any candidate token
+	# or vice versa (e.g. "edtech" in "educational", "education" in "edtech")
+	for cd in company_domains:
+		if len(cd) < 3:
+			continue
+		for token in candidate_domains:
+			if len(token) < 3:
+				continue
+			if cd in token or token in cd:
+				return MISSION_DOMAIN_BONUS, [f"Domain match: {cd} ↔ {token}"]
 	return 0.0, []
 
 
