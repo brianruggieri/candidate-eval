@@ -325,7 +325,6 @@ DOMAIN_KEYWORDS: frozenset[str] = frozenset({
 	"sports", "baseball", "football", "basketball", "soccer", "athletics",
 	# Healthcare / biotech
 	"healthcare", "medical", "clinical", "patient", "biotech", "pharma",
-	"bioinformatics", "genomics", "genomic", "sequencing", "variant",
 	# Finance
 	"fintech", "banking", "financial", "trading", "insurance",
 	# Legal
@@ -334,20 +333,14 @@ DOMAIN_KEYWORDS: frozenset[str] = frozenset({
 	"automotive", "vehicle",
 	# Education
 	"edtech", "educational", "curriculum",
-	# Gaming / game engines
-	"gaming", "esports", "unreal", "gameplay",
+	# Gaming
+	"gaming", "esports",
 	# Real estate
 	"real estate", "construction",
 	# Energy
 	"energy", "utilities",
 	# Retail / logistics
 	"retail", "ecommerce", "logistics",
-	# Hardware / embedded
-	"firmware", "embedded", "microcontroller", "rtos",
-	# Native mobile
-	"ios", "swift", "xcode", "android", "kotlin",
-	# Data infrastructure
-	"etl", "warehouse", "airflow", "spark",
 })
 
 
@@ -999,19 +992,6 @@ def _find_skill_match(
 	return None, "none"
 
 
-# Session count thresholds for depth levels. Sessions-only skills with
-# fewer sessions than the threshold are capped at the lower depth.
-# This prevents the extractor's optimistic depth claims from inflating
-# scores for skills the candidate barely touched (e.g. 9 sessions of C++).
-_SESSION_DEPTH_CAPS: list[tuple[int, DepthLevel]] = [
-	(50, DepthLevel.EXPERT),   # >=50 sessions → expert allowed
-	(20, DepthLevel.DEEP),     # >=20 sessions → deep allowed
-	(10, DepthLevel.APPLIED),  # >=10 sessions → applied allowed
-	(3, DepthLevel.USED),      # >=3 sessions → used allowed
-	(0, DepthLevel.MENTIONED), # <3 sessions → mentioned
-]
-
-
 def _best_available_depth(skill: MergedSkillEvidence) -> DepthLevel:
 	"""Return the most favorable depth for matching.
 
@@ -1020,9 +1000,6 @@ def _best_available_depth(skill: MergedSkillEvidence) -> DepthLevel:
 	But when the resume claims a higher depth than effective_depth, we use it
 	for matching — the resume is human-curated and the session extractor may
 	under-detect skills.
-
-	For sessions-only skills, caps depth based on session count to prevent
-	inflated expert claims from few sessions.
 	"""
 	best = skill.effective_depth
 	if skill.source == EvidenceSource.CONFLICTING and skill.resume_depth:
@@ -1030,18 +1007,6 @@ def _best_available_depth(skill: MergedSkillEvidence) -> DepthLevel:
 		effective_rank = DEPTH_RANK.get(best, 0)
 		if resume_rank > effective_rank:
 			best = skill.resume_depth
-
-	# Cap sessions-only skills by session count
-	if skill.source == EvidenceSource.SESSIONS_ONLY and skill.session_frequency:
-		sessions = skill.session_frequency
-		for threshold, max_depth in _SESSION_DEPTH_CAPS:
-			if sessions >= threshold:
-				best_rank = DEPTH_RANK.get(best, 0)
-				cap_rank = DEPTH_RANK.get(max_depth, 0)
-				if best_rank > cap_rank:
-					best = max_depth
-				break
-
 	return best
 
 
@@ -1164,20 +1129,6 @@ def _find_best_skill(
 					best_status = "related"
 					best_match_type = "fuzzy"
 				break  # Take first related match
-
-	# Resume corroboration check for programming languages: sessions-only language
-	# skills that match as "exceeds" are suspicious — mentioning a language in
-	# sessions (e.g. discussing Rust pros/cons) doesn't mean proficiency. If the
-	# candidate truly knew the language, it would be on their resume. Cap at
-	# "partial_match" for unresumé'd languages specifically.
-	_LANGUAGE_CATEGORY = "language"
-	if (
-		best_match
-		and best_match.source == EvidenceSource.SESSIONS_ONLY
-		and best_match.category == _LANGUAGE_CATEGORY
-		and STATUS_RANK.get(best_status, 0) > STATUS_RANK.get("partial_match", 0)
-	):
-		best_status = "partial_match"
 
 	# Years experience boost: if requirement specifies years and skill has duration data
 	if req.years_experience and best_match and best_match.resume_duration:
@@ -1657,81 +1608,17 @@ class QuickMatchEngine:
 			pre_cap_grade = score_to_grade(overall_score)
 			overall_score = 0.0
 
-		# Domain penalty: cap score if industry domain appears 3+ times in requirements
+		# Domain penalty: cap at B+ if industry domain appears 3+ times in requirements
 		# but is absent from the candidate's profile.
-		# Mild gap (3-4 keyword occurrences): cap at B+ (0.849)
-		# Strong gap (5+ keyword occurrences): cap at C+ (0.699)
 		_GRADE_ORDER = ["A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D", "F"]
 		domain_gap_term = _detect_domain_gap(scorable_reqs, self.profile)
 		if domain_gap_term and not unmet_gates:  # eligibility cap already zeros score; skip
-			# Count how many times the gap keyword appears to determine severity
-			gap_count = sum(
-				1 for r in scorable_reqs if domain_gap_term in r.description.lower()
-			)
-			if gap_count >= 5:
-				cap_grade = "B"
-				cap_score = 0.799
-			else:
-				cap_grade = "B+"
-				cap_score = 0.849
 			candidate_grade = score_to_grade(overall_score)
-			if _GRADE_ORDER.index(candidate_grade) < _GRADE_ORDER.index(cap_grade):
+			if _GRADE_ORDER.index(candidate_grade) < _GRADE_ORDER.index("B+"):
 				if pre_cap_grade is None:
 					pre_cap_grade = candidate_grade
-				overall_score = min(overall_score, cap_score)
-
-		# Skill concentration penalty: when a single GENERIC matched skill accounts
-		# for a disproportionate share of all matches, it signals the posting is in
-		# a domain where the candidate only has generic/tangential coverage.
-		# Domain-specific skills (agentic-workflows, react, llm, etc.) are exempt
-		# because high concentration in a specific domain IS genuine expertise.
-		_GENERIC_SKILLS = frozenset({
-			"software-engineering", "computer-science", "testing",
-			"performance-optimization", "leadership", "collaboration",
-			"communication", "problem-solving", "adaptability", "ownership",
-			"agile", "metrics", "technical-writing", "prototyping",
-			"security", "production-systems", "code-review",
-		})
-		if not unmet_gates and not domain_gap_term:
-			from collections import Counter
-			matched_skills = [
-				d.matched_skill for d in skill_details if d.match_status != "no_evidence"
-			]
-			if matched_skills:
-				skill_counts = Counter(matched_skills)
-				top_skill, top_count = skill_counts.most_common(1)[0]
-				concentration = top_count / len(matched_skills)
-				unique_ratio = len(skill_counts) / len(matched_skills)
-				# Only fire for generic skills — domain-specific concentration is valid
-				if (
-					concentration >= 0.40
-					and unique_ratio < 0.60
-					and top_skill in _GENERIC_SKILLS
-				):
-					candidate_grade = score_to_grade(overall_score)
-					if _GRADE_ORDER.index(candidate_grade) < _GRADE_ORDER.index("B"):
-						if pre_cap_grade is None:
-							pre_cap_grade = candidate_grade
-						overall_score = min(overall_score, 0.799)  # Cap at top of B band
-						domain_gap_term = f"skill_concentration:{top_skill}"
-
-		# Weak must-have match penalty: when a high percentage of must-have
-		# requirements resolve to only "related" or "adjacent" (not direct matches),
-		# the candidate lacks core domain skills. Apply a score multiplier.
-		must_haves = [d for d in skill_details if d.priority == "must_have"]
-		if must_haves:
-			weak_mh = sum(
-				1 for d in must_haves
-				if d.match_status in ("related", "adjacent", "no_evidence")
-			)
-			weak_ratio = weak_mh / len(must_haves)
-			# If >40% of must-haves are weak matches, apply a penalty proportional
-			# to the weak ratio. Threshold is higher (40%) to avoid over-penalizing
-			# postings with a few legitimate related matches.
-			if weak_ratio > 0.40:
-				penalty_factor = 1.0 - (weak_ratio - 0.40) * 0.7  # 40%→1.0, 90%→0.65
-				floor = 0.65
-				overall_score *= max(penalty_factor, floor)
+				# Drop score to top of B+ band (just below A- threshold of 0.85)
+				overall_score = min(overall_score, 0.849)
 
 		partial_percentage = round(overall_score * 100, 1)
 
