@@ -104,8 +104,9 @@ function barColor(score) {
 
 function categorizeSkill(m) {
 	if (m.match_status === 'no_evidence') return 'missing';
-	if (m.evidence_source === 'corroborated' || m.evidence_source === 'resume_and_repo') return 'direct';
-	// resume_only, repo_only, sessions_only, conflicting → inferred.
+	// Direct = human-attested evidence (resume or resume+repo)
+	if (['corroborated', 'resume_and_repo', 'resume_only'].includes(m.evidence_source)) return 'direct';
+	// Inferred = detected from code (repo_only) or other automated sources
 	return 'inferred';
 }
 

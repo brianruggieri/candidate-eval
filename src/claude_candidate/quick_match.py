@@ -270,8 +270,11 @@ _SKILL_VARIANTS: dict[str, list[str]] = {
 	"problem-solving": ["problem solver", "solve problems", "analytical"],
 	"agile": ["scrum", "sprint", "kanban", "iterative"],
 	# Practices
+	"software-engineering": ["software development", "software developer", "engineering experience"],
 	"project-management": ["project management", "manage projects", "technical project"],
 	"testing": ["test", "quality assurance", "qa", "evaluation data"],
+	"product-development": ["shipping products", "building products", "ship products", "personal projects"],
+	"technology-research": ["passion for ai", "curiosity for ai", "keeps up with trends", "emerging innovations"],
 }
 
 
