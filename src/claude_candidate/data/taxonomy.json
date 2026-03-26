@@ -461,6 +461,13 @@
     "parent": null,
     "content_patterns": ["curriculum", "assessment", "learning management", "student", "education", "teaching", "instructional"]
   },
+  "technology-research": {
+    "aliases": ["emerging technology", "emerging technologies", "industry trends", "technology trends", "staying current", "bleeding edge", "continuous learning", "emerging research", "tech trends"],
+    "category": "practice",
+    "related": ["llm", "agentic-workflows", "adaptability"],
+    "parent": null,
+    "content_patterns": ["informed", "developments", "emerging", "trends", "research", "cutting edge", "state of the art"]
+  },
   "ownership": {
     "aliases": ["end-to-end ownership", "project ownership", "technical ownership", "owning outcomes", "feature-ownership", "project_ownership", "accountability", "shipping", "self-management"],
     "category": "soft_skill",

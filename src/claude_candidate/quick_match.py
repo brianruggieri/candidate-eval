@@ -1257,7 +1257,7 @@ def _find_best_skill(
 					best_match_type = "fuzzy"
 				break  # Take first related match
 
-	# Years experience boost: if requirement specifies years and skill has duration data
+	# Years experience check: boost if candidate meets/exceeds, downgrade if short
 	if req.years_experience and best_match and best_match.resume_duration:
 		candidate_years = _parse_duration_years(best_match.resume_duration)
 		if candidate_years:
@@ -1267,6 +1267,17 @@ def _find_best_skill(
 					best_status = "strong_match"
 				elif best_status == "adjacent":
 					best_status = "partial_match"
+			else:
+				# Candidate has the skill but not enough years — downgrade
+				shortfall = req.years_experience - candidate_years
+				if shortfall >= 2:
+					# Major shortfall (e.g. 3mo vs 2yr) — drop to partial
+					if STATUS_RANK.get(best_status, 0) > STATUS_RANK.get("partial_match", 0):
+						best_status = "partial_match"
+				elif shortfall >= 1:
+					# Minor shortfall — cap at strong_match (no exceeds)
+					if STATUS_RANK.get(best_status, 0) > STATUS_RANK.get("strong_match", 0):
+						best_status = "strong_match"
 
 	# Total years fallback: when no skill match but candidate has enough total experience
 	if req.years_experience and best_status == "no_evidence":

@@ -20,6 +20,14 @@ function _colorStat(rowId, score) {
 	row.style.borderLeft = `3px solid hsl(${hue}, ${sat}%, ${Math.max(light - 30, 35)}%)`;
 }
 
+/** Truncate long requirement text for stat cards. */
+function _truncStat(text, max = 40) {
+	if (!text || text.length <= max) return text;
+	// Try to cut at a word boundary
+	const cut = text.lastIndexOf(' ', max);
+	return text.slice(0, cut > 20 ? cut : max) + '…';
+}
+
 /** Parse "10/12 must-haves met" → 0.83 ratio. */
 function _parseMustHaveRatio(text) {
 	if (!text) return 0;
@@ -254,8 +262,8 @@ function renderResults(data) {
 
 	// Stats with color coding
 	el('detail-must-haves').textContent = data.must_have_coverage || '--';
-	el('detail-strongest-match').textContent = data.strongest_match || '--';
-	el('detail-biggest-gap').textContent = data.biggest_gap || 'None';
+	el('detail-strongest-match').textContent = _truncStat(data.strongest_match) || '--';
+	el('detail-biggest-gap').textContent = _truncStat(data.biggest_gap) || 'None';
 	el('detail-direct-evid').textContent = '--';
 	_colorStat('row-must-haves', _parseMustHaveRatio(data.must_have_coverage));
 	_colorStat('row-strongest', 1.0); // Strongest is always best
