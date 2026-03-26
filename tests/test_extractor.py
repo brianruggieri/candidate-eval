@@ -4,16 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from claude_candidate.extractor import (
 	SessionSignals,
-	build_candidate_profile,
 	extract_session_signals,
 	extract_technologies,
 	parse_session_lines,
 	_aggregate_ai_scores,
-	_classify_category,
 	_detect_from_content,
 	_detect_from_file_path,
 	_extract_evidence_snippets,
@@ -25,7 +21,6 @@ from claude_candidate.extractor import (
 )
 from claude_candidate.message_format import normalize_messages
 from claude_candidate.schemas.candidate_profile import (
-	CandidateProfile,
 	DepthLevel,
 )
 
@@ -355,31 +350,6 @@ class TestTruncateSnippet:
 
 
 # ---------------------------------------------------------------------------
-# _classify_category
-# ---------------------------------------------------------------------------
-
-
-class TestClassifyCategory:
-	def test_language(self) -> None:
-		assert _classify_category("python") == "language"
-		assert _classify_category("typescript") == "language"
-
-	def test_framework(self) -> None:
-		assert _classify_category("fastapi") == "framework"
-		assert _classify_category("react") == "framework"
-
-	def test_tool(self) -> None:
-		assert _classify_category("docker") == "tool"
-		assert _classify_category("git") == "tool"
-
-	def test_platform(self) -> None:
-		assert _classify_category("postgresql") == "platform"
-
-	def test_unknown_defaults_to_tool(self) -> None:
-		assert _classify_category("unknowntech") == "tool"
-
-
-# ---------------------------------------------------------------------------
 # _infer_depth
 # ---------------------------------------------------------------------------
 
@@ -470,208 +440,6 @@ class TestExtractSessionSignals:
 		content = fixture.read_text()
 		signals = extract_session_signals(content)
 		assert signals.project_hint != ""
-
-
-# ---------------------------------------------------------------------------
-# build_candidate_profile
-# ---------------------------------------------------------------------------
-
-
-class TestBuildCandidateProfile:
-	@pytest.fixture
-	def sample_signals(self) -> list[SessionSignals]:
-		return [
-			SessionSignals(
-				session_id="session-001",
-				project_hint="my-project",
-				technologies=["python", "fastapi", "pydantic"],
-				tool_calls=["Write", "Read", "Bash"],
-				patterns_observed=["iterative_refinement"],
-				evidence_snippets=["Built a FastAPI auth endpoint with pydantic."],
-				line_count=50,
-				timestamp="2026-03-10T09:00:00.000Z",
-			),
-			SessionSignals(
-				session_id="session-002",
-				project_hint="my-project",
-				technologies=["python", "typescript", "react", "docker"],
-				tool_calls=["Write", "Write", "Write", "Write", "Write"],
-				patterns_observed=["modular_thinking"],
-				evidence_snippets=[
-					"Scaffolded a full-stack app with React frontend and FastAPI backend."
-				],
-				line_count=100,
-				timestamp="2026-03-12T10:00:00.000Z",
-			),
-		]
-
-	def test_builds_from_signals_list(self, sample_signals: list[SessionSignals]) -> None:
-		profile = build_candidate_profile(
-			signals_list=sample_signals,
-			manifest_hash="abc123",
-		)
-		assert isinstance(profile, CandidateProfile)
-		assert profile.session_count == 2
-		assert profile.manifest_hash == "abc123"
-
-	def test_merges_technologies_across_sessions(
-		self, sample_signals: list[SessionSignals]
-	) -> None:
-		profile = build_candidate_profile(
-			signals_list=sample_signals,
-			manifest_hash="abc123",
-		)
-		skill_names = [s.name for s in profile.skills]
-		assert "python" in skill_names
-		assert "fastapi" in skill_names
-		assert "typescript" in skill_names
-
-	def test_evidence_snippets_max_length(self, sample_signals: list[SessionSignals]) -> None:
-		profile = build_candidate_profile(
-			signals_list=sample_signals,
-			manifest_hash="abc123",
-		)
-		for skill in profile.skills:
-			for ev in skill.evidence:
-				assert len(ev.evidence_snippet) <= 500
-
-	def test_all_required_fields_populated(self, sample_signals: list[SessionSignals]) -> None:
-		profile = build_candidate_profile(
-			signals_list=sample_signals,
-			manifest_hash="abc123",
-		)
-		assert profile.profile_version == "0.1.0"
-		assert profile.generated_at is not None
-		assert profile.session_count >= 0
-		assert profile.date_range_start is not None
-		assert profile.date_range_end is not None
-		assert len(profile.skills) > 0
-		assert len(profile.primary_languages) > 0
-		assert profile.primary_domains is not None
-		assert len(profile.problem_solving_patterns) > 0
-		assert profile.working_style_summary != ""
-		assert len(profile.projects) > 0
-		assert profile.communication_style != ""
-		assert profile.documentation_tendency in (
-			"minimal",
-			"moderate",
-			"thorough",
-			"extensive",
-		)
-		assert profile.extraction_notes != ""
-		assert profile.confidence_assessment in (
-			"low",
-			"moderate",
-			"high",
-			"very_high",
-		)
-
-	def test_skill_entry_has_evidence(self, sample_signals: list[SessionSignals]) -> None:
-		profile = build_candidate_profile(
-			signals_list=sample_signals,
-			manifest_hash="abc123",
-		)
-		for skill in profile.skills:
-			assert len(skill.evidence) >= 1
-			for ev in skill.evidence:
-				assert ev.evidence_snippet.strip() != ""
-				assert ev.session_id != ""
-
-	def test_date_range_correct(self, sample_signals: list[SessionSignals]) -> None:
-		profile = build_candidate_profile(
-			signals_list=sample_signals,
-			manifest_hash="abc123",
-		)
-		assert profile.date_range_start <= profile.date_range_end
-
-	def test_primary_languages_max_five(self, sample_signals: list[SessionSignals]) -> None:
-		profile = build_candidate_profile(
-			signals_list=sample_signals,
-			manifest_hash="abc123",
-		)
-		assert len(profile.primary_languages) <= 5
-
-	def test_projects_populated(self, sample_signals: list[SessionSignals]) -> None:
-		profile = build_candidate_profile(
-			signals_list=sample_signals,
-			manifest_hash="abc123",
-		)
-		assert len(profile.projects) >= 1
-		for proj in profile.projects:
-			assert proj.project_name != ""
-			assert proj.session_count >= 1
-			assert len(proj.evidence) >= 1
-
-	def test_python_frequency_is_two(self, sample_signals: list[SessionSignals]) -> None:
-		"""Python appears in both sessions, so frequency should be 2."""
-		profile = build_candidate_profile(
-			signals_list=sample_signals,
-			manifest_hash="abc123",
-		)
-		python_skill = profile.get_skill("python")
-		assert python_skill is not None
-		assert python_skill.frequency == 2
-
-	def test_empty_signals_list(self) -> None:
-		profile = build_candidate_profile(
-			signals_list=[],
-			manifest_hash="empty-hash",
-		)
-		assert profile.session_count == 0
-		assert len(profile.skills) == 0
-		assert len(profile.projects) == 0
-
-	def test_profile_serializes_round_trip(self, sample_signals: list[SessionSignals]) -> None:
-		profile = build_candidate_profile(
-			signals_list=sample_signals,
-			manifest_hash="abc123",
-		)
-		json_str = profile.to_json()
-		restored = CandidateProfile.from_json(json_str)
-		assert restored.session_count == profile.session_count
-		assert len(restored.skills) == len(profile.skills)
-
-
-# ---------------------------------------------------------------------------
-# Integration: fixture file -> profile
-# ---------------------------------------------------------------------------
-
-
-class TestEndToEnd:
-	def test_fixture_to_profile(self) -> None:
-		"""Extract signals from fixture files and build a complete profile."""
-		signals_list = []
-		for fixture in FIXTURES_DIR.glob("*.jsonl"):
-			content = fixture.read_text()
-			signals = extract_session_signals(content)
-			if signals.technologies:
-				signals_list.append(signals)
-
-		assert len(signals_list) >= 1
-
-		profile = build_candidate_profile(
-			signals_list=signals_list,
-			manifest_hash="integration-test",
-		)
-		assert isinstance(profile, CandidateProfile)
-		assert profile.session_count == len(signals_list)
-		assert len(profile.skills) > 0
-
-	def test_profile_evidence_chain_intact(self) -> None:
-		"""Every skill must trace back to a session with valid evidence."""
-		fixture = FIXTURES_DIR / "simple_python_session.jsonl"
-		signals = extract_session_signals(fixture.read_text())
-		profile = build_candidate_profile(
-			signals_list=[signals],
-			manifest_hash="chain-test",
-		)
-		for skill in profile.skills:
-			for ev in skill.evidence:
-				assert ev.evidence_snippet.strip() != ""
-				assert len(ev.evidence_snippet) <= 500
-				assert ev.session_id != ""
-				assert ev.confidence >= 0.0
-				assert ev.confidence <= 1.0
 
 
 # ---------------------------------------------------------------------------
@@ -833,88 +601,3 @@ class TestSessionSignalsAiScores:
 		assert level in ("beginner", "intermediate", "advanced", "expert")
 
 
-# ---------------------------------------------------------------------------
-# AI skill depth in build_candidate_profile
-# ---------------------------------------------------------------------------
-
-
-class TestAiSkillDepthInProfile:
-	@pytest.fixture
-	def ai_signals_high(self) -> list[SessionSignals]:
-		"""Sessions for an AI-related skill with high composite scores."""
-		return [
-			SessionSignals(
-				session_id="ai-session-001",
-				project_hint="llm-project",
-				technologies=["openai", "python"],
-				tool_calls=["Write", "Read"],
-				patterns_observed=[],
-				evidence_snippets=["Called OpenAI API with structured prompts."],
-				line_count=30,
-				timestamp="2026-03-10T09:00:00.000Z",
-				ai_scores={"composite": 0.80, "level": "expert"},
-			),
-			SessionSignals(
-				session_id="ai-session-002",
-				project_hint="llm-project",
-				technologies=["openai", "python"],
-				tool_calls=["Write", "Read"],
-				patterns_observed=[],
-				evidence_snippets=["Built RAG pipeline using OpenAI embeddings."],
-				line_count=40,
-				timestamp="2026-03-11T10:00:00.000Z",
-				ai_scores={"composite": 0.85, "level": "expert"},
-			),
-		]
-
-	@pytest.fixture
-	def ai_signals_low(self) -> list[SessionSignals]:
-		"""Sessions for an AI-related skill with low composite scores."""
-		return [
-			SessionSignals(
-				session_id="ai-session-003",
-				project_hint="ml-project",
-				technologies=["anthropic", "python"],
-				tool_calls=["Write"],
-				patterns_observed=[],
-				evidence_snippets=["Imported Anthropic SDK."],
-				line_count=10,
-				timestamp="2026-03-12T09:00:00.000Z",
-				ai_scores={"composite": 0.20, "level": "beginner"},
-			),
-		]
-
-	def test_high_ai_score_yields_expert_depth(self, ai_signals_high: list[SessionSignals]) -> None:
-		profile = build_candidate_profile(
-			signals_list=ai_signals_high,
-			manifest_hash="ai-test-high",
-		)
-		openai_skill = profile.get_skill("openai")
-		assert openai_skill is not None
-		# New three-extractor pipeline uses frequency + cross-extractor
-		# corroboration for depth (AI score override removed in v2).
-		# frequency=2 with content_pattern source -> USED
-		assert openai_skill.depth == DepthLevel.USED
-
-	def test_low_ai_score_yields_low_depth(self, ai_signals_low: list[SessionSignals]) -> None:
-		profile = build_candidate_profile(
-			signals_list=ai_signals_low,
-			manifest_hash="ai-test-low",
-		)
-		anthropic_skill = profile.get_skill("anthropic")
-		assert anthropic_skill is not None
-		# Low AI score (0.20) -> MENTIONED
-		assert anthropic_skill.depth == DepthLevel.MENTIONED
-
-	def test_non_ai_skill_unaffected_by_ai_scores(
-		self, ai_signals_high: list[SessionSignals]
-	) -> None:
-		profile = build_candidate_profile(
-			signals_list=ai_signals_high,
-			manifest_hash="ai-test-non-ai",
-		)
-		python_skill = profile.get_skill("python")
-		assert python_skill is not None
-		# Python is not AI-related; depth uses frequency heuristics
-		# frequency=2, tool_count=4 -> USED (freq>=2, tools>=0 but not freq>=3)
-		assert python_skill.depth == DepthLevel.USED

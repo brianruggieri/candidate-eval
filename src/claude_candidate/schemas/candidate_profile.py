@@ -117,7 +117,6 @@ class ProblemSolvingPattern(BaseModel):
 	strength: Literal["emerging", "established", "strong", "exceptional"]
 	description: str
 	evidence: list[SessionReference] = Field(min_length=1)
-	counter_evidence: list[SessionReference] | None = None
 	total_evidence_count: int | None = None  # pre-compaction count
 	compacted: bool = False  # whether evidence has been compacted
 
