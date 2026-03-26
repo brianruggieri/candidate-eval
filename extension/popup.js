@@ -459,14 +459,19 @@ async function initialize() {
 		return;
 	}
 
+	// Cache miss or URL mismatch — clear stale data so it can't leak
+	if (!cacheMatchesTab) {
+		chrome.storage.local.remove(['currentPosting', 'lastAssessment', 'fullAssessmentReady']);
+	}
+
 	// No cache — need the server
 	const health = await sendToBackground({ action: 'checkBackend' });
 	if (!health.connected) { showState('no-backend'); return; }
 	if (health.profile_loaded === false) { showState('no-profile'); return; }
 
-	// Resolve posting (from cache or fresh extraction)
+	// Resolve posting (from cache or fresh extraction — only if URL matched)
 	let posting = null;
-	if (fresh && stored.description && stored.requirements && stored.requirements.length) {
+	if (cacheMatchesTab && fresh && stored.description && stored.requirements && stored.requirements.length) {
 		posting = stored;
 	}
 
