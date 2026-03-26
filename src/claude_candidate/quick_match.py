@@ -233,6 +233,105 @@ def _soft_skill_discount(
 
 
 # ---------------------------------------------------------------------------
+# Match-time confidence (v0.7)
+# ---------------------------------------------------------------------------
+
+_GENERIC_SKILLS = frozenset({
+	"software-engineering",
+	"computer-science",
+	"problem-solving",
+	"communication",
+	"collaboration",
+	"leadership",
+	"ownership",
+	"adaptability",
+	"agile",
+	"metrics",
+})
+
+_SKILL_VARIANTS: dict[str, list[str]] = {
+	"typescript": ["ts", "type script"],
+	"javascript": ["js", "java script"],
+	"python": ["py"],
+	"react": ["react.js", "reactjs"],
+	"vue": ["vue.js", "vuejs"],
+	"angular": ["angular.js", "angularjs"],
+	"node": ["node.js", "nodejs"],
+	"cpp": ["c++"],
+	"csharp": ["c#"],
+	"golang": ["go lang"],
+}
+
+
+def _is_generic_skill(skill: str) -> bool:
+	"""Return True if the skill is a broad/generic term unlikely to match specific roles."""
+	return skill in _GENERIC_SKILLS
+
+
+def _skill_mentioned_in_text(skill: str, text: str) -> bool:
+	"""Check if the skill or common variants appear in the text.
+
+	Both ``skill`` and ``text`` must already be lowercased.
+	"""
+	# Direct name check
+	if skill in text:
+		return True
+	# Common variant checks
+	for variant in _SKILL_VARIANTS.get(skill, []):
+		if variant in text:
+			return True
+	return False
+
+
+def compute_match_confidence(
+	candidate_skill: str,
+	requirement_text: str,
+	match_type: str,
+) -> float:
+	"""Compute match-time confidence between a skill and a requirement.
+
+	Confidence measures how precisely the candidate's skill maps to what
+	the requirement is asking for.  This is NOT about evidence quality
+	(that's handled by source/depth) — it's about match quality.
+
+	Args:
+		candidate_skill: Canonical skill name (e.g. "typescript").
+		requirement_text: The full requirement description text.
+		match_type: One of "exact", "alias", "fuzzy", "related", "none".
+
+	Returns:
+		A float in [0.0, 1.0] indicating match confidence.
+	"""
+	if match_type == "none" or not candidate_skill:
+		return 0.0
+
+	# Normalize for text matching
+	skill_lower = candidate_skill.lower().strip()
+	text_lower = requirement_text.lower()
+
+	# Check if the skill name (or common variants) appears in the requirement text
+	skill_in_text = _skill_mentioned_in_text(skill_lower, text_lower)
+
+	if match_type == "exact":
+		return 1.0 if skill_in_text else 0.70
+	elif match_type == "alias":
+		return 0.90 if skill_in_text else 0.65
+	elif match_type == "fuzzy":
+		if skill_in_text:
+			return 0.80
+		# Generic skills matching specific requirements → very low
+		if _is_generic_skill(skill_lower):
+			return 0.10
+		return 0.50
+	elif match_type == "related":
+		if skill_in_text:
+			return 0.65
+		return 0.40
+
+	return 0.0
+
+
+# ---------------------------------------------------------------------------
 # Lookup tables
 # ---------------------------------------------------------------------------
 
