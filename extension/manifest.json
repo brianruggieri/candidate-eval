@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "claude-candidate",
-  "version": "0.7.12",
+  "version": "0.7.13",
   "description": "Honest, evidence-backed job fit assessments from your Claude Code session logs",
   "permissions": ["activeTab", "tabs", "storage", "scripting"],
   "host_permissions": ["http://localhost:7429/*", "https://www.linkedin.com/*"],
