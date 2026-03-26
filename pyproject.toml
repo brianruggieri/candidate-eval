@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "claude-candidate"
-version = "0.7.17"
+version = "0.7.18"
 description = "Privacy-first pipeline: Claude Code session logs + resume → honest, evidence-backed job fit assessments"
 readme = "README.md"
 license = "MIT"
