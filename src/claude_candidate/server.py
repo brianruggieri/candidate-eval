@@ -188,6 +188,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 		"candidate": _data_dir / "candidate_profile.json",
 		"resume": _data_dir / "resume_profile.json",
 		"curated_resume": _data_dir / "curated_resume.json",
+		"repo_profile": _data_dir / "repo_profile.json",
 	}
 
 	@asynccontextmanager
@@ -273,48 +274,74 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 		return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()[:16]
 
 	def _build_merged_profile():
-		"""Build a MergedEvidenceProfile using the best available resume data.
+		"""Build a MergedEvidenceProfile using the best available evidence.
 
-		Precedence (mirrors CLI's ``_merge_profile``):
-		  1. curated_resume.json with ``curated_skills`` → merge_with_curated()
-		  2. resume_profile.json → merge_profiles()
-		  3. No resume at all → merge_candidate_only()
+		Precedence:
+		  1. curated_resume + repo_profile → merge_triad() [v0.7 primary]
+		  2. curated_resume + candidate_profile → merge_with_curated() [fallback]
+		  3. resume_profile + candidate_profile → merge_profiles()
+		  4. candidate_profile only → merge_candidate_only()
 
-		Returns None when no candidate profile is loaded.
+		merge_triad does NOT require a CandidateProfile (sessions are parked
+		in v0.7), so it can produce a merged profile even without one.
 		"""
 		from claude_candidate.schemas.candidate_profile import CandidateProfile
 		from claude_candidate.schemas.resume_profile import ResumeProfile
+		from claude_candidate.schemas.curated_resume import CuratedResume
+		from claude_candidate.schemas.repo_profile import RepoProfile
 		from claude_candidate.merger import (
 			merge_profiles,
 			merge_candidate_only,
+			merge_triad,
 			merge_with_curated,
 		)
+		from pydantic import ValidationError
 
 		profiles = get_profiles()
-		candidate_data = profiles.get("candidate")
-		if candidate_data is None:
-			return None
 
-		cp = CandidateProfile.model_validate(candidate_data)
-
+		# Try v0.7 primary path: curated_resume + repo_profile → merge_triad
 		curated_data = profiles.get("curated_resume")
-		if curated_data:
-			from claude_candidate.schemas.curated_resume import CuratedResume
-			from pydantic import ValidationError
+		repo_data = profiles.get("repo_profile")
 
+		if curated_data and repo_data:
 			try:
 				curated = CuratedResume.model_validate(
 					curated_data if isinstance(curated_data, dict) else curated_data.model_dump()
 				)
+				repo = RepoProfile.model_validate(repo_data)
+				logger.info("merge path: merge_triad (curated_resume + repo_profile)")
+				return merge_triad(curated, repo)
+			except ValidationError:
+				logger.warning("merge_triad validation failed — falling back to legacy path")
+
+		# Fallback: need a candidate profile for older merge paths
+		candidate_data = profiles.get("candidate")
+		if candidate_data is None:
+			# Without candidate profile AND without triad data, nothing to merge
+			return None
+
+		cp = CandidateProfile.model_validate(candidate_data)
+
+		# Fallback 2: curated_resume + candidate_profile → merge_with_curated
+		if curated_data:
+			try:
+				curated = CuratedResume.model_validate(
+					curated_data if isinstance(curated_data, dict) else curated_data.model_dump()
+				)
+				logger.info("merge path: merge_with_curated (curated_resume + sessions)")
 				return merge_with_curated(cp, curated)
 			except ValidationError:
 				pass  # fall through to resume_profile or candidate_only
 
+		# Fallback 3: resume_profile + candidate_profile → merge_profiles
 		resume_data = profiles.get("resume")
 		if resume_data:
+			logger.info("merge path: merge_profiles (resume_profile + sessions)")
 			rp = ResumeProfile.model_validate(resume_data)
 			return merge_profiles(cp, rp)
 
+		# Fallback 4: sessions only
+		logger.info("merge path: merge_candidate_only (sessions only)")
 		return merge_candidate_only(cp)
 
 	# ------------------------------------------------------------------
@@ -343,6 +370,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 		candidate_data = profiles.get("candidate")
 		resume_data = profiles.get("resume")
 		curated_data = profiles.get("curated_resume")
+		repo_data = profiles.get("repo_profile")
 
 		if candidate_data:
 			hashes["candidate"] = _profile_hash(candidate_data)
@@ -350,14 +378,31 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 			hashes["resume"] = _profile_hash(resume_data)
 		if curated_data:
 			hashes["curated_resume"] = _profile_hash(curated_data)
+		if repo_data:
+			hashes["repo_profile"] = _profile_hash(repo_data)
+
+		# merge_available: true when triad path (curated + repo) or
+		# legacy path (candidate profile) can produce a merged profile.
+		triad_available = curated_data is not None and repo_data is not None
+		legacy_available = candidate_data is not None
 
 		return {
 			"has_candidate_profile": candidate_data is not None,
 			"has_resume_profile": resume_data is not None,
 			"has_curated_resume": curated_data is not None,
-			# merge_available: true when a candidate profile is loaded.
-			# The server always merges on the fly — no merged_profile.json needed.
-			"merge_available": candidate_data is not None,
+			"has_repo_profile": repo_data is not None,
+			"merge_available": triad_available or legacy_available,
+			"merge_path": (
+				"merge_triad"
+				if triad_available
+				else "merge_with_curated"
+				if curated_data and legacy_available
+				else "merge_profiles"
+				if resume_data and legacy_available
+				else "merge_candidate_only"
+				if legacy_available
+				else "none"
+			),
 			"hashes": hashes,
 		}
 
@@ -917,9 +962,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 				cache_url[:80],
 			)
 		elif len(parsed["requirements"]) == 0:
-			logger.warning(
-				"extract-posting: Claude returned 0 requirements for %s", cache_url[:80]
-			)
+			logger.warning("extract-posting: Claude returned 0 requirements for %s", cache_url[:80])
 		else:
 			logger.info(
 				"extract-posting: extracted %d requirements for %s",

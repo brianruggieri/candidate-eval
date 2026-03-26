@@ -104,7 +104,8 @@ def assess(
 
 	curated_eligibility: CandidateEligibility | None = None
 	curated_resume_path = (
-		Path(curated_resume) if curated_resume
+		Path(curated_resume)
+		if curated_resume
 		else Path.home() / ".claude-candidate" / "curated_resume.json"
 	)
 	if curated_resume_path.exists():
@@ -540,16 +541,29 @@ def _extract_basic_requirements(text: str) -> list:
 	# Eligibility gate keywords — set is_eligibility=True so the hard cap fires
 	eligibility_patterns: dict[str, list[str]] = {
 		"us-work-authorization": [
-			"work authorization", "authorized to work", "work permit",
-			"us citizen", "green card", "ead",
+			"work authorization",
+			"authorized to work",
+			"work permit",
+			"us citizen",
+			"green card",
+			"ead",
 		],
 		"visa-sponsorship": ["visa sponsorship", "sponsor visa", "require sponsorship"],
 		"security-clearance": [
-			"security clearance", "clearance required", "ts/sci",
-			"top secret", "secret clearance", "active clearance",
+			"security clearance",
+			"clearance required",
+			"ts/sci",
+			"top secret",
+			"secret clearance",
+			"active clearance",
 		],
 		"relocation": ["willing to relocate", "relocation required", "must relocate"],
-		"spanish": ["fluent in spanish", "spanish fluency", "spanish proficiency", "native spanish"],
+		"spanish": [
+			"fluent in spanish",
+			"spanish fluency",
+			"spanish proficiency",
+			"native spanish",
+		],
 		"french": ["fluent in french", "french fluency", "french proficiency"],
 		"german": ["fluent in german", "german fluency", "german proficiency"],
 		"mandarin": ["fluent in mandarin", "mandarin fluency", "mandarin proficiency"],
@@ -897,6 +911,77 @@ def manifest_verify(manifest_path: str) -> None:
 def profile() -> None:
 	"""Profile management commands."""
 	pass
+
+
+@profile.command("rebuild")
+@click.option(
+	"--data-dir",
+	type=click.Path(),
+	default=None,
+	help="Directory containing curated_resume.json and repo_profile.json",
+)
+def profile_rebuild(data_dir: str | None) -> None:
+	"""Re-merge resume + repos into a fresh merged profile."""
+	from claude_candidate.schemas.curated_resume import CuratedResume
+	from claude_candidate.schemas.repo_profile import RepoProfile
+	from claude_candidate.merger import merge_triad, merge_with_curated
+	from pydantic import ValidationError
+
+	_data_dir = Path(data_dir) if data_dir else Path.home() / ".claude-candidate"
+	curated_path = _data_dir / "curated_resume.json"
+	repo_path = _data_dir / "repo_profile.json"
+	output_path = _data_dir / "merged_profile.json"
+
+	if not curated_path.exists():
+		click.echo(f"Error: curated resume not found at {curated_path}", err=True)
+		raise SystemExit(1)
+
+	try:
+		curated = CuratedResume.model_validate(json.loads(curated_path.read_text()))
+	except (json.JSONDecodeError, ValidationError) as exc:
+		click.echo(f"Error: invalid curated resume: {exc}", err=True)
+		raise SystemExit(1)
+
+	repo = None
+	if repo_path.exists():
+		try:
+			repo = RepoProfile.model_validate(json.loads(repo_path.read_text()))
+		except (json.JSONDecodeError, ValidationError) as exc:
+			click.echo(f"Warning: invalid repo profile: {exc}", err=True)
+
+	if repo is not None:
+		click.echo("Merging curated resume + repo profile (merge_triad)...")
+		merged = merge_triad(curated, repo)
+	else:
+		# Fallback: need a candidate profile for merge_with_curated
+		candidate_path = _data_dir / "candidate_profile.json"
+		if not candidate_path.exists():
+			click.echo(
+				f"Error: No repo_profile.json and no candidate_profile.json in {_data_dir}",
+				err=True,
+			)
+			raise SystemExit(1)
+
+		from claude_candidate.schemas.candidate_profile import CandidateProfile
+
+		cp = CandidateProfile.from_json(candidate_path.read_text())
+		click.echo("Merging curated resume + sessions (merge_with_curated)...")
+		merged = merge_with_curated(cp, curated)
+
+	# Write merged profile
+	output_path.write_text(merged.model_dump_json(indent=2))
+
+	# Report stats
+	click.echo(f"\nMerged profile written to {output_path}")
+	click.echo(f"  Total skills: {len(merged.skills)}")
+	if merged.corroborated_skill_count:
+		click.echo(f"  Corroborated: {merged.corroborated_skill_count}")
+	if merged.resume_only_skill_count:
+		click.echo(f"  Resume-only: {merged.resume_only_skill_count}")
+	if merged.sessions_only_skill_count:
+		click.echo(f"  Sessions-only: {merged.sessions_only_skill_count}")
+	if merged.repo_confirmed_skill_count:
+		click.echo(f"  Repo-confirmed: {merged.repo_confirmed_skill_count}")
 
 
 # Strength bar display for pattern review
@@ -1748,35 +1833,74 @@ def _load_curated_resume():
 		)
 
 
+def _load_repo_profile():
+	"""Load repo profile from ~/.claude-candidate/repo_profile.json.
+
+	Returns validated RepoProfile if the file exists and is valid, None otherwise.
+	"""
+	from claude_candidate.schemas.repo_profile import RepoProfile
+	from pydantic import ValidationError
+
+	repo_path = Path.home() / ".claude-candidate" / "repo_profile.json"
+	if not repo_path.exists():
+		return None
+	try:
+		data = json.loads(repo_path.read_text())
+		return RepoProfile.model_validate(data)
+	except json.JSONDecodeError as exc:
+		click.echo(f"Warning: invalid JSON in {repo_path}: {exc}", err=True)
+		return None
+	except ValidationError as exc:
+		click.echo(f"Warning: repo profile validation failed: {exc}", err=True)
+		return None
+
+
 def _merge_profile(
-	cp,
+	cp=None,
 	rp=None,
 	*,
 	quiet: bool = False,
 ):
-	"""Merge a CandidateProfile with the best available resume data.
+	"""Merge available evidence into a MergedEvidenceProfile.
 
 	Precedence:
-	  1. Explicit parsed resume (rp argument, from --resume flag) → merge_profiles()
-	  2. Curated resume (~/.claude-candidate/curated_resume.json) → merge_with_curated()
-	  3. No resume at all → merge_candidate_only()
+	  1. Curated resume + repo_profile → merge_triad() [v0.7 primary]
+	  2. Explicit parsed resume (rp argument, from --resume flag) → merge_profiles()
+	  3. Curated resume + candidate_profile → merge_with_curated()
+	  4. No resume at all → merge_candidate_only()
 	"""
-	from claude_candidate.merger import merge_profiles, merge_candidate_only, merge_with_curated
+	from claude_candidate.merger import (
+		merge_profiles,
+		merge_candidate_only,
+		merge_triad,
+		merge_with_curated,
+	)
+
+	# v0.7 primary path: curated_resume + repo_profile → merge_triad
+	curated = _load_curated_resume()
+	repo = _load_repo_profile()
+
+	if curated is not None and repo is not None:
+		if not quiet:
+			click.echo("Using curated resume + repo profile (merge_triad)")
+		return merge_triad(curated, repo)
+
+	# Legacy paths require a candidate profile
+	if cp is None:
+		return None
 
 	if rp is not None:
 		if not quiet:
 			click.echo("Using parsed resume for merge")
 		merged = merge_profiles(cp, rp)
+	elif curated is not None:
+		if not quiet:
+			click.echo("Using curated resume for merge")
+		merged = merge_with_curated(cp, curated)
 	else:
-		curated = _load_curated_resume()
-		if curated is not None:
-			if not quiet:
-				click.echo("Using curated resume for merge")
-			merged = merge_with_curated(cp, curated)
-		else:
-			if not quiet:
-				click.echo("No resume provided — using sessions only")
-			merged = merge_candidate_only(cp)
+		if not quiet:
+			click.echo("No resume provided — using sessions only")
+		merged = merge_candidate_only(cp)
 	return merged
 
 
@@ -2003,8 +2127,9 @@ def repos() -> None:
 
 
 @repos.command("list")
-@click.option("--config", type=click.Path(exists=True), default=None,
-	help="Path to repos.json config file")
+@click.option(
+	"--config", type=click.Path(exists=True), default=None, help="Path to repos.json config file"
+)
 def repos_list(config: str | None) -> None:
 	"""Show configured repos and last scan date."""
 	import json
@@ -2033,10 +2158,12 @@ def repos_list(config: str | None) -> None:
 
 
 @repos.command("scan")
-@click.option("--config", type=click.Path(exists=True), default=None,
-	help="Path to repos.json config file")
-@click.option("--data-dir", type=click.Path(), default=None,
-	help="Output directory for repo_profile.json")
+@click.option(
+	"--config", type=click.Path(exists=True), default=None, help="Path to repos.json config file"
+)
+@click.option(
+	"--data-dir", type=click.Path(), default=None, help="Output directory for repo_profile.json"
+)
 def repos_scan(config: str | None, data_dir: str | None) -> None:
 	"""Scan configured repos and build a repo profile."""
 	import json
@@ -2070,6 +2197,7 @@ def repos_scan(config: str | None, data_dir: str | None) -> None:
 # Register corpus subcommand group (deferred import avoids E402 lint warning)
 def _register_corpus_commands() -> None:
 	from claude_candidate.corpus_cli import corpus as _corpus_group
+
 	main.add_command(_corpus_group, name="corpus")
 
 
