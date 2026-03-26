@@ -1304,13 +1304,23 @@ def _build_skill_detail(
 	match_type: str = "exact",
 ) -> SkillMatchDetail:
 	"""Build a SkillMatchDetail for one requirement."""
+	# Use match-time confidence (v0.7) — measures how well the skill maps to
+	# the requirement text. Falls back to merge-time confidence for legacy profiles.
+	if best_match and best_status != "no_evidence":
+		conf = compute_match_confidence(
+			candidate_skill=best_match.name,
+			requirement_text=req.description,
+			match_type=match_type,
+		)
+	else:
+		conf = 0.0
 	return SkillMatchDetail(
 		requirement=req.description,
 		priority=req.priority.value,
 		match_status=best_status,
 		candidate_evidence=(_evidence_summary(best_match) if best_match else "No evidence found"),
 		evidence_source=(best_match.source if best_match else EvidenceSource.RESUME_ONLY),
-		confidence=(best_match.confidence if best_match and best_match.confidence is not None else 0.0),
+		confidence=conf,
 		matched_skill=best_match.name if best_match else None,
 		match_type=match_type,
 	)

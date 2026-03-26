@@ -73,13 +73,8 @@ function barColor(score) {
 
 function categorizeSkill(m) {
 	if (m.match_status === 'no_evidence') return 'missing';
-	if (m.evidence_source === 'corroborated') return 'direct';
-	// resume_only, sessions_only, conflicting → inferred.
-	// sessions_only is intentionally "inferred": agentic sessions without
-	// resume corroboration are not guaranteed personal mastery.
-	// Note: "fuzzy" (alias/approximate skill resolution) requires a match_type
-	// field from the API — m.requirement is the full JD sentence, not a skill
-	// token, so frontend comparison against matched_skill is always wrong.
+	if (m.evidence_source === 'corroborated' || m.evidence_source === 'resume_and_repo') return 'direct';
+	// resume_only, repo_only, sessions_only, conflicting → inferred.
 	return 'inferred';
 }
 
