@@ -271,9 +271,9 @@ _SKILL_VARIANTS: dict[str, list[str]] = {
 	"agile": ["scrum", "sprint", "kanban", "iterative"],
 	# Practices
 	"software-engineering": ["software development", "software developer", "engineering experience"],
-	"project-management": ["project management", "manage projects", "technical project"],
-	"testing": ["test", "quality assurance", "qa", "evaluation data"],
-	"product-development": ["shipping products", "building products", "ship products", "personal projects"],
+	"project-management": ["project management", "manage projects", "technical project", "project management tools"],
+	"testing": ["test", "quality assurance", "qa", "evaluation data", "attention to detail", "detail-oriented"],
+	"product-development": ["shipping products", "building products", "ship products", "personal projects", "product quality"],
 	"technology-research": ["passion for ai", "curiosity for ai", "keeps up with trends", "emerging innovations"],
 }
 
@@ -578,13 +578,21 @@ def _find_fuzzy_match(
 
 	Requires minimum length of 3 characters for substring matching to avoid
 	false positives like 'c' matching 'ci-cd' or 'r' matching 'react'.
+	Rejects matches where both query and skill are distinct taxonomy entries
+	(e.g. 'java' should not match 'javascript').
 	"""
 	MIN_SUBSTRING_LEN = 3
+	taxonomy = _get_taxonomy()
 	for skill in profile.skills:
 		# Substring match only when the shorter string is long enough
 		shorter_len = min(len(normalized), len(skill.name))
 		if shorter_len >= MIN_SUBSTRING_LEN:
 			if normalized in skill.name or skill.name in normalized:
+				# Reject if both are distinct canonical taxonomy entries
+				canon_query = taxonomy.canonicalize(normalized)
+				canon_skill = taxonomy.canonicalize(skill.name)
+				if canon_query != canon_skill and canon_query == normalized:
+					continue  # e.g. "java" ≠ "javascript" — both canonical, skip
 				return skill
 		if _is_variant_match(normalized, skill.name):
 			return skill
