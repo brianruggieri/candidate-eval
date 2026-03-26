@@ -437,14 +437,15 @@ async function initialize() {
 		currentPosting = stored;
 
 		const cachedAid = lastAssessment.data.assessment_id;
-		if (fullReady && fullReady.assessmentId === cachedAid && fullReady.data) {
-			// Full assessment is ready — render it directly
+		if (fullReady && fullReady.assessmentId === cachedAid && fullReady.data
+			&& (!fullReady.url || normalizeUrl(fullReady.url) === normalizeUrl(currentTabUrl))) {
+			// Full assessment is ready and matches this page — render it directly
 			renderResults(fullReady.data);
 		} else {
 			// Show partial results, then poll for full
 			renderResults(lastAssessment.data);
 
-			if (cachedAid) sendToBackground({ action: 'startFullAssess', assessmentId: cachedAid });
+			if (cachedAid) sendToBackground({ action: 'startFullAssess', assessmentId: cachedAid, postingUrl: currentTabUrl });
 			const pollInterval = setInterval(async () => {
 				const ready = await new Promise(r => {
 					chrome.storage.local.get('fullAssessmentReady', res => r(res.fullAssessmentReady || null));
@@ -520,7 +521,7 @@ async function initialize() {
 
 	// Fire-and-forget: background.js runs the full assessment independently.
 	const assessmentId = partial.assessment_id;
-	sendToBackground({ action: 'startFullAssess', assessmentId });
+	sendToBackground({ action: 'startFullAssess', assessmentId, postingUrl: currentPosting?.url || '' });
 
 	// Poll for completion (if popup stays open) — update in-place
 	const currentAssessmentId = assessmentId;

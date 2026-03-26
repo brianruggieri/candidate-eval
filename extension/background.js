@@ -106,7 +106,7 @@ async function handleAssessFull(assessmentId) {
  * Fire-and-forget: start full assessment in background, store result when done.
  * Survives popup close. Popup checks fullAssessmentReady on reopen.
  */
-async function handleStartFullAssess(assessmentId) {
+async function handleStartFullAssess(assessmentId, postingUrl) {
 	// Clear any previous result
 	chrome.storage.local.remove('fullAssessmentReady');
 
@@ -116,6 +116,7 @@ async function handleStartFullAssess(assessmentId) {
 			chrome.storage.local.set({
 				fullAssessmentReady: {
 					assessmentId: result.assessment_id,
+					url: postingUrl || '',
 					data: result,
 					completedAt: Date.now(),
 				}
@@ -314,7 +315,7 @@ chrome.runtime.onMessage.addListener(function (request, _sender, sendResponse) {
 			break;
 
 		case 'startFullAssess':
-			promise = handleStartFullAssess(request.assessmentId);
+			promise = handleStartFullAssess(request.assessmentId, request.postingUrl);
 			break;
 
 		case 'extractPosting':
