@@ -200,6 +200,8 @@ function renderResults(data) {
 		}
 		if (data.culture_fit) {
 			setDim('culture_fit', 'bar-culture', 'pct-culture', 'detail-culture');
+			const dimCulture = el('dim-culture');
+			if (dimCulture) dimCulture.classList.remove('hidden');
 		}
 		if (data.mission_alignment || data.culture_fit) {
 			fullDimsSection.classList.remove('hidden');
