@@ -62,6 +62,34 @@
     "parent": "python",
     "content_patterns": ["fastapi", "from fastapi"]
   },
+  "flask": {
+    "aliases": ["flask-framework"],
+    "category": "framework",
+    "related": ["python", "api-design"],
+    "parent": "python",
+    "content_patterns": ["from flask", "Flask(__name__)"]
+  },
+  "django": {
+    "aliases": ["django-framework", "django rest framework", "drf"],
+    "category": "framework",
+    "related": ["python", "api-design"],
+    "parent": "python",
+    "content_patterns": ["from django", "manage.py"]
+  },
+  "airflow": {
+    "aliases": ["apache airflow", "apache-airflow"],
+    "category": "tool",
+    "related": ["python", "data-engineering"],
+    "parent": null,
+    "content_patterns": ["from airflow", "DAG("]
+  },
+  "spark": {
+    "aliases": ["apache spark", "apache-spark", "pyspark"],
+    "category": "tool",
+    "related": ["python", "data-engineering", "machine-learning"],
+    "parent": null,
+    "content_patterns": ["from pyspark", "SparkSession"]
+  },
   "vue": {
     "aliases": ["vue.js", "vuejs"],
     "category": "framework",

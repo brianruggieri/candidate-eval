@@ -64,6 +64,17 @@ Shorten long requirement descriptions in stat cards and skill match list. Either
 ### 9. Scale Property on Repo-Only Skills (LOW)
 Currently only curated resume skills have scale annotations. Repo-detected skills need scale too — infer from repo characteristics (stars, traffic, deployment signals, team size indicators).
 
+## Scoring Dimensions
+
+### 10. Mission Alignment Reanalysis (HIGH)
+Full audit and recalibration of mission alignment scoring. Current issues:
+- Domain overlap is too shallow — only checks single keyword matches
+- Company research quality varies wildly (some companies get "No enrichment data available")
+- 65% C+ for edtech candidate at edtech company is too low
+- Need deeper semantic matching between candidate background and company mission
+- Consider: role description alignment, not just company domain
+- Consider: weighting mission higher when company explicitly states mission-driven culture
+
 ## Dependencies
 - #1 (Requirement Distillation) unblocks accuracy improvements across the board
 - #4 (Sessions) unblocks culture fit dimension
