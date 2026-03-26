@@ -66,6 +66,7 @@ class MergedSkillEvidence(BaseModel):
 	confidence: float | None = Field(default=None, ge=0.0, le=1.0)  # deprecated: moves to match time in v0.7
 	discovery_flag: bool = False  # deprecated: v0.8 removal
 	category: str | None = None  # taxonomy category: "language", "framework", etc.
+	scale: str | None = None  # personal | team | startup | enterprise | consumer
 
 	@staticmethod
 	def compute_effective_depth(

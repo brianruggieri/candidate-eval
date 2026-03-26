@@ -165,6 +165,7 @@ def merge_triad(
 				confidence=None,  # deprecated in v0.7 — moves to match time
 				discovery_flag=False,  # no sessions = no discoveries
 				category=category,
+				scale=getattr(c_skill, "scale", None) if c_skill else None,
 			)
 		)
 

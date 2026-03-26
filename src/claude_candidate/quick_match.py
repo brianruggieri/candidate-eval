@@ -1298,8 +1298,44 @@ def _find_best_skill(
 			)
 			best_match_type = "fuzzy"
 
+	# Scale check: if requirement mentions consumer scale and skill is personal/team, downgrade
+	if best_match and best_match.scale:
+		required_scale = _detect_required_scale(req.description)
+		if required_scale:
+			_SCALE_RANK = {"personal": 0, "team": 1, "startup": 2, "enterprise": 3, "consumer": 4}
+			skill_rank = _SCALE_RANK.get(best_match.scale, 2)
+			req_rank = _SCALE_RANK.get(required_scale, 2)
+			if req_rank - skill_rank >= 3:
+				# Major scale gap (personal vs consumer) — cap at partial
+				if STATUS_RANK.get(best_status, 0) > STATUS_RANK.get("partial_match", 0):
+					best_status = "partial_match"
+			elif req_rank - skill_rank >= 2:
+				# Moderate gap (team vs consumer) — cap at strong_match
+				if STATUS_RANK.get(best_status, 0) > STATUS_RANK.get("strong_match", 0):
+					best_status = "strong_match"
+
 	return best_match, best_status, best_match_type
 
+
+_SCALE_KEYWORDS: list[tuple[str, str]] = [
+	("consumer scale", "consumer"),
+	("at consumer scale", "consumer"),
+	("millions of users", "consumer"),
+	("millions of conversations", "consumer"),
+	("consumer-facing", "consumer"),
+	("at scale", "enterprise"),  # generic "at scale" → enterprise minimum
+	("enterprise scale", "enterprise"),
+	("production scale", "enterprise"),
+]
+
+
+def _detect_required_scale(text: str) -> str | None:
+	"""Detect if a requirement specifies a scale level."""
+	text_lower = text.lower()
+	for keyword, scale in _SCALE_KEYWORDS:
+		if keyword in text_lower:
+			return scale
+	return None
 
 
 def _score_requirement(

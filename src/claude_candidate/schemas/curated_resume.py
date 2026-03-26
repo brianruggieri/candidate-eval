@@ -23,6 +23,7 @@ class CuratedSkill(BaseModel):
 	name: str
 	depth: DepthLevel
 	duration: str | None = None  # e.g. "8 years", "2 months"
+	scale: Literal["personal", "team", "startup", "enterprise", "consumer"] | None = None
 	source_context: str = "Listed in skills section"
 	curated: bool = True
 
