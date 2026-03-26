@@ -363,10 +363,17 @@
     "parent": null,
     "content_patterns": ["sanitiz", "XSS", "CORS", "RBAC", "encrypt"]
   },
+  "project-management": {
+    "aliases": ["project management", "project management tools", "jira", "clickup", "linear", "asana", "trello", "notion", "azure devops", "shortcut", "basecamp", "monday.com"],
+    "category": "tool",
+    "related": ["agile", "leadership", "collaboration"],
+    "parent": null,
+    "content_patterns": ["project management", "task tracking", "sprint planning", "roadmap"]
+  },
   "agile": {
     "aliases": ["scrum", "kanban", "sprint", "agile-methodology", "agile methodology"],
     "category": "practice",
-    "related": ["software-engineering", "collaboration"],
+    "related": ["software-engineering", "collaboration", "project-management"],
     "parent": null,
     "content_patterns": ["sprint", "standup", "backlog", "user story"]
   },
