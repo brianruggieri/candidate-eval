@@ -82,6 +82,36 @@ async def client_with_curated_resume(app_with_curated_resume):
 			yield c
 
 
+@pytest.fixture
+def app_with_restrictive_eligibility(
+	tmp_path: Path,
+	sample_candidate_profile_json: str,
+):
+	"""App with curated_resume that has restrictive eligibility (no relocation)."""
+	# Load the sample curated resume and override eligibility
+	from pathlib import Path as _Path
+
+	_fixtures = _Path(__file__).parent / "fixtures"
+	curated = json.loads((_fixtures / "curated_resume_sample.json").read_text())
+	curated["eligibility"] = {
+		"us_work_authorized": True,
+		"has_clearance": False,
+		"max_travel_pct": 10,
+		"willing_to_relocate": False,
+	}
+	(tmp_path / "curated_resume.json").write_text(json.dumps(curated))
+	(tmp_path / "candidate_profile.json").write_text(sample_candidate_profile_json)
+	return create_app(data_dir=tmp_path)
+
+
+@pytest.fixture
+async def client_with_restrictive_eligibility(app_with_restrictive_eligibility):
+	async with LifespanManager(app_with_restrictive_eligibility) as manager:
+		transport = ASGITransport(app=manager.app)
+		async with AsyncClient(transport=transport, base_url="http://test") as c:
+			yield c
+
+
 # ---------------------------------------------------------------------------
 # Health
 # ---------------------------------------------------------------------------
@@ -368,6 +398,48 @@ class TestAssessPartialEndpoint:
 		"""Partial endpoint must NOT return deliverables (those require Claude)."""
 		resp = await client_with_profile.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
 		assert "deliverables" not in resp.json()
+
+
+# ---------------------------------------------------------------------------
+# Server eligibility
+# ---------------------------------------------------------------------------
+
+
+class TestServerEligibility:
+	"""Tests for eligibility data loading in server assessments."""
+
+	async def test_assess_passes_curated_eligibility(
+		self, client_with_restrictive_eligibility: AsyncClient
+	):
+		"""Server assessments should use eligibility from curated_resume.json."""
+		resp = await client_with_restrictive_eligibility.post(
+			"/api/assess",
+			json={
+				"posting_text": "Must relocate to NYC",
+				"company": "Test Corp",
+				"title": "Engineer",
+				"requirements": [
+					{
+						"description": "Must be willing to relocate to New York",
+						"skill_mapping": ["relocation"],
+						"priority": "must_have",
+						"is_eligibility": True,
+					},
+					{
+						"description": "Python backend development",
+						"skill_mapping": ["python"],
+						"priority": "must_have",
+					},
+				],
+			},
+		)
+		assert resp.status_code == 200
+		body = resp.json()
+		gates = body.get("eligibility_gates", [])
+		unmet = [g for g in gates if g.get("status") == "unmet"]
+		assert len(unmet) > 0, (
+			f"Expected unmet eligibility gates but got: {gates}"
+		)
 
 
 # ---------------------------------------------------------------------------

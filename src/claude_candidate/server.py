@@ -449,6 +449,19 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 				detail="No valid requirements provided — extraction required before assessment.",
 			)
 
+		# Load curated eligibility for gate evaluation
+		from claude_candidate.schemas.curated_resume import CandidateEligibility, CuratedResume
+		from pydantic import ValidationError
+
+		curated_eligibility: CandidateEligibility | None = None
+		curated_data = get_profiles().get("curated_resume")
+		if curated_data:
+			try:
+				curated = CuratedResume.model_validate(curated_data)
+				curated_eligibility = curated.eligibility
+			except (ValidationError, Exception):
+				pass  # Malformed curated resume — use defaults
+
 		# Run assessment
 		engine = QuickMatchEngine(merged)
 		assessment = engine.assess(
@@ -460,6 +473,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 			seniority=req.seniority,
 			culture_signals=req.culture_signals,
 			tech_stack=req.tech_stack,
+			curated_eligibility=curated_eligibility,
 		)
 
 		# Persist
