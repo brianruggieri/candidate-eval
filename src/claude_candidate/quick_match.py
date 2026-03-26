@@ -287,16 +287,24 @@ def _skill_mentioned_in_text(skill: str, text: str) -> bool:
 	"""Check if the skill or common variants appear in the text.
 
 	Both ``skill`` and ``text`` must already be lowercased.
+	Uses word-boundary matching for short terms (<=3 chars) to avoid
+	false positives (e.g. "go" matching "good", "vue" matching "avenue").
 	"""
+
+	def _match(term: str) -> bool:
+		if len(term) <= 3:
+			return bool(re.search(r"\b" + re.escape(term) + r"\b", text))
+		return term in text
+
 	# Direct name check (also try hyphen↔space since canonical names use hyphens)
-	if skill in text:
+	if _match(skill):
 		return True
 	dehyphenated = skill.replace("-", " ")
-	if dehyphenated != skill and dehyphenated in text:
+	if dehyphenated != skill and _match(dehyphenated):
 		return True
 	# Common variant checks
 	for variant in _SKILL_VARIANTS.get(skill, []):
-		if variant in text:
+		if _match(variant):
 			return True
 	return False
 

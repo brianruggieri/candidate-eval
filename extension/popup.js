@@ -36,14 +36,6 @@ function _parseMustHaveRatio(text) {
 	return 0;
 }
 
-function categorizeSkill(m) {
-	if (m.match_status === 'no_evidence') return 'missing';
-	if (m.evidence_source === 'corroborated') return 'direct';
-	// match_type from API: "fuzzy" = substring/pattern/inferred resolution
-	if (m.match_type === 'fuzzy') return 'fuzzy';
-	return 'inferred';
-}
-
 function showState(name) {
 	STATES.forEach(s => {
 		const node = el(`state-${s}`);
@@ -267,8 +259,12 @@ function renderResults(data) {
 	el('detail-biggest-gap').textContent = _truncStat(data.biggest_gap) || 'None';
 	el('detail-direct-evid').textContent = '--';
 	_colorStat('row-must-haves', _parseMustHaveRatio(data.must_have_coverage));
-	_colorStat('row-strongest', 1.0); // Strongest is always best
-	_colorStat('row-gap', 0.0); // Biggest gap is always worst
+	if (data.strongest_match) {
+		_colorStat('row-strongest', 1.0);
+	}
+	if (data.biggest_gap && data.biggest_gap !== 'None') {
+		_colorStat('row-gap', 0.0);
+	}
 
 	// Eligibility gates
 	const gates = data.eligibility_gates || [];

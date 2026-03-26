@@ -40,8 +40,7 @@ def _repo_timeline_depth(timeline_days: int) -> DepthLevel:
 	Conservative mapping — a repo-only skill has no resume corroboration,
 	so depth is bounded by how long the candidate has demonstrably used it:
 	  - <=90 days  → APPLIED  (recent project, proved they can use it)
-	  - <=180 days → DEEP     (multi-month engagement)
-	  - <=540 days → DEEP     (conservative; significant but not expert)
+	  - <=540 days → DEEP     (sustained engagement, not yet expert)
 	  - >540 days  → EXPERT   (18+ months of repo evidence)
 	"""
 	if timeline_days <= 90:

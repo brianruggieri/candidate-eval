@@ -383,6 +383,9 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 
 		# merge_available: true when triad path (curated + repo) or
 		# legacy path (candidate profile) can produce a merged profile.
+		# Note: this is a best-effort heuristic based on file presence.
+		# _build_merged_profile() may fall back to a different path if
+		# validation fails (e.g. malformed curated_resume or repo_profile).
 		triad_available = curated_data is not None and repo_data is not None
 		legacy_available = candidate_data is not None
 

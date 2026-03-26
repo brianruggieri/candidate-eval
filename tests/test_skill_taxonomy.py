@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from claude_candidate.skill_taxonomy import SkillTaxonomy
@@ -614,13 +612,11 @@ def test_ai_research_phrase_resolves_to_llm(taxonomy: SkillTaxonomy) -> None:
 
 
 class TestNewAliases:
-	def test_ai_provider_abstraction_resolves(self) -> None:
-		tax = SkillTaxonomy.load(Path("src/claude_candidate/data/taxonomy.json"))
-		assert tax.canonicalize("ai provider abstraction") == "agentic-workflows"
+	def test_ai_provider_abstraction_resolves(self, taxonomy) -> None:
+		assert taxonomy.canonicalize("ai provider abstraction") == "agentic-workflows"
 
-	def test_ai_augmented_dev_tooling_resolves(self) -> None:
-		tax = SkillTaxonomy.load(Path("src/claude_candidate/data/taxonomy.json"))
-		assert tax.canonicalize("ai-augmented development tooling") == "developer-tools"
+	def test_ai_augmented_dev_tooling_resolves(self, taxonomy) -> None:
+		assert taxonomy.canonicalize("ai-augmented development tooling") == "developer-tools"
 
 
 # ---------------------------------------------------------------------------
@@ -637,31 +633,24 @@ class TestSystemsThinkingMapping:
 	caused false matches via ux-design → frontend-development → profile hit.
 	"""
 
-	def test_systems_thinking_phrase_maps_to_system_design(self) -> None:
-		tax = SkillTaxonomy.load(Path("src/claude_candidate/data/taxonomy.json"))
-		assert tax.canonicalize("systems thinking") == "system-design"
+	def test_systems_thinking_phrase_maps_to_system_design(self, taxonomy) -> None:
+		assert taxonomy.canonicalize("systems thinking") == "system-design"
 
-	def test_systems_thinking_hyphenated_maps_to_system_design(self) -> None:
-		tax = SkillTaxonomy.load(Path("src/claude_candidate/data/taxonomy.json"))
-		assert tax.canonicalize("systems-thinking") == "system-design"
+	def test_systems_thinking_hyphenated_maps_to_system_design(self, taxonomy) -> None:
+		assert taxonomy.canonicalize("systems-thinking") == "system-design"
 
-	def test_systems_thinking_not_problem_solving(self) -> None:
-		tax = SkillTaxonomy.load(Path("src/claude_candidate/data/taxonomy.json"))
-		assert tax.canonicalize("systems thinking") != "problem-solving"
+	def test_systems_thinking_not_problem_solving(self, taxonomy) -> None:
+		assert taxonomy.canonicalize("systems thinking") != "problem-solving"
 
-	def test_holistic_thinking_maps_to_system_design(self) -> None:
-		tax = SkillTaxonomy.load(Path("src/claude_candidate/data/taxonomy.json"))
-		assert tax.canonicalize("holistic thinking") == "system-design"
+	def test_holistic_thinking_maps_to_system_design(self, taxonomy) -> None:
+		assert taxonomy.canonicalize("holistic thinking") == "system-design"
 
-	def test_end_to_end_thinking_maps_to_system_design(self) -> None:
-		tax = SkillTaxonomy.load(Path("src/claude_candidate/data/taxonomy.json"))
-		assert tax.canonicalize("end-to-end thinking") == "system-design"
+	def test_end_to_end_thinking_maps_to_system_design(self, taxonomy) -> None:
+		assert taxonomy.canonicalize("end-to-end thinking") == "system-design"
 
-	def test_ux_maps_to_ux_design_directly(self) -> None:
+	def test_ux_maps_to_ux_design_directly(self, taxonomy) -> None:
 		"""'ux' must canonicalize to ux-design via exact alias, not fuzzy."""
-		tax = SkillTaxonomy.load(Path("src/claude_candidate/data/taxonomy.json"))
-		assert tax.canonicalize("ux") == "ux-design"
+		assert taxonomy.canonicalize("ux") == "ux-design"
 
-	def test_ux_match_resolves_ux_design(self) -> None:
-		tax = SkillTaxonomy.load(Path("src/claude_candidate/data/taxonomy.json"))
-		assert tax.match("ux") == "ux-design"
+	def test_ux_match_resolves_ux_design(self, taxonomy) -> None:
+		assert taxonomy.match("ux") == "ux-design"

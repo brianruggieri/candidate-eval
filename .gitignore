@@ -41,6 +41,9 @@ htmlcov/
 # Superpowers brainstorm artifacts
 .superpowers/
 
+# Playwright MCP logs
+.playwright-mcp/
+
 # Local data — never commit user profiles, databases, or credentials
 *.tar.gz
 *.zip
