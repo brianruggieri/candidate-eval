@@ -167,18 +167,20 @@ ELIGIBILITY_DESCRIPTION_PATTERNS: list[str] = [
 # Match-time confidence (v0.7)
 # ---------------------------------------------------------------------------
 
-_GENERIC_SKILLS = frozenset({
-	"software-engineering",
-	"computer-science",
-	"problem-solving",
-	"communication",
-	"collaboration",
-	"leadership",
-	"ownership",
-	"adaptability",
-	"agile",
-	"metrics",
-})
+_GENERIC_SKILLS = frozenset(
+	{
+		"software-engineering",
+		"computer-science",
+		"problem-solving",
+		"communication",
+		"collaboration",
+		"leadership",
+		"ownership",
+		"adaptability",
+		"agile",
+		"metrics",
+	}
+)
 
 _SKILL_VARIANTS: dict[str, list[str]] = {
 	# Languages / frameworks
@@ -201,11 +203,38 @@ _SKILL_VARIANTS: dict[str, list[str]] = {
 	"problem-solving": ["problem solver", "solve problems", "analytical"],
 	"agile": ["scrum", "sprint", "kanban", "iterative"],
 	# Practices
-	"software-engineering": ["software development", "software developer", "engineering experience"],
-	"project-management": ["project management", "manage projects", "technical project", "project management tools"],
-	"testing": ["test", "quality assurance", "qa", "evaluation data", "attention to detail", "detail-oriented"],
-	"product-development": ["shipping products", "building products", "ship products", "personal projects", "product quality"],
-	"technology-research": ["passion for ai", "curiosity for ai", "keeps up with trends", "emerging innovations"],
+	"software-engineering": [
+		"software development",
+		"software developer",
+		"engineering experience",
+	],
+	"project-management": [
+		"project management",
+		"manage projects",
+		"technical project",
+		"project management tools",
+	],
+	"testing": [
+		"test",
+		"quality assurance",
+		"qa",
+		"evaluation data",
+		"attention to detail",
+		"detail-oriented",
+	],
+	"product-development": [
+		"shipping products",
+		"building products",
+		"ship products",
+		"personal projects",
+		"product quality",
+	],
+	"technology-research": [
+		"passion for ai",
+		"curiosity for ai",
+		"keeps up with trends",
+		"emerging innovations",
+	],
 }
 
 # ---------------------------------------------------------------------------
@@ -294,37 +323,73 @@ SOURCE_LABEL: dict[EvidenceSource, str] = {
 # Industry/domain keywords — non-technical terms that appear repeatedly in domain-specific JDs.
 # If any of these appears in 3+ requirements but is absent from the candidate's profile,
 # the grade is capped at B+ (domain fit cannot be proven without evidence).
-DOMAIN_KEYWORDS: frozenset[str] = frozenset({
-	# Music / audio
-	"music", "audio", "sound", "recording", "podcast",
-	# Sports
-	"sports", "baseball", "football", "basketball", "soccer", "athletics",
-	# Healthcare / biotech
-	"healthcare", "medical", "clinical", "patient", "biotech", "pharma",
-	"bioinformatics", "genomics",
-	# Finance
-	"fintech", "banking", "financial", "trading", "insurance",
-	# Legal
-	"legal", "compliance", "regulatory",
-	# Automotive
-	"automotive", "vehicle",
-	# Education
-	"edtech", "educational", "curriculum",
-	# Gaming / game engines
-	"gaming", "esports", "gameplay", "unreal",
-	# Real estate
-	"real estate", "construction",
-	# Energy
-	"energy", "utilities",
-	# Retail / logistics
-	"retail", "ecommerce", "logistics",
-	# Hardware / embedded
-	"firmware", "embedded",
-	# Native mobile platforms
-	"ios", "android",
-	# Data infrastructure
-	"etl", "warehouse",
-})
+DOMAIN_KEYWORDS: frozenset[str] = frozenset(
+	{
+		# Music / audio
+		"music",
+		"audio",
+		"sound",
+		"recording",
+		"podcast",
+		# Sports
+		"sports",
+		"baseball",
+		"football",
+		"basketball",
+		"soccer",
+		"athletics",
+		# Healthcare / biotech
+		"healthcare",
+		"medical",
+		"clinical",
+		"patient",
+		"biotech",
+		"pharma",
+		"bioinformatics",
+		"genomics",
+		# Finance
+		"fintech",
+		"banking",
+		"financial",
+		"trading",
+		"insurance",
+		# Legal
+		"legal",
+		"compliance",
+		"regulatory",
+		# Automotive
+		"automotive",
+		"vehicle",
+		# Education
+		"edtech",
+		"educational",
+		"curriculum",
+		# Gaming / game engines
+		"gaming",
+		"esports",
+		"gameplay",
+		"unreal",
+		# Real estate
+		"real estate",
+		"construction",
+		# Energy
+		"energy",
+		"utilities",
+		# Retail / logistics
+		"retail",
+		"ecommerce",
+		"logistics",
+		# Hardware / embedded
+		"firmware",
+		"embedded",
+		# Native mobile platforms
+		"ios",
+		"android",
+		# Data infrastructure
+		"etl",
+		"warehouse",
+	}
+)
 
 # Pattern strength → culture match value
 CULTURE_PATTERN_STRENGTH_SCORE: dict[str, float] = {
@@ -528,15 +593,17 @@ _AI_KEYWORDS_RE = re.compile(
 	re.IGNORECASE,
 )
 
-_AI_SKILL_NAMES: frozenset[str] = frozenset({
-	"llm",
-	"machine-learning",
-	"agentic-workflows",
-	"prompt-engineering",
-	"rag",
-	"embeddings",
-	"generative-ai",
-})
+_AI_SKILL_NAMES: frozenset[str] = frozenset(
+	{
+		"llm",
+		"machine-learning",
+		"agentic-workflows",
+		"prompt-engineering",
+		"rag",
+		"embeddings",
+		"generative-ai",
+	}
+)
 
 # ---------------------------------------------------------------------------
 # Adaptive dimension weighting

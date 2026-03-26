@@ -802,7 +802,12 @@ def _find_best_skill(
 	# AI-context penalty: requirements about AI teams or AI-powered metrics
 	# shouldn't get full credit from generic leadership/product skills
 	_AI_CONTEXT_WORDS = {"ai", "ml", "intelligence", "machine learning"}
-	if best_match and best_match.name in ("leadership", "product-development", "problem-solving", "project-management"):
+	if best_match and best_match.name in (
+		"leadership",
+		"product-development",
+		"problem-solving",
+		"project-management",
+	):
 		req_lower = req.description.lower()
 		has_ai_context = any(w in req_lower for w in _AI_CONTEXT_WORDS)
 		has_team_or_scale = any(w in req_lower for w in ("team", "scale", "retention", "metrics"))

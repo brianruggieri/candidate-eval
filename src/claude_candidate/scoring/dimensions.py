@@ -133,9 +133,9 @@ def _detect_domain_gap(
 	candidate_parts: list[str] = []
 	for skill in profile.skills:
 		candidate_parts.append(skill.name.lower())
-	for project in (profile.projects or []):
+	for project in profile.projects or []:
 		candidate_parts.append(project.project_name.lower())
-	for role in (profile.roles or []):
+	for role in profile.roles or []:
 		if role.domain:
 			candidate_parts.append(role.domain.lower())
 	candidate_text = " ".join(candidate_parts)

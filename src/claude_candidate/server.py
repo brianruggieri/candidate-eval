@@ -351,9 +351,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 	@app.get("/api/health")
 	async def health():
 		profiles = get_profiles()
-		profile_loaded = bool(
-		profiles.get("curated_resume") or profiles.get("candidate")
-	)
+		profile_loaded = bool(profiles.get("curated_resume") or profiles.get("candidate"))
 		return {
 			"status": "ok",
 			"version": __version__,
@@ -459,8 +457,8 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 			try:
 				curated = CuratedResume.model_validate(curated_data)
 				curated_eligibility = curated.eligibility
-			except (ValidationError, Exception):
-				pass  # Malformed curated resume — use defaults
+			except (ValidationError, KeyError):
+				logger.debug("Could not parse curated eligibility — using defaults")
 
 		# Run assessment
 		engine = QuickMatchEngine(merged)
