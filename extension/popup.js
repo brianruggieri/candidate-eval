@@ -5,12 +5,35 @@ const POSTING_TTL_MS = 5 * 60 * 1000;
 
 function el(id) { return document.getElementById(id); }
 
-function categorizeSkill(m) {
-	if (m.match_status === 'no_evidence') return 'missing';
-	if (m.evidence_source === 'corroborated') return 'direct';
-	// match_type from API: "fuzzy" = substring/pattern/inferred resolution
-	if (m.match_type === 'fuzzy') return 'fuzzy';
-	return 'inferred';
+/** Apply HSL background gradient to a stat card based on a 0–1 score. */
+function _colorStat(rowId, score) {
+	const row = el(rowId);
+	if (!row) return;
+	// Clamp to 0–1
+	const s = Math.max(0, Math.min(1, score));
+	// Hue: 0 (red) → 45 (amber) → 145 (green)
+	const hue = Math.round(s * 145);
+	const sat = 70 + Math.round((1 - Math.abs(s - 0.5) * 2) * 15); // slightly richer mid-range
+	const light = 95 - Math.round(s * 8); // 95% (pale red) → 87% (richer green)
+	row.style.background = `hsl(${hue}, ${sat}%, ${light}%)`;
+	// Subtle left border accent
+	row.style.borderLeft = `3px solid hsl(${hue}, ${sat}%, ${Math.max(light - 30, 35)}%)`;
+}
+
+/** Truncate long requirement text for stat cards. */
+function _truncStat(text, max = 40) {
+	if (!text || text.length <= max) return text;
+	// Try to cut at a word boundary
+	const cut = text.lastIndexOf(' ', max);
+	return text.slice(0, cut > 20 ? cut : max) + '…';
+}
+
+/** Parse "10/12 must-haves met" → 0.83 ratio. */
+function _parseMustHaveRatio(text) {
+	if (!text) return 0;
+	const m = text.match(/(\d+)\s*\/\s*(\d+)/);
+	if (m) return parseInt(m[1]) / parseInt(m[2]);
+	return 0;
 }
 
 function showState(name) {
@@ -73,13 +96,9 @@ function barColor(score) {
 
 function categorizeSkill(m) {
 	if (m.match_status === 'no_evidence') return 'missing';
-	if (m.evidence_source === 'corroborated') return 'direct';
-	// resume_only, sessions_only, conflicting → inferred.
-	// sessions_only is intentionally "inferred": agentic sessions without
-	// resume corroboration are not guaranteed personal mastery.
-	// Note: "fuzzy" (alias/approximate skill resolution) requires a match_type
-	// field from the API — m.requirement is the full JD sentence, not a skill
-	// token, so frontend comparison against matched_skill is always wrong.
+	// Direct = human-attested evidence (resume or resume+repo)
+	if (['corroborated', 'resume_and_repo', 'resume_only'].includes(m.evidence_source)) return 'direct';
+	// Inferred = detected from code (repo_only) or other automated sources
 	return 'inferred';
 }
 
@@ -205,6 +224,8 @@ function renderResults(data) {
 		}
 		if (data.culture_fit) {
 			setDim('culture_fit', 'bar-culture', 'pct-culture', 'detail-culture');
+			const dimCulture = el('dim-culture');
+			if (dimCulture) dimCulture.classList.remove('hidden');
 		}
 		if (data.mission_alignment || data.culture_fit) {
 			fullDimsSection.classList.remove('hidden');
@@ -232,11 +253,18 @@ function renderResults(data) {
 		receptivitySection.classList.add('hidden');
 	}
 
-	// Stats
+	// Stats with color coding
 	el('detail-must-haves').textContent = data.must_have_coverage || '--';
-	el('detail-strongest-match').textContent = data.strongest_match || '--';
-	el('detail-biggest-gap').textContent = data.biggest_gap || 'None';
+	el('detail-strongest-match').textContent = _truncStat(data.strongest_match) || '--';
+	el('detail-biggest-gap').textContent = _truncStat(data.biggest_gap) || 'None';
 	el('detail-direct-evid').textContent = '--';
+	_colorStat('row-must-haves', _parseMustHaveRatio(data.must_have_coverage));
+	if (data.strongest_match) {
+		_colorStat('row-strongest', 1.0);
+	}
+	if (data.biggest_gap && data.biggest_gap !== 'None') {
+		_colorStat('row-gap', 0.0);
+	}
 
 	// Eligibility gates
 	const gates = data.eligibility_gates || [];
@@ -310,6 +338,7 @@ function renderResults(data) {
 			? Math.round(directCount / withEvidence.length * 100) + '%'
 			: '--';
 		el('detail-direct-evid').textContent = directPct;
+		_colorStat('row-direct-evid', withEvidence.length ? directCount / withEvidence.length : 0);
 
 		renderEvidenceSummary(matches);
 		renderSignalBars(matches);
@@ -332,22 +361,9 @@ function renderResults(data) {
 		discSection.classList.add('hidden');
 	}
 
-	// Unverified
-	const unver = data.resume_unverified || [];
+	// Unverified — hidden in v0.7 (sessions parked, section is misleading)
 	const unverSection = el('section-unverified');
-	const unverList = el('unverified-list');
-	unverList.innerHTML = '';
-	if (unver.length > 0) {
-		unver.forEach(u => {
-			const chip = document.createElement('span');
-			chip.className = 'chip amber';
-			chip.textContent = u;
-			unverList.appendChild(chip);
-		});
-		unverSection.classList.remove('hidden');
-	} else {
-		unverSection.classList.add('hidden');
-	}
+	if (unverSection) unverSection.classList.add('hidden');
 
 	// Action items
 	const actions = data.action_items || [];
@@ -417,14 +433,15 @@ async function initialize() {
 		currentPosting = stored;
 
 		const cachedAid = lastAssessment.data.assessment_id;
-		if (fullReady && fullReady.assessmentId === cachedAid && fullReady.data) {
-			// Full assessment is ready — render it directly
+		if (fullReady && fullReady.assessmentId === cachedAid && fullReady.data
+			&& (!fullReady.url || normalizeUrl(fullReady.url) === normalizeUrl(currentTabUrl))) {
+			// Full assessment is ready and matches this page — render it directly
 			renderResults(fullReady.data);
 		} else {
 			// Show partial results, then poll for full
 			renderResults(lastAssessment.data);
 
-			if (cachedAid) sendToBackground({ action: 'startFullAssess', assessmentId: cachedAid });
+			if (cachedAid) sendToBackground({ action: 'startFullAssess', assessmentId: cachedAid, postingUrl: currentTabUrl });
 			const pollInterval = setInterval(async () => {
 				const ready = await new Promise(r => {
 					chrome.storage.local.get('fullAssessmentReady', res => r(res.fullAssessmentReady || null));
@@ -438,14 +455,17 @@ async function initialize() {
 		return;
 	}
 
+	// URL mismatch — don't clear (preserves in-progress analysis for other tabs),
+	// just fall through to fresh extraction for this page.
+
 	// No cache — need the server
 	const health = await sendToBackground({ action: 'checkBackend' });
 	if (!health.connected) { showState('no-backend'); return; }
 	if (health.profile_loaded === false) { showState('no-profile'); return; }
 
-	// Resolve posting (from cache or fresh extraction)
+	// Resolve posting (from cache or fresh extraction — only if URL matched)
 	let posting = null;
-	if (fresh && stored.description && stored.requirements && stored.requirements.length) {
+	if (cacheMatchesTab && fresh && stored.description && stored.requirements && stored.requirements.length) {
 		posting = stored;
 	}
 
@@ -500,7 +520,7 @@ async function initialize() {
 
 	// Fire-and-forget: background.js runs the full assessment independently.
 	const assessmentId = partial.assessment_id;
-	sendToBackground({ action: 'startFullAssess', assessmentId });
+	sendToBackground({ action: 'startFullAssess', assessmentId, postingUrl: currentPosting?.url || '' });
 
 	// Poll for completion (if popup stays open) — update in-place
 	const currentAssessmentId = assessmentId;

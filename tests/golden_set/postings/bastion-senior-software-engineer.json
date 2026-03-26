@@ -1,0 +1,135 @@
+{
+  "company": "Bastion",
+  "title": "Senior Software Engineer",
+  "description": "Bastion enables financial institutions to issue regulated stablecoins and optimize reserves. The company seeks backend-focused senior engineers for its engineering team.\n\n30-Day Expectations\n\nCandidates should ramp on service layout, CI/CD, observability and deliver a small feature. Outcomes include multiple production deployments and improved onboarding documentation.\n\n90-Day Expectations\n\nEngineers take ownership of a service or capability across our product and lead medium-scope projects like API updates or partner integrations, becoming the go-to expert for their domain.\n\n180-Day Expectations\n\nLead cross-service initiatives such as API versioning or data migrations, providing technical direction through design documentation and mentoring.\n\nTechnical Stack\n\n- Languages: Go, TypeScript/Node.js, Rust\n- Patterns: gRPC, REST, GraphQL/tRPC\n- Data: Postgres, Redis, Kafka, Temporal\n- Infrastructure: AWS, Kubernetes, Terraform, Nitro Enclaves\n- Observability: Datadog, Grafana, Sentry, Incident.io\n\nKey Problem Areas\n\nDesign stable APIs for custody and transfers; build idempotent job flows with audit trails; harden key operations; improve latency through optimization.",
+  "url": "https://www.linkedin.com/jobs/view/4385180576",
+  "source": "linkedin",
+  "location": "New York, NY",
+  "seniority": "senior",
+  "remote": false,
+  "salary": "$240,000 - $270,000",
+  "requirements": [
+    {
+      "description": "Proficiency in Go as primary backend language for financial infrastructure",
+      "skill_mapping": [
+        "go",
+        "backend-development"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience with TypeScript/Node.js",
+      "skill_mapping": [
+        "typescript",
+        "node.js"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Familiarity with Rust",
+      "skill_mapping": [
+        "rust"
+      ],
+      "priority": "strong_preference",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "API design experience with gRPC, REST, and GraphQL patterns",
+      "skill_mapping": [
+        "api-design",
+        "graphql"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Data layer experience with Postgres, Redis, and Kafka for financial transaction processing",
+      "skill_mapping": [
+        "postgresql",
+        "redis",
+        "data-engineering"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Infrastructure experience with AWS, Kubernetes, and Terraform",
+      "skill_mapping": [
+        "aws",
+        "kubernetes",
+        "terraform"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "CI/CD and observability experience (Datadog, Grafana, Sentry)",
+      "skill_mapping": [
+        "ci-cd",
+        "devops"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Ability to take ownership of a service or capability and become domain expert",
+      "skill_mapping": [
+        "ownership",
+        "system-design"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Lead cross-service initiatives such as API versioning or data migrations with design documentation",
+      "skill_mapping": [
+        "system-design",
+        "leadership"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Design stable financial APIs for custody and transfers with idempotent job flows and audit trails",
+      "skill_mapping": [
+        "api-design",
+        "security",
+        "backend-development"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Performance optimization to improve latency",
+      "skill_mapping": [
+        "performance-optimization",
+        "distributed-systems"
+      ],
+      "priority": "strong_preference",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Mentoring junior engineers and providing technical direction",
+      "skill_mapping": [
+        "leadership",
+        "collaboration"
+      ],
+      "priority": "strong_preference",
+      "years_experience": null,
+      "education_level": null
+    }
+  ]
+}

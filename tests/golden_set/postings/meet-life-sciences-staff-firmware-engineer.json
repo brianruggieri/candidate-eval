@@ -1,0 +1,116 @@
+{
+  "company": "Meet Life Sciences",
+  "title": "Staff Firmware Engineer",
+  "description": "Summary:\nThe organization is a stealth neurotechnology company at an early stage. Candidates will join a collaborative engineering team where contributions have visible impact on product development.\n\nThe Role:\nAs a Firmware Engineer, you will be part of a small, technically skilled team actively developing products. Initial responsibilities involve learning a complex codebase, then progressively taking on greater accountability for firmware creation, testing, and documentation. Work is hands-on from day one, involving sophisticated embedded systems and open technical challenges. The role includes writing production-grade embedded code, interfacing with wireless hardware, and collaborating with electrical and software teams. As projects mature, documentation and validation work grows significantly.\n\nKey Requirements:\n- 6+ years of professional industry experience\n- Advanced embedded C expertise from real production environments\n- Firmware development for IoT or connected devices\n- ARM Cortex-M microcontroller proficiency\n- Understanding of RTOS and bare-metal development approaches\n- R&D or early-stage product environment experience\n- Medical device development background\n\nThe company supports visa sponsorship for qualified candidates. Benefits include 401(k), medical, vision, and dental insurance, plus commuter benefits.",
+  "url": "https://www.linkedin.com/jobs/view/staff-firmware-engineer-at-meet-life-sciences-4382528012",
+  "source": "linkedin",
+  "location": "San Francisco Bay Area, CA",
+  "seniority": "staff",
+  "remote": false,
+  "salary": "$140,000 - $200,000",
+  "requirements": [
+    {
+      "description": "6+ years of professional industry experience",
+      "skill_mapping": [
+        "c"
+      ],
+      "priority": "must_have",
+      "years_experience": 6,
+      "education_level": null
+    },
+    {
+      "description": "Advanced embedded C expertise from real production environments",
+      "skill_mapping": [
+        "c"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Firmware development for IoT or connected devices",
+      "skill_mapping": [
+        "c"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "ARM Cortex-M microcontroller proficiency",
+      "skill_mapping": [
+        "c"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Understanding of RTOS and bare-metal development approaches",
+      "skill_mapping": [
+        "concurrent-programming",
+        "c"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "R&D or early-stage product environment experience",
+      "skill_mapping": [
+        "startup-experience",
+        "product-development"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Medical device development background",
+      "skill_mapping": [
+        "c"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Writing production-grade embedded code",
+      "skill_mapping": [
+        "c"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Interfacing with wireless hardware",
+      "skill_mapping": [
+        "c"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Collaboration with electrical and software teams",
+      "skill_mapping": [
+        "collaboration",
+        "communication"
+      ],
+      "priority": "strong_preference",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Firmware testing and documentation capabilities",
+      "skill_mapping": [
+        "testing",
+        "technical-writing"
+      ],
+      "priority": "strong_preference",
+      "years_experience": null,
+      "education_level": null
+    }
+  ]
+}

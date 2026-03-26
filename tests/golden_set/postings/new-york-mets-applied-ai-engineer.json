@@ -1,0 +1,134 @@
+{
+  "company": "New York Mets",
+  "title": "Applied AI Engineer",
+  "description": "Summary\n\nThe New York Mets are seeking an Applied AI Engineer to build and ship production-grade AI capabilities that improve decision-making and streamline workflows across Baseball Operations.\n\nThis role bridges Baseball Systems (software engineering), Data Engineering, Baseball Analytics, Performance Technology, and generative AI. The engineer will develop reliable AI-powered applications including retrieval-augmented generation (RAG), secure tool/data integrations (MCP-style patterns), and agentic workflows supporting deep work and research, while maintaining strong standards for quality, security, privacy, and operational excellence.\n\nThe position requires hands-on engineering to translate baseball operations and player development needs into working software, iterate quickly with stakeholders, and develop durable systems used daily by analysts, coaches, scouts, and baseball operations staff.\n\nEssential Duties & Responsibilities\n\nDesign, build and maintain AI-powered product experiences providing intuitive access to baseball information, statistics and workflows across internal systems\nDevelop end-to-end RAG pipelines (ingest, chunking, embedding, retrieval, generation) with attention to answer quality, baseball relevancy, analytics accuracy, latency, and cost\nImplement secure tool and data connectors for AI assistants and agents using standardized patterns (MCP-style), enabling safe interaction with internal APIs, data warehouses, and services\nBuild agentic workflows executing multi-step tasks (research, analysis, synthesis, report generation) with clear guardrails, auditability, and human-in-the-loop approvals\nPartner closely with Product, Analytics, Performance Technology, Player Development, and Baseball operations stakeholders to frame problems, define success, and deliver measurable impact\nContribute to shared engineering standards and reusable components scaling AI capabilities across multiple products and teams\nEnsure strong security and privacy practices (access control, data boundaries, logging and auditing, sensitive information handling)\nParticipate in high-availability support expectations during critical operational periods throughout baseball season and feature releases\n\nRequired Qualifications\n\nBachelor's degree in Computer Science or equivalent practical experience\n5+ years professional software engineering experience including building and operating production services\nDemonstrated experience building LLM-powered applications in production (prompt/program design, structured outputs, tool calling, reliability patterns)\nPractical experience with retrieval systems (search, embeddings, vector databases, ranking, chunking/indexing) applied to real workflows\nStrong experience with modern backend and data integration fundamentals: APIs, SQL, distributed systems, and cloud infrastructure (GCP/AWS/Azure)\nProficiency in one or more production languages commonly used for AI applications and services (Python and/or TypeScript)\nHighly collaborative approach and stakeholder-driven methodology, operating in ambiguity while iterating quickly\nStrong written and verbal communication explaining tradeoffs to technical and non-technical audiences\n\nPreferred Qualifications\n\nExperience in sports, health, finance, or high-stakes analytics-heavy environments\nStrong interest in baseball and comfort working within professional sports organization culture\n\nThis role will require extensive in-person collaboration and innovation alongside stakeholders, analysts, and engineers. Applicants must be local to NYC (or willing to relocate) and be able to travel to Citi Field regularly.",
+  "url": "https://www.linkedin.com/jobs/view/4385059762",
+  "source": "linkedin",
+  "location": "Queens, NY",
+  "seniority": "mid",
+  "remote": false,
+  "salary": "$180,000 - $200,000",
+  "requirements": [
+    {
+      "description": "5+ years professional software engineering experience including building and operating production services",
+      "skill_mapping": [
+        "software-engineering",
+        "production-systems"
+      ],
+      "priority": "must_have",
+      "years_experience": 5,
+      "education_level": null
+    },
+    {
+      "description": "Demonstrated experience building LLM-powered applications in production (prompt/program design, structured outputs, tool calling, reliability patterns)",
+      "skill_mapping": [
+        "llm",
+        "prompt-engineering",
+        "agentic-workflows"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Develop end-to-end RAG pipelines (ingest, chunking, embedding, retrieval, generation) with attention to quality, latency, and cost",
+      "skill_mapping": [
+        "rag",
+        "data-engineering"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Practical experience with retrieval systems (search, embeddings, vector databases, ranking, chunking/indexing) applied to real workflows",
+      "skill_mapping": [
+        "rag",
+        "data-engineering"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Strong experience with modern backend and data integration fundamentals: APIs, SQL, distributed systems, and cloud infrastructure (GCP/AWS/Azure)",
+      "skill_mapping": [
+        "backend-development",
+        "sql",
+        "cloud-infrastructure",
+        "api-design"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Proficiency in Python and/or TypeScript for AI applications and services",
+      "skill_mapping": [
+        "python",
+        "typescript"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Build agentic workflows executing multi-step tasks with guardrails, auditability, and human-in-the-loop approvals",
+      "skill_mapping": [
+        "agentic-workflows",
+        "system-design"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Implement secure tool and data connectors for AI assistants using MCP-style patterns",
+      "skill_mapping": [
+        "api-design",
+        "security"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Highly collaborative approach with strong written and verbal communication explaining tradeoffs to technical and non-technical audiences",
+      "skill_mapping": [
+        "communication",
+        "collaboration"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Bachelor's degree in Computer Science or equivalent practical experience",
+      "skill_mapping": [
+        "computer-science"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": "bachelor"
+    },
+    {
+      "description": "Ensure strong security and privacy practices including access control, data boundaries, logging and auditing",
+      "skill_mapping": [
+        "security",
+        "production-systems"
+      ],
+      "priority": "strong_preference",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience in sports, health, finance, or high-stakes analytics-heavy environments",
+      "skill_mapping": [
+        "data-science"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    }
+  ]
+}

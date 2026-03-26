@@ -27,9 +27,11 @@ class EvidenceSource(str, Enum):
 	"""Where the evidence for a skill comes from."""
 
 	RESUME_ONLY = "resume_only"  # Claimed on resume, not in sessions
-	SESSIONS_ONLY = "sessions_only"  # Demonstrated in sessions, not on resume
-	CORROBORATED = "corroborated"  # Both sources agree
-	CONFLICTING = "conflicting"  # Sources give different depth signals
+	SESSIONS_ONLY = "sessions_only"  # deprecated: v0.8 removal
+	CORROBORATED = "corroborated"  # deprecated: v0.8 removal
+	CONFLICTING = "conflicting"  # deprecated: v0.8 removal
+	RESUME_AND_REPO = "resume_and_repo"  # NEW: Both resume and repo evidence
+	REPO_ONLY = "repo_only"  # NEW: In repos, not on resume
 
 
 class MergedSkillEvidence(BaseModel):
@@ -44,18 +46,27 @@ class MergedSkillEvidence(BaseModel):
 	resume_years: float | None = None
 	resume_duration: str | None = None  # e.g. "8 years", "2 months" from curated resume
 
-	# Session evidence
-	session_depth: DepthLevel | None = None
-	session_frequency: int | None = None
-	session_evidence_count: int | None = None
-	session_recency: datetime | None = None
-	session_first_seen: datetime | None = None  # when this skill first appeared in sessions
+	# Session evidence (deprecated: parked for v0.8)
+	session_depth: DepthLevel | None = None  # deprecated: v0.8 removal
+	session_frequency: int | None = None  # deprecated: v0.8 removal
+	session_evidence_count: int | None = None  # deprecated: v0.8 removal
+	session_recency: datetime | None = None  # deprecated: v0.8 removal
+	session_first_seen: datetime | None = None  # deprecated: v0.8 removal
+
+	# Repo evidence (NEW)
+	repo_count: int | None = None  # repos where this skill appears
+	repo_bytes: int | None = None  # total bytes across repos
+	repo_first_seen: datetime | None = None  # earliest repo commit with this skill
+	repo_last_seen: datetime | None = None  # latest repo commit with this skill
+	repo_frameworks: list[str] | None = None  # frameworks detected via dependencies
+	repo_confirmed: bool = False  # skill found in repo evidence
 
 	# Merged assessment
 	effective_depth: DepthLevel
-	confidence: float = Field(ge=0.0, le=1.0)
-	discovery_flag: bool = False  # True if sessions_only — resume undersells this
+	confidence: float | None = Field(default=None, ge=0.0, le=1.0)  # deprecated: moves to match time in v0.7
+	discovery_flag: bool = False  # deprecated: v0.8 removal
 	category: str | None = None  # taxonomy category: "language", "framework", etc.
+	scale: str | None = None  # personal | team | startup | enterprise | consumer
 
 	@staticmethod
 	def compute_effective_depth(
@@ -107,34 +118,11 @@ class MergedSkillEvidence(BaseModel):
 		"""
 		Compute confidence score based on evidence quality.
 
-		Actual return values:
-		- corroborated: 0.70 + min(freq/50, 0.30) → 0.70–1.0
-		- sessions_only + freq ≥ 20 → 0.85
-		- sessions_only + freq 5–19 → 0.65
-		- sessions_only + freq < 5 → 0.45
-		- resume_only → 0.85 (resume is legitimate work evidence; no penalty for missing sessions)
-		- conflicting → 0.72 (both sources present; depth uncertainty handled separately)
+		Deprecated: confidence moves to match time in v0.7. Use compute_confidence() module
+		function instead. This static method is kept for backward compatibility with merger.py
+		until Task 7 rewrites it.
 		"""
-		freq = session_frequency or 0
-
-		if source == EvidenceSource.CORROBORATED:
-			base = 0.7
-			freq_bonus = min(freq / 50, 0.3)  # Up to 0.3 bonus for frequency
-			return min(base + freq_bonus, 1.0)
-		elif source == EvidenceSource.SESSIONS_ONLY:
-			if freq >= 20:
-				return 0.85
-			elif freq >= 5:
-				return 0.65
-			else:
-				return 0.45
-		elif source == EvidenceSource.RESUME_ONLY:
-			# Resume claims are legitimate evidence of real work experience.
-			# Depth accuracy is handled by the depth matching system, not
-			# confidence. No penalty for skills not demonstrated in sessions.
-			return 0.85
-		else:  # CONFLICTING — both sources have the skill; depth reconciled in compute_effective_depth
-			return 0.72
+		return compute_confidence(source, session_frequency, resume_context)
 
 
 class MergedEvidenceProfile(BaseModel):
@@ -157,6 +145,7 @@ class MergedEvidenceProfile(BaseModel):
 	corroborated_skill_count: int = Field(ge=0)
 	resume_only_skill_count: int = Field(ge=0)
 	sessions_only_skill_count: int = Field(ge=0)
+	repo_confirmed_skill_count: int = Field(ge=0, default=0)
 	discovery_skills: list[str]  # Skills resume should probably mention
 
 	# Provenance
@@ -184,3 +173,44 @@ class MergedEvidenceProfile(BaseModel):
 	@classmethod
 	def from_json(cls, data: str) -> MergedEvidenceProfile:
 		return cls.model_validate_json(data)
+
+
+def compute_confidence(
+	source: EvidenceSource,
+	session_frequency: int | None,
+	resume_context: str | None,
+) -> float:
+	"""
+	Standalone confidence computation based on evidence quality.
+
+	Deprecated: confidence moves to match time in v0.7. Kept for merger.py backward
+	compatibility until Task 7 rewrites it.
+
+	Actual return values:
+	- corroborated: 0.70 + min(freq/50, 0.30) → 0.70–1.0
+	- sessions_only + freq ≥ 20 → 0.85
+	- sessions_only + freq 5–19 → 0.65
+	- sessions_only + freq < 5 → 0.45
+	- resume_only → 0.85 (resume is legitimate work evidence; no penalty for missing sessions)
+	- conflicting → 0.72 (both sources present; depth uncertainty handled separately)
+	"""
+	freq = session_frequency or 0
+
+	if source == EvidenceSource.CORROBORATED:
+		base = 0.7
+		freq_bonus = min(freq / 50, 0.3)  # Up to 0.3 bonus for frequency
+		return min(base + freq_bonus, 1.0)
+	elif source == EvidenceSource.SESSIONS_ONLY:
+		if freq >= 20:
+			return 0.85
+		elif freq >= 5:
+			return 0.65
+		else:
+			return 0.45
+	elif source == EvidenceSource.RESUME_ONLY:
+		# Resume claims are legitimate evidence of real work experience.
+		# Depth accuracy is handled by the depth matching system, not
+		# confidence. No penalty for skills not demonstrated in sessions.
+		return 0.85
+	else:  # CONFLICTING / RESUME_AND_REPO / REPO_ONLY
+		return 0.72

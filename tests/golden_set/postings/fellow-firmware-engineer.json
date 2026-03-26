@@ -1,0 +1,128 @@
+{
+  "company": "Fellow",
+  "title": "Firmware Engineer",
+  "description": "About Fellow:\nFellow creates kitchen tools designed with intention and precision in San Francisco for worldwide use. The company emphasizes making everyday activities into small moments of joy through their Everyday Magic philosophy.\n\nRole Overview:\nThe company seeks a Firmware Engineer to design, develop, and maintain robust UI and communication firmware for their IoT platform. This individual will join a small, agile team focused on delivering high-quality experiences across on-device firmware, backend systems, and mobile applications that enable customer interaction with connected Fellow products.\n\nKey Responsibilities:\n\nSystem Architecture:\n- Collaborate with partner teams to understand product definitions and design system architectures meeting feature and performance requirements\n- Leverage AI tools to design firmware architecture for user experience based on product requirement documents\n\nAnalytics & Stability:\n- Own analytics for user interactions and on-device business intelligence\n- Conduct stability analysis and proactively address staging issues before production deployment\n\nUI Development:\n- Develop and maintain robust, scalable UI architecture for IoT devices using LVGL\n- Create UI libraries supporting all future IoT devices\n- Implement highly responsive, stable user interfaces with designers\n- Assist BSP and control firmware engineers with factory test UI elements\n\nCommunication Layer:\n- Maintain and upgrade internal communication transfer layer (Brista)\n- Enable communication to external hosts through serial connections and WiFi\n\nAI Integration:\n- Define and implement AI workflows\n- Leverage AI for converting Figma designs to implementation\n- Integrate AI for code review processes on GitHub\n\nRequired Qualifications:\n- 5+ years firmware engineering experience with real-time operating systems (RTOS)\n- Proficiency in C/C++\n- System and memory architecture knowledge\n- Performance benchmarking expertise\n- Extensive end-to-end testing experience with connected devices linked to mobile apps and AWS backends\n- Strong analytics understanding for improving user experience\n- Hands-on development and debugging experience using development kits and real devices\n- Bachelor's degree in Computer Science, Engineering, or related field\n\nPreferred Qualifications:\n- MQTT or other IoT communication protocol experience\n- IoT hardware device testing and debugging familiarity\n- Mobile app integration experience\n- Over-the-air (OTA) fleet management experience\n- IoT security practices knowledge (encryption, secure boot, anti-tampering)\n- Hardware interface and firmware flashing programming familiarity",
+  "url": "https://www.linkedin.com/jobs/view/firmware-engineer-at-fellow-4379667796",
+  "source": "linkedin",
+  "location": "San Francisco, CA",
+  "seniority": "mid",
+  "remote": false,
+  "salary": "$180,000 - $200,000",
+  "requirements": [
+    {
+      "description": "5+ years firmware engineering experience with real-time operating systems (RTOS) and firmware development",
+      "skill_mapping": [
+        "c",
+        "c"
+      ],
+      "priority": "must_have",
+      "years_experience": 5,
+      "education_level": null
+    },
+    {
+      "description": "Proficiency in C/C++",
+      "skill_mapping": [
+        "c",
+        "c"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "System and memory architecture knowledge for firmware and embedded systems",
+      "skill_mapping": [
+        "c",
+        "c"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Performance benchmarking expertise",
+      "skill_mapping": [
+        "performance-optimization"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Extensive end-to-end testing experience with connected devices linked to mobile apps and AWS backends",
+      "skill_mapping": [
+        "testing",
+        "aws"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Hands-on firmware development and debugging experience using development kits and real devices",
+      "skill_mapping": [
+        "c"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Bachelor's degree in Computer Science, Engineering, or related field",
+      "skill_mapping": [
+        "computer-science"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": "bachelor"
+    },
+    {
+      "description": "Develop and maintain robust, scalable firmware UI architecture for IoT devices using LVGL",
+      "skill_mapping": [
+        "c",
+        "c"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Strong analytics understanding for improving user experience and gathering product insights",
+      "skill_mapping": [
+        "metrics",
+        "product-development"
+      ],
+      "priority": "strong_preference",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "MQTT or other IoT communication protocol experience",
+      "skill_mapping": [
+        "c"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Mobile app integration experience",
+      "skill_mapping": [
+        "software-engineering"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Over-the-air (OTA) fleet management and IoT security practices",
+      "skill_mapping": [
+        "security",
+        "devops"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    }
+  ]
+}

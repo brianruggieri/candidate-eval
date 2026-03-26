@@ -1,0 +1,130 @@
+{
+  "company": "webAI",
+  "title": "R&D Software Engineer",
+  "description": "About Us\n\nwebAI focuses on distributed AI infrastructure for personalized applications. The company emphasizes keeping data and intellectual property remain entirely private while deploying AI models on consumer hardware. Core values include truth, ownership, tenacity, and humility.\n\nAbout the Role\n\nThis position involves rapidly converting research concepts into functional prototypes. The ideal candidate thrives in ambiguous, fast-paced settings and collaborates with researchers, engineers, and product teams to transform theoretical AI advances into practical proof-of-concepts.\n\nKey Responsibilities\n\n- Design, build, and test AI/ML prototypes for emerging technologies\n- Translate research into testable implementations\n- Create proof-of-concept demonstrations for stakeholders\n- Conduct feasibility studies and performance benchmarking\n- Collaborate across research, engineering, and product divisions\n- Refine prototypes based on feedback and testing\n- Document experimental results and technical insights\n- Monitor developments in AI and distributed systems\n\nRequired Qualifications\n\n- Bachelor's degree in Electrical Engineering, Computer Science, Physics, or related field (Master's/PhD preferred)\n- 5+ years prototype development experience in R&D or high-growth environments\n- Strong engineering principles, machine learning, and applied mathematics foundation\n- Proficiency in Python and C/C++\n- Experience with computer vision, LLMs, or language processing\n- Proven rapid prototype development capability\n- Technical communication skills\n- Cross-functional team experience\n\nPreferred Qualifications\n\n- Startup or fast-paced R&D background\n- Distributed AI systems or edge computing knowledge\n- Entrepreneurial mindset\n- AI/software patents or publications\n\nTotal Rewards\n\nEquity options, competitive salary with performance incentives, comprehensive health/dental/vision benefits, 401(k) with company match, $200/month wellness stipend, $400/year education credit, Function Health subscription, flexible work schedule, unlimited PTO, parental and bereavement leave, supplemental life insurance, free parking for on-site employees.",
+  "url": "https://www.linkedin.com/jobs/view/4256935699",
+  "source": "linkedin",
+  "location": "Austin, TX",
+  "seniority": "senior",
+  "remote": false,
+  "salary": null,
+  "requirements": [
+    {
+      "description": "Bachelor's degree in Electrical Engineering, Computer Science, Physics, or related field (Master's/PhD preferred)",
+      "skill_mapping": [
+        "computer-science"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": "bachelor"
+    },
+    {
+      "description": "5+ years prototype development experience in embedded R&D or high-growth environments",
+      "skill_mapping": [
+        "prototyping",
+        "software-engineering"
+      ],
+      "priority": "must_have",
+      "years_experience": 5,
+      "education_level": null
+    },
+    {
+      "description": "Strong engineering principles, machine learning, and applied mathematics foundation",
+      "skill_mapping": [
+        "machine-learning",
+        "computer-science"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Proficiency in Python",
+      "skill_mapping": [
+        "python"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Proficiency in C/C++",
+      "skill_mapping": [
+        "c"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience with computer vision, LLMs, or language processing",
+      "skill_mapping": [
+        "computer-vision",
+        "llm"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Proven rapid prototype development capability",
+      "skill_mapping": [
+        "prototyping",
+        "problem-solving"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Technical communication skills and cross-functional team experience",
+      "skill_mapping": [
+        "technical-writing",
+        "collaboration"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Design, build, and test embedded AI/ML prototypes for emerging technologies",
+      "skill_mapping": [
+        "machine-learning",
+        "prototyping"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Startup or fast-paced R&D background",
+      "skill_mapping": [
+        "startup-experience",
+        "adaptability"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Distributed embedded AI systems or edge computing knowledge",
+      "skill_mapping": [
+        "distributed-systems",
+        "machine-learning"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "AI/software patents or publications",
+      "skill_mapping": [
+        "machine-learning",
+        "technical-writing"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    }
+  ]
+}

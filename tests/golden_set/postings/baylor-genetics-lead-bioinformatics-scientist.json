@@ -1,0 +1,144 @@
+{
+  "company": "Baylor Genetics",
+  "title": "Lead Bioinformatics Scientist",
+  "description": "Baylor Genetics seeks a visionary leader to advance computational innovation in their Bioinformatics R&D and Data Science division. This individual contributor role emphasizes scientific leadership, driving the design and implementation of advanced computational methods, algorithms, and analytical pipelines to enhance genomic testing capabilities.\n\nScientific and Technical Leadership:\n- Serve as subject matter expert in bioinformatics, computational biology, statistics, and machine learning for genomic analysis\n- Contribute to strategic bioinformatics roadmap integrating novel algorithms and AI/ML approaches\n- Translate research innovations into production-ready tools meeting clinical and regulatory requirements\n- Drive cross-functional collaborations delivering scalable computational solutions\n\nAlgorithm, Model, and Pipeline Development:\n- Design and optimize bioinformatics methods for secondary and tertiary genomic analysis\n- Implement and validate workflows using orchestration tools like Nextflow or Snakemake\n- Develop computational and machine learning models for variant classification and pathogenicity prediction\n- Ensure computational reproducibility and maintain clinical compliance (CLIA, CAP standards)\n\nResearch and Development:\n- Lead investigative projects developing novel computational frameworks\n- Apply statistical and ML-based methods addressing variant annotation challenges\n- Design benchmarking studies evaluating new algorithms and annotation resources\n- Contribute through publications and conference presentations\n\nComputational Genomics and Data Science:\n- Extract biological insights using advanced computational and statistical techniques\n- Employ regression and predictive models improving variant quality metrics\n- Collaborate integrating ML/AI methods into clinical-grade pipelines\n- Communicate findings through effective data visualization\n\nRequired Qualifications:\n\nEducation: Master's degree or higher (PhD preferred) in Bioinformatics, Computational Biology, Genomics, Computer Science, or related quantitative field\n\nExperience:\n- 8+ years professional experience in bioinformatics, computational genomics, or genomic R&D\n- 3-5 years in principal or leadership role\n- Proven expertise in pipeline development, algorithm design, and computational genomics research\n- Hands-on secondary and tertiary genomic analysis experience\n- Clinical genomics or regulated diagnostic environment experience (strongly preferred)\n\nTechnical Skills:\n- Proficiency in Python, R, and compiled languages (C/C++, Java)\n- Expertise in NGS data formats and tools\n- Knowledge of clinical genomic databases and annotation resources\n- Statistical modeling, data analysis, and feature engineering for biological data\n- Familiarity with machine learning frameworks (TensorFlow, PyTorch, Scikit-learn)\n- Experience with workflow orchestration tools (Nextflow, Snakemake, Cromwell) and cloud computing (Azure, AWS, GCP)\n- Data management, version control (Git), and CI/CD best practices\n- Multi-omics data integration and modern visualization techniques",
+  "url": "https://www.linkedin.com/jobs/view/lead-bioinformatics-scientist-at-baylor-genetics-4323913829",
+  "source": "linkedin",
+  "location": "Athens, GA",
+  "seniority": "senior",
+  "remote": false,
+  "salary": null,
+  "requirements": [
+    {
+      "description": "Master's degree or higher (PhD preferred) in Bioinformatics, Computational Biology, Genomics, Computer Science, or related quantitative field",
+      "skill_mapping": [
+        "computer-science",
+        "data-science"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": "master"
+    },
+    {
+      "description": "8+ years professional experience in bioinformatics, computational genomics, or genomic R&D",
+      "skill_mapping": [
+        "data-science",
+        "software-engineering"
+      ],
+      "priority": "must_have",
+      "years_experience": 8,
+      "education_level": null
+    },
+    {
+      "description": "3-5 years in principal or leadership role",
+      "skill_mapping": [
+        "leadership"
+      ],
+      "priority": "must_have",
+      "years_experience": 3,
+      "education_level": null
+    },
+    {
+      "description": "Proven expertise in pipeline development, algorithm design, and computational genomics research",
+      "skill_mapping": [
+        "data-engineering",
+        "data-science"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Proficiency in Python, R, and compiled languages (C/C++, Java)",
+      "skill_mapping": [
+        "python",
+        "java",
+        "c"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Expertise in NGS data formats, tools, and clinical genomic databases",
+      "skill_mapping": [
+        "data-science"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Statistical modeling, data analysis, and feature engineering for biological data",
+      "skill_mapping": [
+        "data-science",
+        "machine-learning"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Familiarity with machine learning frameworks (TensorFlow, PyTorch, Scikit-learn)",
+      "skill_mapping": [
+        "tensorflow",
+        "pytorch",
+        "machine-learning"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Experience with workflow orchestration tools (Nextflow, Snakemake, Cromwell) and cloud computing (Azure, AWS, GCP)",
+      "skill_mapping": [
+        "aws",
+        "azure",
+        "gcp",
+        "cloud-infrastructure"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Data management, version control (Git), and CI/CD best practices",
+      "skill_mapping": [
+        "git",
+        "ci-cd"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Clinical genomics or regulated diagnostic environment experience",
+      "skill_mapping": [
+        "software-engineering"
+      ],
+      "priority": "strong_preference",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Design and optimize bioinformatics methods for secondary and tertiary genomic analysis",
+      "skill_mapping": [
+        "data-science",
+        "data-engineering"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Develop computational and ML models for variant classification and pathogenicity prediction",
+      "skill_mapping": [
+        "machine-learning",
+        "data-science"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    }
+  ]
+}

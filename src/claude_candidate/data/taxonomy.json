@@ -62,6 +62,34 @@
     "parent": "python",
     "content_patterns": ["fastapi", "from fastapi"]
   },
+  "flask": {
+    "aliases": ["flask-framework"],
+    "category": "framework",
+    "related": ["python", "api-design"],
+    "parent": "python",
+    "content_patterns": ["from flask", "Flask(__name__)"]
+  },
+  "django": {
+    "aliases": ["django-framework", "django rest framework", "drf"],
+    "category": "framework",
+    "related": ["python", "api-design"],
+    "parent": "python",
+    "content_patterns": ["from django", "manage.py"]
+  },
+  "airflow": {
+    "aliases": ["apache airflow", "apache-airflow"],
+    "category": "tool",
+    "related": ["python", "data-engineering"],
+    "parent": null,
+    "content_patterns": ["from airflow", "DAG("]
+  },
+  "spark": {
+    "aliases": ["apache spark", "apache-spark", "pyspark"],
+    "category": "tool",
+    "related": ["python", "data-engineering", "machine-learning"],
+    "parent": null,
+    "content_patterns": ["from pyspark", "SparkSession"]
+  },
   "vue": {
     "aliases": ["vue.js", "vuejs"],
     "category": "framework",
@@ -238,7 +266,7 @@
     "content_patterns": ["mentoring", "onboard", "delegate", "architecture decision"]
   },
   "problem-solving": {
-    "aliases": ["analytical thinking", "critical thinking", "troubleshooting", "problem solving", "analytical-thinking", "critical-thinking", "debugging", "systems thinking", "attention-to-detail", "attention to detail"],
+    "aliases": ["analytical thinking", "critical thinking", "troubleshooting", "problem solving", "analytical-thinking", "critical-thinking", "debugging", "attention-to-detail", "attention to detail"],
     "category": "soft_skill",
     "related": ["system-design"],
     "parent": null,
@@ -273,14 +301,14 @@
     "content_patterns": ["three.js", "Three.", "import * as THREE"]
   },
   "agentic-workflows": {
-    "aliases": ["agentic-ai", "agentic ai", "ai-agents", "ai agents", "ai_agents", "agent-framework", "agent framework", "agent frameworks", "agentic", "agentic workflows", "agentic_workflows", "multi-agent", "multi agent", "agent orchestration", "agent-orchestration", "ai-orchestration", "ai-augmented-development", "ai-augmented development", "human-in-the-loop", "human in the loop", "agent-runtime", "agent runtime", "llm-orchestration", "llm orchestration", "ai-planning", "ai planning", "autonomous-agents", "autonomous agents", "task-scheduling", "workflow-automation", "llm-applications", "llm applications", "mcp", "model-context-protocol", "multi-agent-orchestration", "ai-assisted-development", "ai_assisted_development", "agentic-systems", "agentic_systems", "agent-architecture", "multi-agent-systems", "code-execution", "context-management", "conversation-memory", "function-calling", "function_calling", "mcp_servers"],
+    "aliases": ["agentic-ai", "agentic ai", "ai-agents", "ai agents", "ai_agents", "agent-framework", "agent framework", "agent frameworks", "agentic", "agentic workflows", "agentic_workflows", "multi-agent", "multi agent", "agent orchestration", "agent-orchestration", "ai-orchestration", "ai-augmented-development", "ai-augmented development", "human-in-the-loop", "human in the loop", "agent-runtime", "agent runtime", "llm-orchestration", "llm orchestration", "ai-planning", "ai planning", "autonomous-agents", "autonomous agents", "task-scheduling", "workflow-automation", "llm-applications", "llm applications", "mcp", "model-context-protocol", "multi-agent-orchestration", "ai-assisted-development", "ai_assisted_development", "agentic-systems", "agentic_systems", "agent-architecture", "multi-agent-systems", "code-execution", "context-management", "conversation-memory", "function-calling", "function_calling", "mcp_servers", "ai provider abstraction"],
     "category": "domain",
     "related": ["llm", "langchain", "prompt-engineering", "rag"],
     "parent": "llm",
     "content_patterns": ["agent", "agentic", "orchestrat", "multi-agent"]
   },
   "developer-tools": {
-    "aliases": ["dev-tools", "devtools", "developer tools", "developer-tools", "dev tools", "tooling", "developer-productivity", "developer productivity", "engineering-metrics", "developer_tooling", "ai-tooling", "ai-tools", "ai_tools", "cli", "vscode-extensions", "github-copilot", "cursor", "ai-driven-development", "sdk-development", "ai-adoption"],
+    "aliases": ["dev-tools", "devtools", "developer tools", "developer-tools", "dev tools", "tooling", "developer-productivity", "developer productivity", "engineering-metrics", "developer_tooling", "ai-tooling", "ai-tools", "ai_tools", "cli", "vscode-extensions", "github-copilot", "cursor", "ai-driven-development", "sdk-development", "ai-adoption", "ai-augmented development tooling"],
     "category": "domain",
     "related": ["software-engineering", "ci-cd", "testing"],
     "parent": null,
@@ -315,7 +343,7 @@
     "content_patterns": ["refactor", "code review", "pull request", "technical debt"]
   },
   "system-design": {
-    "aliases": ["system design", "system_design", "system-architecture", "system architecture", "systems design", "systems architecture", "architecture-design", "software architecture", "software-architecture", "monorepo", "bff", "backend-for-frontend", "solution-architecture", "codebase-architecture", "cloud-architecture", "event_driven_architecture", "scalable_systems", "web-architecture", "web architecture"],
+    "aliases": ["system design", "system_design", "system-architecture", "system architecture", "systems design", "systems architecture", "architecture-design", "software architecture", "software-architecture", "monorepo", "bff", "backend-for-frontend", "solution-architecture", "codebase-architecture", "cloud-architecture", "event_driven_architecture", "scalable_systems", "web-architecture", "web architecture", "systems thinking", "systems-thinking", "holistic thinking", "end-to-end thinking"],
     "category": "practice",
     "related": ["software-engineering", "distributed-systems", "api-design"],
     "parent": null,
@@ -363,10 +391,17 @@
     "parent": null,
     "content_patterns": ["sanitiz", "XSS", "CORS", "RBAC", "encrypt"]
   },
+  "project-management": {
+    "aliases": ["project management", "project management tools", "jira", "clickup", "linear", "asana", "trello", "notion", "azure devops", "shortcut", "basecamp", "monday.com"],
+    "category": "tool",
+    "related": ["agile", "leadership", "collaboration"],
+    "parent": null,
+    "content_patterns": ["project management", "task tracking", "sprint planning", "roadmap"]
+  },
   "agile": {
     "aliases": ["scrum", "kanban", "sprint", "agile-methodology", "agile methodology"],
     "category": "practice",
-    "related": ["software-engineering", "collaboration"],
+    "related": ["software-engineering", "collaboration", "project-management"],
     "parent": null,
     "content_patterns": ["sprint", "standup", "backlog", "user story"]
   },
@@ -455,11 +490,18 @@
     "content_patterns": ["user story", "feature flag", "A/B test", "roadmap"]
   },
   "edtech": {
-    "aliases": ["education technology", "ed-tech", "education-technology", "learning technology", "learning-technology"],
+    "aliases": ["education technology", "ed-tech", "education-technology", "learning technology", "learning-technology", "instructional design", "learning science", "curriculum development", "educational platform", "educational software"],
     "category": "domain",
     "related": ["product-development", "full-stack"],
     "parent": null,
-    "content_patterns": ["curriculum", "assessment", "learning management", "student"]
+    "content_patterns": ["curriculum", "assessment", "learning management", "student", "education", "teaching", "instructional"]
+  },
+  "technology-research": {
+    "aliases": ["emerging technology", "emerging technologies", "industry trends", "technology trends", "staying current", "bleeding edge", "continuous learning", "emerging research", "tech trends"],
+    "category": "practice",
+    "related": ["llm", "agentic-workflows", "adaptability"],
+    "parent": null,
+    "content_patterns": ["informed", "developments", "emerging", "trends", "research", "cutting edge", "state of the art"]
   },
   "ownership": {
     "aliases": ["end-to-end ownership", "project ownership", "technical ownership", "owning outcomes", "feature-ownership", "project_ownership", "accountability", "shipping", "self-management"],
@@ -693,7 +735,7 @@
     "content_patterns": ["VR", "virtual reality", "XR", "headset", "immersive"]
   },
   "ux-design": {
-    "aliases": ["ux design", "ux_design", "ui-design", "ui design", "ux-engineering", "ux engineering", "ux_engineering", "product-design", "product design", "interaction design", "interaction-design", "hci", "human-computer-interaction", "interface design", "interface-design", "visual design", "visual-design"],
+    "aliases": ["ux", "ux design", "ux_design", "ui-design", "ui design", "ux-engineering", "ux engineering", "ux_engineering", "product-design", "product design", "interaction design", "interaction-design", "hci", "human-computer-interaction", "interface design", "interface-design", "visual design", "visual-design"],
     "category": "practice",
     "related": ["frontend-development", "product-development", "user-research"],
     "parent": null,

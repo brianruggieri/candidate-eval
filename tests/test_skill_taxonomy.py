@@ -604,3 +604,53 @@ def test_ai_research_resolves_to_llm(taxonomy: SkillTaxonomy) -> None:
 def test_ai_research_phrase_resolves_to_llm(taxonomy: SkillTaxonomy) -> None:
 	"""'ai research' phrase alias should resolve to llm."""
 	assert taxonomy.match("ai research") == "llm"
+
+
+# ---------------------------------------------------------------------------
+# Task 10: New aliases for orphaned resume skills
+# ---------------------------------------------------------------------------
+
+
+class TestNewAliases:
+	def test_ai_provider_abstraction_resolves(self, taxonomy) -> None:
+		assert taxonomy.canonicalize("ai provider abstraction") == "agentic-workflows"
+
+	def test_ai_augmented_dev_tooling_resolves(self, taxonomy) -> None:
+		assert taxonomy.canonicalize("ai-augmented development tooling") == "developer-tools"
+
+
+# ---------------------------------------------------------------------------
+# Systems thinking → system-design (not problem-solving)
+# ---------------------------------------------------------------------------
+
+
+class TestSystemsThinkingMapping:
+	"""systems thinking must map to system-design, not problem-solving.
+
+	Rationale: job requirements like "Systems thinking — understand how memory,
+	latency, evaluation, and UX interact" are architectural/design requirements,
+	not soft-skill/problem-solving requirements. Mapping them to problem-solving
+	caused false matches via ux-design → frontend-development → profile hit.
+	"""
+
+	def test_systems_thinking_phrase_maps_to_system_design(self, taxonomy) -> None:
+		assert taxonomy.canonicalize("systems thinking") == "system-design"
+
+	def test_systems_thinking_hyphenated_maps_to_system_design(self, taxonomy) -> None:
+		assert taxonomy.canonicalize("systems-thinking") == "system-design"
+
+	def test_systems_thinking_not_problem_solving(self, taxonomy) -> None:
+		assert taxonomy.canonicalize("systems thinking") != "problem-solving"
+
+	def test_holistic_thinking_maps_to_system_design(self, taxonomy) -> None:
+		assert taxonomy.canonicalize("holistic thinking") == "system-design"
+
+	def test_end_to_end_thinking_maps_to_system_design(self, taxonomy) -> None:
+		assert taxonomy.canonicalize("end-to-end thinking") == "system-design"
+
+	def test_ux_maps_to_ux_design_directly(self, taxonomy) -> None:
+		"""'ux' must canonicalize to ux-design via exact alias, not fuzzy."""
+		assert taxonomy.canonicalize("ux") == "ux-design"
+
+	def test_ux_match_resolves_ux_design(self, taxonomy) -> None:
+		assert taxonomy.match("ux") == "ux-design"

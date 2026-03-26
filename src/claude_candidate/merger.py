@@ -1,11 +1,15 @@
 """
 Profile merger: Combines ResumeProfile and CandidateProfile
 into a unified MergedEvidenceProfile with provenance tracking.
+
+v0.7 adds merge_triad() — resume-anchored + repo-evidenced merging.
+The older merge functions (merge_profiles, merge_with_curated, etc.)
+are retained as fallbacks for backward compatibility.
 """
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from claude_candidate.manifest import hash_json_stable
 from claude_candidate.schemas.candidate_profile import CandidateProfile, DepthLevel, DEPTH_RANK
@@ -14,7 +18,8 @@ from claude_candidate.schemas.merged_profile import (
 	MergedEvidenceProfile,
 	MergedSkillEvidence,
 )
-from claude_candidate.schemas.curated_resume import CuratedResume
+from claude_candidate.schemas.curated_resume import CuratedResume, CuratedSkill
+from claude_candidate.schemas.repo_profile import RepoProfile, SkillRepoEvidence
 from claude_candidate.schemas.resume_profile import ResumeProfile
 from claude_candidate.skill_taxonomy import SkillTaxonomy
 
@@ -27,6 +32,182 @@ def _get_taxonomy() -> SkillTaxonomy:
 	if _taxonomy is None:
 		_taxonomy = SkillTaxonomy.load_default()
 	return _taxonomy
+
+
+def _repo_timeline_depth(timeline_days: int) -> DepthLevel:
+	"""Scale depth for repo-only skills based on the repo timeline span.
+
+	Conservative mapping — a repo-only skill has no resume corroboration,
+	so depth is bounded by how long the candidate has demonstrably used it:
+	  - <=90 days  → APPLIED  (recent project, proved they can use it)
+	  - <=540 days → DEEP     (sustained engagement, not yet expert)
+	  - >540 days  → EXPERT   (18+ months of repo evidence)
+	"""
+	if timeline_days <= 90:
+		return DepthLevel.APPLIED
+	elif timeline_days <= 540:
+		return DepthLevel.DEEP
+	else:
+		return DepthLevel.EXPERT
+
+
+def merge_triad(
+	curated_resume: CuratedResume,
+	repo_profile: RepoProfile,
+) -> MergedEvidenceProfile:
+	"""Merge CuratedResume + RepoProfile into a unified evidence profile.
+
+	This is the v0.7 primary merge path. Sessions are parked — the only
+	evidence sources are the curated resume (anchor) and public repo analysis
+	(receipts).
+
+	Core rules:
+	  1. Resume depth is the ANCHOR — never overridden by repo evidence.
+	  2. Repo-only skills get depth scaled by repo_timeline_days.
+	  3. Resume + repo = RESUME_AND_REPO source (strongest evidence).
+	  4. Resume only = RESUME_ONLY source.
+	  5. Repo only = REPO_ONLY source.
+	  6. No session data — sessions are parked for v0.7.
+	"""
+	taxonomy = _get_taxonomy()
+
+	# ── 1. Build resume skill map (canonicalize names) ──────────────────
+	curated_lookup: dict[str, CuratedSkill] = {}
+	for cs in curated_resume.curated_skills:
+		canonical = taxonomy.canonicalize(cs.name)
+		existing = curated_lookup.get(canonical)
+		# Keep the highest-depth entry if there are duplicates
+		if existing is None or DEPTH_RANK.get(cs.depth, 0) > DEPTH_RANK.get(existing.depth, 0):
+			curated_lookup[canonical] = cs
+
+	# ── 2. Build repo skill map (already canonical in skill_evidence) ──
+	repo_lookup: dict[str, SkillRepoEvidence] = {}
+	for skill_name, evidence in repo_profile.skill_evidence.items():
+		canonical = taxonomy.canonicalize(skill_name)
+		repo_lookup[canonical] = evidence
+
+	# ── 3. Union of all skill names ────────────────────────────────────
+	all_names = set(curated_lookup.keys()) | set(repo_lookup.keys())
+
+	# ── 4. Build merged skills ─────────────────────────────────────────
+	merged_skills: list[MergedSkillEvidence] = []
+	corroborated_count = 0
+	resume_only_count = 0
+	repo_confirmed_count = 0
+
+	for name in sorted(all_names):
+		c_skill = curated_lookup.get(name)
+		r_evidence = repo_lookup.get(name)
+
+		in_resume = c_skill is not None
+		in_repo = r_evidence is not None
+
+		# Determine source
+		if in_resume and in_repo:
+			source = EvidenceSource.RESUME_AND_REPO
+		elif in_resume:
+			source = EvidenceSource.RESUME_ONLY
+		else:
+			source = EvidenceSource.REPO_ONLY
+
+		# Compute effective depth
+		if in_resume:
+			# Rule 1: Resume depth is the anchor — never overridden
+			effective_depth = c_skill.depth
+		else:
+			# Rule 2: Repo-only → scale by timeline
+			effective_depth = _repo_timeline_depth(repo_profile.repo_timeline_days)
+
+		# Gather repo evidence fields
+		repo_count = r_evidence.repos if r_evidence else None
+		repo_bytes = r_evidence.total_bytes if r_evidence else None
+		repo_first_seen = r_evidence.first_seen if r_evidence else None
+		repo_last_seen = r_evidence.last_seen if r_evidence else None
+		repo_frameworks = list(r_evidence.frameworks) if r_evidence else None
+		repo_confirmed = in_repo
+
+		# Category from taxonomy
+		category = taxonomy.get_category(name)
+
+		# Update aggregate counts
+		if source == EvidenceSource.RESUME_AND_REPO:
+			corroborated_count += 1
+		elif source == EvidenceSource.RESUME_ONLY:
+			resume_only_count += 1
+
+		if repo_confirmed:
+			repo_confirmed_count += 1
+
+		merged_skills.append(
+			MergedSkillEvidence(
+				name=name,
+				source=source,
+				# Resume evidence
+				resume_depth=c_skill.depth if c_skill else None,
+				resume_context=c_skill.source_context if c_skill else None,
+				resume_duration=c_skill.duration if c_skill else None,
+				# No session evidence in v0.7
+				session_depth=None,
+				session_frequency=None,
+				session_evidence_count=None,
+				session_recency=None,
+				session_first_seen=None,
+				# Repo evidence
+				repo_count=repo_count,
+				repo_bytes=repo_bytes,
+				repo_first_seen=repo_first_seen,
+				repo_last_seen=repo_last_seen,
+				repo_frameworks=repo_frameworks,
+				repo_confirmed=repo_confirmed,
+				# Merged assessment
+				effective_depth=effective_depth,
+				confidence=None,  # deprecated in v0.7 — moves to match time
+				discovery_flag=False,  # no sessions = no discoveries
+				category=category,
+				scale=getattr(c_skill, "scale", None) if c_skill else None,
+			)
+		)
+
+	# ── 5. Sort: RESUME_AND_REPO first, then by effective depth desc ──
+	source_order = {
+		EvidenceSource.RESUME_AND_REPO: 0,
+		EvidenceSource.RESUME_ONLY: 1,
+		EvidenceSource.REPO_ONLY: 2,
+	}
+	merged_skills.sort(
+		key=lambda s: (
+			source_order.get(s.source, 9),
+			-DEPTH_RANK.get(s.effective_depth, 0),
+		)
+	)
+
+	# ── 6. Compute provenance hashes ──────────────────────────────────
+	profile_hash = hash_json_stable(
+		{
+			"curated": curated_resume.source_file_hash,
+			"repo_scan_date": repo_profile.scan_date.isoformat(),
+		}
+	)
+
+	# ── 7. Build the MergedEvidenceProfile ─────────────────────────────
+	merged = MergedEvidenceProfile(
+		skills=merged_skills,
+		patterns=[],  # no sessions in v0.7
+		projects=[],  # no sessions in v0.7
+		roles=curated_resume.roles,
+		corroborated_skill_count=corroborated_count,
+		resume_only_skill_count=resume_only_count,
+		sessions_only_skill_count=0,  # no sessions in v0.7
+		repo_confirmed_skill_count=repo_confirmed_count,
+		discovery_skills=[],  # no sessions = no discoveries
+		profile_hash=profile_hash,
+		resume_hash=curated_resume.source_file_hash,
+		candidate_profile_hash="none",  # no candidate profile in v0.7
+		merged_at=datetime.now(timezone.utc),
+	)
+	merged.total_years_experience = curated_resume.total_years_experience
+	merged.education = curated_resume.education
+	return merged
 
 
 def classify_evidence_source(
@@ -211,8 +392,6 @@ def merge_with_curated(
 		session_skills[canonical] = s
 
 	# Build curated resume lookup — depth is already a DepthLevel enum
-	from claude_candidate.schemas.curated_resume import CuratedSkill
-
 	curated_lookup: dict[str, CuratedSkill] = {}
 	for cs in curated_resume.curated_skills:
 		canonical = taxonomy.canonicalize(cs.name)

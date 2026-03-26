@@ -233,6 +233,131 @@ def _soft_skill_discount(
 
 
 # ---------------------------------------------------------------------------
+# Match-time confidence (v0.7)
+# ---------------------------------------------------------------------------
+
+_GENERIC_SKILLS = frozenset({
+	"software-engineering",
+	"computer-science",
+	"problem-solving",
+	"communication",
+	"collaboration",
+	"leadership",
+	"ownership",
+	"adaptability",
+	"agile",
+	"metrics",
+})
+
+_SKILL_VARIANTS: dict[str, list[str]] = {
+	# Languages / frameworks
+	"typescript": ["ts", "type script"],
+	"javascript": ["js", "java script"],
+	"python": ["py"],
+	"react": ["react.js", "reactjs"],
+	"vue": ["vue.js", "vuejs"],
+	"angular": ["angular.js", "angularjs"],
+	"node": ["node.js", "nodejs"],
+	"cpp": ["c++"],
+	"csharp": ["c#"],
+	"golang": ["go lang"],
+	# Soft skills — morphological variants so "adaptability" matches "adaptable"
+	"adaptability": ["adaptable", "adapt quickly", "quick learner"],
+	"collaboration": ["collaborate", "collaborative", "cross-functional"],
+	"communication": ["communicate", "communicator"],
+	"leadership": ["lead", "leading", "led teams", "team lead"],
+	"ownership": ["own", "end-to-end ownership", "take ownership"],
+	"problem-solving": ["problem solver", "solve problems", "analytical"],
+	"agile": ["scrum", "sprint", "kanban", "iterative"],
+	# Practices
+	"software-engineering": ["software development", "software developer", "engineering experience"],
+	"project-management": ["project management", "manage projects", "technical project", "project management tools"],
+	"testing": ["test", "quality assurance", "qa", "evaluation data", "attention to detail", "detail-oriented"],
+	"product-development": ["shipping products", "building products", "ship products", "personal projects", "product quality"],
+	"technology-research": ["passion for ai", "curiosity for ai", "keeps up with trends", "emerging innovations"],
+}
+
+
+def _is_generic_skill(skill: str) -> bool:
+	"""Return True if the skill is a broad/generic term unlikely to match specific roles."""
+	return skill in _GENERIC_SKILLS
+
+
+def _skill_mentioned_in_text(skill: str, text: str) -> bool:
+	"""Check if the skill or common variants appear in the text.
+
+	Both ``skill`` and ``text`` must already be lowercased.
+	Uses word-boundary matching for short terms (<=3 chars) to avoid
+	false positives (e.g. "go" matching "good", "vue" matching "avenue").
+	"""
+
+	def _match(term: str) -> bool:
+		if len(term) <= 3:
+			return bool(re.search(r"\b" + re.escape(term) + r"\b", text))
+		return term in text
+
+	# Direct name check (also try hyphen↔space since canonical names use hyphens)
+	if _match(skill):
+		return True
+	dehyphenated = skill.replace("-", " ")
+	if dehyphenated != skill and _match(dehyphenated):
+		return True
+	# Common variant checks
+	for variant in _SKILL_VARIANTS.get(skill, []):
+		if _match(variant):
+			return True
+	return False
+
+
+def compute_match_confidence(
+	candidate_skill: str,
+	requirement_text: str,
+	match_type: str,
+) -> float:
+	"""Compute match-time confidence between a skill and a requirement.
+
+	Confidence measures how precisely the candidate's skill maps to what
+	the requirement is asking for.  This is NOT about evidence quality
+	(that's handled by source/depth) — it's about match quality.
+
+	Args:
+		candidate_skill: Canonical skill name (e.g. "typescript").
+		requirement_text: The full requirement description text.
+		match_type: One of "exact", "alias", "fuzzy", "related", "none".
+
+	Returns:
+		A float in [0.0, 1.0] indicating match confidence.
+	"""
+	if match_type == "none" or not candidate_skill:
+		return 0.0
+
+	# Normalize for text matching
+	skill_lower = candidate_skill.lower().strip()
+	text_lower = requirement_text.lower()
+
+	# Check if the skill name (or common variants) appears in the requirement text
+	skill_in_text = _skill_mentioned_in_text(skill_lower, text_lower)
+
+	if match_type == "exact":
+		return 1.0 if skill_in_text else 0.70
+	elif match_type == "alias":
+		return 0.90 if skill_in_text else 0.65
+	elif match_type == "fuzzy":
+		if skill_in_text:
+			return 0.80
+		# Generic skills matching specific requirements → very low
+		if _is_generic_skill(skill_lower):
+			return 0.10
+		return 0.50
+	elif match_type == "related":
+		if skill_in_text:
+			return 0.65
+		return 0.40
+
+	return 0.0
+
+
+# ---------------------------------------------------------------------------
 # Lookup tables
 # ---------------------------------------------------------------------------
 
@@ -325,6 +450,7 @@ DOMAIN_KEYWORDS: frozenset[str] = frozenset({
 	"sports", "baseball", "football", "basketball", "soccer", "athletics",
 	# Healthcare / biotech
 	"healthcare", "medical", "clinical", "patient", "biotech", "pharma",
+	"bioinformatics", "genomics",
 	# Finance
 	"fintech", "banking", "financial", "trading", "insurance",
 	# Legal
@@ -333,14 +459,20 @@ DOMAIN_KEYWORDS: frozenset[str] = frozenset({
 	"automotive", "vehicle",
 	# Education
 	"edtech", "educational", "curriculum",
-	# Gaming
-	"gaming", "esports",
+	# Gaming / game engines
+	"gaming", "esports", "gameplay", "unreal",
 	# Real estate
 	"real estate", "construction",
 	# Energy
 	"energy", "utilities",
 	# Retail / logistics
 	"retail", "ecommerce", "logistics",
+	# Hardware / embedded
+	"firmware", "embedded",
+	# Native mobile platforms
+	"ios", "android",
+	# Data infrastructure
+	"etl", "warehouse",
 })
 
 
@@ -365,11 +497,16 @@ def _detect_domain_gap(
 			candidate_parts.append(role.domain.lower())
 	candidate_text = " ".join(candidate_parts)
 
-	for kw in sorted(DOMAIN_KEYWORDS):  # sorted for deterministic output
+	# Find the domain keyword with the HIGHEST occurrence count (above threshold)
+	# to determine severity correctly — e.g. "genomic" (6x) beats "bioinformatics" (3x).
+	best_kw: str | None = None
+	best_count = 0
+	for kw in sorted(DOMAIN_KEYWORDS):  # sorted for deterministic tiebreaking
 		count = sum(1 for r in requirements if kw in r.description.lower())
-		if count >= 3 and kw not in candidate_text:
-			return kw
-	return None
+		if count >= 3 and kw not in candidate_text and count > best_count:
+			best_kw = kw
+			best_count = count
+	return best_kw
 
 # Pattern strength → culture match value
 CULTURE_PATTERN_STRENGTH_SCORE: dict[str, float] = {
@@ -445,10 +582,26 @@ def _find_fuzzy_match(
 	normalized: str,
 	profile: MergedEvidenceProfile,
 ) -> MergedSkillEvidence | None:
-	"""Return a fuzzy skill match (substring or known variant)."""
+	"""Return a fuzzy skill match (substring or known variant).
+
+	Requires minimum length of 3 characters for substring matching to avoid
+	false positives like 'c' matching 'ci-cd' or 'r' matching 'react'.
+	Rejects matches where both query and skill are distinct taxonomy entries
+	(e.g. 'java' should not match 'javascript').
+	"""
+	MIN_SUBSTRING_LEN = 3
+	taxonomy = _get_taxonomy()
 	for skill in profile.skills:
-		if normalized in skill.name or skill.name in normalized:
-			return skill
+		# Substring match only when the shorter string is long enough
+		shorter_len = min(len(normalized), len(skill.name))
+		if shorter_len >= MIN_SUBSTRING_LEN:
+			if normalized in skill.name or skill.name in normalized:
+				# Reject if both are distinct canonical taxonomy entries
+				canon_query = taxonomy.canonicalize(normalized)
+				canon_skill = taxonomy.canonicalize(skill.name)
+				if canon_query != canon_skill and canon_query == normalized:
+					continue  # e.g. "java" ≠ "javascript" — both canonical, skip
+				return skill
 		if _is_variant_match(normalized, skill.name):
 			return skill
 	return None
@@ -858,10 +1011,24 @@ def _infer_virtual_skill(
 		# Count how many constituents the profile has
 		matched = sum(1 for c in constituents if c in profile_names)
 		if matched >= min_count:
+			# Derive source from the constituent skills that exist in the profile.
+			# If any matched constituent has session evidence, the virtual skill is
+			# session-derived; otherwise it is inferred from resume/repo evidence only.
+			# This prevents sessions_only labels when sessions are parked (merge_triad).
+			session_sources = {EvidenceSource.SESSIONS_ONLY, EvidenceSource.CORROBORATED}
+			has_session_evidence = any(
+				s.source in session_sources
+				for s in profile.skills
+				if s.name.lower() in constituents
+			)
+			virtual_source = (
+				EvidenceSource.SESSIONS_ONLY if has_session_evidence else EvidenceSource.RESUME_ONLY
+			)
 			return MergedSkillEvidence(
 				name=rule_name,
-				source=EvidenceSource.SESSIONS_ONLY,
-				session_depth=depth,
+				source=virtual_source,
+				session_depth=depth if has_session_evidence else None,
+				resume_depth=depth if not has_session_evidence else None,
 				effective_depth=depth,
 				confidence=min(0.7, 0.4 + matched * 0.1),
 				discovery_flag=False,
@@ -1104,20 +1271,37 @@ def _find_best_skill(
 				best_match_type = mtype
 			continue
 
-		# Try related skill fallback
+		# Try related skill fallback — but don't cross categories for languages.
+		# A language requirement (Go, Rust, etc.) should only match other languages,
+		# not related tools (Docker, Kubernetes) that happen to be in the same ecosystem.
 		canonical = taxonomy.match(skill_name)
 		if not canonical:
 			continue
+		req_category = taxonomy.get_category(canonical)
 		for profile_skill in profile.skills:
 			profile_canonical = taxonomy.canonicalize(profile_skill.name)
 			if taxonomy.are_related(canonical, profile_canonical):
+				profile_category = taxonomy.get_category(profile_canonical)
+				if req_category == "language" and profile_category != "language":
+					continue  # Don't match a language req to a non-language skill
 				if STATUS_RANK.get("related", 0) > STATUS_RANK.get(best_status, 0):
 					best_match = profile_skill
 					best_status = "related"
 					best_match_type = "fuzzy"
 				break  # Take first related match
 
-	# Years experience boost: if requirement specifies years and skill has duration data
+	# AI-context penalty: requirements about AI teams or AI-powered metrics
+	# shouldn't get full credit from generic leadership/product skills
+	_AI_CONTEXT_WORDS = {"ai", "ml", "intelligence", "machine learning"}
+	if best_match and best_match.name in ("leadership", "product-development", "problem-solving", "project-management"):
+		req_lower = req.description.lower()
+		has_ai_context = any(w in req_lower for w in _AI_CONTEXT_WORDS)
+		has_team_or_scale = any(w in req_lower for w in ("team", "scale", "retention", "metrics"))
+		if has_ai_context and has_team_or_scale:
+			if STATUS_RANK.get(best_status, 0) > STATUS_RANK.get("partial_match", 0):
+				best_status = "partial_match"
+
+	# Years experience check: boost if candidate meets/exceeds, downgrade if short
 	if req.years_experience and best_match and best_match.resume_duration:
 		candidate_years = _parse_duration_years(best_match.resume_duration)
 		if candidate_years:
@@ -1127,6 +1311,18 @@ def _find_best_skill(
 					best_status = "strong_match"
 				elif best_status == "adjacent":
 					best_status = "partial_match"
+			else:
+				# Candidate has the skill but not enough years — downgrade
+				# Use ratio: <50% of required → major, <100% → minor
+				ratio = candidate_years / req.years_experience
+				if ratio < 0.5:
+					# Major shortfall (e.g. 3mo vs 2yr) — cap at partial_match
+					if STATUS_RANK.get(best_status, 0) > STATUS_RANK.get("partial_match", 0):
+						best_status = "partial_match"
+				else:
+					# Minor shortfall — cap at strong_match (no exceeds)
+					if STATUS_RANK.get(best_status, 0) > STATUS_RANK.get("strong_match", 0):
+						best_status = "strong_match"
 
 	# Total years fallback: when no skill match but candidate has enough total experience
 	if req.years_experience and best_status == "no_evidence":
@@ -1143,8 +1339,123 @@ def _find_best_skill(
 			)
 			best_match_type = "fuzzy"
 
+	# Scale check: if requirement mentions consumer scale and skill is personal/team, downgrade
+	if best_match and best_match.scale:
+		required_scale = _detect_required_scale(req.description)
+		if required_scale:
+			_SCALE_RANK = {"personal": 0, "team": 1, "startup": 2, "enterprise": 3, "consumer": 4}
+			skill_rank = _SCALE_RANK.get(best_match.scale, 2)
+			req_rank = _SCALE_RANK.get(required_scale, 2)
+			if req_rank - skill_rank >= 3:
+				# Major scale gap (personal vs consumer) — cap at partial
+				if STATUS_RANK.get(best_status, 0) > STATUS_RANK.get("partial_match", 0):
+					best_status = "partial_match"
+			elif req_rank - skill_rank >= 2:
+				# Moderate gap (team vs consumer) — cap at strong_match
+				if STATUS_RANK.get(best_status, 0) > STATUS_RANK.get("strong_match", 0):
+					best_status = "strong_match"
+
+	# AI-qualified scale check: when requirement mentions AI and a non-AI skill matched,
+	# use the candidate's actual AI skill scale for the penalty instead.
+	# This prevents general skills (system-design, product-development) with consumer
+	# scale from masking that the candidate's AI experience is only at personal/team scale.
+	if best_match and _requirement_mentions_ai(req.description):
+		required_scale = _detect_required_scale(req.description)
+		if required_scale:
+			_SCALE_RANK = {"personal": 0, "team": 1, "startup": 2, "enterprise": 3, "consumer": 4}
+			matched_rank = _SCALE_RANK.get(best_match.scale or "enterprise", 3)
+			ai_scale = _candidate_ai_scale(profile)
+			ai_rank = _SCALE_RANK.get(ai_scale or "personal", 0)
+			req_rank = _SCALE_RANK.get(required_scale, 2)
+			# Only override when AI scale is lower than the matched skill's scale
+			# and the requirement's scale exceeds the AI scale
+			if ai_rank < matched_rank and req_rank > ai_rank:
+				gap = req_rank - ai_rank
+				if gap >= 3:
+					# Major AI scale gap — cap at partial_match
+					if STATUS_RANK.get(best_status, 0) > STATUS_RANK.get("partial_match", 0):
+						best_status = "partial_match"
+				elif gap >= 2:
+					# Moderate AI scale gap — cap at strong_match
+					if STATUS_RANK.get(best_status, 0) > STATUS_RANK.get("strong_match", 0):
+						best_status = "strong_match"
+
 	return best_match, best_status, best_match_type
 
+
+_SCALE_KEYWORDS: list[tuple[str, str]] = [
+	("consumer scale", "consumer"),
+	("at consumer scale", "consumer"),
+	("millions of users", "consumer"),
+	("millions of conversations", "consumer"),
+	("consumer-facing", "consumer"),
+	("at scale", "enterprise"),  # generic "at scale" → enterprise minimum
+	("enterprise scale", "enterprise"),
+	("production scale", "enterprise"),
+]
+
+
+def _detect_required_scale(text: str) -> str | None:
+	"""Detect if a requirement specifies a scale level."""
+	text_lower = text.lower()
+	for keyword, scale in _SCALE_KEYWORDS:
+		if keyword in text_lower:
+			return scale
+	return None
+
+
+_AI_KEYWORDS_RE = re.compile(
+	r"\b(ai|ml|machine\s+learning|intelligence|llm|deep\s+learning|neural|model|generative|agentic)\b",
+	re.IGNORECASE,
+)
+
+_AI_SKILL_NAMES: frozenset[str] = frozenset({
+	"llm",
+	"machine-learning",
+	"agentic-workflows",
+	"prompt-engineering",
+	"rag",
+	"embeddings",
+	"generative-ai",
+})
+
+
+def _requirement_mentions_ai(text: str) -> bool:
+	"""Return True if the requirement text contains AI/ML keywords (word-boundary matched)."""
+	return bool(_AI_KEYWORDS_RE.search(text))
+
+
+def _candidate_ai_scale(profile: MergedEvidenceProfile) -> str | None:
+	"""Return the candidate's highest scale among AI-category skills.
+
+	Looks for skills in _AI_SKILL_NAMES or domain-category skills whose canonical
+	name overlaps with AI skill names. Returns the highest scale found, or 'personal'
+	if no AI skills have explicit scale info.
+	"""
+	taxonomy = _get_taxonomy()
+	_SCALE_RANK = {"personal": 0, "team": 1, "startup": 2, "enterprise": 3, "consumer": 4}
+
+	best_rank: int | None = None
+
+	for skill in profile.skills:
+		canonical = taxonomy.canonicalize(skill.name) or skill.name.lower()
+		is_ai_skill = canonical in _AI_SKILL_NAMES or skill.name.lower() in _AI_SKILL_NAMES
+		if not is_ai_skill:
+			# Also match domain-category skills whose canonical name overlaps AI terms
+			cat = skill.category or taxonomy.get_category(canonical)
+			if cat == "domain" and any(kw in canonical for kw in _AI_SKILL_NAMES):
+				is_ai_skill = True
+		if is_ai_skill and skill.scale:
+			rank = _SCALE_RANK.get(skill.scale, 0)
+			if best_rank is None or rank > best_rank:
+				best_rank = rank
+
+	if best_rank is None:
+		return "personal"
+	for scale_name, rank in _SCALE_RANK.items():
+		if rank == best_rank:
+			return scale_name
+	return "personal"
 
 
 def _score_requirement(
@@ -1170,9 +1481,10 @@ def _score_requirement(
 
 	req_score = STATUS_SCORE.get(best_status, STATUS_SCORE_NONE)
 	if best_match:
-		# Apply confidence as a minor (±10%) adjustment to the base status score using
-		# the raw best_match.confidence: 0.90 + 0.10 * confidence → multiplier in ~0.90–1.0.
-		adjustment = 0.90 + 0.10 * best_match.confidence
+		# Apply confidence as a minor (±10%) adjustment to the base status score.
+		# confidence may be None (v0.7 merge_triad) — default to 1.0 (no penalty).
+		conf = best_match.confidence if best_match.confidence is not None else 1.0
+		adjustment = 0.90 + 0.10 * conf
 		req_score *= adjustment
 	return req_score
 
@@ -1184,13 +1496,23 @@ def _build_skill_detail(
 	match_type: str = "exact",
 ) -> SkillMatchDetail:
 	"""Build a SkillMatchDetail for one requirement."""
+	# Use match-time confidence (v0.7) — measures how well the skill maps to
+	# the requirement text. Falls back to merge-time confidence for legacy profiles.
+	if best_match and best_status != "no_evidence":
+		conf = compute_match_confidence(
+			candidate_skill=best_match.name,
+			requirement_text=req.description,
+			match_type=match_type,
+		)
+	else:
+		conf = 0.0
 	return SkillMatchDetail(
 		requirement=req.description,
 		priority=req.priority.value,
 		match_status=best_status,
 		candidate_evidence=(_evidence_summary(best_match) if best_match else "No evidence found"),
 		evidence_source=(best_match.source if best_match else EvidenceSource.RESUME_ONLY),
-		confidence=best_match.confidence if best_match else 0.0,
+		confidence=conf,
 		matched_skill=best_match.name if best_match else None,
 		match_type=match_type,
 	)
@@ -1235,7 +1557,14 @@ def _build_skill_dimension(
 
 
 def _candidate_domain_set(profile: MergedEvidenceProfile) -> set[str]:
-	"""Collect candidate domain keywords from projects and roles."""
+	"""Collect candidate domain keywords from projects, roles, and skills.
+
+	Scans multiple sources to build a comprehensive domain signal:
+	- Project technologies (session-derived)
+	- Role domain field (if populated)
+	- Role company names and descriptions (tokenized)
+	- Skill names (especially domain-category skills)
+	"""
 	domains: set[str] = set()
 	for proj in profile.projects:
 		for tech in proj.technologies:
@@ -1243,6 +1572,16 @@ def _candidate_domain_set(profile: MergedEvidenceProfile) -> set[str]:
 	for role in profile.roles:
 		if role.domain:
 			domains.add(role.domain.lower())
+		# Scan company name and description for domain keywords
+		role_text = f"{role.company} {role.description or ''}".lower()
+		for word in role_text.split():
+			# Clean punctuation from tokens
+			clean = word.strip(".,;:()[]{}\"'")
+			if len(clean) >= 3:
+				domains.add(clean)
+	# Include skill names — covers domain skills like edtech, healthcare, etc.
+	for skill in profile.skills:
+		domains.add(skill.name.lower())
 	return domains
 
 
@@ -1255,12 +1594,27 @@ def _score_domain_overlap(
 	profile: MergedEvidenceProfile,
 	company_profile: CompanyProfile,
 ) -> tuple[float, list[str]]:
-	"""Score domain overlap; return (bonus, detail_lines)."""
+	"""Score domain overlap; return (bonus, detail_lines).
+
+	Uses both exact set intersection and substring matching to handle
+	compound domain terms (e.g. 'edtech' matching 'education' or 'educational').
+	"""
 	candidate_domains = _candidate_domain_set(profile)
 	company_domains = {d.lower() for d in company_profile.product_domain}
+	# Exact match first
 	overlap = candidate_domains & company_domains
 	if overlap:
 		return MISSION_DOMAIN_BONUS, [f"Domain overlap: {', '.join(sorted(overlap))}"]
+	# Substring match: check if any company domain appears in any candidate token
+	# or vice versa (e.g. "edtech" in "educational", "education" in "edtech")
+	for cd in company_domains:
+		if len(cd) < 3:
+			continue
+		for token in candidate_domains:
+			if len(token) < 3:
+				continue
+			if cd in token or token in cd:
+				return MISSION_DOMAIN_BONUS, [f"Domain match: {cd} ↔ {token}"]
 	return 0.0, []
 
 
@@ -1601,8 +1955,8 @@ class QuickMatchEngine:
 		domain_gap_term = _detect_domain_gap(scorable_reqs, self.profile)
 		if domain_gap_term and not unmet_gates:  # eligibility cap already zeros score; skip
 			candidate_grade = score_to_grade(overall_score)
-			if _GRADE_ORDER.index(candidate_grade) < _GRADE_ORDER.index("B+"):  # grade better than B+
-				if pre_cap_grade is None:  # don't overwrite eligibility pre_cap_grade
+			if _GRADE_ORDER.index(candidate_grade) < _GRADE_ORDER.index("B+"):
+				if pre_cap_grade is None:
 					pre_cap_grade = candidate_grade
 				# Drop score to top of B+ band (just below A- threshold of 0.85)
 				overall_score = min(overall_score, 0.849)
@@ -1822,7 +2176,7 @@ class QuickMatchEngine:
 					found, _mtype = _find_skill_match(skill_name, self.profile)
 					if found:
 						status = _assess_depth_match(found, depth_floor, self.profile)
-						conf = found.confidence
+						conf = found.confidence if found.confidence is not None else 1.0
 						adj = 0.90 + 0.10 * conf
 						all_scores.append(STATUS_SCORE.get(status, 0.0) * adj)
 					else:
@@ -1915,7 +2269,9 @@ class QuickMatchEngine:
 			culture_signals,
 			company_profile,
 		)
-		if not all_signals or not self.profile.patterns:
+		if not self.profile.patterns:
+			return None  # No behavioral data (sessions parked) — omit dimension
+		if not all_signals:
 			return self._neutral_culture_dimension()
 
 		matches, total_signals, details = self._evaluate_culture_signals(

@@ -2145,3 +2145,73 @@ class TestDomainPenalty:
 		)
 		assert assessment.domain_gap_term == "music"
 		assert assessment.overall_grade == "B+"
+
+
+class TestMatchConfidence:
+	"""Tests for compute_match_confidence — match quality scoring."""
+
+	def test_exact_match_high_confidence(self) -> None:
+		"""Exact skill name match produces high confidence."""
+		from claude_candidate.quick_match import compute_match_confidence
+
+		conf = compute_match_confidence(
+			candidate_skill="typescript",
+			requirement_text="Expert TypeScript developer with React experience",
+			match_type="exact",
+		)
+		assert conf >= 0.90
+
+	def test_alias_match_good_confidence(self) -> None:
+		"""Alias match produces good confidence."""
+		from claude_candidate.quick_match import compute_match_confidence
+
+		conf = compute_match_confidence(
+			candidate_skill="react",
+			requirement_text="Experience with React.js and modern frontend frameworks",
+			match_type="exact",
+		)
+		assert conf >= 0.85
+
+	def test_no_mention_in_text_low_confidence(self) -> None:
+		"""Skill not mentioned in requirement text produces low confidence."""
+		from claude_candidate.quick_match import compute_match_confidence
+
+		conf = compute_match_confidence(
+			candidate_skill="software-engineering",
+			requirement_text="Embedded C firmware engineer with RTOS experience",
+			match_type="fuzzy",
+		)
+		assert conf <= 0.30
+
+	def test_no_match_zero_confidence(self) -> None:
+		"""No match produces zero confidence."""
+		from claude_candidate.quick_match import compute_match_confidence
+
+		conf = compute_match_confidence(
+			candidate_skill="",
+			requirement_text="Anything",
+			match_type="none",
+		)
+		assert conf == 0.0
+
+	def test_related_match_moderate_confidence(self) -> None:
+		"""Related match gets moderate confidence."""
+		from claude_candidate.quick_match import compute_match_confidence
+
+		conf = compute_match_confidence(
+			candidate_skill="react",
+			requirement_text="Modern frontend framework experience required",
+			match_type="related",
+		)
+		assert 0.30 <= conf <= 0.70
+
+	def test_fuzzy_match_with_text_mention(self) -> None:
+		"""Fuzzy match where skill IS mentioned in text gets decent confidence."""
+		from claude_candidate.quick_match import compute_match_confidence
+
+		conf = compute_match_confidence(
+			candidate_skill="python",
+			requirement_text="Strong Python skills with experience in data pipelines",
+			match_type="fuzzy",
+		)
+		assert conf >= 0.70

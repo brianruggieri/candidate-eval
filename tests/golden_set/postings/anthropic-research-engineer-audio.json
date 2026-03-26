@@ -1,0 +1,134 @@
+{
+  "company": "Anthropic",
+  "title": "Research Engineer/Research Scientist, Audio",
+  "description": "Anthropic seeks researchers to advance audio capabilities within large language models. The Audio team develops systems that understand and generate speech and audio with emphasis on safety, steerability, and robustness.\n\nKey Responsibilities\n\n- Work across the complete audio ML stack, including codec development and data synthesis\n- Train large-scale speech language models and audio diffusion models\n- Design novel architectures for incorporating continuous signals into LLMs\n- Develop conversational systems, speech understanding models, and synthesis capabilities\n- Collaborate with teams across pretraining, finetuning, reinforcement learning, and production\n\nRequired Qualifications\n\n- Hands-on experience training audio models (speech-to-speech, recognition, synthesis, etc.)\n- Balanced interest in both research and engineering (~50/50 split)\n- Proficiency across abstraction levels, from signal processing to large-scale training\n- Deep expertise with JAX, PyTorch, or distributed training frameworks\n- Bachelor's degree in related field or equivalent experience\n- Strong communication and cross-team collaboration skills\n\nPreferred Experience\n\n- Large language model pretraining/finetuning\n- Diffusion model training\n- Reinforcement learning for LLMs\n- System optimization and infrastructure (Kubernetes, GPU management)\n\nAnthropic sponsors visas and encourages applications from underrepresented groups.",
+  "url": "https://www.linkedin.com/jobs/view/4367710796",
+  "source": "linkedin",
+  "location": "San Francisco, CA",
+  "seniority": "mid",
+  "remote": false,
+  "salary": "$350,000 - $500,000",
+  "requirements": [
+    {
+      "description": "Hands-on experience training audio models (speech-to-speech, recognition, synthesis)",
+      "skill_mapping": [
+        "machine-learning",
+        "voice-ai"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Balanced interest in both audio research and engineering (~50/50 split)",
+      "skill_mapping": [
+        "machine-learning",
+        "software-engineering"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Proficiency across audio abstraction levels, from signal processing to large-scale training pipelines",
+      "skill_mapping": [
+        "machine-learning",
+        "data-science"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Deep expertise with JAX, PyTorch, or distributed audio training frameworks",
+      "skill_mapping": [
+        "pytorch",
+        "distributed-systems"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Bachelor's degree in related field or equivalent experience",
+      "skill_mapping": [
+        "computer-science"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": "bachelor"
+    },
+    {
+      "description": "Strong communication and cross-team collaboration skills",
+      "skill_mapping": [
+        "communication",
+        "collaboration"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Train large-scale speech language models and audio diffusion models",
+      "skill_mapping": [
+        "llm",
+        "voice-ai",
+        "machine-learning"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Design novel architectures for incorporating continuous signals into LLMs",
+      "skill_mapping": [
+        "llm",
+        "system-design"
+      ],
+      "priority": "must_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Large language model pretraining/finetuning experience",
+      "skill_mapping": [
+        "llm",
+        "machine-learning"
+      ],
+      "priority": "strong_preference",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Diffusion model training experience",
+      "skill_mapping": [
+        "generative-ai",
+        "machine-learning"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "Reinforcement learning for LLMs",
+      "skill_mapping": [
+        "machine-learning",
+        "llm"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    },
+    {
+      "description": "System optimization and infrastructure including Kubernetes and GPU management",
+      "skill_mapping": [
+        "kubernetes",
+        "performance-optimization",
+        "cloud-infrastructure"
+      ],
+      "priority": "nice_to_have",
+      "years_experience": null,
+      "education_level": null
+    }
+  ]
+}

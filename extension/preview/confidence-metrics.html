@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Confidence Metrics — Extension Preview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+  <style>
+
+    /* ─── PAGE CHROME ─────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #080d14;
+      background-image:
+        radial-gradient(ellipse 80% 50% at 20% 0%, rgba(6,182,212,0.06) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 80% 100%, rgba(99,102,241,0.05) 0%, transparent 60%);
+      font-family: 'DM Sans', system-ui, sans-serif;
+      min-height: 100vh;
+      padding: 48px 24px 80px;
+      color: #f1f5f9;
+    }
+
+    .page-header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+    .page-header .eyebrow {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #06b6d4;
+      margin-bottom: 10px;
+    }
+    .page-header h1 {
+      font-size: 22px;
+      font-weight: 600;
+      color: #f8fafc;
+      letter-spacing: -0.4px;
+    }
+    .page-header p {
+      font-size: 13px;
+      color: #475569;
+      margin-top: 8px;
+      max-width: 480px;
+      margin-inline: auto;
+      line-height: 1.5;
+    }
+
+    .comparison {
+      display: flex;
+      gap: 48px;
+      justify-content: center;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .col-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #334155;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .col-label.proposed { color: #06b6d4; }
+    .col-label::before, .col-label::after {
+      content: '';
+      width: 24px;
+      height: 1px;
+      background: currentColor;
+      opacity: 0.4;
+    }
+
+    /* Simulate a browser bar */
+    .browser-frame {
+      background: #1e293b;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 32px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04);
+    }
+    .browser-bar {
+      height: 36px;
+      background: #1e293b;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      gap: 6px;
+    }
+    .browser-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+    }
+    .browser-dot:nth-child(1) { background: #ef4444; opacity: 0.7; }
+    .browser-dot:nth-child(2) { background: #f59e0b; opacity: 0.7; }
+    .browser-dot:nth-child(3) { background: #22c55e; opacity: 0.7; }
+
+    /* ─── POPUP BASE ──────────────────────────────────────────── */
+    .popup {
+      width: 420px;
+      background: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 13px;
+      color: #1a1a1a;
+      line-height: 1.4;
+    }
+
+    /* Header */
+    .popup-header {
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid #e5e7eb;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .grade-badge {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: #2563eb;
+      color: white;
+      font-size: 22px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .grade-badge.grade-a { background: #16a34a; }
+    .grade-badge.grade-b { background: #2563eb; }
+    .grade-badge.grade-c { background: #d97706; }
+    .grade-badge.grade-f { background: #dc2626; }
+
+    .header-text {
+      flex: 1;
+      min-width: 0;
+    }
+    .company-name {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #6b7280;
+      margin-bottom: 3px;
+    }
+    .job-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #111827;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 6px;
+    }
+    .progress-bar-wrap {
+      position: relative;
+    }
+    .progress-bar {
+      height: 6px;
+      border-radius: 3px;
+      background: linear-gradient(to right, #ef4444 0%, #f59e0b 30%, #3b82f6 55%, #16a34a 100%);
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: rgba(255,255,255,0.85);
+      position: absolute;
+      right: 0;
+      top: 0;
+      border-radius: 0 3px 3px 0;
+    }
+    .progress-label {
+      font-size: 11px;
+      color: #6b7280;
+      margin-top: 4px;
+      text-align: right;
+    }
+
+    /* Body sections */
+    .popup-section {
+      padding: 10px 16px;
+      border-bottom: 1px solid #f3f4f6;
+    }
+
+    .summary-text {
+      font-size: 12px;
+      color: #4b5563;
+      line-height: 1.5;
+    }
+
+    /* Dimension rows */
+    .dim-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 0;
+    }
+    .dim-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #6b7280;
+      width: 100px;
+      flex-shrink: 0;
+    }
+    .dim-bar-wrap {
+      flex: 1;
+      height: 6px;
+      background: #e5e7eb;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .dim-bar {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+    }
+    .dim-bar.green { background: #16a34a; }
+    .dim-bar.blue  { background: #3b82f6; }
+    .dim-bar.amber { background: #d97706; }
+    .dim-pct {
+      font-size: 11px;
+      color: #374151;
+      font-weight: 600;
+      width: 32px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .dim-detail {
+      font-size: 11px;
+      color: #6b7280;
+      line-height: 1.3;
+    }
+
+    /* Stats row */
+    .stats-row {
+      display: grid;
+      gap: 1px;
+      background: #e5e7eb;
+    }
+    .stats-row.three { grid-template-columns: repeat(3, 1fr); }
+    .stats-row.four  { grid-template-columns: repeat(4, 1fr); }
+    .stat-cell {
+      background: #f3f4f6;
+      padding: 8px 10px;
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 12px;
+      font-weight: 700;
+      color: #111827;
+    }
+    .stat-label {
+      font-size: 10px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #9ca3af;
+      margin-top: 1px;
+    }
+
+    /* Panels / collapsibles */
+    details {
+      border-top: 1px solid #f3f4f6;
+    }
+    details summary {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 16px;
+      cursor: pointer;
+      list-style: none;
+      font-size: 12px;
+      font-weight: 600;
+      color: #374151;
+      user-select: none;
+    }
+    details summary::-webkit-details-marker { display: none; }
+    details summary .count-tag {
+      font-size: 10px;
+      font-weight: 600;
+      background: #e5e7eb;
+      color: #6b7280;
+      padding: 1px 6px;
+      border-radius: 10px;
+    }
+    details summary .chevron {
+      margin-left: auto;
+      color: #9ca3af;
+      font-size: 10px;
+      transition: transform 0.15s;
+    }
+    details[open] summary .chevron { transform: rotate(180deg); }
+    details .panel-body {
+      padding: 4px 16px 12px;
+    }
+
+    /* Skill match items */
+    .match-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 0;
+      border-bottom: 1px solid #f9fafb;
+    }
+    .match-item:last-child { border-bottom: none; }
+    .match-icon {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .match-icon.hit  { background: #dcfce7; color: #16a34a; }
+    .match-icon.part { background: #fef3c7; color: #d97706; }
+    .match-icon.miss { background: #fee2e2; color: #dc2626; }
+    .match-name {
+      font-size: 12px;
+      font-weight: 500;
+      color: #1f2937;
+      flex: 1;
+    }
+    .match-source {
+      font-size: 10px;
+      color: #9ca3af;
+    }
+
+    /* Action items */
+    .action-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      padding: 4px 0;
+      font-size: 12px;
+      color: #374151;
+      line-height: 1.4;
+    }
+    .action-item::before {
+      content: '›';
+      color: #3b82f6;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    /* Verdict */
+    .verdict-banner {
+      padding: 12px 16px;
+      text-align: center;
+      background: #eff6ff;
+    }
+    .verdict-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #6b7280;
+      margin-bottom: 4px;
+    }
+    .verdict-value {
+      font-size: 15px;
+      font-weight: 700;
+      color: #1d4ed8;
+    }
+
+    /* Buttons */
+    .popup-footer {
+      padding: 10px 16px;
+      border-top: 1px solid #e5e7eb;
+      display: flex;
+      gap: 8px;
+    }
+    .btn {
+      font-size: 12px;
+      font-weight: 500;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 6px 12px;
+      cursor: pointer;
+      background: #f3f4f6;
+      color: #374151;
+    }
+    .btn.primary {
+      background: #3b82f6;
+      color: white;
+      border-color: #3b82f6;
+      flex: 1;
+    }
+
+
+    /* ─── CONFIDENCE LAYER (proposed only) ───────────────────── */
+
+    /* Signal bars in grade badge */
+    .signal-bars {
+      position: absolute;
+      bottom: -2px;
+      right: -2px;
+      display: flex;
+      align-items: flex-end;
+      gap: 2px;
+      background: white;
+      border-radius: 4px;
+      padding: 2px 3px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+    }
+    .signal-bar {
+      width: 3px;
+      border-radius: 1px;
+      background: #d1d5db;
+    }
+    .signal-bar.lit { background: #06b6d4; }
+    .signal-bar:nth-child(1) { height: 4px; }
+    .signal-bar:nth-child(2) { height: 6px; }
+    .signal-bar:nth-child(3) { height: 8px; }
+    .signal-bar:nth-child(4) { height: 10px; }
+
+    /* Evidence quality summary */
+    .evidence-summary {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #f3f4f6;
+      flex-wrap: wrap;
+    }
+    .evidence-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      color: #9ca3af;
+      text-transform: uppercase;
+    }
+    .evidence-chip {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .evidence-chip.direct  { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+    .evidence-chip.inferred { background: #fffbeb; color: #78350f; border: 1px solid #fde68a; }
+    .evidence-chip.fuzzy   { background: #faf5ff; color: #4c1d95; border: 1px solid #ddd6fe; }
+    .evidence-chip.missing { background: #fff1f2; color: #881337; border: 1px solid #fecdd3; }
+    .evidence-dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+    }
+    .direct-dot  { background: #10b981; }
+    .inferred-dot { background: #f59e0b; }
+    .fuzzy-dot   { background: #8b5cf6; }
+    .missing-dot { background: #f43f5e; }
+
+    /* Per-skill confidence row extension */
+    .match-item.low-conf {
+      background: linear-gradient(to right, #fffbeb 0%, transparent 100%);
+      border-radius: 4px;
+      padding-left: 4px;
+      margin-left: -4px;
+      border-left: 2px solid #f59e0b;
+    }
+    .conf-bar-wrap {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex-shrink: 0;
+    }
+    .conf-bar {
+      width: 44px;
+      height: 4px;
+      background: #e5e7eb;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .conf-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+    }
+    .conf-bar-fill.high   { background: #10b981; }
+    .conf-bar-fill.medium { background: #f59e0b; }
+    .conf-bar-fill.low    { background: #f43f5e; }
+    .conf-val {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      font-weight: 600;
+      color: #9ca3af;
+      width: 26px;
+      text-align: right;
+    }
+    .source-chip {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      font-weight: 500;
+      padding: 1px 5px;
+      border-radius: 3px;
+      white-space: nowrap;
+    }
+    .source-chip.direct   { background: #ecfdf5; color: #065f46; }
+    .source-chip.inferred { background: #fffbeb; color: #78350f; }
+    .source-chip.fuzzy    { background: #faf5ff; color: #4c1d95; }
+
+    /* Signal quality stat cell */
+    .stat-cell.signal-cell {
+      background: #f0fdfa;
+    }
+    .stat-value.signal { color: #0d9488; }
+
+    /* Grade note below badge — counterfactual hint */
+    .grade-note {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      color: #9ca3af;
+      text-align: center;
+      margin-top: 3px;
+      letter-spacing: 0.02em;
+    }
+    .grade-note span { color: #f59e0b; }
+
+    /* ─── LEGEND ──────────────────────────────────────────────── */
+    .legend {
+      max-width: 420px;
+      margin: 32px auto 0;
+      padding: 20px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 10px;
+    }
+    .legend-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #06b6d4;
+      margin-bottom: 14px;
+    }
+    .legend-items {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .legend-visual {
+      flex-shrink: 0;
+      width: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding-top: 1px;
+    }
+    .legend-desc {
+      font-size: 12px;
+      color: #64748b;
+      line-height: 1.5;
+    }
+    .legend-desc strong { color: #94a3b8; font-weight: 600; }
+
+  </style>
+</head>
+<body>
+
+  <header class="page-header">
+    <div class="eyebrow">Extension UI Preview</div>
+    <h1>Confidence Metrics — Side-by-Side Review</h1>
+    <p>Current popup (left) vs. proposed additions surfacing evidence quality and inference confidence (right). Mock data: Anthropic / Senior SWE, Developer Tools.</p>
+  </header>
+
+  <div class="comparison">
+
+    <!-- ══════════════════════════════════════════════ CURRENT -->
+    <div class="col">
+      <div class="col-label">Current</div>
+      <div class="browser-frame">
+        <div class="browser-bar">
+          <div class="browser-dot"></div>
+          <div class="browser-dot"></div>
+          <div class="browser-dot"></div>
+        </div>
+        <div class="popup">
+
+          <!-- Header -->
+          <div class="popup-header">
+            <div class="grade-badge grade-b">B+</div>
+            <div class="header-text">
+              <div class="company-name">Anthropic</div>
+              <div class="job-title">Senior Software Engineer, Developer Tools</div>
+              <div class="progress-bar-wrap">
+                <div class="progress-bar"><div class="progress-bar-fill" style="width:18%"></div></div>
+                <div class="progress-label">82%</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Summary -->
+          <div class="popup-section">
+            <div class="summary-text">Strong alignment on Python and CLI tooling. Deep session evidence for 8 of 12 requirements. Inferred full-stack and system-design from behavioral patterns.</div>
+          </div>
+
+          <!-- Dimensions -->
+          <div class="popup-section">
+            <div class="dim-row">
+              <div class="dim-label">Skills</div>
+              <div class="dim-bar-wrap"><div class="dim-bar green" style="width:82%"></div></div>
+              <div class="dim-pct">82%</div>
+            </div>
+            <div class="dim-detail" style="margin-left:108px;margin-top:2px;margin-bottom:4px;">10 of 12 requirements met</div>
+            <div class="dim-row">
+              <div class="dim-label">Experience</div>
+              <div class="dim-bar-wrap"><div class="dim-bar blue" style="width:74%"></div></div>
+              <div class="dim-pct">74%</div>
+            </div>
+            <div class="dim-row">
+              <div class="dim-label">Education</div>
+              <div class="dim-bar-wrap"><div class="dim-bar amber" style="width:65%"></div></div>
+              <div class="dim-pct">65%</div>
+            </div>
+          </div>
+
+          <!-- Stats -->
+          <div class="stats-row three">
+            <div class="stat-cell">
+              <div class="stat-value">10/12</div>
+              <div class="stat-label">Must-haves</div>
+            </div>
+            <div class="stat-cell">
+              <div class="stat-value">Python</div>
+              <div class="stat-label">Top Match</div>
+            </div>
+            <div class="stat-cell">
+              <div class="stat-value">Rust</div>
+              <div class="stat-label">Biggest Gap</div>
+            </div>
+          </div>
+
+          <!-- Skill Matches -->
+          <details open>
+            <summary>
+              Skill Matches
+              <span class="count-tag">10</span>
+              <span class="chevron">▼</span>
+            </summary>
+            <div class="panel-body">
+              <div class="match-item">
+                <div class="match-icon hit">+</div>
+                <div class="match-name">python</div>
+                <div class="match-source">sessions</div>
+              </div>
+              <div class="match-item">
+                <div class="match-icon hit">+</div>
+                <div class="match-name">fastapi</div>
+                <div class="match-source">sessions</div>
+              </div>
+              <div class="match-item">
+                <div class="match-icon hit">+</div>
+                <div class="match-name">typescript</div>
+                <div class="match-source">sessions</div>
+              </div>
+              <div class="match-item">
+                <div class="match-icon part">~</div>
+                <div class="match-name">full-stack</div>
+                <div class="match-source">sessions</div>
+              </div>
+              <div class="match-item">
+                <div class="match-icon part">~</div>
+                <div class="match-name">system-design</div>
+                <div class="match-source">sessions</div>
+              </div>
+              <div class="match-item">
+                <div class="match-icon hit">+</div>
+                <div class="match-name">docker</div>
+                <div class="match-source">sessions</div>
+              </div>
+              <div class="match-item">
+                <div class="match-icon part">~</div>
+                <div class="match-name">react</div>
+                <div class="match-source">resume</div>
+              </div>
+              <div class="match-item">
+                <div class="match-icon hit">+</div>
+                <div class="match-name">postgresql</div>
+                <div class="match-source">sessions</div>
+              </div>
+              <div class="match-item">
+                <div class="match-icon miss">✕</div>
+                <div class="match-name">rust</div>
+                <div class="match-source">—</div>
+              </div>
+              <div class="match-item">
+                <div class="match-icon miss">✕</div>
+                <div class="match-name">go</div>
+                <div class="match-source">—</div>
+              </div>
+            </div>
+          </details>
+
+          <!-- Action Items -->
+          <details>
+            <summary>
+              Action Items
+              <span class="count-tag">3</span>
+              <span class="chevron">▼</span>
+            </summary>
+            <div class="panel-body">
+              <div class="action-item">Highlight CLI tooling work in cover letter — strong evidence in sessions</div>
+              <div class="action-item">Address Rust gap — no evidence found; consider noting willingness to learn</div>
+              <div class="action-item">Verify system design depth — partial evidence only</div>
+            </div>
+          </details>
+
+          <!-- Verdict -->
+          <div class="verdict-banner">
+            <div class="verdict-label">Recommendation</div>
+            <div class="verdict-value">Yes — Apply</div>
+          </div>
+
+          <!-- Footer -->
+          <div class="popup-footer">
+            <button class="btn">📋</button>
+            <button class="btn primary">Add to Shortlist</button>
+          </div>
+
+        </div><!-- end popup -->
+      </div><!-- end browser-frame -->
+    </div><!-- end col -->
+
+
+    <!-- ══════════════════════════════════════════════ PROPOSED -->
+    <div class="col">
+      <div class="col-label proposed">Proposed — with confidence layer</div>
+      <div class="browser-frame">
+        <div class="browser-bar">
+          <div class="browser-dot"></div>
+          <div class="browser-dot"></div>
+          <div class="browser-dot"></div>
+        </div>
+        <div class="popup">
+
+          <!-- Header -->
+          <div class="popup-header">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+              <div class="grade-badge grade-b">
+                B+
+                <!-- Signal quality indicator: 3/4 bars = good signal -->
+                <div class="signal-bars">
+                  <div class="signal-bar lit"></div>
+                  <div class="signal-bar lit"></div>
+                  <div class="signal-bar lit"></div>
+                  <div class="signal-bar"></div>
+                </div>
+              </div>
+              <!-- Counterfactual note -->
+              <div class="grade-note"><span>B</span> w/o inferred</div>
+            </div>
+            <div class="header-text">
+              <div class="company-name">Anthropic</div>
+              <div class="job-title">Senior Software Engineer, Developer Tools</div>
+              <div class="progress-bar-wrap">
+                <div class="progress-bar"><div class="progress-bar-fill" style="width:18%"></div></div>
+                <div class="progress-label">82%</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Summary -->
+          <div class="popup-section">
+            <div class="summary-text">Strong alignment on Python and CLI tooling. Deep session evidence for 8 of 12 requirements. Inferred full-stack and system-design from behavioral patterns.</div>
+            <!-- Evidence quality summary — NEW -->
+            <div class="evidence-summary">
+              <span class="evidence-label">Signals</span>
+              <span class="evidence-chip direct"><span class="evidence-dot direct-dot"></span>8 direct</span>
+              <span class="evidence-chip inferred"><span class="evidence-dot inferred-dot"></span>2 inferred</span>
+              <span class="evidence-chip fuzzy"><span class="evidence-dot fuzzy-dot"></span>1 fuzzy</span>
+              <span class="evidence-chip missing"><span class="evidence-dot missing-dot"></span>2 missing</span>
+            </div>
+          </div>
+
+          <!-- Dimensions (unchanged) -->
+          <div class="popup-section">
+            <div class="dim-row">
+              <div class="dim-label">Skills</div>
+              <div class="dim-bar-wrap"><div class="dim-bar green" style="width:82%"></div></div>
+              <div class="dim-pct">82%</div>
+            </div>
+            <div class="dim-detail" style="margin-left:108px;margin-top:2px;margin-bottom:4px;">10 of 12 requirements met</div>
+            <div class="dim-row">
+              <div class="dim-label">Experience</div>
+              <div class="dim-bar-wrap"><div class="dim-bar blue" style="width:74%"></div></div>
+              <div class="dim-pct">74%</div>
+            </div>
+            <div class="dim-row">
+              <div class="dim-label">Education</div>
+              <div class="dim-bar-wrap"><div class="dim-bar amber" style="width:65%"></div></div>
+              <div class="dim-pct">65%</div>
+            </div>
+          </div>
+
+          <!-- Stats — signal quality added as 4th cell -->
+          <div class="stats-row four">
+            <div class="stat-cell">
+              <div class="stat-value">10/12</div>
+              <div class="stat-label">Must-haves</div>
+            </div>
+            <div class="stat-cell">
+              <div class="stat-value">Python</div>
+              <div class="stat-label">Top Match</div>
+            </div>
+            <div class="stat-cell">
+              <div class="stat-value">Rust</div>
+              <div class="stat-label">Biggest Gap</div>
+            </div>
+            <!-- NEW cell -->
+            <div class="stat-cell signal-cell">
+              <div class="stat-value signal">73%</div>
+              <div class="stat-label">Direct Evid.</div>
+            </div>
+          </div>
+
+          <!-- Skill Matches — with confidence layer -->
+          <details open>
+            <summary>
+              Skill Matches
+              <span class="count-tag">10</span>
+              <span class="chevron">▼</span>
+            </summary>
+            <div class="panel-body">
+
+              <!-- python — high conf, direct -->
+              <div class="match-item">
+                <div class="match-icon hit">+</div>
+                <div class="match-name">python</div>
+                <div class="conf-bar-wrap">
+                  <div class="conf-bar"><div class="conf-bar-fill high" style="width:92%"></div></div>
+                  <div class="conf-val">0.92</div>
+                </div>
+                <div class="source-chip direct">direct</div>
+              </div>
+
+              <!-- fastapi — high conf, direct -->
+              <div class="match-item">
+                <div class="match-icon hit">+</div>
+                <div class="match-name">fastapi</div>
+                <div class="conf-bar-wrap">
+                  <div class="conf-bar"><div class="conf-bar-fill high" style="width:88%"></div></div>
+                  <div class="conf-val">0.88</div>
+                </div>
+                <div class="source-chip direct">direct</div>
+              </div>
+
+              <!-- typescript — high conf, direct -->
+              <div class="match-item">
+                <div class="match-icon hit">+</div>
+                <div class="match-name">typescript</div>
+                <div class="conf-bar-wrap">
+                  <div class="conf-bar"><div class="conf-bar-fill high" style="width:85%"></div></div>
+                  <div class="conf-val">0.85</div>
+                </div>
+                <div class="source-chip direct">direct</div>
+              </div>
+
+              <!-- full-stack — LOW conf, inferred → amber warning -->
+              <div class="match-item low-conf">
+                <div class="match-icon part">~</div>
+                <div class="match-name">full-stack</div>
+                <div class="conf-bar-wrap">
+                  <div class="conf-bar"><div class="conf-bar-fill medium" style="width:61%"></div></div>
+                  <div class="conf-val">0.61</div>
+                </div>
+                <div class="source-chip inferred">inferred</div>
+              </div>
+
+              <!-- system-design — medium conf, inferred → amber warning -->
+              <div class="match-item low-conf">
+                <div class="match-icon part">~</div>
+                <div class="match-name">system-design</div>
+                <div class="conf-bar-wrap">
+                  <div class="conf-bar"><div class="conf-bar-fill medium" style="width:70%"></div></div>
+                  <div class="conf-val">0.70</div>
+                </div>
+                <div class="source-chip inferred">inferred</div>
+              </div>
+
+              <!-- docker — high conf, direct -->
+              <div class="match-item">
+                <div class="match-icon hit">+</div>
+                <div class="match-name">docker</div>
+                <div class="conf-bar-wrap">
+                  <div class="conf-bar"><div class="conf-bar-fill high" style="width:78%"></div></div>
+                  <div class="conf-val">0.78</div>
+                </div>
+                <div class="source-chip direct">direct</div>
+              </div>
+
+              <!-- react — medium conf, fuzzy match -->
+              <div class="match-item">
+                <div class="match-icon part">~</div>
+                <div class="match-name">react</div>
+                <div class="conf-bar-wrap">
+                  <div class="conf-bar"><div class="conf-bar-fill medium" style="width:71%"></div></div>
+                  <div class="conf-val">0.71</div>
+                </div>
+                <div class="source-chip fuzzy">fuzzy</div>
+              </div>
+
+              <!-- postgresql — high conf, direct -->
+              <div class="match-item">
+                <div class="match-icon hit">+</div>
+                <div class="match-name">postgresql</div>
+                <div class="conf-bar-wrap">
+                  <div class="conf-bar"><div class="conf-bar-fill high" style="width:82%"></div></div>
+                  <div class="conf-val">0.82</div>
+                </div>
+                <div class="source-chip direct">direct</div>
+              </div>
+
+              <!-- rust — no evidence -->
+              <div class="match-item">
+                <div class="match-icon miss">✕</div>
+                <div class="match-name">rust</div>
+                <div class="conf-bar-wrap">
+                  <div class="conf-bar"><div class="conf-bar-fill" style="width:0%"></div></div>
+                  <div class="conf-val" style="color:#d1d5db">—</div>
+                </div>
+                <div class="source-chip" style="color:#d1d5db;font-family:'JetBrains Mono',monospace;font-size:9px;">—</div>
+              </div>
+
+              <!-- go — no evidence -->
+              <div class="match-item">
+                <div class="match-icon miss">✕</div>
+                <div class="match-name">go</div>
+                <div class="conf-bar-wrap">
+                  <div class="conf-bar"><div class="conf-bar-fill" style="width:0%"></div></div>
+                  <div class="conf-val" style="color:#d1d5db">—</div>
+                </div>
+                <div class="source-chip" style="color:#d1d5db;font-family:'JetBrains Mono',monospace;font-size:9px;">—</div>
+              </div>
+
+            </div>
+          </details>
+
+          <!-- Action Items -->
+          <details>
+            <summary>
+              Action Items
+              <span class="count-tag">3</span>
+              <span class="chevron">▼</span>
+            </summary>
+            <div class="panel-body">
+              <div class="action-item">Highlight CLI tooling work in cover letter — strong evidence in sessions</div>
+              <div class="action-item">Address Rust gap — no evidence found; consider noting willingness to learn</div>
+              <div class="action-item">Verify system design depth — inferred from patterns, not directly evidenced</div>
+            </div>
+          </details>
+
+          <!-- Verdict -->
+          <div class="verdict-banner">
+            <div class="verdict-label">Recommendation</div>
+            <div class="verdict-value">Yes — Apply</div>
+          </div>
+
+          <!-- Footer -->
+          <div class="popup-footer">
+            <button class="btn">📋</button>
+            <button class="btn primary">Add to Shortlist</button>
+          </div>
+
+        </div><!-- end popup -->
+      </div><!-- end browser-frame -->
+
+      <!-- Legend below proposed popup -->
+      <div class="legend">
+        <div class="legend-title">What's new</div>
+        <div class="legend-items">
+          <div class="legend-item">
+            <div class="legend-visual">
+              <div class="signal-bars" style="position:static;box-shadow:none;background:#1e293b;padding:3px 4px;">
+                <div class="signal-bar lit"></div>
+                <div class="signal-bar lit"></div>
+                <div class="signal-bar lit"></div>
+                <div class="signal-bar"></div>
+              </div>
+            </div>
+            <div class="legend-desc"><strong>Signal quality badge</strong> on grade — 4 bars = all direct, 1 bar = mostly inferred. Counterfactual grade shown below.</div>
+          </div>
+          <div class="legend-item">
+            <div class="legend-visual" style="justify-content:flex-end;gap:3px;flex-wrap:wrap;">
+              <span class="evidence-chip direct" style="margin:0"><span class="evidence-dot direct-dot"></span>direct</span>
+              <span class="evidence-chip inferred" style="margin:0"><span class="evidence-dot inferred-dot"></span>inferred</span>
+            </div>
+            <div class="legend-desc"><strong>Evidence breakdown</strong> in summary — shows split of direct session evidence vs. inferred vs. fuzzy vs. missing at a glance.</div>
+          </div>
+          <div class="legend-item">
+            <div class="legend-visual" style="justify-content:flex-end;">
+              <div style="display:flex;align-items:center;gap:4px;">
+                <div class="conf-bar" style="width:44px"><div class="conf-bar-fill medium" style="width:61%"></div></div>
+                <div class="conf-val">0.61</div>
+              </div>
+            </div>
+            <div class="legend-desc"><strong>Per-skill confidence bar</strong> — thin bar + numeric value next to each skill. Low-confidence skills (< 0.70) get amber left-border treatment.</div>
+          </div>
+          <div class="legend-item">
+            <div class="legend-visual" style="justify-content:flex-end;gap:3px;">
+              <span class="source-chip direct">direct</span>
+              <span class="source-chip inferred">inferred</span>
+              <span class="source-chip fuzzy">fuzzy</span>
+            </div>
+            <div class="legend-desc"><strong>Source provenance chip</strong> — shows exactly how each skill was matched: session evidence, pattern inference, or fuzzy alias resolution.</div>
+          </div>
+          <div class="legend-item">
+            <div class="legend-visual" style="justify-content:flex-end;">
+              <div class="stat-cell signal-cell" style="padding:5px 8px;border-radius:4px;">
+                <div class="stat-value signal" style="font-size:11px;">73%</div>
+                <div class="stat-label">Direct Evid.</div>
+              </div>
+            </div>
+            <div class="legend-desc"><strong>Direct evidence % stat</strong> — fourth cell in the stats row. Quick signal quality read: how much of this grade is backed by real session evidence vs. inference.</div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- end col proposed -->
+
+  </div><!-- end comparison -->
+
+</body>
+</html>
