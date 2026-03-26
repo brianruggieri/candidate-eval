@@ -459,10 +459,8 @@ async function initialize() {
 		return;
 	}
 
-	// Cache miss or URL mismatch — clear stale data so it can't leak
-	if (!cacheMatchesTab) {
-		chrome.storage.local.remove(['currentPosting', 'lastAssessment', 'fullAssessmentReady']);
-	}
+	// URL mismatch — don't clear (preserves in-progress analysis for other tabs),
+	// just fall through to fresh extraction for this page.
 
 	// No cache — need the server
 	const health = await sendToBackground({ action: 'checkBackend' });
