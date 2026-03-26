@@ -1993,6 +1993,80 @@ def site_render(company: str | None, output_dir: str, db: str | None) -> None:
 		)
 
 
+# === Repos commands ===
+
+
+@main.group()
+def repos() -> None:
+	"""Manage repo scanning for skill evidence."""
+	pass
+
+
+@repos.command("list")
+@click.option("--config", type=click.Path(exists=True), default=None,
+	help="Path to repos.json config file")
+def repos_list(config: str | None) -> None:
+	"""Show configured repos and last scan date."""
+	import json
+
+	config_path = Path(config) if config else Path.home() / ".claude-candidate" / "repos.json"
+	if not config_path.exists():
+		click.echo(f"No repos config found at {config_path}")
+		click.echo("Create one with 'github_repos' and 'local_repos' arrays.")
+		return
+
+	data = json.loads(config_path.read_text())
+	click.echo("Configured repos:")
+	for repo in data.get("github_repos", []):
+		click.echo(f"  GitHub: {repo}")
+	for repo in data.get("local_repos", []):
+		click.echo(f"  Local:  {repo}")
+
+	# Show last scan date if profile exists
+	data_dir = Path.home() / ".claude-candidate"
+	profile_path = data_dir / "repo_profile.json"
+	if profile_path.exists():
+		profile_data = json.loads(profile_path.read_text())
+		click.echo(f"\nLast scan: {profile_data.get('scan_date', 'unknown')}")
+	else:
+		click.echo("\nNo scan results yet. Run 'repos scan' first.")
+
+
+@repos.command("scan")
+@click.option("--config", type=click.Path(exists=True), default=None,
+	help="Path to repos.json config file")
+@click.option("--data-dir", type=click.Path(), default=None,
+	help="Output directory for repo_profile.json")
+def repos_scan(config: str | None, data_dir: str | None) -> None:
+	"""Scan configured repos and build a repo profile."""
+	import json
+	from claude_candidate.repo_scanner import build_repo_profile
+
+	config_path = Path(config) if config else Path.home() / ".claude-candidate" / "repos.json"
+	if not config_path.exists():
+		click.echo(f"Error: No config at {config_path}", err=True)
+		raise SystemExit(1)
+
+	data = json.loads(config_path.read_text())
+	local_repos = [Path(p).expanduser() for p in data.get("local_repos", [])]
+	github_repos = data.get("github_repos", [])
+
+	output_dir = Path(data_dir) if data_dir else Path.home() / ".claude-candidate"
+	output_dir.mkdir(parents=True, exist_ok=True)
+	output_path = output_dir / "repo_profile.json"
+
+	click.echo(f"Scanning {len(local_repos)} local + {len(github_repos)} GitHub repos...")
+	profile = build_repo_profile(
+		local_repos=local_repos,
+		github_repos=github_repos,
+		output_path=output_path,
+	)
+	click.echo(f"Scanned {len(profile.repos)} repos")
+	click.echo(f"Found {len(profile.skill_evidence)} skills")
+	click.echo(f"Timeline: {profile.repo_timeline_days} days")
+	click.echo(f"Profile written to {output_path}")
+
+
 # Register corpus subcommand group (deferred import avoids E402 lint warning)
 def _register_corpus_commands() -> None:
 	from claude_candidate.corpus_cli import corpus as _corpus_group
