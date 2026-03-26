@@ -1388,6 +1388,60 @@ def _detect_required_scale(text: str) -> str | None:
 	return None
 
 
+_AI_KEYWORDS_RE = re.compile(
+	r"\b(ai|ml|machine\s+learning|intelligence|llm|deep\s+learning|neural|model|generative|agentic)\b",
+	re.IGNORECASE,
+)
+
+_AI_SKILL_NAMES: frozenset[str] = frozenset({
+	"llm",
+	"machine-learning",
+	"agentic-workflows",
+	"prompt-engineering",
+	"rag",
+	"embeddings",
+	"generative-ai",
+})
+
+
+def _requirement_mentions_ai(text: str) -> bool:
+	"""Return True if the requirement text contains AI/ML keywords (word-boundary matched)."""
+	return bool(_AI_KEYWORDS_RE.search(text))
+
+
+def _candidate_ai_scale(profile: MergedEvidenceProfile) -> str | None:
+	"""Return the candidate's highest scale among AI-category skills.
+
+	Looks for skills in _AI_SKILL_NAMES or domain-category skills whose canonical
+	name overlaps with AI skill names. Returns the highest scale found, or 'personal'
+	if no AI skills have explicit scale info.
+	"""
+	taxonomy = _get_taxonomy()
+	_SCALE_RANK = {"personal": 0, "team": 1, "startup": 2, "enterprise": 3, "consumer": 4}
+
+	best_rank: int | None = None
+
+	for skill in profile.skills:
+		canonical = taxonomy.canonicalize(skill.name) or skill.name.lower()
+		is_ai_skill = canonical in _AI_SKILL_NAMES or skill.name.lower() in _AI_SKILL_NAMES
+		if not is_ai_skill:
+			# Also match domain-category skills whose canonical name overlaps AI terms
+			cat = skill.category or taxonomy.get_category(canonical)
+			if cat == "domain" and any(kw in canonical for kw in _AI_SKILL_NAMES):
+				is_ai_skill = True
+		if is_ai_skill and skill.scale:
+			rank = _SCALE_RANK.get(skill.scale, 0)
+			if best_rank is None or rank > best_rank:
+				best_rank = rank
+
+	if best_rank is None:
+		return "personal"
+	for scale_name, rank in _SCALE_RANK.items():
+		if rank == best_rank:
+			return scale_name
+	return "personal"
+
+
 def _score_requirement(
 	best_match: MergedSkillEvidence | None,
 	best_status: str,
