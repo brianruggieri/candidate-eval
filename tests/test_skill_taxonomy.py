@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from claude_candidate.skill_taxonomy import SkillTaxonomy
@@ -604,3 +606,18 @@ def test_ai_research_resolves_to_llm(taxonomy: SkillTaxonomy) -> None:
 def test_ai_research_phrase_resolves_to_llm(taxonomy: SkillTaxonomy) -> None:
 	"""'ai research' phrase alias should resolve to llm."""
 	assert taxonomy.match("ai research") == "llm"
+
+
+# ---------------------------------------------------------------------------
+# Task 10: New aliases for orphaned resume skills
+# ---------------------------------------------------------------------------
+
+
+class TestNewAliases:
+	def test_ai_provider_abstraction_resolves(self) -> None:
+		tax = SkillTaxonomy.load(Path("src/claude_candidate/data/taxonomy.json"))
+		assert tax.canonicalize("ai provider abstraction") == "agentic-workflows"
+
+	def test_ai_augmented_dev_tooling_resolves(self) -> None:
+		tax = SkillTaxonomy.load(Path("src/claude_candidate/data/taxonomy.json"))
+		assert tax.canonicalize("ai-augmented development tooling") == "developer-tools"

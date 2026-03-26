@@ -273,14 +273,14 @@
     "content_patterns": ["three.js", "Three.", "import * as THREE"]
   },
   "agentic-workflows": {
-    "aliases": ["agentic-ai", "agentic ai", "ai-agents", "ai agents", "ai_agents", "agent-framework", "agent framework", "agent frameworks", "agentic", "agentic workflows", "agentic_workflows", "multi-agent", "multi agent", "agent orchestration", "agent-orchestration", "ai-orchestration", "ai-augmented-development", "ai-augmented development", "human-in-the-loop", "human in the loop", "agent-runtime", "agent runtime", "llm-orchestration", "llm orchestration", "ai-planning", "ai planning", "autonomous-agents", "autonomous agents", "task-scheduling", "workflow-automation", "llm-applications", "llm applications", "mcp", "model-context-protocol", "multi-agent-orchestration", "ai-assisted-development", "ai_assisted_development", "agentic-systems", "agentic_systems", "agent-architecture", "multi-agent-systems", "code-execution", "context-management", "conversation-memory", "function-calling", "function_calling", "mcp_servers"],
+    "aliases": ["agentic-ai", "agentic ai", "ai-agents", "ai agents", "ai_agents", "agent-framework", "agent framework", "agent frameworks", "agentic", "agentic workflows", "agentic_workflows", "multi-agent", "multi agent", "agent orchestration", "agent-orchestration", "ai-orchestration", "ai-augmented-development", "ai-augmented development", "human-in-the-loop", "human in the loop", "agent-runtime", "agent runtime", "llm-orchestration", "llm orchestration", "ai-planning", "ai planning", "autonomous-agents", "autonomous agents", "task-scheduling", "workflow-automation", "llm-applications", "llm applications", "mcp", "model-context-protocol", "multi-agent-orchestration", "ai-assisted-development", "ai_assisted_development", "agentic-systems", "agentic_systems", "agent-architecture", "multi-agent-systems", "code-execution", "context-management", "conversation-memory", "function-calling", "function_calling", "mcp_servers", "ai provider abstraction"],
     "category": "domain",
     "related": ["llm", "langchain", "prompt-engineering", "rag"],
     "parent": "llm",
     "content_patterns": ["agent", "agentic", "orchestrat", "multi-agent"]
   },
   "developer-tools": {
-    "aliases": ["dev-tools", "devtools", "developer tools", "developer-tools", "dev tools", "tooling", "developer-productivity", "developer productivity", "engineering-metrics", "developer_tooling", "ai-tooling", "ai-tools", "ai_tools", "cli", "vscode-extensions", "github-copilot", "cursor", "ai-driven-development", "sdk-development", "ai-adoption"],
+    "aliases": ["dev-tools", "devtools", "developer tools", "developer-tools", "dev tools", "tooling", "developer-productivity", "developer productivity", "engineering-metrics", "developer_tooling", "ai-tooling", "ai-tools", "ai_tools", "cli", "vscode-extensions", "github-copilot", "cursor", "ai-driven-development", "sdk-development", "ai-adoption", "ai-augmented development tooling"],
     "category": "domain",
     "related": ["software-engineering", "ci-cd", "testing"],
     "parent": null,
