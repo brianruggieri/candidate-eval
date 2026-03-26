@@ -250,6 +250,7 @@ _GENERIC_SKILLS = frozenset({
 })
 
 _SKILL_VARIANTS: dict[str, list[str]] = {
+	# Languages / frameworks
 	"typescript": ["ts", "type script"],
 	"javascript": ["js", "java script"],
 	"python": ["py"],
@@ -260,6 +261,17 @@ _SKILL_VARIANTS: dict[str, list[str]] = {
 	"cpp": ["c++"],
 	"csharp": ["c#"],
 	"golang": ["go lang"],
+	# Soft skills — morphological variants so "adaptability" matches "adaptable"
+	"adaptability": ["adaptable", "adapt quickly", "quick learner"],
+	"collaboration": ["collaborate", "collaborative", "cross-functional"],
+	"communication": ["communicate", "communicator"],
+	"leadership": ["lead", "leading", "led teams", "team lead"],
+	"ownership": ["own", "end-to-end ownership", "take ownership"],
+	"problem-solving": ["problem solver", "solve problems", "analytical"],
+	"agile": ["scrum", "sprint", "kanban", "iterative"],
+	# Practices
+	"project-management": ["project management", "manage projects", "technical project"],
+	"testing": ["test", "quality assurance", "qa", "evaluation data"],
 }
 
 

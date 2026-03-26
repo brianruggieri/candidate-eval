@@ -455,11 +455,11 @@
     "content_patterns": ["user story", "feature flag", "A/B test", "roadmap"]
   },
   "edtech": {
-    "aliases": ["education technology", "ed-tech", "education-technology", "learning technology", "learning-technology"],
+    "aliases": ["education technology", "ed-tech", "education-technology", "learning technology", "learning-technology", "instructional design", "learning science", "curriculum development", "educational platform", "educational software"],
     "category": "domain",
     "related": ["product-development", "full-stack"],
     "parent": null,
-    "content_patterns": ["curriculum", "assessment", "learning management", "student"]
+    "content_patterns": ["curriculum", "assessment", "learning management", "student", "education", "teaching", "instructional"]
   },
   "ownership": {
     "aliases": ["end-to-end ownership", "project ownership", "technical ownership", "owning outcomes", "feature-ownership", "project_ownership", "accountability", "shipping", "self-management"],
