@@ -424,6 +424,7 @@ DOMAIN_KEYWORDS: frozenset[str] = frozenset({
 	"sports", "baseball", "football", "basketball", "soccer", "athletics",
 	# Healthcare / biotech
 	"healthcare", "medical", "clinical", "patient", "biotech", "pharma",
+	"bioinformatics", "genomics",
 	# Finance
 	"fintech", "banking", "financial", "trading", "insurance",
 	# Legal
@@ -432,14 +433,20 @@ DOMAIN_KEYWORDS: frozenset[str] = frozenset({
 	"automotive", "vehicle",
 	# Education
 	"edtech", "educational", "curriculum",
-	# Gaming
-	"gaming", "esports",
+	# Gaming / game engines
+	"gaming", "esports", "gameplay", "unreal",
 	# Real estate
 	"real estate", "construction",
 	# Energy
 	"energy", "utilities",
 	# Retail / logistics
 	"retail", "ecommerce", "logistics",
+	# Hardware / embedded
+	"firmware", "embedded",
+	# Native mobile platforms
+	"ios", "android",
+	# Data infrastructure
+	"etl", "warehouse",
 })
 
 
