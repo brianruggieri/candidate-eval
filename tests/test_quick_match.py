@@ -1917,7 +1917,7 @@ def test_assess_accepts_elapsed_kwarg(minimal_engine):
 			priority="must_have",
 		)
 	]
-	with patch("claude_candidate.quick_match.time") as mock_time:
+	with patch("claude_candidate.scoring.engine.time") as mock_time:
 		# Internal time.time() should never be called when elapsed is provided
 		mock_time.time.side_effect = AssertionError("internal timer was called")
 		assessment = minimal_engine.assess(
