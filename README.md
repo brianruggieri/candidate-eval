@@ -45,7 +45,7 @@ Full architecture, trust model, and roadmap: [ARCHITECTURE.md](ARCHITECTURE.md)
 
 | Metric | Value |
 |--------|-------|
-| Tests | 1,343 (fast: ~7s, full: ~5min) |
+| Tests | 1,300+ (fast: ~7s, full: ~5min) |
 | Benchmark accuracy | 47/47 postings within 1 grade |
 | Canonical skills in taxonomy | 104 |
 | Sessions scanned (author) | 2,300+ |
