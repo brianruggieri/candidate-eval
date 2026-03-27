@@ -318,6 +318,8 @@ SOURCE_LABEL: dict[EvidenceSource, str] = {
 	EvidenceSource.SESSIONS_ONLY: "Demonstrated in sessions (not on resume)",
 	EvidenceSource.RESUME_ONLY: "Listed on resume (no session evidence)",
 	EvidenceSource.CONFLICTING: "Resume depth anchored; sessions provided additional signal",
+	EvidenceSource.RESUME_AND_REPO: "Corroborated by both resume and repo",
+	EvidenceSource.REPO_ONLY: "Demonstrated in repo (not on resume or in sessions)",
 }
 
 # Industry/domain keywords — non-technical terms that appear repeatedly in domain-specific JDs.

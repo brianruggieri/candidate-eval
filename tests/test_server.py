@@ -56,20 +56,8 @@ async def client_with_profile(app_with_profile):
 @pytest.fixture
 def app_with_curated_resume(tmp_path: Path):
 	"""App with only curated_resume (v0.7 primary path, no candidate_profile.json)."""
-	curated = {
-		"skills": [
-			{"name": "python", "depth": "expert", "years": 10, "context": "Backend"}
-		],
-		"roles": [
-			{
-				"company": "Test Corp",
-				"title": "Engineer",
-				"start_date": "2020-01",
-				"end_date": "2024-01",
-			}
-		],
-		"eligibility": {},
-	}
+	fixtures_dir = Path(__file__).parent / "fixtures"
+	curated = json.loads((fixtures_dir / "curated_resume_sample.json").read_text())
 	(tmp_path / "curated_resume.json").write_text(json.dumps(curated))
 	return create_app(data_dir=tmp_path)
 
@@ -437,9 +425,7 @@ class TestServerEligibility:
 		body = resp.json()
 		gates = body.get("eligibility_gates", [])
 		unmet = [g for g in gates if g.get("status") == "unmet"]
-		assert len(unmet) > 0, (
-			f"Expected unmet eligibility gates but got: {gates}"
-		)
+		assert len(unmet) > 0, f"Expected unmet eligibility gates but got: {gates}"
 
 
 # ---------------------------------------------------------------------------
@@ -733,8 +719,9 @@ class TestAssessFullEndpoint:
 		assert partial.json()["overall_grade"] == "F"
 		# Verify the unmet gate is the reason for the F, not just coincidence
 		partial_gates = partial.json().get("eligibility_gates", [])
-		assert any(g.get("status") == "unmet" for g in partial_gates), \
+		assert any(g.get("status") == "unmet" for g in partial_gates), (
 			"Expected at least one unmet eligibility gate in partial assessment"
+		)
 
 		with patch(
 			"claude_candidate.company_research.research_company",
@@ -1506,27 +1493,21 @@ class TestEducationAutoTagging:
 	def test_no_false_positive_ba_role(self):
 		from claude_candidate.server import _auto_tag_education
 
-		reqs = [
-			{"description": "Business Analyst (BA) experience", "skill_mapping": ["analyst"]}
-		]
+		reqs = [{"description": "Business Analyst (BA) experience", "skill_mapping": ["analyst"]}]
 		_auto_tag_education(reqs)
 		assert reqs[0].get("education_level") is None
 
 	def test_ms_with_degree_context(self):
 		from claude_candidate.server import _auto_tag_education
 
-		reqs = [
-			{"description": "M.S. in Computer Science or equivalent", "skill_mapping": ["cs"]}
-		]
+		reqs = [{"description": "M.S. in Computer Science or equivalent", "skill_mapping": ["cs"]}]
 		_auto_tag_education(reqs)
 		assert reqs[0]["education_level"] == "master"
 
 	def test_bs_with_degree_context(self):
 		from claude_candidate.server import _auto_tag_education
 
-		reqs = [
-			{"description": "B.S. in Engineering or related field", "skill_mapping": ["eng"]}
-		]
+		reqs = [{"description": "B.S. in Engineering or related field", "skill_mapping": ["eng"]}]
 		_auto_tag_education(reqs)
 		assert reqs[0]["education_level"] == "bachelor"
 

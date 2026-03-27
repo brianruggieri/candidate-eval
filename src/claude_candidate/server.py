@@ -448,16 +448,17 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 			)
 
 		# Load curated eligibility for gate evaluation
-		from claude_candidate.schemas.curated_resume import CandidateEligibility, CuratedResume
+		from claude_candidate.schemas.curated_resume import CandidateEligibility
 		from pydantic import ValidationError
 
 		curated_eligibility: CandidateEligibility | None = None
 		curated_data = get_profiles().get("curated_resume")
-		if curated_data:
+		if isinstance(curated_data, dict):
 			try:
-				curated = CuratedResume.model_validate(curated_data)
-				curated_eligibility = curated.eligibility
-			except (ValidationError, KeyError):
+				curated_eligibility = CandidateEligibility.model_validate(
+					curated_data.get("eligibility", {})
+				)
+			except ValidationError:
 				logger.debug("Could not parse curated eligibility — using defaults")
 
 		# Run assessment
