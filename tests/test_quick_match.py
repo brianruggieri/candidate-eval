@@ -2275,3 +2275,105 @@ class TestConfidenceWiring:
 		from claude_candidate.scoring.constants import CONFIDENCE_FLOOR
 		assert CONFIDENCE_FLOOR < 0.90, "Confidence floor should be wider than old ±10%"
 		assert CONFIDENCE_FLOOR >= 0.50, "Confidence floor shouldn't be so low it dominates"
+
+
+class TestVirtualSkillConcentration:
+	"""Eng review 5B: tighten virtual skill inference rules."""
+
+	def test_software_engineering_needs_5_constituents(self):
+		"""software-engineering should require 5 constituents (raised from 3)."""
+		from claude_candidate.scoring.constants import VIRTUAL_SKILL_RULES
+
+		for rule in VIRTUAL_SKILL_RULES:
+			name = rule[0]
+			min_count = rule[2]
+			if name == "software-engineering":
+				assert min_count >= 5, f"software-engineering min_count should be ≥5, got {min_count}"
+				break
+		else:
+			pytest.fail("software-engineering not found in VIRTUAL_SKILL_RULES")
+
+	def test_full_stack_needs_3_constituents(self):
+		"""full-stack should require 3 constituents (raised from 2)."""
+		from claude_candidate.scoring.constants import VIRTUAL_SKILL_RULES
+
+		for rule in VIRTUAL_SKILL_RULES:
+			name = rule[0]
+			min_count = rule[2]
+			if name == "full-stack":
+				assert min_count >= 3, f"full-stack min_count should be ≥3, got {min_count}"
+				break
+		else:
+			pytest.fail("full-stack not found in VIRTUAL_SKILL_RULES")
+
+	def test_frontend_needs_2_constituents(self):
+		"""frontend-development should require 2 constituents (raised from 1)."""
+		from claude_candidate.scoring.constants import VIRTUAL_SKILL_RULES
+
+		for rule in VIRTUAL_SKILL_RULES:
+			name = rule[0]
+			min_count = rule[2]
+			if name == "frontend-development":
+				assert min_count >= 2, f"frontend-development min_count should be ≥2, got {min_count}"
+				break
+		else:
+			pytest.fail("frontend-development not found in VIRTUAL_SKILL_RULES")
+
+	def test_broad_virtual_skills_require_applied_depth(self):
+		"""Broad virtual skills should require constituent skills at APPLIED depth or higher."""
+		from claude_candidate.scoring.constants import VIRTUAL_SKILL_RULES
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+
+		broad_skills = {"software-engineering", "full-stack", "system-design", "product-development"}
+		for rule in VIRTUAL_SKILL_RULES:
+			name = rule[0]
+			if name in broad_skills:
+				assert len(rule) >= 5, f"{name} should have a 5th element (min_constituent_depth)"
+				min_depth = rule[4]
+				assert min_depth is not None, f"{name} should have a constituent depth requirement"
+				depth_order = [DepthLevel.USED, DepthLevel.APPLIED, DepthLevel.DEEP, DepthLevel.EXPERT]
+				assert depth_order.index(min_depth) >= depth_order.index(DepthLevel.APPLIED), \
+					f"{name} constituent depth should be ≥APPLIED, got {min_depth}"
+
+	def test_virtual_skill_not_inferred_with_shallow_constituents(self):
+		"""Virtual skill should NOT be inferred if constituents are USED depth."""
+		from claude_candidate.scoring.matching import _infer_virtual_skill
+		from claude_candidate.schemas.merged_profile import MergedEvidenceProfile, MergedSkillEvidence, EvidenceSource
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+
+		# Profile with 5 skills at USED depth (too shallow)
+		skills = [
+			MergedSkillEvidence(name=n, source=EvidenceSource.RESUME_ONLY,
+				effective_depth=DepthLevel.USED, confidence=0.8)
+			for n in ["python", "typescript", "javascript", "react", "node.js"]
+		]
+		profile = MergedEvidenceProfile(
+			skills=skills, projects=[], patterns=[], roles=[],
+			corroborated_skill_count=0, resume_only_skill_count=5,
+			sessions_only_skill_count=0, discovery_skills=[],
+			profile_hash="test", resume_hash="test",
+			candidate_profile_hash="test", merged_at=datetime.now(),
+		)
+		result = _infer_virtual_skill("software-engineering", profile)
+		assert result is None, "Should not infer software-engineering from USED-depth skills"
+
+	def test_virtual_skill_inferred_with_deep_constituents(self):
+		"""Virtual skill should be inferred if constituents meet depth threshold."""
+		from claude_candidate.scoring.matching import _infer_virtual_skill
+		from claude_candidate.schemas.merged_profile import MergedEvidenceProfile, MergedSkillEvidence, EvidenceSource
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+
+		skills = [
+			MergedSkillEvidence(name=n, source=EvidenceSource.RESUME_AND_REPO,
+				effective_depth=DepthLevel.DEEP, confidence=0.9)
+			for n in ["python", "typescript", "javascript", "react", "node.js", "ci-cd"]
+		]
+		profile = MergedEvidenceProfile(
+			skills=skills, projects=[], patterns=[], roles=[],
+			corroborated_skill_count=0, resume_only_skill_count=0,
+			sessions_only_skill_count=0, discovery_skills=[],
+			profile_hash="test", resume_hash="test",
+			candidate_profile_hash="test", merged_at=datetime.now(),
+		)
+		result = _infer_virtual_skill("software-engineering", profile)
+		assert result is not None, "Should infer software-engineering from 6 DEEP skills"
