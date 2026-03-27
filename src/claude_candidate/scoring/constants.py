@@ -76,6 +76,61 @@ MISSION_NO_ENRICHMENT_BASE = 0.3
 MISSION_NO_ENRICHMENT_RANGE = 0.4
 MISSION_SCORE_MAX = 1.0
 
+# Domain keyword taxonomy for mission alignment scoring.
+# Maps product domains to related keywords that indicate domain relevance.
+# Used to strengthen mission alignment when the candidate has domain-adjacent experience.
+MISSION_DOMAIN_TAXONOMY: dict[str, list[str]] = {
+	"developer-tools": [
+		"developer", "devtools", "ide", "sdk", "api", "cli", "infrastructure",
+		"platform", "tooling", "devops", "ci/cd", "deployment", "monitoring",
+	],
+	"ai": [
+		"artificial intelligence", "machine learning", "ml", "llm", "nlp",
+		"deep learning", "neural", "model", "inference", "training", "prompt",
+		"agent", "agentic", "generative", "transformer", "embedding",
+	],
+	"fintech": [
+		"financial", "fintech", "banking", "payments", "trading", "crypto",
+		"blockchain", "defi", "insurance", "lending", "compliance",
+	],
+	"healthcare": [
+		"health", "medical", "clinical", "patient", "biotech", "pharma",
+		"genomic", "bioinformatics", "ehr", "telehealth", "diagnostic",
+	],
+	"education": [
+		"education", "edtech", "learning", "teaching", "student", "course",
+		"curriculum", "tutoring", "assessment", "classroom",
+	],
+	"e-commerce": [
+		"commerce", "retail", "shopping", "marketplace", "merchant",
+		"catalog", "inventory", "checkout", "fulfillment",
+	],
+	"gaming": [
+		"game", "gaming", "unity", "unreal", "3d", "interactive",
+		"multiplayer", "virtual", "simulation", "real-time",
+	],
+	"creative-tools": [
+		"creative", "design", "media", "video", "audio", "music",
+		"animation", "rendering", "content creation", "editor",
+	],
+	"security": [
+		"security", "cybersecurity", "encryption", "authentication",
+		"vulnerability", "threat", "compliance", "privacy", "zero trust",
+	],
+	"data": [
+		"data", "analytics", "visualization", "dashboard", "metrics",
+		"warehouse", "pipeline", "etl", "business intelligence",
+	],
+	"infrastructure": [
+		"cloud", "infrastructure", "kubernetes", "containers", "serverless",
+		"networking", "storage", "compute", "orchestration",
+	],
+	"collaboration": [
+		"collaboration", "productivity", "communication", "team",
+		"workflow", "project management", "remote work",
+	],
+}
+
 # Culture fit score parameters
 CULTURE_NEUTRAL_SCORE = 0.5
 CULTURE_BASE_SCORE = 0.3

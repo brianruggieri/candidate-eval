@@ -45,8 +45,8 @@ class TestQuickMatchAssessment:
 		assert assessment.assessment_phase == "partial"
 		assert assessment.partial_percentage is not None
 		assert 0.0 <= assessment.partial_percentage <= 100.0
-		# Mission and culture are None in partial assessment
-		assert assessment.mission_alignment is None
+		# Mission is now proxy-based in partial assessment; culture remains None
+		assert assessment.mission_alignment is not None
 		assert assessment.culture_fit is None
 
 		# Skill details match requirements count
@@ -643,7 +643,7 @@ class TestPartialAssessmentWeights:
 		]
 
 	def test_partial_assessment_uses_fixed_weights(self, candidate_profile, resume_profile):
-		"""Partial assessment always uses 65/25/10 weights."""
+		"""Partial assessment uses 60/20/10/10 weights when mission is present."""
 		merged = merge_profiles(candidate_profile, resume_profile)
 		engine = QuickMatchEngine(merged)
 
@@ -653,9 +653,17 @@ class TestPartialAssessmentWeights:
 			title="Engineer",
 		)
 
-		assert assessment.skill_match.weight == 0.65
-		assert assessment.experience_match.weight == 0.25
-		assert assessment.education_match.weight == 0.10
+		if assessment.mission_alignment:
+			# Mission proxy succeeded: 60/20/10 + mission 10
+			assert assessment.skill_match.weight == 0.60
+			assert assessment.experience_match.weight == 0.20
+			assert assessment.education_match.weight == 0.10
+			assert assessment.mission_alignment.weight == 0.10
+		else:
+			# No mission data: fallback to 65/25/10
+			assert assessment.skill_match.weight == 0.65
+			assert assessment.experience_match.weight == 0.25
+			assert assessment.education_match.weight == 0.10
 
 	def test_insufficient_data_scores_high(self, candidate_profile, resume_profile):
 		"""No requirement stated = effectively met (score ~0.9)."""
@@ -688,11 +696,12 @@ class TestPartialAssessmentWeights:
 			assessment.skill_match.weight
 			+ assessment.experience_match.weight
 			+ assessment.education_match.weight
+			+ (assessment.mission_alignment.weight if assessment.mission_alignment else 0.0)
 		)
 		assert abs(total - 1.0) < 1e-9
 
-	def test_partial_assessment_no_mission_or_culture(self, candidate_profile, resume_profile):
-		"""Partial assessment leaves mission and culture as None."""
+	def test_partial_assessment_no_culture(self, candidate_profile, resume_profile):
+		"""Partial assessment includes proxy mission but leaves culture as None."""
 		merged = merge_profiles(candidate_profile, resume_profile)
 		engine = QuickMatchEngine(merged)
 
@@ -703,8 +712,8 @@ class TestPartialAssessmentWeights:
 			culture_signals=["documentation driven"],
 		)
 
-		# Even with culture signals passed, partial skips them
-		assert assessment.mission_alignment is None
+		# Mission is now proxy-based in partial; culture still skipped
+		assert assessment.mission_alignment is not None
 		assert assessment.culture_fit is None
 
 	def test_partial_percentage_matches_weighted_score(self, candidate_profile, resume_profile):
