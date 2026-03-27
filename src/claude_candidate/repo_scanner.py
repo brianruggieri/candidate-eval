@@ -76,6 +76,18 @@ LLM_IMPORT_PATTERNS: list[str] = [
 	"mistralai",
 ]
 
+_LLM_IMPORT_TO_SKILL: dict[str, str] = {
+	"anthropic": "llm",
+	"openai": "llm",
+	"langchain": "llm",
+	"llama_index": "llm",
+	"transformers": "llm",
+	"cohere": "llm",
+	"together": "llm",
+	"groq": "llm",
+	"mistralai": "llm",
+}
+
 # Data file path, resolved relative to this module's location
 _DATA_DIR = Path(__file__).parent / "data"
 
@@ -121,6 +133,7 @@ def scan_local_repo(path: Path) -> RepoEvidence:
 	has_ci, ci_complexity = _detect_ci(path)
 	ai_signals = _detect_ai_signals(path)
 	ai_maturity = _compute_ai_maturity(ai_signals)
+	skill_crafting = _detect_skill_crafting_signals(path)
 	created_at, last_pushed, commit_span_days = _git_commit_span(path)
 	releases = _count_releases(path)
 	file_count, directory_depth, source_modules = _count_architecture_signals(path)
@@ -167,6 +180,8 @@ def scan_local_repo(path: Path) -> RepoEvidence:
 		has_superpowers_brainstorms=ai_signals["has_superpowers_brainstorms"],
 		has_worktree_discipline=ai_signals["has_worktree_discipline"],
 		ai_maturity_level=ai_maturity,
+		# Skill-crafting loop signals
+		skill_crafting_signals=skill_crafting,
 		# Scale
 		file_count=file_count,
 		directory_depth=directory_depth,
@@ -737,6 +752,86 @@ def _compute_ai_maturity(signals: dict[str, Any]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Helper: skill-crafting loop detection
+# ---------------------------------------------------------------------------
+
+
+def _detect_skill_crafting_signals(path: Path) -> dict[str, int]:
+	"""Detect skill-crafting loop evidence per the v0.8 spec.
+
+	Returns counts for 7 signals that indicate meta-development patterns:
+	iterating on AI skills, building eval harnesses, prompt iteration.
+
+	Uses a single directory walk to avoid multiple rglob passes.
+	"""
+	# Collect paths in a single traversal
+	skill_mds: list[Path] = []
+	dirs_seen: set[Path] = set()
+	prompt_iterations = 0
+	grading_rubrics = 0
+	skill_test_corpus = 0
+	ab_test_evidence = 0
+
+	for entry in path.rglob("*"):
+		if any(part in SKIP_DIRS for part in entry.parts):
+			continue
+
+		if entry.is_dir():
+			dirs_seen.add(entry)
+			continue
+
+		# Files only from here on
+		if entry.name == "SKILL.md":
+			skill_mds.append(entry)
+
+		parent = entry.parent
+
+		# 3. prompt_iterations: files in */prompts/*.md
+		if parent.name == "prompts" and entry.suffix == ".md":
+			prompt_iterations += 1
+			# 7. grading_rubrics: */prompts/grade*.md
+			if entry.name.startswith("grade"):
+				grading_rubrics += 1
+
+		# 4. skill_test_corpus: files in */tests/fixtures/ (direct children)
+		if parent.name == "fixtures" and parent.parent and parent.parent.name == "tests":
+			skill_test_corpus += 1
+
+		# 5. ab_test_evidence: files in */evidence/ (direct children)
+		if parent.name == "evidence":
+			ab_test_evidence += 1
+
+	# 1. skills_authored
+	signals: dict[str, int] = {"skills_authored": len(skill_mds)}
+
+	# 2. eval_harnesses: eval/ dirs that are siblings of SKILL.md
+	eval_harnesses = 0
+	for skill_md in skill_mds:
+		if (skill_md.parent / "eval") in dirs_seen:
+			eval_harnesses += 1
+	signals["eval_harnesses"] = eval_harnesses
+
+	signals["prompt_iterations"] = prompt_iterations
+	signals["skill_test_corpus"] = skill_test_corpus
+	signals["ab_test_evidence"] = ab_test_evidence
+
+	# 6. meta_skill_count: SKILL.md files that reference other skills
+	meta_skill_count = 0
+	for skill_md in skill_mds:
+		try:
+			content = skill_md.read_text(errors="ignore")
+			if "SKILL.md" in content or "invoke" in content.lower():
+				meta_skill_count += 1
+		except OSError:
+			pass
+	signals["meta_skill_count"] = meta_skill_count
+
+	signals["grading_rubrics"] = grading_rubrics
+
+	return signals
+
+
+# ---------------------------------------------------------------------------
 # Helper: git commit span
 # ---------------------------------------------------------------------------
 
@@ -1266,6 +1361,79 @@ def build_repo_profile(
 			acc["repos"].add(repo.name)
 			_update_dates(acc, repo.created_at, repo.last_pushed)
 			acc["frameworks"].add(canonical)
+
+	# 3d. AI signals -> skill evidence
+	for repo in all_evidence:
+		# LLM imports -> "llm" skill
+		for imp in repo.llm_imports:
+			skill = _LLM_IMPORT_TO_SKILL.get(imp, "llm")
+			canonical = taxonomy.canonicalize(skill)
+			acc = _ensure_skill(canonical)
+			acc["repos"].add(repo.name)
+			_update_dates(acc, repo.created_at, repo.last_pushed)
+			acc["frameworks"].add(imp)
+
+		# Prompt templates -> "prompt-engineering"
+		if repo.has_prompt_templates:
+			acc = _ensure_skill("prompt-engineering")
+			acc["repos"].add(repo.name)
+			_update_dates(acc, repo.created_at, repo.last_pushed)
+
+		# Eval framework -> "prompt-engineering" additional signal
+		if repo.has_eval_framework:
+			acc = _ensure_skill("prompt-engineering")
+			acc["repos"].add(repo.name)
+			_update_dates(acc, repo.created_at, repo.last_pushed)
+			acc["frameworks"].add("eval-framework")
+
+		# Claude Code maturity -> "ai-process-engineering" (threshold: 2+ signals)
+		cc_signals = sum([
+			repo.claude_plans_count > 0,
+			repo.claude_specs_count > 0,
+			repo.claude_handoffs_count > 0,
+			repo.claude_grill_sessions > 0,
+			repo.claude_memory_files > 0,
+			repo.has_settings_local,
+			repo.has_ralph_loops,
+			repo.has_superpowers_brainstorms,
+			repo.has_worktree_discipline,
+		])
+		if cc_signals >= 2:
+			acc = _ensure_skill("ai-process-engineering")
+			acc["repos"].add(repo.name)
+			_update_dates(acc, repo.created_at, repo.last_pushed)
+			if repo.claude_plans_count > 0:
+				acc["frameworks"].add("claude-plans")
+			if repo.claude_handoffs_count > 0:
+				acc["frameworks"].add("claude-handoffs")
+			if repo.has_ralph_loops:
+				acc["frameworks"].add("ralph-loops")
+			if repo.has_worktree_discipline:
+				acc["frameworks"].add("worktree-discipline")
+			if repo.claude_grill_sessions > 0:
+				acc["frameworks"].add("grill-sessions")
+			if repo.claude_memory_files > 0:
+				acc["frameworks"].add("claude-memory")
+
+		# Skill-crafting loop signals -> enrich ai-process-engineering
+		sc = repo.skill_crafting_signals
+		sc_total = sum(sc.values())
+		if sc_total > 0:
+			acc = _ensure_skill("ai-process-engineering")
+			acc["repos"].add(repo.name)
+			_update_dates(acc, repo.created_at, repo.last_pushed)
+			if sc.get("skills_authored", 0) > 0:
+				acc["frameworks"].add("skill-authoring")
+			if sc.get("eval_harnesses", 0) > 0:
+				acc["frameworks"].add("eval-harness")
+			if sc.get("meta_skill_count", 0) > 0:
+				acc["frameworks"].add("meta-skill-composition")
+			if sc.get("grading_rubrics", 0) > 0:
+				acc["frameworks"].add("grading-rubric")
+			if sc.get("ab_test_evidence", 0) > 0:
+				acc["frameworks"].add("ab-testing")
+			if sc.get("prompt_iterations", 0) > 0:
+				acc["frameworks"].add("prompt-iteration")
 
 	# Convert accumulators to SkillRepoEvidence
 	skill_evidence: dict[str, SkillRepoEvidence] = {}

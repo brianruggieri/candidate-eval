@@ -54,12 +54,21 @@ def _repo_timeline_depth(timeline_days: int) -> DepthLevel:
 def merge_triad(
 	curated_resume: CuratedResume,
 	repo_profile: RepoProfile,
+	sessions: CandidateProfile | None = None,
 ) -> MergedEvidenceProfile:
 	"""Merge CuratedResume + RepoProfile into a unified evidence profile.
 
-	This is the v0.7 primary merge path. Sessions are parked — the only
-	evidence sources are the curated resume (anchor) and public repo analysis
-	(receipts).
+	This is the v0.7+ primary merge path. The curated resume is the anchor,
+	public repo analysis provides receipts, and optional session data supplies
+	behavioral patterns and projects for culture fit scoring.
+
+	Args:
+		curated_resume: Human-curated resume with skill depths and durations.
+		repo_profile: Public repo scan results with skill evidence.
+		sessions: Optional CandidateProfile from session logs. When provided,
+			patterns and projects flow through to the merged profile for
+			culture fit scoring. Session skills are NOT merged — only
+			behavioral data is used.
 
 	Core rules:
 	  1. Resume depth is the ANCHOR — never overridden by repo evidence.
@@ -67,7 +76,7 @@ def merge_triad(
 	  3. Resume + repo = RESUME_AND_REPO source (strongest evidence).
 	  4. Resume only = RESUME_ONLY source.
 	  5. Repo only = REPO_ONLY source.
-	  6. No session data — sessions are parked for v0.7.
+	  6. Session skills are NOT merged — only patterns and projects.
 	"""
 	taxonomy = _get_taxonomy()
 
@@ -186,23 +195,24 @@ def merge_triad(
 		{
 			"curated": curated_resume.source_file_hash,
 			"repo_scan_date": repo_profile.scan_date.isoformat(),
+			"sessions": sessions.manifest_hash if sessions else "none",
 		}
 	)
 
 	# ── 7. Build the MergedEvidenceProfile ─────────────────────────────
 	merged = MergedEvidenceProfile(
 		skills=merged_skills,
-		patterns=[],  # no sessions in v0.7
-		projects=[],  # no sessions in v0.7
+		patterns=sessions.problem_solving_patterns if sessions else [],
+		projects=sessions.projects if sessions else [],
 		roles=curated_resume.roles,
 		corroborated_skill_count=corroborated_count,
 		resume_only_skill_count=resume_only_count,
-		sessions_only_skill_count=0,  # no sessions in v0.7
+		sessions_only_skill_count=0,  # session skills not merged — only patterns/projects
 		repo_confirmed_skill_count=repo_confirmed_count,
-		discovery_skills=[],  # no sessions = no discoveries
+		discovery_skills=[],  # no session skill merging = no discoveries
 		profile_hash=profile_hash,
 		resume_hash=curated_resume.source_file_hash,
-		candidate_profile_hash="none",  # no candidate profile in v0.7
+		candidate_profile_hash=sessions.manifest_hash if sessions else "none",
 		merged_at=datetime.now(timezone.utc),
 	)
 	merged.total_years_experience = curated_resume.total_years_experience

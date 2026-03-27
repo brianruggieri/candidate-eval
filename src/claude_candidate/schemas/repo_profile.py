@@ -63,6 +63,12 @@ class RepoEvidence(BaseModel):
 	has_worktree_discipline: bool
 	ai_maturity_level: Literal["basic", "intermediate", "advanced", "expert"]
 
+	# Skill-crafting loop signals
+	skill_crafting_signals: dict[str, int] = Field(
+		default_factory=dict,
+		description="Skill-crafting loop evidence counts: skills_authored, eval_harnesses, etc.",
+	)
+
 	# Repo scale
 	file_count: int = Field(ge=0)
 	directory_depth: int = Field(ge=0)

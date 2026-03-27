@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from claude_candidate.schemas.candidate_profile import DepthLevel
@@ -9,6 +11,7 @@ from claude_candidate.schemas.merged_profile import EvidenceSource
 from claude_candidate.merger import (
 	classify_evidence_source,
 	merge_profiles,
+	merge_triad,
 	merge_candidate_only,
 	merge_resume_only,
 )
@@ -605,3 +608,59 @@ def test_corroboration_with_name_variants(candidate_profile):
 	merged = merge_profiles(candidate_with_react, resume)
 	corroborated = [s for s in merged.skills if s.source == EvidenceSource.CORROBORATED]
 	assert len(corroborated) >= 1
+
+
+class TestMergeTriadWithSessions:
+	"""Tests for merge_triad with optional sessions parameter."""
+
+	@pytest.fixture
+	def curated_resume(self):
+		from claude_candidate.schemas.curated_resume import CuratedResume
+
+		path = Path(__file__).parent / "fixtures" / "curated_resume_sample.json"
+		if not path.exists():
+			path = Path.home() / ".claude-candidate" / "curated_resume.json"
+			if not path.exists():
+				pytest.skip("No curated_resume.json available")
+		return CuratedResume.model_validate_json(path.read_text())
+
+	@pytest.fixture
+	def repo_profile(self):
+		from claude_candidate.schemas.repo_profile import RepoProfile
+
+		path = Path(__file__).parent / "fixtures" / "sample_repo_profile.json"
+		if not path.exists():
+			path = Path.home() / ".claude-candidate" / "repo_profile.json"
+			if not path.exists():
+				pytest.skip("No repo_profile.json available")
+		return RepoProfile.model_validate_json(path.read_text())
+
+	def test_sessions_none_backward_compatible(self, curated_resume, repo_profile):
+		"""sessions=None produces identical output to omitting the parameter."""
+		profile_without = merge_triad(curated_resume, repo_profile)
+		profile_with_none = merge_triad(curated_resume, repo_profile, sessions=None)
+		assert profile_without.patterns == profile_with_none.patterns == []
+		assert profile_without.projects == profile_with_none.projects == []
+		assert len(profile_without.skills) == len(profile_with_none.skills)
+
+	def test_patterns_flow_through(self, curated_resume, repo_profile, candidate_profile):
+		"""When sessions provided, patterns propagate to merged profile."""
+		profile = merge_triad(curated_resume, repo_profile, sessions=candidate_profile)
+		assert len(profile.patterns) == len(candidate_profile.problem_solving_patterns)
+
+	def test_projects_flow_through(self, curated_resume, repo_profile, candidate_profile):
+		"""When sessions provided, projects propagate to merged profile."""
+		profile = merge_triad(curated_resume, repo_profile, sessions=candidate_profile)
+		assert len(profile.projects) == len(candidate_profile.projects)
+
+	def test_candidate_hash_set_with_sessions(
+		self, curated_resume, repo_profile, candidate_profile
+	):
+		"""When sessions provided, candidate_profile_hash reflects it."""
+		profile = merge_triad(curated_resume, repo_profile, sessions=candidate_profile)
+		assert profile.candidate_profile_hash != "none"
+
+	def test_candidate_hash_none_without_sessions(self, curated_resume, repo_profile):
+		"""Without sessions, candidate_profile_hash is 'none'."""
+		profile = merge_triad(curated_resume, repo_profile)
+		assert profile.candidate_profile_hash == "none"
