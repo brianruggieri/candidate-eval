@@ -171,7 +171,7 @@ class TestEndToEndFlow:
 		from claude_candidate.schemas.job_requirements import QuickRequirement
 		from claude_candidate.schemas.fit_assessment import FitAssessment
 		from claude_candidate.merger import merge_profiles
-		from claude_candidate.quick_match import QuickMatchEngine
+		from claude_candidate.scoring import QuickMatchEngine
 
 		# Step 1: Load profiles
 		cp = CandidateProfile.from_json(

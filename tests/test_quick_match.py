@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from claude_candidate.merger import merge_profiles, merge_candidate_only
-from claude_candidate.quick_match import QuickMatchEngine, _compute_weights
+from claude_candidate.scoring import QuickMatchEngine, _compute_weights
 from claude_candidate.schemas.company_profile import CompanyProfile
 from claude_candidate.schemas.job_requirements import QuickRequirement, RequirementPriority
 
@@ -198,7 +198,7 @@ class TestSkillMatchScoring:
 
 		# must_have no_evidence scores 0.0 (hard gap), nice_to_have gets
 		# STATUS_SCORE_NONE floor (transferable skills).
-		from claude_candidate.quick_match import STATUS_SCORE_NONE
+		from claude_candidate.scoring import STATUS_SCORE_NONE
 
 		assert a_must.skill_match.score == 0.0
 		assert a_nice.skill_match.score == STATUS_SCORE_NONE
@@ -768,7 +768,7 @@ class TestPartialAssessmentWeights:
 
 def test_find_best_skill_related_fallback():
 	"""When no direct match exists, related skills should give 'related' status."""
-	from claude_candidate.quick_match import _find_best_skill
+	from claude_candidate.scoring import _find_best_skill
 	from claude_candidate.schemas.job_requirements import QuickRequirement, RequirementPriority
 	from claude_candidate.schemas.merged_profile import (
 		MergedSkillEvidence,
@@ -816,7 +816,7 @@ def test_find_best_skill_related_fallback():
 
 def test_find_skill_match_canonicalizes_hyphens():
 	"""Skill 'ci-cd' should match profile entry 'ci cd' via canonicalization."""
-	from claude_candidate.quick_match import _find_skill_match
+	from claude_candidate.scoring import _find_skill_match
 	from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
 	from claude_candidate.schemas.candidate_profile import DepthLevel
 	from claude_candidate.schemas.merged_profile import MergedEvidenceProfile
@@ -858,7 +858,7 @@ def test_score_requirement_uses_raw_confidence_no_floor():
 	With CONFLICTING fixed to 0.72, both resume_only (0.85) and conflicting (0.72)
 	should score via the widened formula: adjustment = CONFIDENCE_FLOOR + (1 - CONFIDENCE_FLOOR) * confidence.
 	"""
-	from claude_candidate.quick_match import _score_requirement, STATUS_SCORE
+	from claude_candidate.scoring import _score_requirement, STATUS_SCORE
 	from claude_candidate.scoring.constants import CONFIDENCE_FLOOR
 	from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
 	from claude_candidate.schemas.candidate_profile import DepthLevel
@@ -895,7 +895,7 @@ def test_score_requirement_uses_raw_confidence_no_floor():
 
 def test_soft_skill_requirement_discounted():
 	"""Requirements mapping to soft_skill category should get reduced weight."""
-	from claude_candidate.quick_match import SOFT_SKILL_DISCOUNT
+	from claude_candidate.scoring import SOFT_SKILL_DISCOUNT
 
 	# The discount factor should exist and be < 1.0
 	assert 0.0 < SOFT_SKILL_DISCOUNT < 1.0
@@ -903,7 +903,7 @@ def test_soft_skill_requirement_discounted():
 
 def test_years_experience_boosts_match():
 	"""When requirement has years_experience and skill has duration, score should improve."""
-	from claude_candidate.quick_match import _parse_duration_years
+	from claude_candidate.scoring import _parse_duration_years
 
 	# Test the duration parser first
 	assert _parse_duration_years("8 years") == 8.0
@@ -914,7 +914,7 @@ def test_years_experience_boosts_match():
 
 def test_compound_requirement_breadth_scoring():
 	"""A requirement with 3 skill mappings where 2 match should score better than 0."""
-	from claude_candidate.quick_match import QuickMatchEngine
+	from claude_candidate.scoring import QuickMatchEngine
 	from claude_candidate.schemas.job_requirements import QuickRequirement, RequirementPriority
 	from claude_candidate.schemas.merged_profile import (
 		MergedSkillEvidence,
@@ -1055,7 +1055,7 @@ class TestAdoptionVelocity:
 		)
 
 	def test_breadth_five_categories(self):
-		from claude_candidate.quick_match import compute_adoption_velocity
+		from claude_candidate.scoring import compute_adoption_velocity
 
 		skills = [
 			self._make_skill("python", "language"),
@@ -1069,7 +1069,7 @@ class TestAdoptionVelocity:
 		assert result.sub_scores["breadth"] == 1.0
 
 	def test_breadth_below_applied_excluded(self):
-		from claude_candidate.quick_match import compute_adoption_velocity
+		from claude_candidate.scoring import compute_adoption_velocity
 
 		# 5 different categories but all at MENTIONED depth — below applied
 		skills = [
@@ -1085,7 +1085,7 @@ class TestAdoptionVelocity:
 
 	def test_novelty_recent_skills(self):
 		from datetime import timedelta
-		from claude_candidate.quick_match import compute_adoption_velocity
+		from claude_candidate.scoring import compute_adoption_velocity
 
 		base = datetime(2024, 1, 1)
 		skills = [
@@ -1107,7 +1107,7 @@ class TestAdoptionVelocity:
 		assert result.sub_scores["novelty"] >= 1.0
 
 	def test_novelty_insufficient_dates(self):
-		from claude_candidate.quick_match import compute_adoption_velocity
+		from claude_candidate.scoring import compute_adoption_velocity
 
 		# All skills have no first_seen
 		skills = [self._make_skill("python", "language", first_seen=None)]
@@ -1117,7 +1117,7 @@ class TestAdoptionVelocity:
 
 	def test_novelty_old_skills_only(self):
 		from datetime import timedelta
-		from claude_candidate.quick_match import compute_adoption_velocity
+		from claude_candidate.scoring import compute_adoption_velocity
 
 		base = datetime(2024, 1, 1)
 		# Skills at used/applied depth in first 70% of range. A later "mentioned"
@@ -1134,7 +1134,7 @@ class TestAdoptionVelocity:
 		assert result.sub_scores["novelty"] == 0.0
 
 	def test_ramp_speed_high_frequency_deep(self):
-		from claude_candidate.quick_match import compute_adoption_velocity
+		from claude_candidate.scoring import compute_adoption_velocity
 
 		skills = [self._make_skill("python", "language", "deep", frequency=50)]
 		profile = self._make_profile(skills)
@@ -1142,7 +1142,7 @@ class TestAdoptionVelocity:
 		assert result.sub_scores["ramp_speed"] > 0.5
 
 	def test_ramp_speed_no_applied_skills(self):
-		from claude_candidate.quick_match import compute_adoption_velocity
+		from claude_candidate.scoring import compute_adoption_velocity
 
 		skills = [self._make_skill("python", "language", "mentioned", frequency=5)]
 		profile = self._make_profile(skills)
@@ -1150,7 +1150,7 @@ class TestAdoptionVelocity:
 		assert result.sub_scores["ramp_speed"] == 0.0
 
 	def test_meta_cognition_exceptional(self):
-		from claude_candidate.quick_match import compute_adoption_velocity
+		from claude_candidate.scoring import compute_adoption_velocity
 		from claude_candidate.schemas.candidate_profile import PatternType
 
 		pattern = _make_pattern(PatternType.META_COGNITION, "exceptional")
@@ -1159,14 +1159,14 @@ class TestAdoptionVelocity:
 		assert result.sub_scores["meta_cognition"] == 1.0
 
 	def test_meta_cognition_absent(self):
-		from claude_candidate.quick_match import compute_adoption_velocity
+		from claude_candidate.scoring import compute_adoption_velocity
 
 		profile = self._make_profile()
 		result = compute_adoption_velocity(profile)
 		assert result.sub_scores["meta_cognition"] == 0.0
 
 	def test_tool_selection_strong(self):
-		from claude_candidate.quick_match import compute_adoption_velocity
+		from claude_candidate.scoring import compute_adoption_velocity
 		from claude_candidate.schemas.candidate_profile import PatternType
 
 		pattern = _make_pattern(PatternType.TOOL_SELECTION, "strong")
@@ -1176,7 +1176,7 @@ class TestAdoptionVelocity:
 
 	def test_composite_all_strong(self):
 		from datetime import timedelta
-		from claude_candidate.quick_match import compute_adoption_velocity
+		from claude_candidate.scoring import compute_adoption_velocity
 		from claude_candidate.schemas.candidate_profile import PatternType
 
 		base = datetime(2024, 1, 1)
@@ -1202,15 +1202,15 @@ class TestAdoptionVelocity:
 		assert result.depth in (DepthLevel.DEEP, DepthLevel.EXPERT)
 
 	def test_composite_depth_thresholds(self):
-		from claude_candidate.quick_match import compute_adoption_velocity, AdoptionVelocityResult
-		from claude_candidate.quick_match import (
+		from claude_candidate.scoring import compute_adoption_velocity, AdoptionVelocityResult
+		from claude_candidate.scoring import (
 			ADOPTION_DEPTH_EXPERT,
 			ADOPTION_DEPTH_DEEP,
 			ADOPTION_DEPTH_APPLIED,
 			ADOPTION_DEPTH_USED,
 		)
 		from claude_candidate.schemas.candidate_profile import DepthLevel
-		from claude_candidate.quick_match import _build_adoption_summary
+		from claude_candidate.scoring import _build_adoption_summary
 
 		# Verify depth mapping boundaries directly on AdoptionVelocityResult construction
 		# by exercising the depth logic in compute_adoption_velocity with controlled inputs
@@ -1220,7 +1220,7 @@ class TestAdoptionVelocity:
 		assert result.depth in (DepthLevel.MENTIONED, DepthLevel.USED, DepthLevel.APPLIED)
 
 	def test_confidence_from_evidence_count(self):
-		from claude_candidate.quick_match import (
+		from claude_candidate.scoring import (
 			compute_adoption_velocity,
 			ADOPTION_CONFIDENCE_DIVISOR,
 		)
@@ -1233,7 +1233,7 @@ class TestAdoptionVelocity:
 		assert result.evidence_count == 10
 
 	def test_empty_profile_minimal(self):
-		from claude_candidate.quick_match import compute_adoption_velocity
+		from claude_candidate.scoring import compute_adoption_velocity
 
 		profile = self._make_profile()
 		result = compute_adoption_velocity(profile)
@@ -1243,7 +1243,7 @@ class TestAdoptionVelocity:
 
 	def test_summary_quote_includes_novelty(self):
 		from datetime import timedelta
-		from claude_candidate.quick_match import compute_adoption_velocity
+		from claude_candidate.scoring import compute_adoption_velocity
 
 		base = datetime(2024, 1, 1)
 		skills = [
@@ -1260,7 +1260,7 @@ class TestAdoptionVelocity:
 def test_adaptability_inferred_via_adoption_velocity(candidate_profile, resume_profile):
 	"""adaptability should use composite-based depth when session data is present."""
 	from claude_candidate.merger import merge_profiles
-	from claude_candidate.quick_match import _infer_virtual_skill
+	from claude_candidate.scoring import _infer_virtual_skill
 	from claude_candidate.schemas.merged_profile import EvidenceSource
 
 	merged = merge_profiles(candidate_profile, resume_profile)
@@ -1277,7 +1277,7 @@ def test_adaptability_fallback_to_years():
 	"""adaptability falls back to years-based when no session data exists."""
 	from datetime import datetime
 	from claude_candidate.schemas.merged_profile import MergedEvidenceProfile, EvidenceSource
-	from claude_candidate.quick_match import _infer_virtual_skill
+	from claude_candidate.scoring import _infer_virtual_skill
 	from claude_candidate.schemas.candidate_profile import DepthLevel
 
 	# Profile with no skills (no session evidence), but 10 years experience
@@ -1311,14 +1311,14 @@ def test_adaptability_fallback_to_years():
 
 def test_soft_skill_discount_baseline():
 	"""SOFT_SKILL_DISCOUNT constant should be 0.5."""
-	from claude_candidate.quick_match import SOFT_SKILL_DISCOUNT
+	from claude_candidate.scoring import SOFT_SKILL_DISCOUNT
 
 	assert SOFT_SKILL_DISCOUNT == 0.5
 
 
 def test_soft_skill_discount_no_company_profile():
 	"""No company profile returns baseline discount."""
-	from claude_candidate.quick_match import _soft_skill_discount, SOFT_SKILL_DISCOUNT
+	from claude_candidate.scoring import _soft_skill_discount, SOFT_SKILL_DISCOUNT
 
 	assert _soft_skill_discount(None, None) == SOFT_SKILL_DISCOUNT
 	assert _soft_skill_discount(["collaborative"], None) == SOFT_SKILL_DISCOUNT
@@ -1326,7 +1326,7 @@ def test_soft_skill_discount_no_company_profile():
 
 def test_soft_skill_discount_empty_culture_keywords():
 	"""Company profile with empty culture_keywords returns baseline."""
-	from claude_candidate.quick_match import _soft_skill_discount, SOFT_SKILL_DISCOUNT
+	from claude_candidate.scoring import _soft_skill_discount, SOFT_SKILL_DISCOUNT
 	from claude_candidate.schemas.company_profile import CompanyProfile
 
 	cp = CompanyProfile(
@@ -1341,7 +1341,7 @@ def test_soft_skill_discount_empty_culture_keywords():
 
 def test_soft_skill_discount_no_culture_signals():
 	"""None or empty culture signals returns baseline even with company profile."""
-	from claude_candidate.quick_match import _soft_skill_discount, SOFT_SKILL_DISCOUNT
+	from claude_candidate.scoring import _soft_skill_discount, SOFT_SKILL_DISCOUNT
 	from claude_candidate.schemas.company_profile import CompanyProfile
 
 	cp = CompanyProfile(
@@ -1357,7 +1357,7 @@ def test_soft_skill_discount_no_culture_signals():
 
 def test_soft_skill_discount_full_overlap():
 	"""All posting signals match company keywords returns max boost."""
-	from claude_candidate.quick_match import _soft_skill_discount, SOFT_SKILL_MAX_BOOST
+	from claude_candidate.scoring import _soft_skill_discount, SOFT_SKILL_MAX_BOOST
 	from claude_candidate.schemas.company_profile import CompanyProfile
 
 	cp = CompanyProfile(
@@ -1373,7 +1373,7 @@ def test_soft_skill_discount_full_overlap():
 
 def test_soft_skill_discount_partial_overlap():
 	"""2/4 signals match → discount = 0.5 + 0.5 * 0.3 = 0.65."""
-	from claude_candidate.quick_match import _soft_skill_discount
+	from claude_candidate.scoring import _soft_skill_discount
 	from claude_candidate.schemas.company_profile import CompanyProfile
 
 	cp = CompanyProfile(
@@ -1391,7 +1391,7 @@ def test_soft_skill_discount_partial_overlap():
 
 def test_soft_skill_discount_zero_overlap():
 	"""Signals present but none match company keywords returns baseline."""
-	from claude_candidate.quick_match import _soft_skill_discount, SOFT_SKILL_DISCOUNT
+	from claude_candidate.scoring import _soft_skill_discount, SOFT_SKILL_DISCOUNT
 	from claude_candidate.schemas.company_profile import CompanyProfile
 
 	cp = CompanyProfile(
@@ -1407,7 +1407,7 @@ def test_soft_skill_discount_zero_overlap():
 
 def test_soft_skill_discount_case_insensitive():
 	"""'Collaborative' matches 'collaborative' regardless of case."""
-	from claude_candidate.quick_match import _soft_skill_discount, SOFT_SKILL_MAX_BOOST
+	from claude_candidate.scoring import _soft_skill_discount, SOFT_SKILL_MAX_BOOST
 	from claude_candidate.schemas.company_profile import CompanyProfile
 
 	cp = CompanyProfile(
@@ -1529,7 +1529,7 @@ class TestEligibilityFilters:
 
 	def test_heuristic_denylist_skill_names(self):
 		"""_infer_eligibility flags requirements with known eligibility skill names."""
-		from claude_candidate.quick_match import _infer_eligibility
+		from claude_candidate.scoring import _infer_eligibility
 
 		for skill in [
 			"us-work-authorization",
@@ -1548,7 +1548,7 @@ class TestEligibilityFilters:
 
 	def test_heuristic_denylist_description_patterns(self):
 		"""_infer_eligibility flags requirements matching eligibility description patterns."""
-		from claude_candidate.quick_match import _infer_eligibility
+		from claude_candidate.scoring import _infer_eligibility
 
 		descriptions = [
 			"Must be authorized to work in the United States",
@@ -1568,7 +1568,7 @@ class TestEligibilityFilters:
 
 	def test_heuristic_denylist_no_false_positives(self):
 		"""_infer_eligibility does not flag real skill requirements."""
-		from claude_candidate.quick_match import _infer_eligibility
+		from claude_candidate.scoring import _infer_eligibility
 
 		non_eligibility = [
 			("5+ years Python experience", ["python"]),
@@ -1689,7 +1689,7 @@ class TestEligibilityHardCap:
 
 	def test_unmet_gate_forces_f(self, candidate_profile, resume_profile):
 		from claude_candidate.merger import merge_profiles
-		from claude_candidate.quick_match import QuickMatchEngine
+		from claude_candidate.scoring import QuickMatchEngine
 		from claude_candidate.schemas.curated_resume import CandidateEligibility
 
 		merged = merge_profiles(candidate_profile, resume_profile)
@@ -1707,7 +1707,7 @@ class TestEligibilityHardCap:
 
 	def test_unmet_gate_summary_starts_with_blocker(self, candidate_profile, resume_profile):
 		from claude_candidate.merger import merge_profiles
-		from claude_candidate.quick_match import QuickMatchEngine
+		from claude_candidate.scoring import QuickMatchEngine
 		from claude_candidate.schemas.curated_resume import CandidateEligibility
 
 		merged = merge_profiles(candidate_profile, resume_profile)
@@ -1722,7 +1722,7 @@ class TestEligibilityHardCap:
 
 	def test_unmet_gate_first_action_item_is_eligibility(self, candidate_profile, resume_profile):
 		from claude_candidate.merger import merge_profiles
-		from claude_candidate.quick_match import QuickMatchEngine
+		from claude_candidate.scoring import QuickMatchEngine
 		from claude_candidate.schemas.curated_resume import CandidateEligibility
 
 		merged = merge_profiles(candidate_profile, resume_profile)
@@ -1738,7 +1738,7 @@ class TestEligibilityHardCap:
 	def test_counterfactual_grade_in_summary(self, candidate_profile, resume_profile):
 		"""Summary includes 'if eligible' clause with counterfactual grade."""
 		from claude_candidate.merger import merge_profiles
-		from claude_candidate.quick_match import QuickMatchEngine
+		from claude_candidate.scoring import QuickMatchEngine
 		from claude_candidate.schemas.curated_resume import CandidateEligibility
 
 		merged = merge_profiles(candidate_profile, resume_profile)
@@ -1753,7 +1753,7 @@ class TestEligibilityHardCap:
 
 	def test_met_gates_no_cap(self, candidate_profile, resume_profile):
 		from claude_candidate.merger import merge_profiles
-		from claude_candidate.quick_match import QuickMatchEngine
+		from claude_candidate.scoring import QuickMatchEngine
 		from claude_candidate.schemas.curated_resume import CandidateEligibility
 
 		merged = merge_profiles(candidate_profile, resume_profile)
@@ -1776,7 +1776,7 @@ class TestEligibilityHardCap:
 	def test_unknown_gates_no_cap(self, candidate_profile, resume_profile):
 		"""mission_alignment gates are always unknown — must not trigger cap."""
 		from claude_candidate.merger import merge_profiles
-		from claude_candidate.quick_match import QuickMatchEngine
+		from claude_candidate.scoring import QuickMatchEngine
 		from claude_candidate.schemas.curated_resume import CandidateEligibility
 
 		merged = merge_profiles(candidate_profile, resume_profile)
@@ -1794,7 +1794,7 @@ class TestEligibilityHardCap:
 
 	def test_no_eligibility_reqs_no_cap(self, candidate_profile, resume_profile):
 		from claude_candidate.merger import merge_profiles
-		from claude_candidate.quick_match import QuickMatchEngine
+		from claude_candidate.scoring import QuickMatchEngine
 
 		merged = merge_profiles(candidate_profile, resume_profile)
 		engine = QuickMatchEngine(merged)
@@ -1809,7 +1809,7 @@ class TestEligibilityHardCap:
 	def test_multiple_unmet_gates_all_appear_in_output(self, candidate_profile, resume_profile):
 		"""All unmet gate descriptions are joined in summary and action item."""
 		from claude_candidate.merger import merge_profiles
-		from claude_candidate.quick_match import QuickMatchEngine
+		from claude_candidate.scoring import QuickMatchEngine
 		from claude_candidate.schemas.curated_resume import CandidateEligibility
 
 		merged = merge_profiles(candidate_profile, resume_profile)
@@ -1884,7 +1884,7 @@ class TestConflictingDepthDirection:
 def test_assess_passes_curated_eligibility_to_gates(candidate_profile, resume_profile):
 	"""curated_eligibility parameter reaches evaluate_gates and resolves correctly."""
 	from claude_candidate.merger import merge_profiles
-	from claude_candidate.quick_match import QuickMatchEngine
+	from claude_candidate.scoring import QuickMatchEngine
 	from claude_candidate.schemas.curated_resume import CandidateEligibility
 	from claude_candidate.schemas.job_requirements import QuickRequirement, RequirementPriority
 
@@ -2000,7 +2000,7 @@ class TestMatchType:
 
 	def test_exact_name_match_returns_exact(self):
 		"""Direct name match → match_type='exact'."""
-		from claude_candidate.quick_match import _find_best_skill
+		from claude_candidate.scoring import _find_best_skill
 		from claude_candidate.schemas.candidate_profile import DepthLevel
 		profile = self._profile_with("python")
 		req = self._req("python")
@@ -2010,7 +2010,7 @@ class TestMatchType:
 
 	def test_taxonomy_alias_returns_exact(self):
 		"""Taxonomy alias resolution (ci/cd → ci-cd) → match_type='exact'."""
-		from claude_candidate.quick_match import _find_best_skill
+		from claude_candidate.scoring import _find_best_skill
 		from claude_candidate.schemas.candidate_profile import DepthLevel
 		profile = self._profile_with("ci-cd")
 		req = self._req("ci/cd")  # alias in taxonomy
@@ -2020,7 +2020,7 @@ class TestMatchType:
 
 	def test_no_evidence_returns_none_type(self):
 		"""Unmatched requirement → match_type='none'."""
-		from claude_candidate.quick_match import _find_best_skill
+		from claude_candidate.scoring import _find_best_skill
 		from claude_candidate.schemas.candidate_profile import DepthLevel
 		profile = self._profile_with("python")
 		req = self._req("cobol")
@@ -2031,7 +2031,7 @@ class TestMatchType:
 
 	def test_skill_match_detail_has_match_type_field(self):
 		"""SkillMatchDetail serialises match_type in the API-facing dict."""
-		from claude_candidate.quick_match import _find_best_skill, _build_skill_detail
+		from claude_candidate.scoring import _find_best_skill, _build_skill_detail
 		from claude_candidate.schemas.candidate_profile import DepthLevel
 		profile = self._profile_with("python")
 		req = self._req("python")
@@ -2082,7 +2082,7 @@ class TestDomainPenalty:
 
 	def test_domain_fires_when_keyword_in_three_reqs(self):
 		"""'music' in 3 requirements + no music in profile → domain_gap_term='music'."""
-		from claude_candidate.quick_match import _detect_domain_gap
+		from claude_candidate.scoring import _detect_domain_gap
 		reqs = self._reqs_with_domain("music", 3)
 		profile = self._make_profile()
 		gap = _detect_domain_gap(reqs, profile)
@@ -2090,7 +2090,7 @@ class TestDomainPenalty:
 
 	def test_domain_does_not_fire_when_keyword_in_two_reqs(self):
 		"""'music' in only 2 requirements → no gap (threshold is 3)."""
-		from claude_candidate.quick_match import _detect_domain_gap
+		from claude_candidate.scoring import _detect_domain_gap
 		reqs = self._reqs_with_domain("music", 2)
 		profile = self._make_profile()
 		gap = _detect_domain_gap(reqs, profile)
@@ -2098,7 +2098,7 @@ class TestDomainPenalty:
 
 	def test_domain_does_not_fire_when_keyword_in_profile(self):
 		"""'music' in 3 requirements but candidate has music as a skill name → no gap."""
-		from claude_candidate.quick_match import _detect_domain_gap
+		from claude_candidate.scoring import _detect_domain_gap
 		from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
 		from claude_candidate.schemas.candidate_profile import DepthLevel
 		reqs = self._reqs_with_domain("music", 3)
@@ -2113,7 +2113,7 @@ class TestDomainPenalty:
 
 	def test_tech_term_not_in_domain_keywords_does_not_fire(self):
 		"""'python' in 5 requirements → not a domain keyword, no gap."""
-		from claude_candidate.quick_match import _detect_domain_gap
+		from claude_candidate.scoring import _detect_domain_gap
 		reqs = self._reqs_with_domain("python", 5)
 		profile = self._make_profile()
 		gap = _detect_domain_gap(reqs, profile)
@@ -2121,7 +2121,7 @@ class TestDomainPenalty:
 
 	def test_domain_cap_applied_to_high_scoring_assessment(self):
 		"""Assessment that would score A gets capped to B+ when domain gap detected."""
-		from claude_candidate.quick_match import QuickMatchEngine, _detect_domain_gap, DOMAIN_KEYWORDS
+		from claude_candidate.scoring import QuickMatchEngine, _detect_domain_gap, DOMAIN_KEYWORDS
 		from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
 		from claude_candidate.schemas.candidate_profile import DepthLevel
 
@@ -2161,7 +2161,7 @@ class TestMatchConfidence:
 
 	def test_exact_match_high_confidence(self) -> None:
 		"""Exact skill name match produces high confidence."""
-		from claude_candidate.quick_match import compute_match_confidence
+		from claude_candidate.scoring import compute_match_confidence
 
 		conf = compute_match_confidence(
 			candidate_skill="typescript",
@@ -2172,7 +2172,7 @@ class TestMatchConfidence:
 
 	def test_alias_match_good_confidence(self) -> None:
 		"""Alias match produces good confidence."""
-		from claude_candidate.quick_match import compute_match_confidence
+		from claude_candidate.scoring import compute_match_confidence
 
 		conf = compute_match_confidence(
 			candidate_skill="react",
@@ -2183,7 +2183,7 @@ class TestMatchConfidence:
 
 	def test_no_mention_in_text_low_confidence(self) -> None:
 		"""Skill not mentioned in requirement text produces low confidence."""
-		from claude_candidate.quick_match import compute_match_confidence
+		from claude_candidate.scoring import compute_match_confidence
 
 		conf = compute_match_confidence(
 			candidate_skill="software-engineering",
@@ -2194,7 +2194,7 @@ class TestMatchConfidence:
 
 	def test_no_match_zero_confidence(self) -> None:
 		"""No match produces zero confidence."""
-		from claude_candidate.quick_match import compute_match_confidence
+		from claude_candidate.scoring import compute_match_confidence
 
 		conf = compute_match_confidence(
 			candidate_skill="",
@@ -2205,7 +2205,7 @@ class TestMatchConfidence:
 
 	def test_related_match_moderate_confidence(self) -> None:
 		"""Related match gets moderate confidence."""
-		from claude_candidate.quick_match import compute_match_confidence
+		from claude_candidate.scoring import compute_match_confidence
 
 		conf = compute_match_confidence(
 			candidate_skill="react",
@@ -2216,7 +2216,7 @@ class TestMatchConfidence:
 
 	def test_fuzzy_match_with_text_mention(self) -> None:
 		"""Fuzzy match where skill IS mentioned in text gets decent confidence."""
-		from claude_candidate.quick_match import compute_match_confidence
+		from claude_candidate.scoring import compute_match_confidence
 
 		conf = compute_match_confidence(
 			candidate_skill="python",

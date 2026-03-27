@@ -433,7 +433,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 		or missing requirements.
 		"""
 		from claude_candidate.schemas.job_requirements import QuickRequirement
-		from claude_candidate.quick_match import QuickMatchEngine
+		from claude_candidate.scoring import QuickMatchEngine
 
 		store = get_store()
 
@@ -538,7 +538,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 			score_to_grade,
 			score_to_verdict,
 		)
-		from claude_candidate.quick_match import QuickMatchEngine
+		from claude_candidate.scoring import QuickMatchEngine
 
 		store = get_store()
 		row = await store.get_assessment(req.assessment_id)

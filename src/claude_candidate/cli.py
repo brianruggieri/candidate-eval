@@ -90,7 +90,7 @@ def assess(
 	from claude_candidate.schemas.candidate_profile import CandidateProfile
 	from claude_candidate.schemas.job_requirements import QuickRequirement
 	from claude_candidate.schemas.resume_profile import ResumeProfile
-	from claude_candidate.quick_match import QuickMatchEngine
+	from claude_candidate.scoring import QuickMatchEngine
 
 	click.echo(f"Loading candidate profile from {profile}...")
 	cp = CandidateProfile.from_json(Path(profile).read_text())

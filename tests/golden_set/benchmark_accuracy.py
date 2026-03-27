@@ -15,7 +15,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from claude_candidate.quick_match import QuickMatchEngine
+from claude_candidate.scoring import QuickMatchEngine
 from claude_candidate.schemas.job_requirements import QuickRequirement
 from claude_candidate.schemas.merged_profile import MergedEvidenceProfile
 
