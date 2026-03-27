@@ -650,6 +650,13 @@
     "parent": null,
     "content_patterns": ["eval", "benchmark", "accuracy", "BLEU", "rouge", "hallucination"]
   },
+  "ai-process-engineering": {
+    "aliases": ["skill-crafting", "meta-agentic-development", "development-process-design"],
+    "category": "practice",
+    "related": ["llm", "agentic-workflows", "prompt-engineering"],
+    "parent": null,
+    "content_patterns": ["SKILL.md", "skill crafting", "eval harness", "meta-skill"]
+  },
   "data-engineering": {
     "aliases": ["data engineering", "data_engineering", "data-pipelines", "data_pipelines", "etl", "data infrastructure", "data-modeling", "data-warehousing", "data-extraction", "data_extraction", "pipeline-design", "pipeline_design"],
     "category": "practice",
