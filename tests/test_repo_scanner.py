@@ -83,6 +83,65 @@ class TestScanLocalRepo:
 		assert evidence.created_at < evidence.last_pushed
 
 
+class TestAISignalSkillSynthesis:
+	"""AI signals from repos should produce scorable skill entries."""
+
+	def test_llm_imports_produce_llm_skill(self) -> None:
+		"""Repos with LLM imports should produce 'llm' in skill_evidence."""
+		from claude_candidate.repo_scanner import build_repo_profile
+
+		repo_path = Path(__file__).parent.parent  # candidate-eval itself
+		profile = build_repo_profile(local_repos=[repo_path])
+		repo = profile.repos[0]
+		if repo.llm_imports:
+			assert "llm" in profile.skill_evidence
+			assert profile.skill_evidence["llm"].repos >= 1
+
+	def test_prompt_templates_produce_prompt_engineering(self) -> None:
+		"""Repos with prompt templates should produce 'prompt-engineering'."""
+		from claude_candidate.repo_scanner import build_repo_profile
+
+		repo_path = Path(__file__).parent.parent
+		profile = build_repo_profile(local_repos=[repo_path])
+		repo = profile.repos[0]
+		if repo.has_prompt_templates:
+			assert "prompt-engineering" in profile.skill_evidence
+
+	def test_advanced_ai_maturity_produces_ai_process_engineering(self) -> None:
+		"""Repos with 2+ Claude Code maturity signals produce ai-process-engineering."""
+		from claude_candidate.repo_scanner import build_repo_profile
+
+		repo_path = Path(__file__).parent.parent
+		profile = build_repo_profile(local_repos=[repo_path])
+		repo = profile.repos[0]
+		cc_signals = sum([
+			repo.claude_plans_count > 0,
+			repo.claude_specs_count > 0,
+			repo.claude_handoffs_count > 0,
+			repo.claude_grill_sessions > 0,
+			repo.claude_memory_files > 0,
+			repo.has_settings_local,
+			repo.has_ralph_loops,
+			repo.has_superpowers_brainstorms,
+			repo.has_worktree_discipline,
+		])
+		if cc_signals >= 2:
+			assert "ai-process-engineering" in profile.skill_evidence
+			ev = profile.skill_evidence["ai-process-engineering"]
+			assert ev.repos >= 1
+			assert len(ev.frameworks) > 0
+
+	def test_eval_framework_enriches_prompt_engineering(self) -> None:
+		"""Eval frameworks should add to prompt-engineering evidence."""
+		from claude_candidate.repo_scanner import build_repo_profile
+
+		repo_path = Path(__file__).parent.parent
+		profile = build_repo_profile(local_repos=[repo_path])
+		repo = profile.repos[0]
+		if repo.has_eval_framework and "prompt-engineering" in profile.skill_evidence:
+			assert "eval-framework" in profile.skill_evidence["prompt-engineering"].frameworks
+
+
 class TestScanGitHubRepo:
 	@pytest.mark.slow
 	def test_scan_public_repo(self) -> None:

@@ -76,6 +76,18 @@ LLM_IMPORT_PATTERNS: list[str] = [
 	"mistralai",
 ]
 
+_LLM_IMPORT_TO_SKILL: dict[str, str] = {
+	"anthropic": "llm",
+	"openai": "llm",
+	"langchain": "llm",
+	"llama_index": "llm",
+	"transformers": "llm",
+	"cohere": "llm",
+	"together": "llm",
+	"groq": "llm",
+	"mistralai": "llm",
+}
+
 # Data file path, resolved relative to this module's location
 _DATA_DIR = Path(__file__).parent / "data"
 
@@ -1266,6 +1278,59 @@ def build_repo_profile(
 			acc["repos"].add(repo.name)
 			_update_dates(acc, repo.created_at, repo.last_pushed)
 			acc["frameworks"].add(canonical)
+
+	# 3d. AI signals -> skill evidence
+	for repo in all_evidence:
+		# LLM imports -> "llm" skill
+		for imp in repo.llm_imports:
+			skill = _LLM_IMPORT_TO_SKILL.get(imp, "llm")
+			canonical = taxonomy.canonicalize(skill)
+			acc = _ensure_skill(canonical)
+			acc["repos"].add(repo.name)
+			_update_dates(acc, repo.created_at, repo.last_pushed)
+			acc["frameworks"].add(imp)
+
+		# Prompt templates -> "prompt-engineering"
+		if repo.has_prompt_templates:
+			acc = _ensure_skill("prompt-engineering")
+			acc["repos"].add(repo.name)
+			_update_dates(acc, repo.created_at, repo.last_pushed)
+
+		# Eval framework -> "prompt-engineering" additional signal
+		if repo.has_eval_framework:
+			acc = _ensure_skill("prompt-engineering")
+			acc["repos"].add(repo.name)
+			_update_dates(acc, repo.created_at, repo.last_pushed)
+			acc["frameworks"].add("eval-framework")
+
+		# Claude Code maturity -> "ai-process-engineering" (threshold: 2+ signals)
+		cc_signals = sum([
+			repo.claude_plans_count > 0,
+			repo.claude_specs_count > 0,
+			repo.claude_handoffs_count > 0,
+			repo.claude_grill_sessions > 0,
+			repo.claude_memory_files > 0,
+			repo.has_settings_local,
+			repo.has_ralph_loops,
+			repo.has_superpowers_brainstorms,
+			repo.has_worktree_discipline,
+		])
+		if cc_signals >= 2:
+			acc = _ensure_skill("ai-process-engineering")
+			acc["repos"].add(repo.name)
+			_update_dates(acc, repo.created_at, repo.last_pushed)
+			if repo.claude_plans_count > 0:
+				acc["frameworks"].add("claude-plans")
+			if repo.claude_handoffs_count > 0:
+				acc["frameworks"].add("claude-handoffs")
+			if repo.has_ralph_loops:
+				acc["frameworks"].add("ralph-loops")
+			if repo.has_worktree_discipline:
+				acc["frameworks"].add("worktree-discipline")
+			if repo.claude_grill_sessions > 0:
+				acc["frameworks"].add("grill-sessions")
+			if repo.claude_memory_files > 0:
+				acc["frameworks"].add("claude-memory")
 
 	# Convert accumulators to SkillRepoEvidence
 	skill_evidence: dict[str, SkillRepoEvidence] = {}
