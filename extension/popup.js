@@ -300,7 +300,21 @@ function renderResults(data) {
 	if (_summaryEl) _summaryEl.classList.add('hidden');
 	if (matches.length > 0) {
 		el('tag-skills').textContent = matches.length;
-		matches.forEach(m => {
+		// Group distilled requirements by parent_id for compound display
+		const groups = new Map();
+		matches.forEach((m, i) => {
+			if (m.parent_id) {
+				if (!groups.has(m.parent_id)) groups.set(m.parent_id, []);
+				groups.get(m.parent_id).push(i);
+			}
+		});
+		const renderedAsChild = new Set();
+		groups.forEach(indices => indices.forEach(i => renderedAsChild.add(i)));
+
+		matches.forEach((m, i) => {
+			// Skip children — they render inside their compound group
+			if (renderedAsChild.has(i)) return;
+
 			const status = m.match_status || '';
 			const iconClass = status.includes('strong') || status === 'exceeds' ? 'hit'
 				: status === 'no_evidence' ? 'miss' : 'partial';
@@ -309,10 +323,10 @@ function renderResults(data) {
 			const isMissing = cat === 'missing';
 			const conf = m.confidence || 0;
 			const confFill = conf >= 0.75 ? 'high' : conf >= 0.50 ? 'medium' : 'low';
-			const confDisplay = isMissing ? '—' : conf.toFixed(2);
+			const confDisplay = isMissing ? '\u2014' : conf.toFixed(2);
 			const confValStyle = isMissing ? ' style="color:#d1d5db"' : '';
 			const sourceHtml = isMissing
-				? `<span style="font-family:'SF Mono','Fira Code',monospace;font-size:9px;color:#d1d5db;flex-shrink:0">—</span>`
+				? `<span style="font-family:'SF Mono','Fira Code',monospace;font-size:9px;color:#d1d5db;flex-shrink:0">\u2014</span>`
 				: `<span class="source-chip ${cat}">${cat}</span>`;
 			const div = document.createElement('div');
 			div.className = 'match-item' + (!isMissing && conf <= 0.70 ? ' low-conf' : '');
@@ -328,6 +342,50 @@ function renderResults(data) {
 				${sourceHtml}
 			`;
 			matchList.appendChild(div);
+		});
+
+		// Render compound groups as collapsible sections
+		groups.forEach((indices, parentId) => {
+			const children = indices.map(i => matches[i]);
+			const sourceText = children[0]?.source_text || children.map(c => c.requirement).join(' + ');
+			const wrapper = document.createElement('details');
+			wrapper.className = 'compound-group';
+			const allHit = children.every(c => {
+				const s = c.match_status || '';
+				return s.includes('strong') || s === 'exceeds';
+			});
+			const anyMiss = children.some(c => c.match_status === 'no_evidence');
+			const groupIcon = allHit ? '+' : anyMiss ? 'x' : '~';
+			const groupClass = allHit ? 'hit' : anyMiss ? 'miss' : 'partial';
+			wrapper.innerHTML = `<summary class="match-item compound-header">
+				<span class="match-icon ${groupClass}">${groupIcon}</span>
+				<span class="match-name">Compound: ${escHtml(sourceText)}</span>
+				<span class="compound-count">${children.length} skills</span>
+			</summary>`;
+			children.forEach(child => {
+				const cs = child.match_status || '';
+				const cIcon = cs.includes('strong') || cs === 'exceeds' ? '+' : cs === 'no_evidence' ? 'x' : '~';
+				const cClass = cs.includes('strong') || cs === 'exceeds' ? 'hit' : cs === 'no_evidence' ? 'miss' : 'partial';
+				const cCat = categorizeSkill(child);
+				const cMissing = cCat === 'missing';
+				const cConf = child.confidence || 0;
+				const cFill = cConf >= 0.75 ? 'high' : cConf >= 0.50 ? 'medium' : 'low';
+				const childDiv = document.createElement('div');
+				childDiv.className = 'match-item compound-child';
+				childDiv.innerHTML = `
+					<span class="match-icon ${cClass}">${cIcon}</span>
+					<span class="match-name">${escHtml(child.requirement || '')}</span>
+					<div class="conf-bar-wrap">
+						<div class="conf-bar">
+							<div class="conf-bar-fill ${cMissing ? '' : cFill}" style="width:${cMissing ? 0 : Math.round(cConf * 100)}%"></div>
+						</div>
+						<span class="conf-val">${cMissing ? '\u2014' : cConf.toFixed(2)}</span>
+					</div>
+					${cMissing ? '<span style="font-family:monospace;font-size:9px;color:#d1d5db">\u2014</span>' : `<span class="source-chip ${cCat}">${cCat}</span>`}
+				`;
+				wrapper.appendChild(childDiv);
+			});
+			matchList.appendChild(wrapper);
 		});
 		el('section-skills').classList.remove('hidden');
 

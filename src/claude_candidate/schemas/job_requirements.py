@@ -97,3 +97,5 @@ class QuickRequirement(BaseModel):
 	education_level: str | None = None  # "bachelor", "master", "phd", etc.
 	source_text: str = ""  # Original text fragment this was extracted from
 	is_eligibility: bool = False  # True = binary gate (work auth, travel, language), not scored
+	parent_id: str | None = None  # Links distilled sub-reqs to compound parent group
+	weight_override: float | None = None  # Computed by compute_distillation_weights

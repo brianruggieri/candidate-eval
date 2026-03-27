@@ -219,6 +219,7 @@ def _build_skill_detail(
 		confidence=conf,
 		matched_skill=best_match.name if best_match else None,
 		match_type=match_type,
+		parent_id=req.parent_id,
 	)
 
 

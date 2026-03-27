@@ -433,7 +433,7 @@ class QuickMatchEngine:
 		effective_discount = _soft_skill_discount(culture_signals, company_profile)
 
 		for req in requirements:
-			weight = PRIORITY_WEIGHT.get(req.priority, 1.0)
+			weight = req.weight_override if req.weight_override is not None else PRIORITY_WEIGHT.get(req.priority, 1.0)
 
 			# Discount soft skill requirements
 			is_soft_skill = False
