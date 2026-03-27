@@ -35,6 +35,9 @@ htmlcov/
 # Claude Code
 .claude/
 
+# Node
+node_modules/
+
 # Worktrees
 .worktrees/
 
@@ -60,3 +63,5 @@ htmlcov/
 # Generated static site
 site/
 .claude/handoffs/
+extension/package-lock.json
+fit-page-*.png

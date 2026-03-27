@@ -404,3 +404,11 @@ body {
 	padding-left: 4px; margin-left: -4px;
 	border-left: 2px solid #f59e0b;
 }
+
+/* Compound distillation preview */
+.compound-group { border: 1px solid #e5e7eb; border-radius: 6px; margin: 2px 0; }
+.compound-group[open] { background: #f9fafb; }
+.compound-header { cursor: pointer; }
+.compound-header::-webkit-details-marker { display: none; }
+.compound-count { font-size: 10px; color: #9ca3af; margin-left: auto; }
+.compound-child { padding-left: 24px; border-top: 1px solid #f3f4f6; }

@@ -1,0 +1,15 @@
+{
+	"name": "candidate-eval-extension",
+	"private": true,
+	"type": "module",
+	"devDependencies": {
+		"vitest": "^3.0.0"
+	},
+	"scripts": {
+		"test": "vitest run",
+		"test:watch": "vitest"
+	},
+	"dependencies": {
+		"html2canvas": "^1.4.1"
+	}
+}

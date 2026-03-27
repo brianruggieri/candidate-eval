@@ -450,13 +450,28 @@ def _infer_virtual_skill(
 	canonical = taxonomy.match(skill_name)
 	target = (canonical or skill_name).lower().strip()
 	profile_names = {s.name.lower() for s in profile.skills}
+	profile_skill_map = {s.name.lower(): s for s in profile.skills}
 
 	# Check virtual skill rules
-	for rule_name, constituents, min_count, depth in VIRTUAL_SKILL_RULES:
+	for rule_name, constituents, min_count, depth, *rest in VIRTUAL_SKILL_RULES:
 		if rule_name != target:
 			continue
-		# Count how many constituents the profile has
-		matched = sum(1 for c in constituents if c in profile_names)
+		# Count constituents that meet the depth requirement
+		min_constituent_depth = rest[0] if rest else None
+		matched = 0
+		for c in constituents:
+			if c not in profile_skill_map:
+				continue
+			if min_constituent_depth is not None:
+				skill = profile_skill_map[c]
+				if skill.effective_depth is None:
+					continue
+				depth_order = [DepthLevel.USED, DepthLevel.APPLIED, DepthLevel.DEEP, DepthLevel.EXPERT]
+				skill_rank = depth_order.index(skill.effective_depth) if skill.effective_depth in depth_order else -1
+				min_rank = depth_order.index(min_constituent_depth) if min_constituent_depth in depth_order else 0
+				if skill_rank < min_rank:
+					continue
+			matched += 1
 		if matched >= min_count:
 			# Derive source from the constituent skills that exist in the profile.
 			# Prefer the most specific provenance: session > resume+repo > repo > resume.
