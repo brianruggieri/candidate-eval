@@ -1,0 +1,7 @@
+name = "fit-pages-worker"
+main = "fit-worker.js"
+compatibility_date = "2024-01-01"
+
+[[r2_buckets]]
+binding = "FIT_PAGES"
+bucket_name = "fit-pages"

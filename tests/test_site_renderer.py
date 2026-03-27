@@ -467,6 +467,9 @@ def _render_cover_letter_site(tmp_path: Path, **kwargs) -> str:
 	narrative = kwargs.pop("narrative", SAMPLE_NARRATIVE)
 	evidence_highlights = kwargs.pop("evidence_highlights", SAMPLE_EVIDENCE_HIGHLIGHTS)
 	resume_pdf_path = kwargs.pop("resume_pdf_path", None)
+	patterns = kwargs.pop("patterns", [])
+	projects = kwargs.pop("projects", [])
+	gaps = kwargs.pop("gaps", [])
 
 	result = render_cover_letter_site(
 		assessment=assessment,
@@ -474,21 +477,22 @@ def _render_cover_letter_site(tmp_path: Path, **kwargs) -> str:
 		evidence_highlights=evidence_highlights,
 		output_dir=tmp_path,
 		resume_pdf_path=resume_pdf_path,
+		patterns=patterns,
+		projects=projects,
+		gaps=gaps,
 	)
 	return result.read_text()
 
 
 class TestCoverLetterSiteTransparency:
-	def test_cover_letter_site_has_transparency_badge(self, tmp_path: Path):
+	def test_cover_letter_site_has_transparency_credit(self, tmp_path: Path):
 		html = _render_cover_letter_site(tmp_path)
 		assert "claude-candidate" in html
 		assert "https://github.com/brianruggieri/claude-candidate" in html
 
-	def test_transparency_badge_is_in_hero(self, tmp_path: Path):
+	def test_footer_has_claude_candidate_credit(self, tmp_path: Path):
 		html = _render_cover_letter_site(tmp_path)
-		# The badge should appear near the title, not just in the footer
-		badge_pos = html.find("Built with claude-candidate")
-		assert badge_pos != -1, "Transparency badge not found"
+		assert "evidence-backed fit assessment engine" in html
 
 
 class TestCoverLetterSiteNoResume:
@@ -514,29 +518,32 @@ class TestCoverLetterSiteNarrative:
 
 
 class TestCoverLetterSiteSkillsTable:
-	def test_cover_letter_site_has_skills_table(self, tmp_path: Path):
+	def test_cover_letter_site_has_skills_grid(self, tmp_path: Path):
 		html = _render_cover_letter_site(tmp_path)
-		assert "Skills Match" in html
+		assert "Skill Match Matrix" in html
 		assert "Python proficiency" in html
 
-	def test_skills_table_has_priority_and_match(self, tmp_path: Path):
+	def test_skills_grid_has_priority_and_status(self, tmp_path: Path):
 		html = _render_cover_letter_site(tmp_path)
 		assert "Must Have" in html
-		assert "Strong" in html  # match status badge
+		assert "Strong Match" in html  # status display
 
 
-class TestCoverLetterSiteHowItWorks:
-	def test_cover_letter_site_has_how_it_works(self, tmp_path: Path):
+class TestCoverLetterSiteDesignSystem:
+	def test_has_design_system_variables(self, tmp_path: Path):
 		html = _render_cover_letter_site(tmp_path)
-		assert "How This Works" in html
+		assert ":root" in html
+		assert "--brand" in html
 
-	def test_how_it_works_links_to_github(self, tmp_path: Path):
+	def test_has_grade_ring(self, tmp_path: Path):
 		html = _render_cover_letter_site(tmp_path)
-		assert "https://github.com/brianruggieri/claude-candidate" in html
+		assert "fit-grade" in html
+		assert "Overall Grade" in html
 
-	def test_how_it_works_mentions_evidence(self, tmp_path: Path):
+	def test_has_hero_section(self, tmp_path: Path):
 		html = _render_cover_letter_site(tmp_path)
-		assert "evidence" in html.lower()
+		assert "fit-hero" in html
+		assert "Acme Corp" in html
 
 
 class TestCoverLetterSiteEvidenceHighlights:
@@ -556,23 +563,25 @@ class TestCoverLetterSiteCTA:
 		html = _render_cover_letter_site(tmp_path)
 		assert "Let" in html and "Talk" in html
 
-	def test_resume_pdf_link_when_provided(self, tmp_path: Path):
-		html = _render_cover_letter_site(tmp_path, resume_pdf_path="resume.pdf")
-		assert "resume.pdf" in html
-
-	def test_no_resume_pdf_link_when_omitted(self, tmp_path: Path):
+	def test_has_schedule_conversation_button(self, tmp_path: Path):
 		html = _render_cover_letter_site(tmp_path)
-		assert "Download Resume" not in html
+		assert "Schedule a Conversation" in html
+
+	def test_has_cal_link(self, tmp_path: Path):
+		html = _render_cover_letter_site(tmp_path)
+		assert "cal.com/brianruggieri" in html
 
 
 class TestCoverLetterSiteFooter:
-	def test_has_private_page_notice(self, tmp_path: Path):
-		html = _render_cover_letter_site(tmp_path)
-		assert "Private page" in html
-
-	def test_has_noindex(self, tmp_path: Path):
+	def test_has_noindex_meta(self, tmp_path: Path):
 		html = _render_cover_letter_site(tmp_path)
 		assert "noindex" in html
+
+	def test_has_social_links(self, tmp_path: Path):
+		html = _render_cover_letter_site(tmp_path)
+		assert "linkedin.com/in/roojerry" in html
+		assert "github.com/brianruggieri" in html
+		assert "roojerry.com" in html
 
 
 class TestCoverLetterSiteWithDict:
@@ -607,3 +616,62 @@ class TestCoverLetterSiteWithDict:
 		assert "DictCo" in html
 		assert "Staff Engineer" in html
 		assert "Go proficiency" in html
+
+
+# ---------------------------------------------------------------------------
+# Empty-state tests: sections with no data should not render
+# ---------------------------------------------------------------------------
+
+
+class TestCoverLetterSiteEmptyStates:
+	"""Sections with no data should not render."""
+
+	def test_no_patterns_section_when_empty(self, tmp_path: Path):
+		html = _render_cover_letter_site(tmp_path, patterns=[])
+		assert "Behavioral Fingerprint" not in html
+
+	def test_no_projects_section_when_empty(self, tmp_path: Path):
+		html = _render_cover_letter_site(tmp_path, projects=[])
+		assert "Flagship Implementations" not in html
+
+	def test_no_gaps_section_when_empty(self, tmp_path: Path):
+		html = _render_cover_letter_site(tmp_path, gaps=[])
+		assert "Where I" not in html
+
+	def test_patterns_section_renders_when_present(self, tmp_path: Path):
+		html = _render_cover_letter_site(
+			tmp_path,
+			patterns=[{"name": "Architecture First", "strength": "Strong", "frequency": "Common"}],
+		)
+		assert "Architecture First" in html
+		assert "Behavioral Fingerprint" in html
+
+	def test_projects_section_renders_when_present(self, tmp_path: Path):
+		html = _render_cover_letter_site(
+			tmp_path,
+			projects=[
+				{
+					"name": "Pipeline Rewrite",
+					"date_range": "2025-2026",
+					"technologies": ["Python", "FastAPI"],
+					"description": "Rewrote the data pipeline.",
+					"callout": "Chose async from day one.",
+				}
+			],
+		)
+		assert "Pipeline Rewrite" in html
+		assert "Flagship Implementations" in html
+
+	def test_gaps_section_renders_when_present(self, tmp_path: Path):
+		html = _render_cover_letter_site(
+			tmp_path,
+			gaps=[
+				{
+					"requirement": "Go experience",
+					"status": "No Evidence",
+					"action": "Build Go projects",
+				}
+			],
+		)
+		assert "Go experience" in html
+		assert "Where I" in html

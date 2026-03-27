@@ -126,12 +126,17 @@ def render_cover_letter_site(
 	evidence_highlights: list[dict],
 	output_dir: Path | str,
 	resume_pdf_path: str | None = None,
+	*,
+	patterns: list[dict] | None = None,
+	projects: list[dict] | None = None,
+	gaps: list[dict] | None = None,
+	cal_link: str = "https://cal.com/brianruggieri/30min",
 ) -> Path:
 	"""Render the cover letter site page for a company.
 
-	Creates ``output_dir/apply/{slug}/index.html`` with a transparency-first
-	page showing fit score, skills match, narrative pitch, evidence highlights,
-	and a "How This Works" explainer.
+	Creates ``output_dir/apply/{slug}/index.html`` with the roojerry design
+	system: hero with grade ring, skill cards, evidence, patterns, projects
+	timeline, gaps section, and footer CTA.
 
 	If *assessment* is a dict (e.g. from the assessment store) it is wrapped
 	in a simple namespace so Jinja2 attribute access works unchanged.
@@ -145,10 +150,17 @@ def render_cover_letter_site(
 	        and ``technologies`` (list of str) keys.
 	    output_dir: Root output directory (e.g. ``Path("site")``).
 	    resume_pdf_path: Optional relative URL for a resume PDF download link.
+	    patterns: List of dicts with ``name``, ``strength``, ``frequency``.
+	    projects: List of dicts with ``name``, ``date_range``, ``technologies``,
+	        ``description``, ``callout``.
+	    gaps: List of dicts with ``requirement``, ``status``, ``action``.
+	    cal_link: Cal.com booking URL for the CTA buttons.
 
 	Returns:
 	    Path to the rendered ``index.html`` file.
 	"""
+	from datetime import datetime
+
 	# Normalise assessment to an object with attribute access
 	if isinstance(assessment, dict):
 		assessment = _DictNamespace(assessment)
@@ -162,11 +174,20 @@ def render_cover_letter_site(
 	env = _build_env()
 	template = env.get_template("cover_letter_site.html")
 
+	# For local rendering, use file:// paths to bundled fonts
+	font_base = str(Path(__file__).parent / "static" / "fonts")
+
 	html = template.render(
 		assessment=assessment,
 		narrative=narrative,
 		evidence_highlights=evidence_highlights,
 		resume_pdf_path=resume_pdf_path,
+		patterns=patterns or [],
+		projects=projects or [],
+		gaps=gaps or [],
+		cal_link=cal_link,
+		font_base=font_base,
+		current_year=datetime.now().year,
 	)
 
 	html = scrub_deliverable(html)

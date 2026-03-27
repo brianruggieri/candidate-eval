@@ -244,8 +244,9 @@ def generate_deliverable(assessment: str, deliverable_type: str, output: str | N
 @click.option("--job", "shortlist_id", type=int, required=True, help="Shortlist ID to generate for")
 @click.option("--output-dir", default="site", help="Output directory")
 @click.option("--deploy/--no-deploy", default=True, help="Auto-deploy via wrangler")
+@click.option("--publish/--no-publish", default=False, help="Publish to R2 for roojerry.com/fit/")
 @click.option("--db", default=None, help="Database path")
-def generate_site(shortlist_id: int, output_dir: str, deploy: bool, db: str | None) -> None:
+def generate_site(shortlist_id: int, output_dir: str, deploy: bool, publish: bool, db: str | None) -> None:
 	"""Generate cover letter site page for a shortlisted job and deploy."""
 	import asyncio
 	import subprocess
@@ -334,6 +335,28 @@ def generate_site(shortlist_id: int, output_dir: str, deploy: bool, db: str | No
 			}
 		)
 
+	# Extract gaps from skill matches
+	gaps = []
+	for sm in skill_matches:
+		if sm.get("match_status") == "no_evidence" and sm.get("priority") in (
+			"must_have",
+			"strong_preference",
+		):
+			gaps.append(
+				{
+					"requirement": sm["requirement"],
+					"status": "No Evidence",
+					"action": next(
+						(
+							a
+							for a in assessment_data.get("action_items", [])
+							if sm["requirement"][:20].lower() in a.lower()
+						),
+						"Build portfolio evidence for this skill area",
+					),
+				}
+			)
+
 	# Render the page
 	click.echo("  Rendering HTML...")
 	output_path = render_cover_letter_site(
@@ -341,8 +364,40 @@ def generate_site(shortlist_id: int, output_dir: str, deploy: bool, db: str | No
 		narrative=narrative,
 		evidence_highlights=evidence_highlights,
 		output_dir=Path(output_dir),
+		gaps=gaps,
 	)
 	click.echo(f"  Written: {output_path}")
+
+	# Publish to R2 for roojerry.com/fit/
+	if publish:
+		slug = output_path.parent.name
+		r2_key = f"{slug}/index.html"
+		click.echo(f"  Publishing to R2: {r2_key}")
+		try:
+			pub_result = subprocess.run(
+				[
+					"wrangler",
+					"r2",
+					"object",
+					"put",
+					f"fit-pages/{r2_key}",
+					"--file",
+					str(output_path),
+					"--content-type",
+					"text/html",
+				],
+				capture_output=True,
+				text=True,
+				timeout=60,
+			)
+			if pub_result.returncode == 0:
+				click.echo(f"  Published: https://roojerry.com/fit/{slug}/")
+			else:
+				click.echo(f"  R2 upload failed: {pub_result.stderr}", err=True)
+		except FileNotFoundError:
+			click.echo("  wrangler not found. Install with: npm install -g wrangler", err=True)
+		except subprocess.TimeoutExpired:
+			click.echo("  R2 upload timed out after 60s.", err=True)
 
 	# Deploy via wrangler
 	if deploy:
