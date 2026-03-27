@@ -501,6 +501,16 @@ async function initialize() {
 	if (fresh && lastAssessment && lastAssessment.data) {
 		currentPosting = stored;
 
+		// Stale profile detection
+		const storedHashes = await getForUrl('profileHashes', currentTabUrl);
+		try {
+			const profileStatus = await sendToBackground({ action: 'getProfileStatus' });
+			if (profileStatus && profileStatus.hashes && isProfileStale(storedHashes, profileStatus.hashes)) {
+				const banner = el('stale-banner');
+				if (banner) banner.classList.remove('hidden');
+			}
+		} catch (e) { /* non-critical */ }
+
 		const cachedAid = lastAssessment.data.assessment_id;
 		if (fullReady && fullReady.assessmentId === cachedAid && fullReady.data) {
 			// Full assessment is ready — render it directly
@@ -575,6 +585,14 @@ async function initialize() {
 	// Cache assessment result for instant reopen
 	setForUrl('assessment', currentTabUrl, { url: posting.url, data: partial });
 
+	// Store profile hashes for stale detection
+	try {
+		const profileStatus = await sendToBackground({ action: 'getProfileStatus' });
+		if (profileStatus && profileStatus.hashes) {
+			setForUrl('profileHashes', currentTabUrl, profileStatus.hashes);
+		}
+	} catch (e) { /* non-critical */ }
+
 	renderResults(partial);
 
 	// Show deep analysis indicator
@@ -604,6 +622,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
 	const btnManual = el('btn-manual-extract');
 	if (btnManual) btnManual.addEventListener('click', initialize);
+
+	const btnDismissStale = el('btn-dismiss-stale');
+	if (btnDismissStale) btnDismissStale.addEventListener('click', () => {
+		el('stale-banner').classList.add('hidden');
+	});
+
+	const btnReassess = el('btn-reassess');
+	if (btnReassess) btnReassess.addEventListener('click', async () => {
+		const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+		const url = activeTab?.url || '';
+		await removeForUrl('assessment', url);
+		await removeForUrl('fullReady', url);
+		await removeForUrl('posting', url);
+		el('stale-banner').classList.add('hidden');
+		initialize();
+	});
 
 	const btnShortlist = el('btn-shortlist');
 	if (btnShortlist) btnShortlist.addEventListener('click', async () => {

@@ -338,6 +338,10 @@ chrome.runtime.onMessage.addListener(function (request, _sender, sendResponse) {
 			promise = Promise.resolve({ success: true, started: true });
 			break;
 
+		case 'getProfileStatus':
+			promise = apiFetch('/api/profile/status').catch(() => ({}));
+			break;
+
 		default:
 			sendResponse({ error: `Unknown action: ${action}` });
 			return false;
