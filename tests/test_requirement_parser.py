@@ -254,3 +254,27 @@ class TestParseRequirementsWithClaude:
 		assert len(results) >= 1
 		all_skills = {s for r in results for s in r.skill_mapping}
 		assert "python" in all_skills or "docker" in all_skills
+
+
+class TestBuildExtractionPrompt:
+	def test_returns_string_with_required_fields(self):
+		from claude_candidate.requirement_parser import build_extraction_prompt
+
+		prompt = build_extraction_prompt(title="Software Engineer", text="We need Python...")
+		assert "company" in prompt
+		assert "title" in prompt
+		assert "requirements" in prompt
+		assert "skill_mapping" in prompt
+		assert "is_eligibility" in prompt
+		assert "Software Engineer" in prompt
+		assert "We need Python" in prompt
+
+	def test_truncates_long_text(self):
+		from claude_candidate.requirement_parser import build_extraction_prompt
+
+		long_text = "x" * 20000
+		prompt = build_extraction_prompt(title="Test", text=long_text)
+		# MAX_EXTRACTION_TEXT = 15000
+		assert len(long_text) > 15000
+		assert "x" * 15000 in prompt
+		assert "x" * 15001 not in prompt

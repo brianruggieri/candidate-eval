@@ -45,6 +45,7 @@ class SkillMatchDetail(BaseModel):
 	confidence: float = Field(ge=0.0, le=1.0)
 	matched_skill: str | None = None  # Canonical skill name that resolved this requirement
 	match_type: Literal["exact", "fuzzy", "none"] = "exact"  # how skill was resolved
+	parent_id: str | None = None  # Links distilled sub-reqs to compound parent group
 
 
 def score_to_grade(score: float) -> str:

@@ -35,6 +35,11 @@ def _get_taxonomy() -> SkillTaxonomy:
 PATTERN_CONFIDENCE_HIGH = 0.85
 PATTERN_CONFIDENCE_LOW = 0.6
 
+# Confidence adjustment floor: how much a zero-confidence match is penalized.
+# Old value was 0.90 (±10%). Widened to 0.70 (±30%) so match quality
+# has meaningful scoring impact on fuzzy/related matches.
+CONFIDENCE_FLOOR = 0.70
+
 # Pattern frequency synthetic counts
 PATTERN_FREQ_RARE = 3
 PATTERN_FREQ_OCCASIONAL = 10
@@ -70,6 +75,61 @@ MISSION_TEXT_OVERLAP_WEIGHT = 0.15
 MISSION_NO_ENRICHMENT_BASE = 0.3
 MISSION_NO_ENRICHMENT_RANGE = 0.4
 MISSION_SCORE_MAX = 1.0
+
+# Domain keyword taxonomy for mission alignment scoring.
+# Maps product domains to related keywords that indicate domain relevance.
+# Used to strengthen mission alignment when the candidate has domain-adjacent experience.
+MISSION_DOMAIN_TAXONOMY: dict[str, list[str]] = {
+	"developer-tools": [
+		"developer", "devtools", "ide", "sdk", "api", "cli", "infrastructure",
+		"platform", "tooling", "devops", "ci/cd", "deployment", "monitoring",
+	],
+	"ai": [
+		"artificial intelligence", "machine learning", "ml", "llm", "nlp",
+		"deep learning", "neural", "model", "inference", "training", "prompt",
+		"agent", "agentic", "generative", "transformer", "embedding",
+	],
+	"fintech": [
+		"financial", "fintech", "banking", "payments", "trading", "crypto",
+		"blockchain", "defi", "insurance", "lending", "compliance",
+	],
+	"healthcare": [
+		"health", "medical", "clinical", "patient", "biotech", "pharma",
+		"genomic", "bioinformatics", "ehr", "telehealth", "diagnostic",
+	],
+	"education": [
+		"education", "edtech", "learning", "teaching", "student", "course",
+		"curriculum", "tutoring", "assessment", "classroom",
+	],
+	"e-commerce": [
+		"commerce", "retail", "shopping", "marketplace", "merchant",
+		"catalog", "inventory", "checkout", "fulfillment",
+	],
+	"gaming": [
+		"game", "gaming", "unity", "unreal", "3d", "interactive",
+		"multiplayer", "virtual", "simulation", "real-time",
+	],
+	"creative-tools": [
+		"creative", "design", "media", "video", "audio", "music",
+		"animation", "rendering", "content creation", "editor",
+	],
+	"security": [
+		"security", "cybersecurity", "encryption", "authentication",
+		"vulnerability", "threat", "compliance", "privacy", "zero trust",
+	],
+	"data": [
+		"data", "analytics", "visualization", "dashboard", "metrics",
+		"warehouse", "pipeline", "etl", "business intelligence",
+	],
+	"infrastructure": [
+		"cloud", "infrastructure", "kubernetes", "containers", "serverless",
+		"networking", "storage", "compute", "orchestration",
+	],
+	"collaboration": [
+		"collaboration", "productivity", "communication", "team",
+		"workflow", "project management", "remote work",
+	],
+}
 
 # Culture fit score parameters
 CULTURE_NEUTRAL_SCORE = 0.5
@@ -405,11 +465,11 @@ CULTURE_PATTERN_STRENGTH_SCORE: dict[str, float] = {
 # Virtual skill inference rules + pattern mappings
 # ---------------------------------------------------------------------------
 
-# Maps a virtual skill name to (required_any, min_count, inferred_depth).
-# If the profile contains >= min_count skills from required_any, the virtual
-# skill is inferred at inferred_depth.
-VIRTUAL_SKILL_RULES: list[tuple[str, list[str], int, DepthLevel]] = [
-	# full-stack: need frontend + backend evidence
+# Maps a virtual skill name to (required_any, min_count, inferred_depth, min_constituent_depth).
+# If the profile contains >= min_count skills from required_any (at or above
+# min_constituent_depth if set), the virtual skill is inferred at inferred_depth.
+VIRTUAL_SKILL_RULES: list[tuple[str, list[str], int, DepthLevel, DepthLevel | None]] = [
+	# full-stack: need frontend + backend evidence at APPLIED+ depth
 	(
 		"full-stack",
 		[
@@ -424,10 +484,11 @@ VIRTUAL_SKILL_RULES: list[tuple[str, list[str], int, DepthLevel]] = [
 			"api-design",
 			"backend-development",
 		],
-		2,
+		3,
 		DepthLevel.DEEP,
+		DepthLevel.APPLIED,
 	),
-	# software-engineering: need multiple programming skills
+	# software-engineering: need multiple programming skills at APPLIED+ depth
 	(
 		"software-engineering",
 		[
@@ -441,19 +502,21 @@ VIRTUAL_SKILL_RULES: list[tuple[str, list[str], int, DepthLevel]] = [
 			"testing",
 			"api-design",
 		],
-		3,
+		5,
 		DepthLevel.DEEP,
+		DepthLevel.APPLIED,
 	),
-	# frontend-development: need a frontend framework
-	("frontend-development", ["react", "vue", "angular", "nextjs", "html-css"], 1, DepthLevel.DEEP),
+	# frontend-development: need a frontend framework at APPLIED+ depth
+	("frontend-development", ["react", "vue", "angular", "nextjs", "html-css"], 2, DepthLevel.DEEP, DepthLevel.APPLIED),
 	# backend-development: need a backend stack
 	(
 		"backend-development",
 		["python", "node.js", "fastapi", "api-design", "postgresql", "sql"],
-		2,
+		3,
 		DepthLevel.DEEP,
+		DepthLevel.APPLIED,
 	),
-	# system-design: architecture pattern or multiple system skills
+	# system-design: architecture + system skills at APPLIED+
 	(
 		"system-design",
 		[
@@ -465,17 +528,19 @@ VIRTUAL_SKILL_RULES: list[tuple[str, list[str], int, DepthLevel]] = [
 			"docker",
 			"kubernetes",
 		],
-		2,
+		3,
+		DepthLevel.APPLIED,
 		DepthLevel.APPLIED,
 	),
-	# testing: testing pattern or pytest
-	("testing", ["pytest", "ci-cd"], 1, DepthLevel.DEEP),
+	# testing: testing pattern or pytest (narrow — no depth requirement)
+	("testing", ["pytest", "ci-cd"], 1, DepthLevel.DEEP, None),
 	# devops: container/infra tooling
 	(
 		"devops",
 		["docker", "kubernetes", "ci-cd", "terraform", "aws", "gcp", "azure"],
 		2,
 		DepthLevel.APPLIED,
+		None,
 	),
 	# cloud-infrastructure: cloud providers
 	(
@@ -483,21 +548,24 @@ VIRTUAL_SKILL_RULES: list[tuple[str, list[str], int, DepthLevel]] = [
 		["aws", "gcp", "azure", "docker", "kubernetes", "terraform"],
 		2,
 		DepthLevel.APPLIED,
+		None,
 	),
 	# data-science: analytics background
-	("data-science", ["sql", "python", "metabase", "postgresql"], 2, DepthLevel.APPLIED),
+	("data-science", ["sql", "python", "metabase", "postgresql"], 2, DepthLevel.APPLIED, None),
 	# computer-science: implied by deep engineering experience
 	(
 		"computer-science",
 		["python", "typescript", "javascript", "sql", "api-design", "software-engineering"],
 		3,
 		DepthLevel.APPLIED,
+		None,
 	),
-	# product-development: full-stack + shipping evidence
+	# product-development: full-stack + shipping evidence at APPLIED+
 	(
 		"product-development",
 		["react", "node.js", "python", "prototyping", "api-design", "ci-cd", "full-stack"],
-		2,
+		3,
+		DepthLevel.APPLIED,
 		DepthLevel.APPLIED,
 	),
 	# production-systems: deployment + testing + infra
@@ -506,6 +574,7 @@ VIRTUAL_SKILL_RULES: list[tuple[str, list[str], int, DepthLevel]] = [
 		["ci-cd", "docker", "testing", "aws", "gcp", "azure", "postgresql", "devops"],
 		2,
 		DepthLevel.APPLIED,
+		None,
 	),
 	# startup-experience: prototyping + shipping evidence
 	(
@@ -513,15 +582,17 @@ VIRTUAL_SKILL_RULES: list[tuple[str, list[str], int, DepthLevel]] = [
 		["prototyping", "full-stack", "product-development", "ci-cd", "api-design", "ownership"],
 		2,
 		DepthLevel.APPLIED,
+		None,
 	),
 	# metrics: analytics tools + data skills
-	("metrics", ["metabase", "sql", "data-science", "postgresql"], 1, DepthLevel.APPLIED),
+	("metrics", ["metabase", "sql", "data-science", "postgresql"], 1, DepthLevel.APPLIED, None),
 	# developer-tools: builds tools for developers
 	(
 		"developer-tools",
 		["ci-cd", "git", "testing", "software-engineering", "api-design", "llm"],
 		2,
 		DepthLevel.DEEP,
+		None,
 	),
 	# open-source: git + collaborative development
 	(
@@ -529,6 +600,7 @@ VIRTUAL_SKILL_RULES: list[tuple[str, list[str], int, DepthLevel]] = [
 		["git", "ci-cd", "software-engineering", "collaboration"],
 		2,
 		DepthLevel.APPLIED,
+		None,
 	),
 ]
 

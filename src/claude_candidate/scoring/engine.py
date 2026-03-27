@@ -39,6 +39,7 @@ from claude_candidate.schemas.merged_profile import (
 )
 from claude_candidate.eligibility_evaluator import evaluate_gates
 from claude_candidate.scoring.constants import (
+	CONFIDENCE_FLOOR,
 	CULTURE_BASE_SCORE,
 	CULTURE_NEUTRAL_SCORE,
 	CULTURE_SCORE_MAX,
@@ -209,12 +210,35 @@ class QuickMatchEngine:
 			inp.tech_stack or [],
 		)
 
-		# Partial-assessment weights: skill-heavy so unmatched technical
-		# requirements properly suppress scores. Experience/education default
-		# to 0.9 when not stated, so lower their weight to avoid inflating.
-		skill_dim.weight = 0.65
-		experience_dim.weight = 0.25
+		# Partial-path mission: derive tech_stack from requirement skill_mappings
+		# (eng review decision 4A→C: skill_mapping proxy, no extraction model change)
+		proxy_tech_stack = list({
+			skill
+			for req in scorable_reqs
+			for skill in req.skill_mapping
+		})
+
+		# Mission is optional in partial assessments: only score if we have any mission signal.
+		mission_dim: DimensionScore | None = None
+		if inp.company_profile or inp.tech_stack or proxy_tech_stack:
+			mission_dim = self._score_mission_alignment(
+				company=inp.company,
+				tech_stack=proxy_tech_stack if not inp.tech_stack else inp.tech_stack,
+				company_profile=inp.company_profile,
+			)
+
+		# Partial-assessment weights.
+		# Weights must sum to 1.0 (_compute_overall_score does straight weighted sum).
+		skill_dim.weight = 0.60
+		experience_dim.weight = 0.20
 		education_dim.weight = 0.10
+		if mission_dim is not None:
+			mission_dim.weight = 0.10
+		else:
+			# No mission signal — redistribute mission weight back to skill/experience.
+			skill_dim.weight = 0.65
+			experience_dim.weight = 0.25
+			# education stays 0.10 → total = 1.0
 
 		# Cap experience/education scores when skill match is weak.
 		# Prevents generic experience from rescuing a poor technical fit.
@@ -224,6 +248,7 @@ class QuickMatchEngine:
 
 		overall_score = _compute_overall_score(
 			skill_dim,
+			mission_dim=mission_dim,
 			experience_dim=experience_dim,
 			education_dim=education_dim,
 		)
@@ -252,8 +277,8 @@ class QuickMatchEngine:
 		return self._build_assessment(
 			inp,
 			skill_dim,
-			None,
-			None,
+			mission_dim,  # Was None — now proxy-based
+			None,  # culture_dim still None for partial
 			skill_details,
 			overall_score,
 			elapsed,
@@ -354,7 +379,7 @@ class QuickMatchEngine:
 		domain_gap_term: str | None = None,
 	) -> FitAssessment:
 		"""Construct the FitAssessment pydantic model."""
-		is_partial = mission_dim is None and culture_dim is None
+		is_partial = culture_dim is None  # Partial = no company research (no culture dim)
 		overall_summary = self._generate_summary(summary_inp)
 		action_items = self._generate_action_items(
 			overall_score,
@@ -433,7 +458,7 @@ class QuickMatchEngine:
 		effective_discount = _soft_skill_discount(culture_signals, company_profile)
 
 		for req in requirements:
-			weight = PRIORITY_WEIGHT.get(req.priority, 1.0)
+			weight = req.weight_override if req.weight_override is not None else PRIORITY_WEIGHT.get(req.priority, 1.0)
 
 			# Discount soft skill requirements
 			is_soft_skill = False
@@ -461,7 +486,7 @@ class QuickMatchEngine:
 					if found:
 						status = _assess_depth_match(found, depth_floor, self.profile)
 						conf = found.confidence if found.confidence is not None else 1.0
-						adj = 0.90 + 0.10 * conf
+						adj = CONFIDENCE_FLOOR + (1.0 - CONFIDENCE_FLOOR) * conf
 						all_scores.append(STATUS_SCORE.get(status, 0.0) * adj)
 					else:
 						all_scores.append(0.0)

@@ -47,6 +47,8 @@ from claude_candidate.scoring.constants import (
 	MAX_TECH_OVERLAP_DISPLAY,
 	# Rounding
 	SCORE_PRECISION,
+	# Confidence adjustment
+	CONFIDENCE_FLOOR,
 	# Mission constants
 	MISSION_NEUTRAL_SCORE,
 	MISSION_DOMAIN_BONUS,
@@ -54,6 +56,7 @@ from claude_candidate.scoring.constants import (
 	MISSION_TEXT_OVERLAP_WEIGHT,
 	MISSION_NO_ENRICHMENT_BASE,
 	MISSION_NO_ENRICHMENT_RANGE,
+	MISSION_DOMAIN_TAXONOMY,
 	# Culture constants
 	CULTURE_PATTERN_STRENGTH_SCORE,
 	CULTURE_EMERGING_MATCH,
@@ -180,10 +183,10 @@ def _score_requirement(
 
 	req_score = STATUS_SCORE.get(best_status, STATUS_SCORE_NONE)
 	if best_match:
-		# Apply confidence as a minor (±10%) adjustment to the base status score.
+		# Apply confidence as a ±30% adjustment to the base status score.
 		# confidence may be None (v0.7 merge_triad) — default to 1.0 (no penalty).
 		conf = best_match.confidence if best_match.confidence is not None else 1.0
-		adjustment = 0.90 + 0.10 * conf
+		adjustment = CONFIDENCE_FLOOR + (1.0 - CONFIDENCE_FLOOR) * conf
 		req_score *= adjustment
 	return req_score
 
@@ -219,6 +222,7 @@ def _build_skill_detail(
 		confidence=conf,
 		matched_skill=best_match.name if best_match else None,
 		match_type=match_type,
+		parent_id=req.parent_id,
 	)
 
 
@@ -341,12 +345,12 @@ def _score_mission_text_alignment(
 	profile: MergedEvidenceProfile,
 	company_profile: CompanyProfile,
 ) -> tuple[float, list[str]]:
-	"""Score mission text alignment; return (bonus, detail_lines).
+	"""Score mission text alignment using domain-aware keyword taxonomy.
 
-	Computes keyword overlap between the company's mission statement /
-	product description and the candidate's skill names and project technologies.
-	Uses word-boundary matching to avoid false positives (e.g. "go" inside "good").
-	Only keywords of 3+ characters are considered to reduce noise.
+	Expands matching beyond raw skill names by including domain taxonomy keywords
+	when the candidate has skills in a recognized domain. This catches cases where
+	a company's mission mentions domain concepts (e.g., 'developer tools') that
+	don't exactly match skill names (e.g., 'ci-cd', 'git').
 	"""
 	text_sources = []
 	if company_profile.mission_statement:
@@ -356,21 +360,34 @@ def _score_mission_text_alignment(
 		return 0.0, []
 
 	combined_text = " ".join(text_sources).lower()
+
+	# Build candidate keywords from skills + project techs
 	candidate_keywords: set[str] = {s.name.lower() for s in profile.skills}
 	for proj in profile.projects:
 		for tech in proj.technologies:
 			candidate_keywords.add(tech.lower())
 
-	# Filter out very short keywords and use word-boundary matching
+	# Expand with domain taxonomy: if candidate has skills in a domain,
+	# include that domain's keywords for matching against mission text.
+	expanded_keywords: set[str] = set(candidate_keywords)
+	for domain, domain_keywords in MISSION_DOMAIN_TAXONOMY.items():
+		domain_kw_set = set(domain_keywords)
+		skill_overlap = candidate_keywords & domain_kw_set
+		if skill_overlap or domain.lower() in candidate_keywords:
+			expanded_keywords.update(domain_keywords)
+
+	# Match expanded keywords against mission text (3+ chars, word boundary)
 	matched = {
 		kw
-		for kw in candidate_keywords
+		for kw in expanded_keywords
 		if len(kw) >= 3 and re.search(rf"\b{re.escape(kw)}\b", combined_text)
 	}
 	if not matched:
 		return 0.0, []
 
-	ratio = len(matched) / max(len(candidate_keywords), 1)
+	# Score based on ratio of matched to candidate keywords
+	# Cap at 1.0 since expanded keywords can exceed original count
+	ratio = min(len(matched) / max(len(candidate_keywords), 1), 1.0)
 	detail = f"Mission text overlap: {', '.join(sorted(matched)[:MAX_TECH_OVERLAP_DISPLAY])}"
 	return ratio * MISSION_TEXT_OVERLAP_WEIGHT, [detail]
 

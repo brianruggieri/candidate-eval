@@ -862,8 +862,6 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 	# Extract posting
 	# ------------------------------------------------------------------
 
-	MAX_EXTRACTION_TEXT = 15_000
-
 	def _infer_source(url: str) -> str:
 		lower = url.lower()
 		if "linkedin.com" in lower:
@@ -876,44 +874,16 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 			return "indeed"
 		return "web"
 
-	def _build_extraction_prompt(title: str, text: str) -> str:
-		truncated = text[:MAX_EXTRACTION_TEXT]
-		return (
-			"Extract the job posting from this web page text. "
-			"Return ONLY valid JSON with these fields:\n"
-			"- company: string (the hiring company name)\n"
-			"- title: string (the job title)\n"
-			"- description: string (full job description including requirements and qualifications)\n"
-			"- location: string or null\n"
-			"- seniority: string or null (one of: junior, mid, senior, staff, principal, director)\n"
-			"- remote: boolean or null\n"
-			"- salary: string or null\n"
-			"- requirements: array of objects, each with:\n"
-			"  - description: string (human-readable requirement)\n"
-			'  - skill_mapping: array of strings (normalized skill names, e.g. ["python", "django"])\n'
-			"  - priority: string (one of: must_have, strong_preference, nice_to_have, implied)\n"
-			'  - years_experience: integer or null (e.g. 5 for "5+ years")\n'
-			'  - education_level: string or null (e.g. "bachelor", "master", "phd")\n'
-			"  - is_eligibility: boolean, true ONLY for non-skill logistical/eligibility requirements\n"
-			"    (work authorization, visa sponsorship, travel willingness, language proficiency,\n"
-			"    relocation, security clearance, mission/values alignment). False for technical skills,\n"
-			"    domain experience, and education requirements. Education (bachelor/master/PhD) is NOT\n"
-			"    eligibility. Split mixed requirements into separate entries.\n\n"
-			"For requirements, extract every qualification, skill, or experience mentioned in the posting. "
-			"Use must_have for requirements labeled required/must/essential, "
-			"strong_preference for strongly preferred/highly desired, "
-			"nice_to_have for preferred/bonus/plus, "
-			"and implied for unlabeled qualifications that are clearly expected.\n\n"
-			"If this page does not contain a job posting, return all fields as null.\n\n"
-			f"Page title: {title}\n"
-			f"Page text:\n{truncated}"
-		)
-
 	@app.post("/api/extract-posting")
 	async def extract_posting(req: ExtractPostingRequest):
+		from claude_candidate.requirement_parser import (
+			extract_posting_with_claude,
+			CACHE_PROMPT_VERSION,
+		)
+
 		store = get_store()
 		cache_url = _normalize_cache_url(req.url)
-		url_hash = hashlib.sha256(cache_url.encode()).hexdigest()[:16]
+		url_hash = hashlib.sha256(f"{CACHE_PROMPT_VERSION}:{cache_url}".encode()).hexdigest()[:16]
 
 		cached = await store.get_cached_posting(url_hash)
 		if cached is not None:
@@ -927,23 +897,13 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 		import asyncio
 
 		logger.info("extract-posting: extracting %s (%d chars)", cache_url[:80], len(req.text))
-		prompt = _build_extraction_prompt(req.title, req.text)
 		try:
-			raw = await asyncio.get_event_loop().run_in_executor(
-				None, lambda: _claude_cli.call_claude(prompt, timeout=120)
+			parsed = await asyncio.get_event_loop().run_in_executor(
+				None, lambda: extract_posting_with_claude(req.title, req.text)
 			)
 		except _claude_cli.ClaudeCLIError as exc:
 			logger.warning("extract-posting: Claude CLI error for %s: %s", cache_url[:80], exc)
 			raise HTTPException(status_code=503, detail=f"Claude CLI error: {exc}") from exc
-
-		try:
-			cleaned = raw.strip()
-			if cleaned.startswith("```"):
-				cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned
-			if cleaned.endswith("```"):
-				cleaned = cleaned.rsplit("```", 1)[0]
-			cleaned = cleaned.strip()
-			parsed = json.loads(cleaned)
 		except (json.JSONDecodeError, ValueError) as exc:
 			logger.warning("extract-posting: invalid JSON from Claude for %s", cache_url[:80])
 			raise HTTPException(
@@ -951,22 +911,8 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 				detail="Extraction failed: invalid response from Claude",
 			) from exc
 
-		if not isinstance(parsed, dict):
-			logger.warning(
-				"extract-posting: non-object JSON from Claude for %s (type=%s)",
-				cache_url[:80],
-				type(parsed).__name__,
-			)
-			raise HTTPException(
-				status_code=502,
-				detail="Extraction failed: invalid response from Claude",
-			)
-
-		# Normalize skill mappings through taxonomy + auto-tag education
+		# Auto-tag education (server-specific post-processing)
 		if "requirements" in parsed and isinstance(parsed["requirements"], list):
-			from claude_candidate.requirement_parser import normalize_skill_mappings
-
-			normalize_skill_mappings(parsed["requirements"])
 			_auto_tag_education(parsed["requirements"])
 
 		if "requirements" not in parsed:

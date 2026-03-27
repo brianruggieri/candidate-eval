@@ -45,8 +45,8 @@ class TestQuickMatchAssessment:
 		assert assessment.assessment_phase == "partial"
 		assert assessment.partial_percentage is not None
 		assert 0.0 <= assessment.partial_percentage <= 100.0
-		# Mission and culture are None in partial assessment
-		assert assessment.mission_alignment is None
+		# Mission is now proxy-based in partial assessment; culture remains None
+		assert assessment.mission_alignment is not None
 		assert assessment.culture_fit is None
 
 		# Skill details match requirements count
@@ -643,7 +643,7 @@ class TestPartialAssessmentWeights:
 		]
 
 	def test_partial_assessment_uses_fixed_weights(self, candidate_profile, resume_profile):
-		"""Partial assessment always uses 65/25/10 weights."""
+		"""Partial assessment uses 60/20/10/10 weights when mission is present."""
 		merged = merge_profiles(candidate_profile, resume_profile)
 		engine = QuickMatchEngine(merged)
 
@@ -653,9 +653,17 @@ class TestPartialAssessmentWeights:
 			title="Engineer",
 		)
 
-		assert assessment.skill_match.weight == 0.65
-		assert assessment.experience_match.weight == 0.25
-		assert assessment.education_match.weight == 0.10
+		if assessment.mission_alignment:
+			# Mission proxy succeeded: 60/20/10 + mission 10
+			assert assessment.skill_match.weight == 0.60
+			assert assessment.experience_match.weight == 0.20
+			assert assessment.education_match.weight == 0.10
+			assert assessment.mission_alignment.weight == 0.10
+		else:
+			# No mission data: fallback to 65/25/10
+			assert assessment.skill_match.weight == 0.65
+			assert assessment.experience_match.weight == 0.25
+			assert assessment.education_match.weight == 0.10
 
 	def test_insufficient_data_scores_high(self, candidate_profile, resume_profile):
 		"""No requirement stated = effectively met (score ~0.9)."""
@@ -688,11 +696,12 @@ class TestPartialAssessmentWeights:
 			assessment.skill_match.weight
 			+ assessment.experience_match.weight
 			+ assessment.education_match.weight
+			+ (assessment.mission_alignment.weight if assessment.mission_alignment else 0.0)
 		)
 		assert abs(total - 1.0) < 1e-9
 
-	def test_partial_assessment_no_mission_or_culture(self, candidate_profile, resume_profile):
-		"""Partial assessment leaves mission and culture as None."""
+	def test_partial_assessment_no_culture(self, candidate_profile, resume_profile):
+		"""Partial assessment includes proxy mission but leaves culture as None."""
 		merged = merge_profiles(candidate_profile, resume_profile)
 		engine = QuickMatchEngine(merged)
 
@@ -703,8 +712,8 @@ class TestPartialAssessmentWeights:
 			culture_signals=["documentation driven"],
 		)
 
-		# Even with culture signals passed, partial skips them
-		assert assessment.mission_alignment is None
+		# Mission is now proxy-based in partial; culture still skipped
+		assert assessment.mission_alignment is not None
 		assert assessment.culture_fit is None
 
 	def test_partial_percentage_matches_weighted_score(self, candidate_profile, resume_profile):
@@ -844,13 +853,13 @@ def test_find_skill_match_canonicalizes_hyphens():
 
 
 def test_score_requirement_uses_raw_confidence_no_floor():
-	"""Confidence adjustment uses raw skill confidence with no floor clamping.
+	"""Confidence adjustment uses raw skill confidence with CONFIDENCE_FLOOR floor.
 
-	With CONFLICTING fixed to 0.72, the floor constants are unnecessary.
-	Both resume_only (0.85) and conflicting (0.72) should score via the
-	clean formula: adjustment = 0.90 + 0.10 * confidence.
+	With CONFLICTING fixed to 0.72, both resume_only (0.85) and conflicting (0.72)
+	should score via the widened formula: adjustment = CONFIDENCE_FLOOR + (1 - CONFIDENCE_FLOOR) * confidence.
 	"""
 	from claude_candidate.quick_match import _score_requirement, STATUS_SCORE
+	from claude_candidate.scoring.constants import CONFIDENCE_FLOOR
 	from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
 	from claude_candidate.schemas.candidate_profile import DepthLevel
 
@@ -873,8 +882,8 @@ def test_score_requirement_uses_raw_confidence_no_floor():
 	resume_score = _score_requirement(resume_skill, "strong_match")
 	conflicting_score = _score_requirement(conflicting_skill, "strong_match")
 
-	expected_resume = STATUS_SCORE["strong_match"] * (0.90 + 0.10 * 0.85)
-	expected_conflicting = STATUS_SCORE["strong_match"] * (0.90 + 0.10 * 0.72)
+	expected_resume = STATUS_SCORE["strong_match"] * (CONFIDENCE_FLOOR + (1.0 - CONFIDENCE_FLOOR) * 0.85)
+	expected_conflicting = STATUS_SCORE["strong_match"] * (CONFIDENCE_FLOOR + (1.0 - CONFIDENCE_FLOOR) * 0.72)
 
 	assert abs(resume_score - expected_resume) < 0.001, (
 		f"resume_only: expected {expected_resume:.4f}, got {resume_score:.4f}"
@@ -2215,3 +2224,165 @@ class TestMatchConfidence:
 			match_type="fuzzy",
 		)
 		assert conf >= 0.70
+
+
+class TestConfidenceWiring:
+	"""Verify widened confidence range affects scoring."""
+
+	def test_full_confidence_no_penalty(self):
+		"""Confidence 1.0 → adjustment factor 1.0 (no change)."""
+		from claude_candidate.scoring.dimensions import _score_requirement
+		from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+
+		skill = MergedSkillEvidence(
+			name="python",
+			source=EvidenceSource.RESUME_AND_REPO,
+			effective_depth=DepthLevel.DEEP,
+			confidence=1.0,
+		)
+		score = _score_requirement(skill, "strong_match")
+		# STATUS_SCORE_STRONG = 0.90, adjustment = FLOOR + (1-FLOOR) * 1.0 = 1.0
+		assert score == pytest.approx(0.90)
+
+	def test_zero_confidence_max_penalty(self):
+		"""Confidence 0.0 → adjustment factor = CONFIDENCE_FLOOR."""
+		from claude_candidate.scoring.dimensions import _score_requirement
+		from claude_candidate.scoring.constants import CONFIDENCE_FLOOR
+		from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+
+		skill = MergedSkillEvidence(
+			name="python",
+			source=EvidenceSource.RESUME_AND_REPO,
+			effective_depth=DepthLevel.DEEP,
+			confidence=0.0,
+		)
+		score = _score_requirement(skill, "strong_match")
+		# STATUS_SCORE_STRONG = 0.90, adjustment = CONFIDENCE_FLOOR
+		assert score == pytest.approx(0.90 * CONFIDENCE_FLOOR)
+
+	def test_half_confidence_moderate_penalty(self):
+		"""Confidence 0.5 → adjustment between FLOOR and 1.0."""
+		from claude_candidate.scoring.dimensions import _score_requirement
+		from claude_candidate.scoring.constants import CONFIDENCE_FLOOR
+		from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+
+		skill = MergedSkillEvidence(
+			name="python",
+			source=EvidenceSource.RESUME_AND_REPO,
+			effective_depth=DepthLevel.DEEP,
+			confidence=0.5,
+		)
+		score = _score_requirement(skill, "strong_match")
+		expected_adj = CONFIDENCE_FLOOR + (1.0 - CONFIDENCE_FLOOR) * 0.5
+		assert score == pytest.approx(0.90 * expected_adj)
+
+	def test_confidence_floor_is_less_than_090(self):
+		"""Verify the floor has been widened from the old ±10%."""
+		from claude_candidate.scoring.constants import CONFIDENCE_FLOOR
+		assert CONFIDENCE_FLOOR < 0.90, "Confidence floor should be wider than old ±10%"
+		assert CONFIDENCE_FLOOR >= 0.50, "Confidence floor shouldn't be so low it dominates"
+
+
+class TestVirtualSkillConcentration:
+	"""Eng review 5B: tighten virtual skill inference rules."""
+
+	def test_software_engineering_needs_5_constituents(self):
+		"""software-engineering should require 5 constituents (raised from 3)."""
+		from claude_candidate.scoring.constants import VIRTUAL_SKILL_RULES
+
+		for rule in VIRTUAL_SKILL_RULES:
+			name = rule[0]
+			min_count = rule[2]
+			if name == "software-engineering":
+				assert min_count >= 5, f"software-engineering min_count should be ≥5, got {min_count}"
+				break
+		else:
+			pytest.fail("software-engineering not found in VIRTUAL_SKILL_RULES")
+
+	def test_full_stack_needs_3_constituents(self):
+		"""full-stack should require 3 constituents (raised from 2)."""
+		from claude_candidate.scoring.constants import VIRTUAL_SKILL_RULES
+
+		for rule in VIRTUAL_SKILL_RULES:
+			name = rule[0]
+			min_count = rule[2]
+			if name == "full-stack":
+				assert min_count >= 3, f"full-stack min_count should be ≥3, got {min_count}"
+				break
+		else:
+			pytest.fail("full-stack not found in VIRTUAL_SKILL_RULES")
+
+	def test_frontend_needs_2_constituents(self):
+		"""frontend-development should require 2 constituents (raised from 1)."""
+		from claude_candidate.scoring.constants import VIRTUAL_SKILL_RULES
+
+		for rule in VIRTUAL_SKILL_RULES:
+			name = rule[0]
+			min_count = rule[2]
+			if name == "frontend-development":
+				assert min_count >= 2, f"frontend-development min_count should be ≥2, got {min_count}"
+				break
+		else:
+			pytest.fail("frontend-development not found in VIRTUAL_SKILL_RULES")
+
+	def test_broad_virtual_skills_require_applied_depth(self):
+		"""Broad virtual skills should require constituent skills at APPLIED depth or higher."""
+		from claude_candidate.scoring.constants import VIRTUAL_SKILL_RULES
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+
+		broad_skills = {"software-engineering", "full-stack", "system-design", "product-development"}
+		for rule in VIRTUAL_SKILL_RULES:
+			name = rule[0]
+			if name in broad_skills:
+				assert len(rule) >= 5, f"{name} should have a 5th element (min_constituent_depth)"
+				min_depth = rule[4]
+				assert min_depth is not None, f"{name} should have a constituent depth requirement"
+				depth_order = [DepthLevel.USED, DepthLevel.APPLIED, DepthLevel.DEEP, DepthLevel.EXPERT]
+				assert depth_order.index(min_depth) >= depth_order.index(DepthLevel.APPLIED), \
+					f"{name} constituent depth should be ≥APPLIED, got {min_depth}"
+
+	def test_virtual_skill_not_inferred_with_shallow_constituents(self):
+		"""Virtual skill should NOT be inferred if constituents are USED depth."""
+		from claude_candidate.scoring.matching import _infer_virtual_skill
+		from claude_candidate.schemas.merged_profile import MergedEvidenceProfile, MergedSkillEvidence, EvidenceSource
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+
+		# Profile with 5 skills at USED depth (too shallow)
+		skills = [
+			MergedSkillEvidence(name=n, source=EvidenceSource.RESUME_ONLY,
+				effective_depth=DepthLevel.USED, confidence=0.8)
+			for n in ["python", "typescript", "javascript", "react", "node.js"]
+		]
+		profile = MergedEvidenceProfile(
+			skills=skills, projects=[], patterns=[], roles=[],
+			corroborated_skill_count=0, resume_only_skill_count=5,
+			sessions_only_skill_count=0, discovery_skills=[],
+			profile_hash="test", resume_hash="test",
+			candidate_profile_hash="test", merged_at=datetime.now(),
+		)
+		result = _infer_virtual_skill("software-engineering", profile)
+		assert result is None, "Should not infer software-engineering from USED-depth skills"
+
+	def test_virtual_skill_inferred_with_deep_constituents(self):
+		"""Virtual skill should be inferred if constituents meet depth threshold."""
+		from claude_candidate.scoring.matching import _infer_virtual_skill
+		from claude_candidate.schemas.merged_profile import MergedEvidenceProfile, MergedSkillEvidence, EvidenceSource
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+
+		skills = [
+			MergedSkillEvidence(name=n, source=EvidenceSource.RESUME_AND_REPO,
+				effective_depth=DepthLevel.DEEP, confidence=0.9)
+			for n in ["python", "typescript", "javascript", "react", "node.js", "ci-cd"]
+		]
+		profile = MergedEvidenceProfile(
+			skills=skills, projects=[], patterns=[], roles=[],
+			corroborated_skill_count=0, resume_only_skill_count=0,
+			sessions_only_skill_count=0, discovery_skills=[],
+			profile_hash="test", resume_hash="test",
+			candidate_profile_hash="test", merged_at=datetime.now(),
+		)
+		result = _infer_virtual_skill("software-engineering", profile)
+		assert result is not None, "Should infer software-engineering from 6 DEEP skills"
