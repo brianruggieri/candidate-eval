@@ -35,6 +35,11 @@ def _get_taxonomy() -> SkillTaxonomy:
 PATTERN_CONFIDENCE_HIGH = 0.85
 PATTERN_CONFIDENCE_LOW = 0.6
 
+# Confidence adjustment floor: how much a zero-confidence match is penalized.
+# Old value was 0.90 (±10%). Widened to 0.70 (±30%) so match quality
+# has meaningful scoring impact on fuzzy/related matches.
+CONFIDENCE_FLOOR = 0.70
+
 # Pattern frequency synthetic counts
 PATTERN_FREQ_RARE = 3
 PATTERN_FREQ_OCCASIONAL = 10

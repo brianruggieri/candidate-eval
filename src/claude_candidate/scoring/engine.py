@@ -39,6 +39,7 @@ from claude_candidate.schemas.merged_profile import (
 )
 from claude_candidate.eligibility_evaluator import evaluate_gates
 from claude_candidate.scoring.constants import (
+	CONFIDENCE_FLOOR,
 	CULTURE_BASE_SCORE,
 	CULTURE_NEUTRAL_SCORE,
 	CULTURE_SCORE_MAX,
@@ -461,7 +462,7 @@ class QuickMatchEngine:
 					if found:
 						status = _assess_depth_match(found, depth_floor, self.profile)
 						conf = found.confidence if found.confidence is not None else 1.0
-						adj = 0.90 + 0.10 * conf
+						adj = CONFIDENCE_FLOOR + (1.0 - CONFIDENCE_FLOOR) * conf
 						all_scores.append(STATUS_SCORE.get(status, 0.0) * adj)
 					else:
 						all_scores.append(0.0)

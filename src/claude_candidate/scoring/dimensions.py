@@ -47,6 +47,8 @@ from claude_candidate.scoring.constants import (
 	MAX_TECH_OVERLAP_DISPLAY,
 	# Rounding
 	SCORE_PRECISION,
+	# Confidence adjustment
+	CONFIDENCE_FLOOR,
 	# Mission constants
 	MISSION_NEUTRAL_SCORE,
 	MISSION_DOMAIN_BONUS,
@@ -180,10 +182,10 @@ def _score_requirement(
 
 	req_score = STATUS_SCORE.get(best_status, STATUS_SCORE_NONE)
 	if best_match:
-		# Apply confidence as a minor (±10%) adjustment to the base status score.
+		# Apply confidence as a ±30% adjustment to the base status score.
 		# confidence may be None (v0.7 merge_triad) — default to 1.0 (no penalty).
 		conf = best_match.confidence if best_match.confidence is not None else 1.0
-		adjustment = 0.90 + 0.10 * conf
+		adjustment = CONFIDENCE_FLOOR + (1.0 - CONFIDENCE_FLOOR) * conf
 		req_score *= adjustment
 	return req_score
 

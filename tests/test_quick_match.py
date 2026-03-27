@@ -844,13 +844,13 @@ def test_find_skill_match_canonicalizes_hyphens():
 
 
 def test_score_requirement_uses_raw_confidence_no_floor():
-	"""Confidence adjustment uses raw skill confidence with no floor clamping.
+	"""Confidence adjustment uses raw skill confidence with CONFIDENCE_FLOOR floor.
 
-	With CONFLICTING fixed to 0.72, the floor constants are unnecessary.
-	Both resume_only (0.85) and conflicting (0.72) should score via the
-	clean formula: adjustment = 0.90 + 0.10 * confidence.
+	With CONFLICTING fixed to 0.72, both resume_only (0.85) and conflicting (0.72)
+	should score via the widened formula: adjustment = CONFIDENCE_FLOOR + (1 - CONFIDENCE_FLOOR) * confidence.
 	"""
 	from claude_candidate.quick_match import _score_requirement, STATUS_SCORE
+	from claude_candidate.scoring.constants import CONFIDENCE_FLOOR
 	from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
 	from claude_candidate.schemas.candidate_profile import DepthLevel
 
@@ -873,8 +873,8 @@ def test_score_requirement_uses_raw_confidence_no_floor():
 	resume_score = _score_requirement(resume_skill, "strong_match")
 	conflicting_score = _score_requirement(conflicting_skill, "strong_match")
 
-	expected_resume = STATUS_SCORE["strong_match"] * (0.90 + 0.10 * 0.85)
-	expected_conflicting = STATUS_SCORE["strong_match"] * (0.90 + 0.10 * 0.72)
+	expected_resume = STATUS_SCORE["strong_match"] * (CONFIDENCE_FLOOR + (1.0 - CONFIDENCE_FLOOR) * 0.85)
+	expected_conflicting = STATUS_SCORE["strong_match"] * (CONFIDENCE_FLOOR + (1.0 - CONFIDENCE_FLOOR) * 0.72)
 
 	assert abs(resume_score - expected_resume) < 0.001, (
 		f"resume_only: expected {expected_resume:.4f}, got {resume_score:.4f}"
@@ -2215,3 +2215,63 @@ class TestMatchConfidence:
 			match_type="fuzzy",
 		)
 		assert conf >= 0.70
+
+
+class TestConfidenceWiring:
+	"""Verify widened confidence range affects scoring."""
+
+	def test_full_confidence_no_penalty(self):
+		"""Confidence 1.0 → adjustment factor 1.0 (no change)."""
+		from claude_candidate.scoring.dimensions import _score_requirement
+		from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+
+		skill = MergedSkillEvidence(
+			name="python",
+			source=EvidenceSource.RESUME_AND_REPO,
+			effective_depth=DepthLevel.DEEP,
+			confidence=1.0,
+		)
+		score = _score_requirement(skill, "strong_match")
+		# STATUS_SCORE_STRONG = 0.90, adjustment = FLOOR + (1-FLOOR) * 1.0 = 1.0
+		assert score == pytest.approx(0.90)
+
+	def test_zero_confidence_max_penalty(self):
+		"""Confidence 0.0 → adjustment factor = CONFIDENCE_FLOOR."""
+		from claude_candidate.scoring.dimensions import _score_requirement
+		from claude_candidate.scoring.constants import CONFIDENCE_FLOOR
+		from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+
+		skill = MergedSkillEvidence(
+			name="python",
+			source=EvidenceSource.RESUME_AND_REPO,
+			effective_depth=DepthLevel.DEEP,
+			confidence=0.0,
+		)
+		score = _score_requirement(skill, "strong_match")
+		# STATUS_SCORE_STRONG = 0.90, adjustment = CONFIDENCE_FLOOR
+		assert score == pytest.approx(0.90 * CONFIDENCE_FLOOR)
+
+	def test_half_confidence_moderate_penalty(self):
+		"""Confidence 0.5 → adjustment between FLOOR and 1.0."""
+		from claude_candidate.scoring.dimensions import _score_requirement
+		from claude_candidate.scoring.constants import CONFIDENCE_FLOOR
+		from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+
+		skill = MergedSkillEvidence(
+			name="python",
+			source=EvidenceSource.RESUME_AND_REPO,
+			effective_depth=DepthLevel.DEEP,
+			confidence=0.5,
+		)
+		score = _score_requirement(skill, "strong_match")
+		expected_adj = CONFIDENCE_FLOOR + (1.0 - CONFIDENCE_FLOOR) * 0.5
+		assert score == pytest.approx(0.90 * expected_adj)
+
+	def test_confidence_floor_is_less_than_090(self):
+		"""Verify the floor has been widened from the old ±10%."""
+		from claude_candidate.scoring.constants import CONFIDENCE_FLOOR
+		assert CONFIDENCE_FLOOR < 0.90, "Confidence floor should be wider than old ±10%"
+		assert CONFIDENCE_FLOOR >= 0.50, "Confidence floor shouldn't be so low it dominates"
