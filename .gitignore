@@ -47,6 +47,10 @@ node_modules/
 # Playwright MCP logs
 .playwright-mcp/
 
+# Golden set — postings + calibration stay local, benchmark infra stays public
+tests/golden_set/postings/
+tests/golden_set/calibration.json
+
 # Local data — never commit user profiles, databases, or credentials
 *.tar.gz
 *.zip
@@ -65,3 +69,4 @@ site/
 .claude/handoffs/
 extension/package-lock.json
 fit-page-*.png
+.gstack/
