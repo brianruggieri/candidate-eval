@@ -142,6 +142,45 @@ class TestAISignalSkillSynthesis:
 			assert "eval-framework" in profile.skill_evidence["prompt-engineering"].frameworks
 
 
+class TestSkillCraftingDetection:
+	"""Detect skill-crafting loop evidence from repo filesystem."""
+
+	def test_skill_crafting_signals_dict_exists(self):
+		"""Every RepoEvidence should have a skill_crafting_signals dict."""
+		repo_path = Path(__file__).parent.parent
+		evidence = scan_local_repo(repo_path)
+		assert isinstance(evidence.skill_crafting_signals, dict)
+
+	def test_expected_signal_keys_present(self):
+		"""All 7 signal keys from the spec should be in the dict."""
+		repo_path = Path(__file__).parent.parent
+		evidence = scan_local_repo(repo_path)
+		expected_keys = {
+			"skills_authored",
+			"eval_harnesses",
+			"prompt_iterations",
+			"skill_test_corpus",
+			"ab_test_evidence",
+			"meta_skill_count",
+			"grading_rubrics",
+		}
+		assert expected_keys.issubset(evidence.skill_crafting_signals.keys())
+
+	def test_all_signals_are_non_negative_ints(self):
+		"""All signal values should be non-negative integers."""
+		repo_path = Path(__file__).parent.parent
+		evidence = scan_local_repo(repo_path)
+		for key, val in evidence.skill_crafting_signals.items():
+			assert isinstance(val, int) and val >= 0, f"{key}={val}"
+
+	def test_candidate_eval_has_test_fixtures(self):
+		"""candidate-eval repo should have test fixtures counted."""
+		repo_path = Path(__file__).parent.parent
+		evidence = scan_local_repo(repo_path)
+		# This repo has tests/fixtures/ with real fixture files
+		assert evidence.skill_crafting_signals.get("skill_test_corpus", 0) > 0
+
+
 class TestScanGitHubRepo:
 	@pytest.mark.slow
 	def test_scan_public_repo(self) -> None:
