@@ -85,7 +85,7 @@ def quick_requirements():
 @pytest.fixture
 def minimal_engine():
 	from claude_candidate.merger import merge_candidate_only
-	from claude_candidate.quick_match import QuickMatchEngine
+	from claude_candidate.scoring import QuickMatchEngine
 	from claude_candidate.schemas.candidate_profile import CandidateProfile
 
 	data = (FIXTURES_DIR / "sample_candidate_profile.json").read_text()

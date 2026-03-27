@@ -341,7 +341,32 @@ function renderResults(data) {
 				</div>
 				${sourceHtml}
 			`;
+			div.addEventListener('click', () => div.classList.toggle('expanded'));
 			matchList.appendChild(div);
+
+			// Expandable evidence detail panel
+			const detail = document.createElement('div');
+			detail.className = 'match-detail';
+			let detailHtml = '';
+			if (m.matched_skill) {
+				detailHtml += `<div class="match-detail-row"><span class="match-detail-label">Skill</span><span class="match-detail-value">${escHtml(m.matched_skill)}</span></div>`;
+			}
+			const matchType = m.match_type || 'none';
+			detailHtml += `<div class="match-detail-row"><span class="match-detail-label">Match</span><span class="match-detail-value"><span class="match-type-badge match-type-${escHtml(matchType)}">${escHtml(matchType)}</span></span></div>`;
+			if (m.evidence_source) {
+				const sourceLabel = String(m.evidence_source).replace(/_/g, ' ');
+				detailHtml += `<div class="match-detail-row"><span class="match-detail-label">Source</span><span class="match-detail-value">${escHtml(sourceLabel)}</span></div>`;
+			}
+			if (m.priority) {
+				const priorityKey = String(m.priority);
+				const priorityLabel = priorityKey.replace(/_/g, ' ');
+				detailHtml += `<div class="match-detail-row"><span class="match-detail-label">Priority</span><span class="match-detail-value"><span class="priority-badge priority-${escHtml(priorityKey)}">${escHtml(priorityLabel)}</span></span></div>`;
+			}
+			if (m.candidate_evidence && m.candidate_evidence !== 'no_evidence' && m.candidate_evidence !== 'missing') {
+				detailHtml += `<div class="match-detail-row"><span class="match-detail-label">Evidence</span><span class="match-detail-value">${escHtml(m.candidate_evidence)}</span></div>`;
+			}
+			detail.innerHTML = detailHtml;
+			matchList.appendChild(detail);
 		});
 
 		// Render compound groups as collapsible sections
@@ -476,6 +501,16 @@ async function initialize() {
 	if (fresh && lastAssessment && lastAssessment.data) {
 		currentPosting = stored;
 
+		// Stale profile detection
+		const storedHashes = await getForUrl('profileHashes', currentTabUrl);
+		try {
+			const profileStatus = await sendToBackground({ action: 'getProfileStatus' });
+			if (profileStatus && profileStatus.hashes && isProfileStale(storedHashes, profileStatus.hashes)) {
+				const banner = el('stale-banner');
+				if (banner) banner.classList.remove('hidden');
+			}
+		} catch (e) { /* non-critical */ }
+
 		const cachedAid = lastAssessment.data.assessment_id;
 		if (fullReady && fullReady.assessmentId === cachedAid && fullReady.data) {
 			// Full assessment is ready — render it directly
@@ -550,6 +585,14 @@ async function initialize() {
 	// Cache assessment result for instant reopen
 	setForUrl('assessment', currentTabUrl, { url: posting.url, data: partial });
 
+	// Store profile hashes for stale detection
+	try {
+		const profileStatus = await sendToBackground({ action: 'getProfileStatus' });
+		if (profileStatus && profileStatus.hashes) {
+			setForUrl('profileHashes', currentTabUrl, profileStatus.hashes);
+		}
+	} catch (e) { /* non-critical */ }
+
 	renderResults(partial);
 
 	// Show deep analysis indicator
@@ -579,6 +622,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
 	const btnManual = el('btn-manual-extract');
 	if (btnManual) btnManual.addEventListener('click', initialize);
+
+	const btnDismissStale = el('btn-dismiss-stale');
+	if (btnDismissStale) btnDismissStale.addEventListener('click', () => {
+		el('stale-banner').classList.add('hidden');
+	});
+
+	const btnReassess = el('btn-reassess');
+	if (btnReassess) btnReassess.addEventListener('click', async () => {
+		const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+		const url = activeTab?.url || '';
+		await removeForUrl('assessment', url);
+		await removeForUrl('fullReady', url);
+		await removeForUrl('posting', url);
+		el('stale-banner').classList.add('hidden');
+		initialize();
+	});
 
 	const btnShortlist = el('btn-shortlist');
 	if (btnShortlist) btnShortlist.addEventListener('click', async () => {

@@ -57,15 +57,34 @@ async function removeForUrl(prefix, url) {
 	await chrome.storage.local.remove(key);
 }
 
+/**
+ * Compare stored profile hashes against current hashes.
+ * Returns true if the profile has changed since the stored snapshot.
+ */
+function isProfileStale(storedHashes, currentHashes) {
+	if (!storedHashes) return false;
+	if (!currentHashes || Object.keys(currentHashes).length === 0) return false;
+	// Check current hashes against stored (new or changed profiles)
+	for (const key of Object.keys(currentHashes)) {
+		if (storedHashes[key] !== currentHashes[key]) return true;
+	}
+	// Check stored hashes against current (removed profiles)
+	for (const key of Object.keys(storedHashes)) {
+		if (!(key in currentHashes)) return true;
+	}
+	return false;
+}
+
 // Expose on globalThis for popup.js (loaded via <script>) and background.js (importScripts)
 if (typeof globalThis !== 'undefined') {
 	globalThis.normalizeUrl = normalizeUrl;
 	globalThis.getForUrl = getForUrl;
 	globalThis.setForUrl = setForUrl;
 	globalThis.removeForUrl = removeForUrl;
+	globalThis.isProfileStale = isProfileStale;
 }
 
 // Also support ES module import for vitest
 if (typeof module !== 'undefined' && module.exports) {
-	module.exports = { normalizeUrl, getForUrl, setForUrl, removeForUrl };
+	module.exports = { normalizeUrl, getForUrl, setForUrl, removeForUrl, isProfileStale };
 }

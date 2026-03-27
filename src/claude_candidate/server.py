@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from claude_candidate import __version__
@@ -432,7 +433,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 		or missing requirements.
 		"""
 		from claude_candidate.schemas.job_requirements import QuickRequirement
-		from claude_candidate.quick_match import QuickMatchEngine
+		from claude_candidate.scoring import QuickMatchEngine
 
 		store = get_store()
 
@@ -537,7 +538,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 			score_to_grade,
 			score_to_verdict,
 		)
-		from claude_candidate.quick_match import QuickMatchEngine
+		from claude_candidate.scoring import QuickMatchEngine
 
 		store = get_store()
 		row = await store.get_assessment(req.assessment_id)
@@ -817,10 +818,26 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 	@app.post("/api/shortlist", status_code=201)
 	async def add_shortlist(req: ShortlistAddRequest):
 		store = get_store()
+
+		# Dedup: if posting_url already exists, update assessment linkage and return existing.
+		# Only assessment_id is updateable via dedup; other fields retain their original values.
+		# Normalize URL to match variants (tracking params, trailing slashes, fragments).
+		if req.posting_url:
+			normalized_url = _normalize_cache_url(req.posting_url)
+			existing = await store.find_shortlist_by_url(normalized_url)
+			if existing:
+				if req.assessment_id and req.assessment_id != existing.get("assessment_id"):
+					await store.update_shortlist(
+						existing["id"], assessment_id=req.assessment_id
+					)
+					existing["assessment_id"] = req.assessment_id
+				existing["already_exists"] = True
+				return JSONResponse(content=existing, status_code=200)
+
 		sid = await store.add_to_shortlist(
 			company_name=req.company_name,
 			job_title=req.job_title,
-			posting_url=req.posting_url,
+			posting_url=_normalize_cache_url(req.posting_url) if req.posting_url else req.posting_url,
 			assessment_id=req.assessment_id,
 			notes=req.notes,
 			salary=req.salary,
@@ -847,6 +864,14 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 	):
 		store = get_store()
 		return await store.list_shortlist(status=status, limit=limit)
+
+	@app.get("/api/shortlist/enriched")
+	async def list_shortlist_enriched(
+		status: str | None = Query(default=None),
+		limit: int = Query(default=50, ge=1, le=200),
+	):
+		store = get_store()
+		return await store.list_shortlist_enriched(status=status, limit=limit)
 
 	@app.patch("/api/shortlist/{shortlist_id}")
 	async def update_shortlist(shortlist_id: int, req: ShortlistUpdateRequest):
