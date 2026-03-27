@@ -58,7 +58,7 @@ Job posting → requirement_parser → QuickRequirement[]
 | File | Purpose |
 |------|---------|
 | `src/claude_candidate/data/taxonomy.json` | Skill taxonomy (104 entries: languages, frameworks, tools, platforms, domains, practices, soft skills) |
-| `tests/golden_set/postings/*.json` | 24 real LinkedIn postings for accuracy benchmarking |
+| `tests/golden_set/postings/*.json` | 47 real job postings for accuracy benchmarking (gitignored) |
 | `tests/golden_set/expected_grades.json` | Expected grades for benchmark validation |
 | `tests/golden_set/benchmark_accuracy.py` | Benchmark script with stage diagnosis |
 
@@ -108,4 +108,4 @@ Tests are split into two tiers via `@pytest.mark.slow`:
 
 ## Browser extension
 
-The `extension/` directory contains a Chrome MV3 extension that integrates with the FastAPI server for real-time job posting assessment on LinkedIn.
+The `extension/` directory contains a Chrome MV3 extension that integrates with the FastAPI server for real-time job posting assessment on any job board.
