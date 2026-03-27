@@ -341,7 +341,32 @@ function renderResults(data) {
 				</div>
 				${sourceHtml}
 			`;
+			div.addEventListener('click', () => div.classList.toggle('expanded'));
 			matchList.appendChild(div);
+
+			// Expandable evidence detail panel
+			const detail = document.createElement('div');
+			detail.className = 'match-detail';
+			let detailHtml = '';
+			if (m.matched_skill) {
+				detailHtml += `<div class="match-detail-row"><span class="match-detail-label">Skill</span><span class="match-detail-value">${escHtml(m.matched_skill)}</span></div>`;
+			}
+			const matchType = m.match_type || 'none';
+			detailHtml += `<div class="match-detail-row"><span class="match-detail-label">Match</span><span class="match-detail-value"><span class="match-type-badge match-type-${escHtml(matchType)}">${escHtml(matchType)}</span></span></div>`;
+			if (m.evidence_source) {
+				const sourceLabel = String(m.evidence_source).replace(/_/g, ' ');
+				detailHtml += `<div class="match-detail-row"><span class="match-detail-label">Source</span><span class="match-detail-value">${escHtml(sourceLabel)}</span></div>`;
+			}
+			if (m.priority) {
+				const priorityKey = String(m.priority);
+				const priorityLabel = priorityKey.replace(/_/g, ' ');
+				detailHtml += `<div class="match-detail-row"><span class="match-detail-label">Priority</span><span class="match-detail-value"><span class="priority-badge priority-${escHtml(priorityKey)}">${escHtml(priorityLabel)}</span></span></div>`;
+			}
+			if (m.candidate_evidence && m.candidate_evidence !== 'no_evidence' && m.candidate_evidence !== 'missing') {
+				detailHtml += `<div class="match-detail-row"><span class="match-detail-label">Evidence</span><span class="match-detail-value">${escHtml(m.candidate_evidence)}</span></div>`;
+			}
+			detail.innerHTML = detailHtml;
+			matchList.appendChild(detail);
 		});
 
 		// Render compound groups as collapsible sections
