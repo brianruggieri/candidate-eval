@@ -55,7 +55,7 @@ def _make_assessment(
 		job_title=title,
 		company_name=company,
 		posting_url="https://example.com/jobs/123",
-		source="linkedin",
+		source="web",
 		overall_score=overall_score,
 		overall_grade=overall_grade,
 		overall_summary="Strong fit overall with deep Python and cloud experience.",
