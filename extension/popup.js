@@ -465,35 +465,20 @@ async function initialize() {
 	const currentTabUrl = activeTab?.url || '';
 
 	// Check cache FIRST — before any server calls. Instant reopen.
-	const cache = await new Promise(r => {
-		chrome.storage.local.get(['currentPosting', 'lastAssessment', 'fullAssessmentReady'], res => r(res));
-	});
-	const stored = cache.currentPosting || null;
-	const lastAssessment = cache.lastAssessment || null;
-	const fullReady = cache.fullAssessmentReady || null;
+	// Storage is per-URL — no cross-tab contamination.
+	const [stored, lastAssessment, fullReady] = await Promise.all([
+		getForUrl('posting', currentTabUrl),
+		getForUrl('assessment', currentTabUrl),
+		getForUrl('fullReady', currentTabUrl),
+	]);
 	const fresh = stored && stored.extractedAt && (Date.now() - stored.extractedAt) < POSTING_TTL_MS;
 
-	// Cache only valid if it matches the current tab's URL
-	// Strip tracking params (aligned with server-side _normalize_cache_url)
-	const TRACKING_PARAMS = /^(utm_\w+|trk|eBP|trackingId|tracking_id|refId|fbclid|gclid|mc_[ce]id|_hsenc|_hsmi)$/i;
-	const normalizeUrl = (u) => {
-		try {
-			const url = new URL(u || '');
-			[...url.searchParams.keys()].forEach(k => { if (TRACKING_PARAMS.test(k)) url.searchParams.delete(k); });
-			url.searchParams.sort();
-			url.hash = '';
-			return url.origin + url.pathname.replace(/\/+$/, '') + url.search;
-		} catch { return (u || '').replace(/[?#].*$/, '').replace(/\/+$/, ''); }
-	};
-	const cacheMatchesTab = stored && normalizeUrl(stored.url) === normalizeUrl(currentTabUrl);
-
-	if (fresh && cacheMatchesTab && lastAssessment && lastAssessment.url === stored.url) {
+	if (fresh && lastAssessment && lastAssessment.data) {
 		currentPosting = stored;
 
 		const cachedAid = lastAssessment.data.assessment_id;
-		if (fullReady && fullReady.assessmentId === cachedAid && fullReady.data
-			&& (!fullReady.url || normalizeUrl(fullReady.url) === normalizeUrl(currentTabUrl))) {
-			// Full assessment is ready and matches this page — render it directly
+		if (fullReady && fullReady.assessmentId === cachedAid && fullReady.data) {
+			// Full assessment is ready — render it directly
 			renderResults(fullReady.data);
 		} else {
 			// Show partial results, then poll for full
@@ -501,9 +486,7 @@ async function initialize() {
 
 			if (cachedAid) sendToBackground({ action: 'startFullAssess', assessmentId: cachedAid, postingUrl: currentTabUrl });
 			const pollInterval = setInterval(async () => {
-				const ready = await new Promise(r => {
-					chrome.storage.local.get('fullAssessmentReady', res => r(res.fullAssessmentReady || null));
-				});
+				const ready = await getForUrl('fullReady', currentTabUrl);
 				if (ready && ready.assessmentId === cachedAid && ready.data) {
 					clearInterval(pollInterval);
 					renderResults(ready.data);
@@ -513,17 +496,14 @@ async function initialize() {
 		return;
 	}
 
-	// URL mismatch — don't clear (preserves in-progress analysis for other tabs),
-	// just fall through to fresh extraction for this page.
-
 	// No cache — need the server
 	const health = await sendToBackground({ action: 'checkBackend' });
 	if (!health.connected) { showState('no-backend'); return; }
 	if (health.profile_loaded === false) { showState('no-profile'); return; }
 
-	// Resolve posting (from cache or fresh extraction — only if URL matched)
+	// Resolve posting (from per-URL cache or fresh extraction)
 	let posting = null;
-	if (cacheMatchesTab && fresh && stored.description && stored.requirements && stored.requirements.length) {
+	if (fresh && stored && stored.description && stored.requirements && stored.requirements.length) {
 		posting = stored;
 	}
 
@@ -538,7 +518,7 @@ async function initialize() {
 			});
 			if (extraction.success && extraction.description) {
 				posting = { ...extraction, extractedAt: Date.now() };
-				chrome.storage.local.set({ currentPosting: posting });
+				setForUrl('posting', currentTabUrl, posting);
 			}
 		}
 	}
@@ -559,7 +539,7 @@ async function initialize() {
 		: posting.title || '';
 	showState('assessing');
 
-	chrome.storage.local.remove('fullAssessmentReady');
+	removeForUrl('fullReady', currentTabUrl);
 	const partial = await sendToBackground({ action: 'assessPartial', payload: posting });
 	if (!partial.success && partial.error) {
 		el('error-message').textContent = partial.error;
@@ -568,7 +548,7 @@ async function initialize() {
 	}
 
 	// Cache assessment result for instant reopen
-	chrome.storage.local.set({ lastAssessment: { url: posting.url, data: partial } });
+	setForUrl('assessment', currentTabUrl, { url: posting.url, data: partial });
 
 	renderResults(partial);
 
@@ -583,9 +563,7 @@ async function initialize() {
 	// Poll for completion (if popup stays open) — update in-place
 	const currentAssessmentId = assessmentId;
 	const pollInterval = setInterval(async () => {
-		const ready = await new Promise(r => {
-			chrome.storage.local.get('fullAssessmentReady', res => r(res.fullAssessmentReady || null));
-		});
+		const ready = await getForUrl('fullReady', currentTabUrl);
 		if (ready && ready.assessmentId === currentAssessmentId && ready.data) {
 			clearInterval(pollInterval);
 			if (deepBanner) deepBanner.classList.add('hidden');

@@ -3,6 +3,8 @@
  * Routes messages from the popup to the local backend API.
  */
 
+importScripts('utils.js');
+
 const API_BASE = 'http://localhost:7429';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -107,20 +109,20 @@ async function handleAssessFull(assessmentId) {
  * Survives popup close. Popup checks fullAssessmentReady on reopen.
  */
 async function handleStartFullAssess(assessmentId, postingUrl) {
-	// Clear any previous result
-	chrome.storage.local.remove('fullAssessmentReady');
+	// Clear any previous result for this URL
+	if (postingUrl) removeForUrl('fullReady', postingUrl);
 
 	// Run in background — this continues even if popup closes
 	handleAssessFull(assessmentId).then(result => {
 		if (result.success && result.assessment_phase === 'full') {
-			chrome.storage.local.set({
-				fullAssessmentReady: {
+			if (postingUrl) {
+				setForUrl('fullReady', postingUrl, {
 					assessmentId: result.assessment_id,
 					url: postingUrl || '',
 					data: result,
 					completedAt: Date.now(),
-				}
-			});
+				});
+			}
 		}
 	});
 
