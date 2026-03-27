@@ -217,21 +217,25 @@ class QuickMatchEngine:
 			for req in scorable_reqs
 			for skill in req.skill_mapping
 		})
-		mission_dim = self._score_mission_alignment(
-			company=inp.company,
-			tech_stack=proxy_tech_stack if not inp.tech_stack else inp.tech_stack,
-			company_profile=inp.company_profile,
-		)
+
+		# Mission is optional in partial assessments: only score if we have any mission signal.
+		mission_dim: DimensionScore | None = None
+		if inp.company_profile or inp.tech_stack or proxy_tech_stack:
+			mission_dim = self._score_mission_alignment(
+				company=inp.company,
+				tech_stack=proxy_tech_stack if not inp.tech_stack else inp.tech_stack,
+				company_profile=inp.company_profile,
+			)
 
 		# Partial-assessment weights.
 		# Weights must sum to 1.0 (_compute_overall_score does straight weighted sum).
 		skill_dim.weight = 0.60
 		experience_dim.weight = 0.20
 		education_dim.weight = 0.10
-		if mission_dim:
+		if mission_dim is not None:
 			mission_dim.weight = 0.10
-		# If no mission data, redistribute back to skill
-		if not mission_dim:
+		else:
+			# No mission signal — redistribute mission weight back to skill/experience.
 			skill_dim.weight = 0.65
 			experience_dim.weight = 0.25
 			# education stays 0.10 → total = 1.0

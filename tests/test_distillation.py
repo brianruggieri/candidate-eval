@@ -2,6 +2,7 @@
 
 import pytest
 from claude_candidate.schemas.job_requirements import QuickRequirement, RequirementPriority, PRIORITY_WEIGHT
+from claude_candidate.requirement_parser import compute_distillation_weights
 
 
 class TestQuickRequirementDistillationFields:
@@ -54,8 +55,6 @@ class TestQuickRequirementDistillationFields:
 		assert restored.parent_id == "compound-1"
 		assert restored.weight_override == 1.5
 
-
-from claude_candidate.requirement_parser import compute_distillation_weights
 
 
 class TestComputeDistillationWeights:

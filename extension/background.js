@@ -110,13 +110,13 @@ async function handleAssessFull(assessmentId) {
  */
 async function handleStartFullAssess(assessmentId, postingUrl) {
 	// Clear any previous result for this URL
-	if (postingUrl) removeForUrl('fullReady', postingUrl);
+	if (postingUrl) await removeForUrl('fullReady', postingUrl);
 
 	// Run in background — this continues even if popup closes
-	handleAssessFull(assessmentId).then(result => {
+	handleAssessFull(assessmentId).then(async result => {
 		if (result.success && result.assessment_phase === 'full') {
 			if (postingUrl) {
-				setForUrl('fullReady', postingUrl, {
+				await setForUrl('fullReady', postingUrl, {
 					assessmentId: result.assessment_id,
 					url: postingUrl || '',
 					data: result,

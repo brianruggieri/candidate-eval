@@ -38,7 +38,7 @@ function _urlKey(prefix, url) {
 async function getForUrl(prefix, url) {
 	const key = _urlKey(prefix, url);
 	const result = await chrome.storage.local.get(key);
-	return result[key] || null;
+	return result[key] ?? null;
 }
 
 /**

@@ -296,7 +296,13 @@ def compute_distillation_weights(requirements: list[QuickRequirement]) -> list[Q
 	for req in requirements:
 		if req.parent_id:
 			groups.setdefault(req.parent_id, []).append(req)
-	for group in groups.values():
+	for parent_id, group in groups.items():
+		priorities = {req.priority for req in group}
+		if len(priorities) != 1:
+			raise ValueError(
+				f"Inconsistent priorities for requirements with parent_id {parent_id!r}: "
+				f"{sorted(p.value for p in priorities)}"
+			)
 		base_weight = PRIORITY_WEIGHT.get(group[0].priority, 1.0)
 		override = base_weight / len(group)
 		for req in group:
