@@ -129,14 +129,14 @@ class TestExtractProjectHint:
 
 class TestExtractDisplayName:
 	def test_standard_git_path(self) -> None:
-		assert _extract_display_name("-Users-brianruggieri-git-candidate-eval") == "candidate-eval"
+		assert _extract_display_name("-Users-alexdev-git-candidate-eval") == "candidate-eval"
 
 	def test_no_git_segment_returns_full_name(self) -> None:
-		assert _extract_display_name("-Users-brianruggieri") == "-Users-brianruggieri"
+		assert _extract_display_name("-Users-alexdev") == "-Users-alexdev"
 
 	def test_worktree_suffix_stripped_via_canonical(self) -> None:
 		# Worktree dirs should be split on -- before calling this
-		canonical = "-Users-brianruggieri-git-candidate-eval--worktrees-feat".split("--")[0]
+		canonical = "-Users-alexdev-git-candidate-eval--worktrees-feat".split("--")[0]
 		assert _extract_display_name(canonical) == "candidate-eval"
 
 	def test_multiple_git_segments_takes_last(self) -> None:

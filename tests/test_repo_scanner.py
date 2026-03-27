@@ -198,10 +198,10 @@ class TestScanGitHubRepo:
 		"""Scan a known public repo via GitHub API."""
 		from claude_candidate.repo_scanner import scan_github_repo
 
-		evidence = scan_github_repo("brianruggieri/claude-code-pulse")
+		evidence = scan_github_repo("alexdev/claude-code-pulse")
 
 		assert evidence.name == "claude-code-pulse"
-		assert evidence.url == "https://github.com/brianruggieri/claude-code-pulse"
+		assert evidence.url == "https://github.com/alexdev/claude-code-pulse"
 		assert "Shell" in evidence.languages
 		assert evidence.has_tests is True
 		assert evidence.has_ci is True

@@ -409,7 +409,7 @@
     {
       "project_name": "obsidian-daily-digest",
       "description": "TypeScript Obsidian plugin with Python companion script. Compiles browser history, shell history, and Claude Code session logs into daily Obsidian notes with AI summarization.",
-      "public_repo_url": "https://github.com/brianruggieri/obsidian-daily-digest",
+      "public_repo_url": "https://github.com/alexdev/obsidian-daily-digest",
       "complexity": "ambitious",
       "technologies": ["typescript", "python", "obsidian-api", "claude-api", "sqlite"],
       "session_count": 45,
@@ -438,7 +438,7 @@
     {
       "project_name": "teamchat",
       "description": "TypeScript CLI tool that renders Claude Code Agent Teams inter-agent communication as a Slack/WhatsApp-style group chat interface.",
-      "public_repo_url": "https://github.com/brianruggieri/teamchat",
+      "public_repo_url": "https://github.com/alexdev/teamchat",
       "complexity": "complex",
       "technologies": ["typescript", "react", "tailwind", "bun"],
       "session_count": 28,
@@ -467,7 +467,7 @@
     {
       "project_name": "claude-code-pulse",
       "description": "Pure Bash CLI wrapper that keeps tmux pane titles updated with branch name, PR number, and live Claude Code agent status.",
-      "public_repo_url": "https://github.com/brianruggieri/claude-code-pulse",
+      "public_repo_url": "https://github.com/alexdev/claude-code-pulse",
       "complexity": "complex",
       "technologies": ["bash", "tmux", "claude-code-hooks"],
       "session_count": 22,
@@ -495,7 +495,7 @@
     {
       "project_name": "blog-a-claude",
       "description": "Pipeline that ingests Claude Code session logs and uses an AI agent team to auto-generate blog posts. The blog documents its own construction.",
-      "public_repo_url": "https://github.com/brianruggieri/blog-a-claude",
+      "public_repo_url": "https://github.com/alexdev/blog-a-claude",
       "complexity": "ambitious",
       "technologies": ["python", "claude-api", "multi-agent-systems", "prompt-engineering"],
       "session_count": 35,
