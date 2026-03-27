@@ -53,6 +53,53 @@ async def client_with_profile(app_with_profile):
 			yield c
 
 
+@pytest.fixture
+def app_with_curated_resume(tmp_path: Path):
+	"""App with only curated_resume (v0.7 primary path, no candidate_profile.json)."""
+	fixtures_dir = Path(__file__).parent / "fixtures"
+	curated = json.loads((fixtures_dir / "curated_resume_sample.json").read_text())
+	(tmp_path / "curated_resume.json").write_text(json.dumps(curated))
+	return create_app(data_dir=tmp_path)
+
+
+@pytest.fixture
+async def client_with_curated_resume(app_with_curated_resume):
+	async with LifespanManager(app_with_curated_resume) as manager:
+		transport = ASGITransport(app=manager.app)
+		async with AsyncClient(transport=transport, base_url="http://test") as c:
+			yield c
+
+
+@pytest.fixture
+def app_with_restrictive_eligibility(
+	tmp_path: Path,
+	sample_candidate_profile_json: str,
+):
+	"""App with curated_resume that has restrictive eligibility (no relocation)."""
+	# Load the sample curated resume and override eligibility
+	from pathlib import Path as _Path
+
+	_fixtures = _Path(__file__).parent / "fixtures"
+	curated = json.loads((_fixtures / "curated_resume_sample.json").read_text())
+	curated["eligibility"] = {
+		"us_work_authorized": True,
+		"has_clearance": False,
+		"max_travel_pct": 10,
+		"willing_to_relocate": False,
+	}
+	(tmp_path / "curated_resume.json").write_text(json.dumps(curated))
+	(tmp_path / "candidate_profile.json").write_text(sample_candidate_profile_json)
+	return create_app(data_dir=tmp_path)
+
+
+@pytest.fixture
+async def client_with_restrictive_eligibility(app_with_restrictive_eligibility):
+	async with LifespanManager(app_with_restrictive_eligibility) as manager:
+		transport = ASGITransport(app=manager.app)
+		async with AsyncClient(transport=transport, base_url="http://test") as c:
+			yield c
+
+
 # ---------------------------------------------------------------------------
 # Health
 # ---------------------------------------------------------------------------
@@ -76,6 +123,13 @@ class TestHealthEndpoint:
 
 	async def test_health_profile_loaded_true_with_profile(self, client_with_profile: AsyncClient):
 		resp = await client_with_profile.get("/api/health")
+		assert resp.json()["profile_loaded"] is True
+
+	async def test_health_profile_loaded_true_with_curated_resume(
+		self, client_with_curated_resume: AsyncClient
+	):
+		"""v0.7 primary path: curated_resume alone should report profile_loaded=True."""
+		resp = await client_with_curated_resume.get("/api/health")
 		assert resp.json()["profile_loaded"] is True
 
 
@@ -332,6 +386,46 @@ class TestAssessPartialEndpoint:
 		"""Partial endpoint must NOT return deliverables (those require Claude)."""
 		resp = await client_with_profile.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
 		assert "deliverables" not in resp.json()
+
+
+# ---------------------------------------------------------------------------
+# Server eligibility
+# ---------------------------------------------------------------------------
+
+
+class TestServerEligibility:
+	"""Tests for eligibility data loading in server assessments."""
+
+	async def test_assess_passes_curated_eligibility(
+		self, client_with_restrictive_eligibility: AsyncClient
+	):
+		"""Server assessments should use eligibility from curated_resume.json."""
+		resp = await client_with_restrictive_eligibility.post(
+			"/api/assess",
+			json={
+				"posting_text": "Must relocate to NYC",
+				"company": "Test Corp",
+				"title": "Engineer",
+				"requirements": [
+					{
+						"description": "Must be willing to relocate to New York",
+						"skill_mapping": ["relocation"],
+						"priority": "must_have",
+						"is_eligibility": True,
+					},
+					{
+						"description": "Python backend development",
+						"skill_mapping": ["python"],
+						"priority": "must_have",
+					},
+				],
+			},
+		)
+		assert resp.status_code == 200
+		body = resp.json()
+		gates = body.get("eligibility_gates", [])
+		unmet = [g for g in gates if g.get("status") == "unmet"]
+		assert len(unmet) > 0, f"Expected unmet eligibility gates but got: {gates}"
 
 
 # ---------------------------------------------------------------------------
@@ -625,8 +719,9 @@ class TestAssessFullEndpoint:
 		assert partial.json()["overall_grade"] == "F"
 		# Verify the unmet gate is the reason for the F, not just coincidence
 		partial_gates = partial.json().get("eligibility_gates", [])
-		assert any(g.get("status") == "unmet" for g in partial_gates), \
+		assert any(g.get("status") == "unmet" for g in partial_gates), (
 			"Expected at least one unmet eligibility gate in partial assessment"
+		)
 
 		with patch(
 			"claude_candidate.company_research.research_company",
@@ -1398,27 +1493,21 @@ class TestEducationAutoTagging:
 	def test_no_false_positive_ba_role(self):
 		from claude_candidate.server import _auto_tag_education
 
-		reqs = [
-			{"description": "Business Analyst (BA) experience", "skill_mapping": ["analyst"]}
-		]
+		reqs = [{"description": "Business Analyst (BA) experience", "skill_mapping": ["analyst"]}]
 		_auto_tag_education(reqs)
 		assert reqs[0].get("education_level") is None
 
 	def test_ms_with_degree_context(self):
 		from claude_candidate.server import _auto_tag_education
 
-		reqs = [
-			{"description": "M.S. in Computer Science or equivalent", "skill_mapping": ["cs"]}
-		]
+		reqs = [{"description": "M.S. in Computer Science or equivalent", "skill_mapping": ["cs"]}]
 		_auto_tag_education(reqs)
 		assert reqs[0]["education_level"] == "master"
 
 	def test_bs_with_degree_context(self):
 		from claude_candidate.server import _auto_tag_education
 
-		reqs = [
-			{"description": "B.S. in Engineering or related field", "skill_mapping": ["eng"]}
-		]
+		reqs = [{"description": "B.S. in Engineering or related field", "skill_mapping": ["eng"]}]
 		_auto_tag_education(reqs)
 		assert reqs[0]["education_level"] == "bachelor"
 

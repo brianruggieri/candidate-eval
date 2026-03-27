@@ -351,7 +351,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 	@app.get("/api/health")
 	async def health():
 		profiles = get_profiles()
-		profile_loaded = bool(profiles.get("candidate"))
+		profile_loaded = bool(profiles.get("curated_resume") or profiles.get("candidate"))
 		return {
 			"status": "ok",
 			"version": __version__,
@@ -447,6 +447,20 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 				detail="No valid requirements provided — extraction required before assessment.",
 			)
 
+		# Load curated eligibility for gate evaluation
+		from claude_candidate.schemas.curated_resume import CandidateEligibility
+		from pydantic import ValidationError
+
+		curated_eligibility: CandidateEligibility | None = None
+		curated_data = get_profiles().get("curated_resume")
+		if isinstance(curated_data, dict):
+			try:
+				curated_eligibility = CandidateEligibility.model_validate(
+					curated_data.get("eligibility", {})
+				)
+			except ValidationError:
+				logger.debug("Could not parse curated eligibility — using defaults")
+
 		# Run assessment
 		engine = QuickMatchEngine(merged)
 		assessment = engine.assess(
@@ -458,6 +472,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 			seniority=req.seniority,
 			culture_signals=req.culture_signals,
 			tech_stack=req.tech_stack,
+			curated_eligibility=curated_eligibility,
 		)
 
 		# Persist
