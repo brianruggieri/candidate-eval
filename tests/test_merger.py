@@ -617,18 +617,22 @@ class TestMergeTriadWithSessions:
 	def curated_resume(self):
 		from claude_candidate.schemas.curated_resume import CuratedResume
 
-		path = Path(__file__).parent / "fixtures" / "sample_curated_resume.json"
+		path = Path(__file__).parent / "fixtures" / "curated_resume_sample.json"
 		if not path.exists():
 			path = Path.home() / ".claude-candidate" / "curated_resume.json"
+			if not path.exists():
+				pytest.skip("No curated_resume.json available")
 		return CuratedResume.model_validate_json(path.read_text())
 
 	@pytest.fixture
 	def repo_profile(self):
 		from claude_candidate.schemas.repo_profile import RepoProfile
 
-		path = Path.home() / ".claude-candidate" / "repo_profile.json"
+		path = Path(__file__).parent / "fixtures" / "sample_repo_profile.json"
 		if not path.exists():
-			pytest.skip("No repo_profile.json available")
+			path = Path.home() / ".claude-candidate" / "repo_profile.json"
+			if not path.exists():
+				pytest.skip("No repo_profile.json available")
 		return RepoProfile.model_validate_json(path.read_text())
 
 	def test_sessions_none_backward_compatible(self, curated_resume, repo_profile):

@@ -1527,20 +1527,16 @@ class TestEducationAutoTagging:
 
 def test_merge_triad_sessions_integration():
 	"""Verify merge_triad with sessions produces patterns when available."""
-	import pytest
 	from claude_candidate.merger import merge_triad
 	from claude_candidate.schemas.curated_resume import CuratedResume
 	from claude_candidate.schemas.repo_profile import RepoProfile
 	from claude_candidate.schemas.candidate_profile import CandidateProfile
 	from pathlib import Path
 
-	data_dir = Path.home() / ".claude-candidate"
-	curated_path = data_dir / "curated_resume.json"
-	repo_path = data_dir / "repo_profile.json"
-	candidate_path = data_dir / "candidate_profile.json"
-
-	if not all(p.exists() for p in [curated_path, repo_path, candidate_path]):
-		pytest.skip("Requires curated_resume, repo_profile, and candidate_profile")
+	fixtures = Path(__file__).parent / "fixtures"
+	curated_path = fixtures / "curated_resume_sample.json"
+	repo_path = fixtures / "sample_repo_profile.json"
+	candidate_path = fixtures / "sample_candidate_profile.json"
 
 	curated = CuratedResume.model_validate_json(curated_path.read_text())
 	repo = RepoProfile.model_validate_json(repo_path.read_text())

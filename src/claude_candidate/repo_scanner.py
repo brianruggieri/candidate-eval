@@ -761,51 +761,63 @@ def _detect_skill_crafting_signals(path: Path) -> dict[str, int]:
 
 	Returns counts for 7 signals that indicate meta-development patterns:
 	iterating on AI skills, building eval harnesses, prompt iteration.
-	"""
-	signals: dict[str, int] = {}
 
-	# 1. skills_authored: SKILL.md files
-	signals["skills_authored"] = sum(
-		1
-		for f in path.rglob("SKILL.md")
-		if f.is_file() and not any(part in SKIP_DIRS for part in f.parts)
-	)
+	Uses a single directory walk to avoid multiple rglob passes.
+	"""
+	# Collect paths in a single traversal
+	skill_mds: list[Path] = []
+	dirs_seen: set[Path] = set()
+	prompt_iterations = 0
+	grading_rubrics = 0
+	skill_test_corpus = 0
+	ab_test_evidence = 0
+
+	for entry in path.rglob("*"):
+		if any(part in SKIP_DIRS for part in entry.parts):
+			continue
+
+		if entry.is_dir():
+			dirs_seen.add(entry)
+			continue
+
+		# Files only from here on
+		if entry.name == "SKILL.md":
+			skill_mds.append(entry)
+
+		parent = entry.parent
+
+		# 3. prompt_iterations: files in */prompts/*.md
+		if parent.name == "prompts" and entry.suffix == ".md":
+			prompt_iterations += 1
+			# 7. grading_rubrics: */prompts/grade*.md
+			if entry.name.startswith("grade"):
+				grading_rubrics += 1
+
+		# 4. skill_test_corpus: files in */tests/fixtures/ (direct children)
+		if parent.name == "fixtures" and parent.parent and parent.parent.name == "tests":
+			skill_test_corpus += 1
+
+		# 5. ab_test_evidence: files in */evidence/ (direct children)
+		if parent.name == "evidence":
+			ab_test_evidence += 1
+
+	# 1. skills_authored
+	signals: dict[str, int] = {"skills_authored": len(skill_mds)}
 
 	# 2. eval_harnesses: eval/ dirs that are siblings of SKILL.md
 	eval_harnesses = 0
-	for skill_md in path.rglob("SKILL.md"):
-		if any(part in SKIP_DIRS for part in skill_md.parts):
-			continue
-		if (skill_md.parent / "eval").is_dir():
+	for skill_md in skill_mds:
+		if (skill_md.parent / "eval") in dirs_seen:
 			eval_harnesses += 1
 	signals["eval_harnesses"] = eval_harnesses
 
-	# 3. prompt_iterations: files in */prompts/*.md
-	signals["prompt_iterations"] = sum(
-		1
-		for f in path.rglob("prompts/*.md")
-		if f.is_file() and not any(part in SKIP_DIRS for part in f.parts)
-	)
-
-	# 4. skill_test_corpus: files in */tests/fixtures/ dirs
-	skill_test_corpus = 0
-	for fixtures_dir in path.rglob("tests/fixtures"):
-		if fixtures_dir.is_dir() and not any(part in SKIP_DIRS for part in fixtures_dir.parts):
-			skill_test_corpus += sum(1 for f in fixtures_dir.iterdir() if f.is_file())
+	signals["prompt_iterations"] = prompt_iterations
 	signals["skill_test_corpus"] = skill_test_corpus
-
-	# 5. ab_test_evidence: files in */evidence/ dirs
-	ab_test_evidence = 0
-	for ev_dir in path.rglob("evidence"):
-		if ev_dir.is_dir() and not any(part in SKIP_DIRS for part in ev_dir.parts):
-			ab_test_evidence += sum(1 for f in ev_dir.iterdir() if f.is_file())
 	signals["ab_test_evidence"] = ab_test_evidence
 
 	# 6. meta_skill_count: SKILL.md files that reference other skills
 	meta_skill_count = 0
-	for skill_md in path.rglob("SKILL.md"):
-		if any(part in SKIP_DIRS for part in skill_md.parts):
-			continue
+	for skill_md in skill_mds:
 		try:
 			content = skill_md.read_text(errors="ignore")
 			if "SKILL.md" in content or "invoke" in content.lower():
@@ -814,12 +826,7 @@ def _detect_skill_crafting_signals(path: Path) -> dict[str, int]:
 			pass
 	signals["meta_skill_count"] = meta_skill_count
 
-	# 7. grading_rubrics: */prompts/grade*.md
-	signals["grading_rubrics"] = sum(
-		1
-		for f in path.rglob("prompts/grade*.md")
-		if f.is_file() and not any(part in SKIP_DIRS for part in f.parts)
-	)
+	signals["grading_rubrics"] = grading_rubrics
 
 	return signals
 
