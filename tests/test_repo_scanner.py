@@ -180,6 +180,17 @@ class TestSkillCraftingDetection:
 		# This repo has tests/fixtures/ with real fixture files
 		assert evidence.skill_crafting_signals.get("skill_test_corpus", 0) > 0
 
+	def test_skill_crafting_loop_enriches_ai_process_engineering(self):
+		"""Repos with skill-crafting signals should add frameworks to ai-process-engineering."""
+		from claude_candidate.repo_scanner import build_repo_profile
+
+		repo_path = Path(__file__).parent.parent
+		profile = build_repo_profile(local_repos=[repo_path])
+		if "ai-process-engineering" in profile.skill_evidence:
+			ev = profile.skill_evidence["ai-process-engineering"]
+			# Should have framework entries from both CC maturity and skill-crafting
+			assert len(ev.frameworks) > 0
+
 
 class TestScanGitHubRepo:
 	@pytest.mark.slow

@@ -1408,6 +1408,26 @@ def build_repo_profile(
 			if repo.claude_memory_files > 0:
 				acc["frameworks"].add("claude-memory")
 
+		# Skill-crafting loop signals -> enrich ai-process-engineering
+		sc = repo.skill_crafting_signals
+		sc_total = sum(sc.values())
+		if sc_total > 0:
+			acc = _ensure_skill("ai-process-engineering")
+			acc["repos"].add(repo.name)
+			_update_dates(acc, repo.created_at, repo.last_pushed)
+			if sc.get("skills_authored", 0) > 0:
+				acc["frameworks"].add("skill-authoring")
+			if sc.get("eval_harnesses", 0) > 0:
+				acc["frameworks"].add("eval-harness")
+			if sc.get("meta_skill_count", 0) > 0:
+				acc["frameworks"].add("meta-skill-composition")
+			if sc.get("grading_rubrics", 0) > 0:
+				acc["frameworks"].add("grading-rubric")
+			if sc.get("ab_test_evidence", 0) > 0:
+				acc["frameworks"].add("ab-testing")
+			if sc.get("prompt_iterations", 0) > 0:
+				acc["frameworks"].add("prompt-iteration")
+
 	# Convert accumulators to SkillRepoEvidence
 	skill_evidence: dict[str, SkillRepoEvidence] = {}
 	for skill, acc in skill_acc.items():
