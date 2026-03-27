@@ -411,3 +411,107 @@ class TestListCachedPostings:
 		assert len(rows) == 2
 		assert rows[0]["url_hash"] == "hash2"
 		assert rows[1]["url_hash"] == "hash1"
+
+
+# ---------------------------------------------------------------------------
+# Shortlist deduplication
+# ---------------------------------------------------------------------------
+
+
+class TestShortlistDedup:
+	def test_find_by_url_returns_match(self, store: AssessmentStore):
+		run(
+			store.add_to_shortlist(
+				company_name="Acme",
+				job_title="SWE",
+				posting_url="https://acme.com/jobs/1",
+			)
+		)
+		result = run(store.find_shortlist_by_url("https://acme.com/jobs/1"))
+		assert result is not None
+		assert result["company_name"] == "Acme"
+		assert result["job_title"] == "SWE"
+		assert result["posting_url"] == "https://acme.com/jobs/1"
+
+	def test_find_by_url_returns_none_when_missing(self, store: AssessmentStore):
+		result = run(store.find_shortlist_by_url("https://nowhere.com/jobs/42"))
+		assert result is None
+
+	def test_find_by_url_returns_none_for_null_url(self, store: AssessmentStore):
+		run(store.add_to_shortlist(company_name="NullUrl Co", job_title="Eng"))
+		result = run(store.find_shortlist_by_url("https://other.com/jobs/1"))
+		assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Shortlist enriched listing
+# ---------------------------------------------------------------------------
+
+
+class TestShortlistEnriched:
+	def test_enriched_includes_assessment_grade(self, store: AssessmentStore):
+		# Save an assessment with a specific grade
+		aid = run(
+			store.save_assessment(
+				{
+					**SAMPLE_ASSESSMENT,
+					"assessment_id": "enrich-001",
+					"overall_grade": "A",
+					"overall_score": 92,
+				}
+			)
+		)
+		# Add shortlist entry with a stale snapshot grade
+		run(
+			store.add_to_shortlist(
+				company_name="Acme Corp",
+				job_title="Senior Engineer",
+				posting_url="https://acme.com/jobs/1",
+				assessment_id="enrich-001",
+				overall_grade="B",  # stale snapshot
+			)
+		)
+		rows = run(store.list_shortlist_enriched())
+		assert len(rows) == 1
+		# Fresh grade from the assessment join
+		assert rows[0]["assessment_grade"] == "A"
+		assert rows[0]["assessment_score"] == 92
+		# Stale snapshot is still present
+		assert rows[0]["overall_grade"] == "B"
+
+	def test_enriched_without_assessment_uses_snapshot(self, store: AssessmentStore):
+		# Add shortlist entry with no assessment_id
+		run(
+			store.add_to_shortlist(
+				company_name="Solo Co",
+				job_title="Engineer",
+				overall_grade="C+",
+			)
+		)
+		rows = run(store.list_shortlist_enriched())
+		assert len(rows) == 1
+		assert rows[0]["assessment_grade"] is None
+		assert rows[0]["assessment_score"] is None
+		assert rows[0]["overall_grade"] == "C+"
+
+	def test_enriched_filters_by_status(self, store: AssessmentStore):
+		sid1 = run(
+			store.add_to_shortlist(
+				company_name="Active Co",
+				job_title="SWE",
+				status="shortlisted",
+			)
+		)
+		sid2 = run(
+			store.add_to_shortlist(
+				company_name="Applied Co",
+				job_title="Staff Eng",
+				status="applied",
+			)
+		)
+		shortlisted = run(store.list_shortlist_enriched(status="shortlisted"))
+		applied = run(store.list_shortlist_enriched(status="applied"))
+		assert len(shortlisted) == 1
+		assert shortlisted[0]["company_name"] == "Active Co"
+		assert len(applied) == 1
+		assert applied[0]["company_name"] == "Applied Co"

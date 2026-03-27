@@ -225,13 +225,14 @@ class AssessmentStore:
 		salary: str | None = None,
 		location: str | None = None,
 		overall_grade: str | None = None,
+		status: str = "shortlisted",
 	) -> int:
 		"""Insert a shortlist entry and return its auto-generated id."""
 		assert self._conn is not None, "Store not initialized"
 		async with self._conn.execute(
 			"""
-            INSERT INTO shortlist (company_name, job_title, posting_url, assessment_id, notes, salary, location, overall_grade)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+            INSERT INTO shortlist (company_name, job_title, posting_url, assessment_id, notes, status, salary, location, overall_grade)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
             """,
 			(
 				company_name,
@@ -239,6 +240,7 @@ class AssessmentStore:
 				posting_url,
 				assessment_id,
 				notes,
+				status,
 				salary,
 				location,
 				overall_grade,
@@ -313,6 +315,42 @@ class AssessmentStore:
 			deleted = cursor.rowcount
 		await self._conn.commit()
 		return deleted > 0
+
+	async def find_shortlist_by_url(self, posting_url: str) -> dict[str, Any] | None:
+		"""Find a shortlist entry by posting_url, or None if not found."""
+		assert self._conn is not None, "Store not initialized"
+		async with self._conn.execute(
+			"SELECT * FROM shortlist WHERE posting_url = ? ORDER BY added_at DESC LIMIT 1;",
+			(posting_url,),
+		) as cursor:
+			row = await cursor.fetchone()
+		return dict(row) if row else None
+
+	async def list_shortlist_enriched(
+		self, status: str | None = None, limit: int = 50
+	) -> list[dict[str, Any]]:
+		"""List shortlist entries with fresh assessment data joined in."""
+		assert self._conn is not None, "Store not initialized"
+		where = ""
+		params: list[Any] = []
+		if status is not None:
+			where = "WHERE s.status = ?"
+			params.append(status)
+		params.append(limit)
+		sql = f"""
+			SELECT s.*,
+				a.overall_grade AS assessment_grade,
+				a.overall_score AS assessment_score,
+				a.assessed_at AS assessment_date
+			FROM shortlist s
+			LEFT JOIN assessments a ON s.assessment_id = a.assessment_id
+			{where}
+			ORDER BY s.added_at DESC
+			LIMIT ?;
+		"""
+		async with self._conn.execute(sql, params) as cursor:
+			rows = await cursor.fetchall()
+		return [dict(r) for r in rows]
 
 	# ------------------------------------------------------------------
 	# Profile storage
