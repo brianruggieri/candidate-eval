@@ -14,10 +14,16 @@
 		<a href="https://www.roojerry.com" class="fit-nav__brand">Brian Ruggieri</a>
 		<ul class="fit-nav__links">
 			<li><a href="#match">Match</a></li>
+			{% if assessment.skill_matches %}
 			<li><a href="#skills">Skills</a></li>
+			{% endif %}
 			<li><a href="#evidence">Evidence</a></li>
+			{% if projects %}
 			<li><a href="#projects">Projects</a></li>
+			{% endif %}
+			{% if gaps %}
 			<li><a href="#gaps">Gaps</a></li>
+			{% endif %}
 		</ul>
 		<a href="{{ cal_link }}" class="fit-nav__cta" target="_blank" rel="noopener noreferrer">Let's Talk</a>
 	</div>
@@ -28,9 +34,12 @@
 <section class="fit-page fit-section" id="match">
 	{# Derive grade class #}
 	{% set grade = assessment.overall_grade %}
-	{% if grade.startswith('A') %}{% set grade_class = 'a' %}
-	{% elif grade.startswith('B') %}{% set grade_class = 'b' %}
-	{% else %}{% set grade_class = 'c' %}{% endif %}
+	{% set grade_letter = grade[0]|lower %}
+	{% if grade_letter in ['a', 'b', 'c', 'd', 'f'] %}
+		{% set grade_class = grade_letter %}
+	{% else %}
+		{% set grade_class = 'c' %}
+	{% endif %}
 
 	{# Derive should_apply display #}
 	{% if assessment.should_apply == 'strong_yes' %}{% set verdict = 'Strong Yes' %}

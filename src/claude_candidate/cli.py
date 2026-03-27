@@ -371,29 +371,46 @@ def generate_site(shortlist_id: int, output_dir: str, deploy: bool, publish: boo
 	# Publish to R2 for roojerry.com/fit/
 	if publish:
 		slug = output_path.parent.name
-		r2_key = f"{slug}/index.html"
-		click.echo(f"  Publishing to R2: {r2_key}")
+
+		# Collect all files to upload: index.html + font assets
+		uploads: list[tuple[str, str, str]] = [
+			(f"{slug}/index.html", str(output_path), "text/html"),
+		]
+		fonts_dir = output_path.parent / "fonts"
+		if fonts_dir.is_dir():
+			for font_file in fonts_dir.iterdir():
+				if font_file.suffix == ".woff2":
+					uploads.append((
+						f"{slug}/fonts/{font_file.name}",
+						str(font_file),
+						"font/woff2",
+					))
+
+		click.echo(f"  Publishing {len(uploads)} files to R2...")
+		failed = False
 		try:
-			pub_result = subprocess.run(
-				[
-					"wrangler",
-					"r2",
-					"object",
-					"put",
-					f"fit-pages/{r2_key}",
-					"--file",
-					str(output_path),
-					"--content-type",
-					"text/html",
-				],
-				capture_output=True,
-				text=True,
-				timeout=60,
-			)
-			if pub_result.returncode == 0:
+			for r2_key, local_path, content_type in uploads:
+				pub_result = subprocess.run(
+					[
+						"wrangler",
+						"r2",
+						"object",
+						"put",
+						f"fit-pages/{r2_key}",
+						"--file",
+						local_path,
+						"--content-type",
+						content_type,
+					],
+					capture_output=True,
+					text=True,
+					timeout=60,
+				)
+				if pub_result.returncode != 0:
+					click.echo(f"  R2 upload failed for {r2_key}: {pub_result.stderr}", err=True)
+					failed = True
+			if not failed:
 				click.echo(f"  Published: https://roojerry.com/fit/{slug}/")
-			else:
-				click.echo(f"  R2 upload failed: {pub_result.stderr}", err=True)
 		except FileNotFoundError:
 			click.echo("  wrangler not found. Install with: npm install -g wrangler", err=True)
 		except subprocess.TimeoutExpired:

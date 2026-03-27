@@ -12,6 +12,7 @@ before it is written to disk.
 from __future__ import annotations
 
 import re
+import shutil
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -24,6 +25,7 @@ from claude_candidate.schemas.fit_assessment import FitAssessment, SkillMatchDet
 # ---------------------------------------------------------------------------
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
+FONTS_DIR = Path(__file__).parent / "static" / "fonts"
 
 # Characters that are safe in URL slugs
 _SLUG_UNSAFE = re.compile(r"[^a-z0-9-]")
@@ -125,7 +127,6 @@ def render_cover_letter_site(
 	narrative: str,
 	evidence_highlights: list[dict],
 	output_dir: Path | str,
-	resume_pdf_path: str | None = None,
 	*,
 	patterns: list[dict] | None = None,
 	projects: list[dict] | None = None,
@@ -138,6 +139,9 @@ def render_cover_letter_site(
 	system: hero with grade ring, skill cards, evidence, patterns, projects
 	timeline, gaps section, and footer CTA.
 
+	Font files are copied into the output directory alongside the HTML so
+	the page is self-contained for both local viewing and deployment.
+
 	If *assessment* is a dict (e.g. from the assessment store) it is wrapped
 	in a simple namespace so Jinja2 attribute access works unchanged.
 
@@ -149,7 +153,6 @@ def render_cover_letter_site(
 	    evidence_highlights: List of dicts with ``title``, ``description``,
 	        and ``technologies`` (list of str) keys.
 	    output_dir: Root output directory (e.g. ``Path("site")``).
-	    resume_pdf_path: Optional relative URL for a resume PDF download link.
 	    patterns: List of dicts with ``name``, ``strength``, ``frequency``.
 	    projects: List of dicts with ``name``, ``date_range``, ``technologies``,
 	        ``description``, ``callout``.
@@ -174,19 +177,22 @@ def render_cover_letter_site(
 	env = _build_env()
 	template = env.get_template("cover_letter_site.html")
 
-	# For local rendering, use file:// paths to bundled fonts
-	font_base = str(Path(__file__).parent / "static" / "fonts")
+	# Copy font files into the output directory so the page is self-contained
+	fonts_out = page_dir / "fonts"
+	if FONTS_DIR.is_dir():
+		if fonts_out.exists():
+			shutil.rmtree(fonts_out)
+		shutil.copytree(FONTS_DIR, fonts_out)
 
 	html = template.render(
 		assessment=assessment,
 		narrative=narrative,
 		evidence_highlights=evidence_highlights,
-		resume_pdf_path=resume_pdf_path,
 		patterns=patterns or [],
 		projects=projects or [],
 		gaps=gaps or [],
 		cal_link=cal_link,
-		font_base=font_base,
+		font_base="fonts",
 		current_year=datetime.now().year,
 	)
 

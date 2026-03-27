@@ -466,7 +466,6 @@ def _render_cover_letter_site(tmp_path: Path, **kwargs) -> str:
 	assessment = kwargs.pop("assessment", _make_assessment())
 	narrative = kwargs.pop("narrative", SAMPLE_NARRATIVE)
 	evidence_highlights = kwargs.pop("evidence_highlights", SAMPLE_EVIDENCE_HIGHLIGHTS)
-	resume_pdf_path = kwargs.pop("resume_pdf_path", None)
 	patterns = kwargs.pop("patterns", [])
 	projects = kwargs.pop("projects", [])
 	gaps = kwargs.pop("gaps", [])
@@ -476,7 +475,6 @@ def _render_cover_letter_site(tmp_path: Path, **kwargs) -> str:
 		narrative=narrative,
 		evidence_highlights=evidence_highlights,
 		output_dir=tmp_path,
-		resume_pdf_path=resume_pdf_path,
 		patterns=patterns,
 		projects=projects,
 		gaps=gaps,
