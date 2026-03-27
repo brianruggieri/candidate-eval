@@ -8,5 +8,8 @@
 	"scripts": {
 		"test": "vitest run",
 		"test:watch": "vitest"
+	},
+	"dependencies": {
+		"html2canvas": "^1.4.1"
 	}
 }

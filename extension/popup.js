@@ -619,5 +619,62 @@ document.addEventListener('DOMContentLoaded', () => {
 		setTimeout(() => { btnCopy.textContent = '\u{1F4CB}'; }, 1500);
 	});
 
+	const btnScreenshot = el('btn-screenshot');
+	if (btnScreenshot) btnScreenshot.addEventListener('click', async () => {
+		btnScreenshot.textContent = '...';
+		btnScreenshot.disabled = true;
+
+		const body = document.body;
+		const footer = document.querySelector('.verdict-footer');
+
+		// Save original styles to restore after capture
+		const origMaxHeight = body.style.maxHeight;
+		const origOverflow = body.style.overflow;
+		const origHeight = body.style.height;
+		const origFooterPosition = footer ? footer.style.position : '';
+
+		try {
+			// Expand body to full content height and un-sticky the footer
+			body.style.maxHeight = 'none';
+			body.style.overflow = 'visible';
+			body.style.height = 'auto';
+			if (footer) footer.style.position = 'relative';
+
+			// Hide the button row during capture
+			const btnRow = document.querySelector('.btn-row');
+			if (btnRow) btnRow.style.display = 'none';
+
+			const canvas = await html2canvas(body, {
+				scale: 2,
+				useCORS: true,
+				backgroundColor: '#ffffff',
+				width: body.scrollWidth,
+				height: body.scrollHeight,
+			});
+
+			// Restore button row
+			if (btnRow) btnRow.style.display = '';
+
+			const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+			await navigator.clipboard.write([
+				new ClipboardItem({ 'image/png': blob }),
+			]);
+
+			btnScreenshot.textContent = '\u2705';
+			setTimeout(() => { btnScreenshot.textContent = '\u{1F4F7}'; }, 1500);
+		} catch (err) {
+			console.error('Screenshot failed:', err);
+			btnScreenshot.textContent = '\u274C';
+			setTimeout(() => { btnScreenshot.textContent = '\u{1F4F7}'; }, 2000);
+		} finally {
+			// Restore original styles
+			body.style.maxHeight = origMaxHeight;
+			body.style.overflow = origOverflow;
+			body.style.height = origHeight;
+			if (footer) footer.style.position = origFooterPosition;
+			btnScreenshot.disabled = false;
+		}
+	});
+
 	initialize();
 });
