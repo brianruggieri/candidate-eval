@@ -654,3 +654,18 @@ class TestSystemsThinkingMapping:
 
 	def test_ux_match_resolves_ux_design(self, taxonomy) -> None:
 		assert taxonomy.match("ux") == "ux-design"
+
+# ---------------------------------------------------------------------------
+# v0.8 Phase 2: ai-process-engineering taxonomy entry
+# ---------------------------------------------------------------------------
+
+
+def test_ai_process_engineering_in_taxonomy():
+	taxonomy = SkillTaxonomy.load_default()
+	canonical = taxonomy.canonicalize("ai-process-engineering")
+	assert canonical == "ai-process-engineering"
+	assert taxonomy.get_category("ai-process-engineering") == "practice"
+	# Aliases resolve
+	assert taxonomy.canonicalize("skill-crafting") == "ai-process-engineering"
+	assert taxonomy.canonicalize("meta-agentic-development") == "ai-process-engineering"
+	assert taxonomy.canonicalize("development-process-design") == "ai-process-engineering"
