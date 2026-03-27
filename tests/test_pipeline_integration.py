@@ -1,6 +1,5 @@
 """Integration tests for the unified parsing pipeline."""
 
-import pytest
 from claude_candidate.requirement_parser import (
 	build_extraction_prompt,
 	CACHE_PROMPT_VERSION,
