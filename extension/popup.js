@@ -638,11 +638,25 @@ document.addEventListener('DOMContentLoaded', () => {
 			body.style.maxHeight = 'none';
 			body.style.overflow = 'visible';
 			body.style.height = 'auto';
+			body.style.paddingBottom = '16px';
 			if (footer) footer.style.position = 'relative';
 
 			// Hide the button row during capture
 			const btnRow = document.querySelector('.btn-row');
 			if (btnRow) btnRow.style.display = 'none';
+
+			// Fix html2canvas gradient rendering: replace 'transparent' with '#ffffff'
+			const lowConfItems = document.querySelectorAll('.match-item.low-conf');
+			lowConfItems.forEach(item => {
+				item.dataset.origBg = item.style.background || '';
+				const computed = getComputedStyle(item).backgroundImage;
+				if (computed.includes('transparent')) {
+					item.style.background = computed.replace(/transparent/g, '#ffffff');
+				}
+			});
+
+			// Force a layout pass so scrollHeight is accurate
+			void body.scrollHeight;
 
 			const canvas = await html2canvas(body, {
 				scale: 2,
@@ -652,8 +666,12 @@ document.addEventListener('DOMContentLoaded', () => {
 				height: body.scrollHeight,
 			});
 
-			// Restore button row
+			// Restore button row and low-conf backgrounds
 			if (btnRow) btnRow.style.display = '';
+			lowConfItems.forEach(item => {
+				item.style.background = item.dataset.origBg;
+				delete item.dataset.origBg;
+			});
 
 			const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
 			await navigator.clipboard.write([
@@ -671,6 +689,7 @@ document.addEventListener('DOMContentLoaded', () => {
 			body.style.maxHeight = origMaxHeight;
 			body.style.overflow = origOverflow;
 			body.style.height = origHeight;
+			body.style.paddingBottom = '';
 			if (footer) footer.style.position = origFooterPosition;
 			btnScreenshot.disabled = false;
 		}
