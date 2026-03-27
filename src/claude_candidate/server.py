@@ -309,8 +309,19 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 					curated_data if isinstance(curated_data, dict) else curated_data.model_dump()
 				)
 				repo = RepoProfile.model_validate(repo_data)
-				logger.info("merge path: merge_triad (curated_resume + repo_profile)")
-				return merge_triad(curated, repo)
+				# Load sessions for culture fit (best-effort)
+				sessions = None
+				candidate_data = profiles.get("candidate")
+				if candidate_data:
+					try:
+						sessions = CandidateProfile.model_validate(candidate_data)
+					except Exception:
+						pass  # sessions are best-effort
+				logger.info(
+					f"merge path: merge_triad (curated_resume + repo_profile"
+					f"{' + sessions' if sessions else ''})"
+				)
+				return merge_triad(curated, repo, sessions=sessions)
 			except ValidationError:
 				logger.warning("merge_triad validation failed — falling back to legacy path")
 

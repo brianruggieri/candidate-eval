@@ -1523,3 +1523,29 @@ class TestEducationAutoTagging:
 		]
 		_auto_tag_education(reqs)
 		assert reqs[0]["education_level"] == "master"  # not overwritten
+
+
+def test_merge_triad_sessions_integration():
+	"""Verify merge_triad with sessions produces patterns when available."""
+	import pytest
+	from claude_candidate.merger import merge_triad
+	from claude_candidate.schemas.curated_resume import CuratedResume
+	from claude_candidate.schemas.repo_profile import RepoProfile
+	from claude_candidate.schemas.candidate_profile import CandidateProfile
+	from pathlib import Path
+
+	data_dir = Path.home() / ".claude-candidate"
+	curated_path = data_dir / "curated_resume.json"
+	repo_path = data_dir / "repo_profile.json"
+	candidate_path = data_dir / "candidate_profile.json"
+
+	if not all(p.exists() for p in [curated_path, repo_path, candidate_path]):
+		pytest.skip("Requires curated_resume, repo_profile, and candidate_profile")
+
+	curated = CuratedResume.model_validate_json(curated_path.read_text())
+	repo = RepoProfile.model_validate_json(repo_path.read_text())
+	sessions = CandidateProfile.from_json(candidate_path.read_text())
+
+	merged = merge_triad(curated, repo, sessions=sessions)
+	if sessions.problem_solving_patterns:
+		assert len(merged.patterns) > 0

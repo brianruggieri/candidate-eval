@@ -950,8 +950,18 @@ def profile_rebuild(data_dir: str | None) -> None:
 			click.echo(f"Warning: invalid repo profile: {exc}", err=True)
 
 	if repo is not None:
-		click.echo("Merging curated resume + repo profile (merge_triad)...")
-		merged = merge_triad(curated, repo)
+		# Try loading sessions for culture fit
+		sessions_cp = None
+		candidate_path = _data_dir / "candidate_profile.json"
+		if candidate_path.exists():
+			try:
+				from claude_candidate.schemas.candidate_profile import CandidateProfile
+				sessions_cp = CandidateProfile.from_json(candidate_path.read_text())
+			except Exception:
+				pass
+		sessions_label = " + sessions" if sessions_cp else ""
+		click.echo(f"Merging curated resume + repo profile (merge_triad{sessions_label})...")
+		merged = merge_triad(curated, repo, sessions=sessions_cp)
 	else:
 		# Fallback: need a candidate profile for merge_with_curated
 		candidate_path = _data_dir / "candidate_profile.json"
@@ -1882,8 +1892,9 @@ def _merge_profile(
 
 	if curated is not None and repo is not None:
 		if not quiet:
-			click.echo("Using curated resume + repo profile (merge_triad)")
-		return merge_triad(curated, repo)
+			sessions_label = " + sessions" if cp else ""
+			click.echo(f"Using curated resume + repo profile (merge_triad{sessions_label})")
+		return merge_triad(curated, repo, sessions=cp)
 
 	# Legacy paths require a candidate profile
 	if cp is None:
