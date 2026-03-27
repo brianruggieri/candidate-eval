@@ -170,20 +170,30 @@ async function handleAddToShortlist(payload) {
 }
 
 /**
- * Batch assess: find all LinkedIn job tabs, extract + assess each one.
+ * Batch assess: find all open job posting tabs, extract + assess each one.
  * Sends progress updates via chrome.storage.local.
  */
 async function handleBatchAssess() {
-	// Find all LinkedIn job posting tabs
+	// Find tabs that look like job postings on any board
 	const allTabs = await chrome.tabs.query({});
 	console.log(`[batch] Found ${allTabs.length} total tabs`);
+	const JOB_URL_PATTERNS = [
+		/linkedin\.com\/jobs\/view\//,
+		/boards\.greenhouse\.io\/.+\/jobs\//,
+		/jobs\.lever\.co\//,
+		/indeed\.com\/viewjob/,
+		/careers\.|\/careers\//,
+		/jobs\.|\/jobs\//,
+		/ashbyhq\.com\/.+\/jobs\//,
+		/apply\.workable\.com\//,
+	];
 	const jobTabs = allTabs.filter(t =>
-		t.url && /linkedin\.com\/jobs\/view\//.test(t.url)
+		t.url && JOB_URL_PATTERNS.some(p => p.test(t.url))
 	);
-	console.log(`[batch] Found ${jobTabs.length} LinkedIn job tabs`);
+	console.log(`[batch] Found ${jobTabs.length} job posting tabs`);
 
 	if (jobTabs.length === 0) {
-		return { success: false, error: 'No LinkedIn job posting tabs found. Open some job postings first.' };
+		return { success: false, error: 'No job posting tabs found. Open some job postings first.' };
 	}
 
 	// Clear previous batch results and open dashboard immediately

@@ -13,8 +13,8 @@ beforeEach(() => {
 
 describe('normalizeUrl', () => {
 	it('strips tracking parameters', () => {
-		const url = 'https://linkedin.com/jobs/view/123?utm_source=google&trk=abc';
-		expect(normalizeUrl(url)).toBe('https://linkedin.com/jobs/view/123');
+		const url = 'https://example.com/jobs/view/123?utm_source=google&trk=abc';
+		expect(normalizeUrl(url)).toBe('https://example.com/jobs/view/123');
 	});
 
 	it('preserves non-tracking parameters', () => {
@@ -49,7 +49,7 @@ describe('normalizeUrl', () => {
 });
 
 describe('URL-keyed storage', () => {
-	const url = 'https://linkedin.com/jobs/view/123?utm_source=google';
+	const url = 'https://example.com/jobs/view/123?utm_source=google';
 
 	it('setForUrl + getForUrl roundtrip', async () => {
 		await setForUrl('posting', url, { company: 'Acme' });

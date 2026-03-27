@@ -37,7 +37,7 @@ export const chrome = {
 	},
 	tabs: {
 		query(opts, cb) {
-			const tabs = [{ url: 'https://www.linkedin.com/jobs/view/12345' }];
+			const tabs = [{ url: 'https://jobs.example.com/posting/12345' }];
 			if (cb) cb(tabs);
 			return Promise.resolve(tabs);
 		},

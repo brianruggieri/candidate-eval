@@ -9,7 +9,7 @@
 	const MAX_TEXT_LENGTH = 15000;
 
 	function expandTruncatedContent() {
-		// LinkedIn "...more" buttons that expand truncated job descriptions
+		// "Show more" buttons that expand truncated job descriptions
 		const selectors = [
 			'button.show-more-less-html__button--more',
 			'[data-tracking-control-name="public_jobs_show-more-html-btn"]',
