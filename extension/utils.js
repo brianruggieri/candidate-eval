@@ -64,8 +64,13 @@ async function removeForUrl(prefix, url) {
 function isProfileStale(storedHashes, currentHashes) {
 	if (!storedHashes) return false;
 	if (!currentHashes || Object.keys(currentHashes).length === 0) return false;
+	// Check current hashes against stored (new or changed profiles)
 	for (const key of Object.keys(currentHashes)) {
 		if (storedHashes[key] !== currentHashes[key]) return true;
+	}
+	// Check stored hashes against current (removed profiles)
+	for (const key of Object.keys(storedHashes)) {
+		if (!(key in currentHashes)) return true;
 	}
 	return false;
 }

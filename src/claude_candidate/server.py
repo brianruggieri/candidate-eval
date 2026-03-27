@@ -821,8 +821,10 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 
 		# Dedup: if posting_url already exists, update assessment linkage and return existing.
 		# Only assessment_id is updateable via dedup; other fields retain their original values.
+		# Normalize URL to match variants (tracking params, trailing slashes, fragments).
 		if req.posting_url:
-			existing = await store.find_shortlist_by_url(req.posting_url)
+			normalized_url = _normalize_cache_url(req.posting_url)
+			existing = await store.find_shortlist_by_url(normalized_url)
 			if existing:
 				if req.assessment_id and req.assessment_id != existing.get("assessment_id"):
 					await store.update_shortlist(
@@ -835,7 +837,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 		sid = await store.add_to_shortlist(
 			company_name=req.company_name,
 			job_title=req.job_title,
-			posting_url=req.posting_url,
+			posting_url=_normalize_cache_url(req.posting_url) if req.posting_url else req.posting_url,
 			assessment_id=req.assessment_id,
 			notes=req.notes,
 			salary=req.salary,

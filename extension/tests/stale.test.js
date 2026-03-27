@@ -29,4 +29,10 @@ describe('isProfileStale', () => {
 		const stored = { candidate: 'abc' };
 		expect(isProfileStale(stored, {})).toBe(false);
 	});
+
+	it('returns true when a profile type is removed', () => {
+		const stored = { candidate: 'abc', curated_resume: 'def', repo_profile: 'ghi' };
+		const current = { candidate: 'abc', curated_resume: 'def' };
+		expect(isProfileStale(stored, current)).toBe(true);
+	});
 });

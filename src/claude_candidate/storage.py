@@ -72,6 +72,7 @@ _CREATE_INDEXES = [
 	"CREATE INDEX IF NOT EXISTS idx_assessments_company ON assessments(company_name);",
 	"CREATE INDEX IF NOT EXISTS idx_assessments_score ON assessments(overall_score DESC);",
 	"CREATE INDEX IF NOT EXISTS idx_shortlist_status ON shortlist(status);",
+	"CREATE UNIQUE INDEX IF NOT EXISTS idx_shortlist_posting_url ON shortlist(posting_url) WHERE posting_url IS NOT NULL;",
 ]
 
 

@@ -170,11 +170,11 @@ function sortShortlist(col) {
 			va = gradeValue(a.assessment_grade || a.overall_grade);
 			vb = gradeValue(b.assessment_grade || b.overall_grade);
 		} else if (col === 'added') {
-			va = a.created_at || '';
-			vb = b.created_at || '';
+			va = a.added_at || '';
+			vb = b.added_at || '';
 		} else if (col === 'salary') {
-			va = a.salary_max || a.salary_min || 0;
-			vb = b.salary_max || b.salary_min || 0;
+			va = a.salary || '';
+			vb = b.salary || '';
 		} else {
 			va = a[col] || '';
 			vb = b[col] || '';
@@ -222,15 +222,10 @@ function formatDate(isoStr) {
 }
 
 function formatSalary(item) {
-	const min = item.salary_min;
-	const max = item.salary_max;
-	if (!min && !max) return '--';
-	const fmt = (n) => {
-		if (n >= 1000) return '$' + Math.round(n / 1000) + 'k';
-		return '$' + n;
-	};
-	if (min && max && min !== max) return fmt(min) + '\u2013' + fmt(max);
-	return fmt(max || min);
+	// Backend returns salary as a single string (e.g. "$120k-$160k", "120000")
+	const raw = item.salary;
+	if (!raw || (typeof raw === 'string' && !raw.trim())) return '--';
+	return raw;
 }
 
 function renderShortlist(items) {
@@ -282,7 +277,7 @@ function renderShortlist(items) {
 
 		// Company
 		const tdCompany = document.createElement('td');
-		tdCompany.innerHTML = '<strong>' + escapeHtml(item.company || 'Unknown') + '</strong>';
+		tdCompany.innerHTML = '<strong>' + escapeHtml(item.company_name || item.company || 'Unknown') + '</strong>';
 		tr.appendChild(tdCompany);
 
 		// Role
@@ -333,7 +328,7 @@ function renderShortlist(items) {
 		// Added date
 		const tdDate = document.createElement('td');
 		tdDate.className = 'date-cell';
-		tdDate.textContent = formatDate(item.created_at);
+		tdDate.textContent = formatDate(item.added_at || item.created_at);
 		tr.appendChild(tdDate);
 
 		// Delete button
