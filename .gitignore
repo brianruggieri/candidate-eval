@@ -63,3 +63,5 @@ node_modules/
 # Generated static site
 site/
 .claude/handoffs/
+extension/package-lock.json
+fit-page-*.png
