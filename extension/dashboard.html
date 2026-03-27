@@ -3,7 +3,7 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>claude-candidate — Batch Results</title>
+	<title>claude-candidate — Dashboard</title>
 	<style>
 		* { box-sizing: border-box; margin: 0; padding: 0; }
 		body {
@@ -58,54 +58,141 @@
 		.empty-state h2 { font-size: 18px; margin-bottom: 8px; color: #64748b; }
 		@keyframes pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
 		.loading { animation: pulse 1.5s ease-in-out infinite; }
+
+		/* Tab navigation */
+		.tab-bar {
+			display: flex; border-bottom: 2px solid #e2e8f0; margin-bottom: 24px; gap: 0;
+		}
+		.tab-btn {
+			padding: 12px 24px; font-size: 14px; font-weight: 600; color: #64748b;
+			background: none; border: none; border-bottom: 2px solid transparent;
+			margin-bottom: -2px; cursor: pointer; transition: color 0.15s, border-color 0.15s;
+		}
+		.tab-btn:hover { color: #334155; }
+		.tab-btn.active { color: #6366f1; border-bottom-color: #6366f1; }
+		.tab-panel.hidden { display: none; }
+
+		/* Status dropdown */
+		.status-select {
+			padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 600;
+			border: 1px solid transparent; cursor: pointer; appearance: none;
+			-webkit-appearance: none; background-repeat: no-repeat;
+			background-position: right 6px center; background-size: 10px;
+			background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E");
+			padding-right: 20px;
+		}
+		.status-shortlisted { background: #eef2ff; color: #4f46e5; border-color: #c7d2fe; }
+		.status-applied { background: #ecfeff; color: #0891b2; border-color: #a5f3fc; }
+		.status-interviewing { background: #fffbeb; color: #d97706; border-color: #fde68a; }
+		.status-offer { background: #ecfdf5; color: #059669; border-color: #a7f3d0; }
+		.status-rejected { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
+
+		/* Delete button */
+		.btn-delete {
+			background: none; border: none; color: #cbd5e1; cursor: pointer;
+			font-size: 14px; padding: 4px 8px; border-radius: 4px; transition: color 0.15s, background 0.15s;
+		}
+		.btn-delete:hover { color: #dc2626; background: #fef2f2; }
+
+		/* Date cell */
+		.date-cell { color: #94a3b8; font-size: 12px; white-space: nowrap; }
 	</style>
 </head>
 <body>
 	<div class="container">
-		<h1>Batch Assessment Results</h1>
-		<p class="subtitle" id="subtitle">Loading...</p>
-
-		<div id="progress-section">
-			<div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width: 0%"></div></div>
-			<p class="progress-text loading" id="progress-text">Starting...</p>
+		<div class="tab-bar">
+			<button class="tab-btn active" data-tab="assessments">Assessments</button>
+			<button class="tab-btn" data-tab="shortlist">Shortlist</button>
 		</div>
 
-		<div class="summary-row hidden" id="summary-row">
-			<div class="summary-card">
-				<div class="label">Jobs Assessed</div>
-				<div class="value" id="stat-total">0</div>
+		<div id="tab-assessments" class="tab-panel">
+			<h1>Batch Assessment Results</h1>
+			<p class="subtitle" id="subtitle">Loading...</p>
+
+			<div id="progress-section">
+				<div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width: 0%"></div></div>
+				<p class="progress-text loading" id="progress-text">Starting...</p>
 			</div>
-			<div class="summary-card">
-				<div class="label">Top Match</div>
-				<div class="value" id="stat-top" style="font-size: 16px;">--</div>
+
+			<div class="summary-row hidden" id="summary-row">
+				<div class="summary-card">
+					<div class="label">Jobs Assessed</div>
+					<div class="value" id="stat-total">0</div>
+				</div>
+				<div class="summary-card">
+					<div class="label">Top Match</div>
+					<div class="value" id="stat-top" style="font-size: 16px;">--</div>
+				</div>
+				<div class="summary-card">
+					<div class="label">Average Score</div>
+					<div class="value" id="stat-avg">--</div>
+				</div>
+				<div class="summary-card">
+					<div class="label">A/B Grades</div>
+					<div class="value" id="stat-ab">0</div>
+				</div>
 			</div>
-			<div class="summary-card">
-				<div class="label">Average Score</div>
-				<div class="value" id="stat-avg">--</div>
-			</div>
-			<div class="summary-card">
-				<div class="label">A/B Grades</div>
-				<div class="value" id="stat-ab">0</div>
+
+			<table class="hidden" id="results-table">
+				<thead>
+					<tr>
+						<th data-sort="grade">Grade <span class="sort-arrow"></span></th>
+						<th data-sort="percentage">Match % <span class="sort-arrow"></span></th>
+						<th data-sort="company">Company <span class="sort-arrow"></span></th>
+						<th data-sort="title">Title <span class="sort-arrow"></span></th>
+						<th>Strongest</th>
+						<th>Biggest Gap</th>
+					</tr>
+				</thead>
+				<tbody id="results-body"></tbody>
+			</table>
+
+			<div class="empty-state hidden" id="empty-state">
+				<h2>No results yet</h2>
+				<p>Open LinkedIn job posting tabs and click "Assess All Open Job Tabs" in the extension popup.</p>
 			</div>
 		</div>
 
-		<table class="hidden" id="results-table">
-			<thead>
-				<tr>
-					<th data-sort="grade">Grade <span class="sort-arrow"></span></th>
-					<th data-sort="percentage">Match % <span class="sort-arrow"></span></th>
-					<th data-sort="company">Company <span class="sort-arrow"></span></th>
-					<th data-sort="title">Title <span class="sort-arrow"></span></th>
-					<th>Strongest</th>
-					<th>Biggest Gap</th>
-				</tr>
-			</thead>
-			<tbody id="results-body"></tbody>
-		</table>
+		<div id="tab-shortlist" class="tab-panel hidden">
+			<div class="summary-row" id="shortlist-summary">
+				<div class="summary-card">
+					<div class="label">Shortlisted</div>
+					<div class="value" id="sl-stat-total">0</div>
+				</div>
+				<div class="summary-card">
+					<div class="label">Applied</div>
+					<div class="value" id="sl-stat-applied">0</div>
+				</div>
+				<div class="summary-card">
+					<div class="label">Interviewing</div>
+					<div class="value" id="sl-stat-interviewing">0</div>
+				</div>
+				<div class="summary-card">
+					<div class="label">Avg Grade</div>
+					<div class="value" id="sl-stat-avg-grade">--</div>
+				</div>
+			</div>
 
-		<div class="empty-state hidden" id="empty-state">
-			<h2>No results yet</h2>
-			<p>Open LinkedIn job posting tabs and click "Assess All Open Job Tabs" in the extension popup.</p>
+			<table class="hidden" id="shortlist-table">
+				<thead>
+					<tr>
+						<th data-sl-sort="grade">Grade <span class="sort-arrow"></span></th>
+						<th data-sl-sort="company">Company <span class="sort-arrow"></span></th>
+						<th data-sl-sort="role">Role <span class="sort-arrow"></span></th>
+						<th>Status</th>
+						<th data-sl-sort="location">Location <span class="sort-arrow"></span></th>
+						<th data-sl-sort="salary">Salary <span class="sort-arrow"></span></th>
+						<th data-sl-sort="added">Added <span class="sort-arrow"></span></th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody id="shortlist-body"></tbody>
+			</table>
+
+			<div class="empty-state" id="shortlist-empty">
+				<h2>No shortlisted jobs</h2>
+				<p>Click the star icon on any assessment to add it to your shortlist.</p>
+			</div>
 		</div>
 	</div>
 
