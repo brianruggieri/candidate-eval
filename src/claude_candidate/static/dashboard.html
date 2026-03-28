@@ -497,7 +497,7 @@
 					url: d.posting_url || '',
 					company: d.company_name || 'Unknown',
 					title: d.job_title || 'Unknown',
-					percentage: (d.partial_percentage != null) ? d.partial_percentage : ((d.overall_score || 0) * 100),
+					percentage: (d.overall_score != null) ? d.overall_score * 100 : (d.partial_percentage || 0),
 					grade: d.overall_grade || '?',
 					strongest: d.strongest_match || '',
 					biggest_gap: d.biggest_gap || '',
