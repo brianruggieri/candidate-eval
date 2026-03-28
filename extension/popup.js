@@ -660,6 +660,10 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 	});
 
+	document.getElementById('btn-dashboard')?.addEventListener('click', () => {
+		chrome.tabs.create({ url: 'http://localhost:7429/dashboard' });
+	});
+
 	const btnCopy = el('btn-clipboard');
 	if (btnCopy) btnCopy.addEventListener('click', () => {
 		const data = currentAssessment;

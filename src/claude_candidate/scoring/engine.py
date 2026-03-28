@@ -37,6 +37,7 @@ from claude_candidate.schemas.merged_profile import (
 	MergedEvidenceProfile,
 	MergedSkillEvidence,
 )
+from claude_candidate import __version__
 from claude_candidate.eligibility_evaluator import evaluate_gates
 from claude_candidate.scoring.constants import (
 	CONFIDENCE_FLOOR,
@@ -436,6 +437,7 @@ class QuickMatchEngine:
 			domain_gap_term=domain_gap_term,
 			should_apply=score_to_verdict(overall_score),
 			action_items=action_items,
+			app_version=__version__,
 			profile_hash=self.profile.profile_hash,
 			time_to_assess_seconds=round(elapsed, TIMING_PRECISION),
 		)

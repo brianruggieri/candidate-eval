@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from claude_candidate import __version__
@@ -488,6 +489,16 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 
 		# Persist
 		assessment_dict = json.loads(assessment.to_json())
+		# Store input requirements for future reassessment
+		assessment_dict["input_requirements"] = [r.model_dump() for r in requirements]
+		assessment_dict["input_meta"] = {
+			"company": req.company,
+			"title": req.title,
+			"posting_url": req.posting_url,
+			"seniority": req.seniority,
+			"culture_signals": req.culture_signals,
+			"tech_stack": req.tech_stack,
+		}
 		flat: dict[str, Any] = {
 			"assessment_id": assessment.assessment_id,
 			"assessed_at": assessment.assessed_at.isoformat(),
@@ -755,6 +766,188 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 		return {"deleted": True, "assessment_id": assessment_id}
 
 	# ------------------------------------------------------------------
+	# Bulk reassess
+	# ------------------------------------------------------------------
+
+	@app.post("/api/assessments/reassess")
+	async def reassess_all():
+		"""Re-score all assessments against the current profile and engine."""
+		import asyncio
+		from claude_candidate.schemas.job_requirements import QuickRequirement
+		from claude_candidate.scoring import QuickMatchEngine
+		from claude_candidate.requirement_parser import CACHE_PROMPT_VERSION
+		from claude_candidate.schemas.curated_resume import CandidateEligibility
+		from pydantic import ValidationError
+
+		merged = _build_merged_profile()
+		if merged is None:
+			raise HTTPException(status_code=422, detail="No profile loaded.")
+
+		# Load curated eligibility once
+		curated_eligibility: CandidateEligibility | None = None
+		curated_data = get_profiles().get("curated_resume")
+		if isinstance(curated_data, dict):
+			try:
+				curated_eligibility = CandidateEligibility.model_validate(
+					curated_data.get("eligibility", {})
+				)
+			except ValidationError:
+				pass
+
+		store = get_store()
+		all_assessments: list[dict] = []
+		_page_size = 500
+		_offset = 0
+		while True:
+			page = await store.list_assessments(limit=_page_size, offset=_offset)
+			if not page:
+				break
+			all_assessments.extend(page)
+			if len(page) < _page_size:
+				break
+			_offset += _page_size
+
+		# Pre-fetch posting cache for fallback requirement recovery
+		cached_postings = await store.list_cached_postings(limit=1000)
+		posting_cache_by_hash: dict[str, dict] = {}
+		posting_cache_by_url: dict[str, dict] = {}
+		for cp in cached_postings:
+			posting_cache_by_hash[cp["url_hash"]] = cp.get("data", {})
+			# Also index by normalized URL for version-agnostic lookup
+			url = cp.get("url", "")
+			if url:
+				posting_cache_by_url[url] = cp.get("data", {})
+
+		def _resolve_requirements(data: dict) -> list[QuickRequirement] | None:
+			"""Try to recover requirements from assessment data or posting cache."""
+			# Path 1: stored input_requirements
+			input_reqs = data.get("input_requirements")
+			if input_reqs and isinstance(input_reqs, list):
+				reqs = []
+				for r in input_reqs:
+					try:
+						reqs.append(QuickRequirement(**r))
+					except Exception:
+						continue
+				if reqs:
+					return reqs
+
+			# Path 2: posting cache fallback (by hash, then by normalized URL)
+			posting_url = data.get("posting_url")
+			if posting_url:
+				cache_url = _normalize_cache_url(posting_url)
+				url_hash = hashlib.sha256(
+					f"{CACHE_PROMPT_VERSION}:{cache_url}".encode()
+				).hexdigest()[:16]
+				cached = posting_cache_by_hash.get(url_hash)
+				# Fallback: match by normalized URL (ignores cache version)
+				if not cached:
+					cached = posting_cache_by_url.get(cache_url)
+				if cached and isinstance(cached.get("requirements"), list):
+					reqs = []
+					for r in cached["requirements"]:
+						try:
+							reqs.append(QuickRequirement(**r))
+						except Exception:
+							continue
+					if reqs:
+						return reqs
+
+			return None
+
+		def _run_batch():
+			"""CPU-bound: score all assessments. Runs in executor thread."""
+			engine = QuickMatchEngine(merged)
+			results = []
+			for a in all_assessments:
+				aid = a.get("assessment_id", "")
+				data = a.get("data", {})
+				old_grade = data.get("overall_grade", "?")
+				old_score = data.get("overall_score", 0)
+
+				reqs = _resolve_requirements(data)
+				if reqs is None:
+					results.append({
+						"assessment_id": aid,
+						"status": "skipped",
+						"reason": "no_requirements",
+						"company": data.get("company_name", ""),
+						"title": data.get("job_title", ""),
+					})
+					continue
+
+				meta = data.get("input_meta") or {}
+				assessment = engine.assess(
+					requirements=reqs,
+					company=meta.get("company") or data.get("company_name", ""),
+					title=meta.get("title") or data.get("job_title", ""),
+					posting_url=meta.get("posting_url") or data.get("posting_url"),
+					source="reassess",
+					seniority=meta.get("seniority", "unknown"),
+					culture_signals=meta.get("culture_signals"),
+					tech_stack=meta.get("tech_stack"),
+					curated_eligibility=curated_eligibility,
+				)
+
+				new_dict = json.loads(assessment.to_json())
+				# Store recovered requirements so future reassessments don't need cache
+				new_dict["input_requirements"] = [r.model_dump() for r in reqs]
+				new_dict["input_meta"] = meta if meta else {
+					"company": data.get("company_name", ""),
+					"title": data.get("job_title", ""),
+					"posting_url": data.get("posting_url"),
+					"seniority": "unknown",
+				}
+
+				results.append({
+					"assessment_id": aid,
+					"status": "updated",
+					"company": assessment.company_name,
+					"title": assessment.job_title,
+					"old_grade": old_grade,
+					"new_grade": assessment.overall_grade,
+					"old_score": old_score,
+					"new_score": assessment.overall_score,
+					"changed": old_grade != assessment.overall_grade,
+					"_full": new_dict,  # used for persistence, stripped before response
+				})
+			return results
+
+		loop = asyncio.get_event_loop()
+		results = await loop.run_in_executor(None, _run_batch)
+
+		# Batch persist updated assessments
+		updated = 0
+		for r in results:
+			if r["status"] != "updated":
+				continue
+			full = r.pop("_full")
+			flat = {
+				"assessment_id": r["assessment_id"],
+				"assessed_at": full.get("assessed_at"),
+				"job_title": r["title"],
+				"company_name": r["company"],
+				"posting_url": full.get("posting_url"),
+				"overall_score": r["new_score"],
+				"overall_grade": r["new_grade"],
+				"should_apply": full.get("should_apply"),
+				"data": full,
+			}
+			await store.save_assessment(flat)
+			updated += 1
+
+		skipped = sum(1 for r in results if r["status"] == "skipped")
+		changed = sum(1 for r in results if r.get("changed"))
+
+		return {
+			"total": len(results),
+			"updated": updated,
+			"skipped": skipped,
+			"changed": changed,
+			"results": results,  # lightweight summaries (no _full)
+		}
+
+	# ------------------------------------------------------------------
 	# Proof package
 	# ------------------------------------------------------------------
 
@@ -1011,5 +1204,10 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 				cache_url[:80],
 			)
 		return result_dict
+
+	@app.get("/dashboard", response_class=HTMLResponse)
+	async def dashboard():
+		html_path = Path(__file__).parent / "static" / "dashboard.html"
+		return HTMLResponse(html_path.read_text(encoding="utf-8"))
 
 	return app
