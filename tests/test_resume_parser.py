@@ -17,7 +17,7 @@ class TestTextExtraction:
 		from claude_candidate.resume_parser import extract_text_from_file
 
 		text = extract_text_from_file(SAMPLE_RESUME)
-		assert "BRIAN RUGGIERI" in text
+		assert "ALEX DEVELOPER" in text
 		assert "Senior Software Engineer" in text
 		assert "TechCorp" in text
 		assert "Python" in text
@@ -72,7 +72,7 @@ class TestResumeTextParsing:
 
 		profile = parse_resume_text(sample_text)
 		assert profile.name is not None
-		assert "BRIAN" in profile.name.upper() or "Brian" in profile.name
+		assert "ALEX" in profile.name.upper() or "Alex" in profile.name
 
 	def test_extracts_location(self, sample_text):
 		from claude_candidate.resume_parser import parse_resume_text
