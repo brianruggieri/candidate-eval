@@ -1578,6 +1578,54 @@ def server_start(host: str, port: int, data_dir: str | None) -> None:
 	uvicorn.run(app, host=host, port=port)
 
 
+@main.command()
+@click.option("--host", default="127.0.0.1", help="Server host")
+@click.option("--port", default=7429, help="Server port")
+def dashboard(host: str, port: int) -> None:
+	"""Open the assessment dashboard in your browser."""
+	import subprocess
+	import sys
+	import time
+	import urllib.request
+	import webbrowser
+
+	url = f"http://{host}:{port}"
+	dashboard_url = f"{url}/dashboard"
+
+	# Check if server is already running
+	server_running = False
+	try:
+		urllib.request.urlopen(f"{url}/api/health", timeout=2)
+		server_running = True
+	except Exception:
+		pass
+
+	if not server_running:
+		click.echo("Starting server in the background...")
+		subprocess.Popen(
+			[sys.executable, "-m", "claude_candidate.cli", "server", "start",
+			 "--host", host, "--port", str(port)],
+			stdout=subprocess.DEVNULL,
+			stderr=subprocess.DEVNULL,
+		)
+		# Wait for server to be ready
+		for _ in range(20):
+			time.sleep(0.5)
+			try:
+				urllib.request.urlopen(f"{url}/api/health", timeout=2)
+				server_running = True
+				break
+			except Exception:
+				pass
+
+		if not server_running:
+			click.echo("Error: Server failed to start within 10 seconds.", err=True)
+			raise SystemExit(1)
+
+	click.echo(f"Opening dashboard at {dashboard_url}")
+	webbrowser.open(dashboard_url)
+
+
 # === Sessions commands ===
 
 

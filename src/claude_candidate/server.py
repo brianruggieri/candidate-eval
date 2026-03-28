@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from claude_candidate import __version__
@@ -1011,5 +1012,10 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 				cache_url[:80],
 			)
 		return result_dict
+
+	@app.get("/dashboard", response_class=HTMLResponse)
+	async def dashboard():
+		html_path = Path(__file__).parent / "static" / "dashboard.html"
+		return HTMLResponse(html_path.read_text())
 
 	return app
