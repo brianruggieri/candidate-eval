@@ -115,6 +115,18 @@ class AssessmentStore:
 		await self._conn.execute(_CREATE_PROFILES)
 		await self._conn.execute(_CREATE_POSTING_CACHE)
 		await self._conn.execute(_CREATE_COMPANY_RESEARCH)
+		# Dedup shortlist rows before creating unique index (upgrade safety:
+		# existing DBs may have duplicate posting_url values from before the
+		# unique constraint was added — keep newest row per URL).
+		await self._conn.execute(
+			"""
+			DELETE FROM shortlist WHERE rowid NOT IN (
+				SELECT MAX(rowid) FROM shortlist
+				WHERE posting_url IS NOT NULL
+				GROUP BY posting_url
+			) AND posting_url IS NOT NULL;
+			"""
+		)
 		for idx_sql in _CREATE_INDEXES:
 			await self._conn.execute(idx_sql)
 		await self._conn.commit()

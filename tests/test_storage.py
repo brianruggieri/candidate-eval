@@ -451,7 +451,7 @@ class TestShortlistDedup:
 class TestShortlistEnriched:
 	def test_enriched_includes_assessment_grade(self, store: AssessmentStore):
 		# Save an assessment with a specific grade
-		aid = run(
+		run(
 			store.save_assessment(
 				{
 					**SAMPLE_ASSESSMENT,
@@ -495,14 +495,14 @@ class TestShortlistEnriched:
 		assert rows[0]["overall_grade"] == "C+"
 
 	def test_enriched_filters_by_status(self, store: AssessmentStore):
-		sid1 = run(
+		run(
 			store.add_to_shortlist(
 				company_name="Active Co",
 				job_title="SWE",
 				status="shortlisted",
 			)
 		)
-		sid2 = run(
+		run(
 			store.add_to_shortlist(
 				company_name="Applied Co",
 				job_title="Staff Eng",
