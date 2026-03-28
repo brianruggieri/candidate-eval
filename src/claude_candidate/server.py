@@ -800,8 +800,13 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 		# Pre-fetch posting cache for fallback requirement recovery
 		cached_postings = await store.list_cached_postings(limit=1000)
 		posting_cache_by_hash: dict[str, dict] = {}
+		posting_cache_by_url: dict[str, dict] = {}
 		for cp in cached_postings:
 			posting_cache_by_hash[cp["url_hash"]] = cp.get("data", {})
+			# Also index by normalized URL for version-agnostic lookup
+			url = cp.get("url", "")
+			if url:
+				posting_cache_by_url[url] = cp.get("data", {})
 
 		def _resolve_requirements(data: dict) -> list[QuickRequirement] | None:
 			"""Try to recover requirements from assessment data or posting cache."""
@@ -817,7 +822,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 				if reqs:
 					return reqs
 
-			# Path 2: posting cache fallback
+			# Path 2: posting cache fallback (by hash, then by normalized URL)
 			posting_url = data.get("posting_url")
 			if posting_url:
 				cache_url = _normalize_cache_url(posting_url)
@@ -825,6 +830,9 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 					f"{CACHE_PROMPT_VERSION}:{cache_url}".encode()
 				).hexdigest()[:16]
 				cached = posting_cache_by_hash.get(url_hash)
+				# Fallback: match by normalized URL (ignores cache version)
+				if not cached:
+					cached = posting_cache_by_url.get(cache_url)
 				if cached and isinstance(cached.get("requirements"), list):
 					reqs = []
 					for r in cached["requirements"]:
@@ -872,9 +880,14 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 				)
 
 				new_dict = json.loads(assessment.to_json())
-				# Preserve input_requirements and input_meta
-				new_dict["input_requirements"] = data.get("input_requirements")
-				new_dict["input_meta"] = data.get("input_meta")
+				# Store recovered requirements so future reassessments don't need cache
+				new_dict["input_requirements"] = [r.model_dump() for r in reqs]
+				new_dict["input_meta"] = meta if meta else {
+					"company": data.get("company_name", ""),
+					"title": data.get("job_title", ""),
+					"posting_url": data.get("posting_url"),
+					"seniority": "unknown",
+				}
 
 				results.append({
 					"assessment_id": aid,
