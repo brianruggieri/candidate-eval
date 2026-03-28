@@ -284,7 +284,7 @@
 
 		let currentResults = [];
 		let sortCol = 'percentage';
-		let sortDir = 1; // flipped to -1 (descending) on first sortResults call
+		let sortDir = -1; // descending (highest first)
 
 		let shortlistItems = [];
 		let slSortCol = 'added';
@@ -428,24 +428,16 @@
 			}
 		}
 
-		function sortResults(col) {
-			if (sortCol === col) {
-				sortDir *= -1;
-			} else {
-				sortCol = col;
-				sortDir = (col === 'percentage' || col === 'grade') ? -1 : 1;
-			}
-			assessPage = 0;
-
+		function applySortResults() {
 			const successful = currentResults.filter(r => !r.error);
 			const errors = currentResults.filter(r => r.error);
 
 			successful.sort((a, b) => {
-				if (col === 'grade') {
+				if (sortCol === 'grade') {
 					return (gradeValue(a.grade) - gradeValue(b.grade)) * sortDir;
 				}
-				const va = a[col] || '';
-				const vb = b[col] || '';
+				const va = a[sortCol] || '';
+				const vb = b[sortCol] || '';
 				if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * sortDir;
 				return String(va).localeCompare(String(vb)) * sortDir;
 			});
@@ -455,12 +447,23 @@
 
 			document.querySelectorAll('th[data-sort]').forEach(th => {
 				const arrow = th.querySelector('.sort-arrow');
-				if (th.dataset.sort === col) {
+				if (th.dataset.sort === sortCol) {
 					arrow.textContent = sortDir > 0 ? '\u25B2' : '\u25BC';
 				} else {
 					arrow.textContent = '';
 				}
 			});
+		}
+
+		function sortResults(col) {
+			if (sortCol === col) {
+				sortDir *= -1;
+			} else {
+				sortCol = col;
+				sortDir = (col === 'percentage' || col === 'grade') ? -1 : 1;
+			}
+			assessPage = 0;
+			applySortResults();
 		}
 
 		async function loadAssessments() {
@@ -501,8 +504,8 @@
 				}));
 
 				currentResults = results;
-				sortResults(sortCol);
-				updateSummary(results);
+				applySortResults();
+				updateSummary(currentResults);
 
 				document.getElementById('results-table').classList.remove('hidden');
 				document.getElementById('summary-row').classList.remove('hidden');
