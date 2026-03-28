@@ -357,13 +357,16 @@
 				sortDir *= -1;
 			} else {
 				sortCol = col;
-				sortDir = col === 'percentage' ? -1 : 1;
+				sortDir = (col === 'percentage' || col === 'grade') ? -1 : 1;
 			}
 
 			const successful = currentResults.filter(r => !r.error);
 			const errors = currentResults.filter(r => r.error);
 
 			successful.sort((a, b) => {
+				if (col === 'grade') {
+					return (gradeValue(a.grade) - gradeValue(b.grade)) * sortDir;
+				}
 				const va = a[col] || '';
 				const vb = b[col] || '';
 				if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * sortDir;
