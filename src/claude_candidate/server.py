@@ -858,7 +858,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 					})
 					continue
 
-				meta = data.get("input_meta", {})
+				meta = data.get("input_meta") or {}
 				assessment = engine.assess(
 					requirements=reqs,
 					company=meta.get("company") or data.get("company_name", ""),
