@@ -795,7 +795,17 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 				pass
 
 		store = get_store()
-		all_assessments = await store.list_assessments(limit=1000)
+		all_assessments: list[dict] = []
+		_page_size = 500
+		_offset = 0
+		while True:
+			page = await store.list_assessments(limit=_page_size, offset=_offset)
+			if not page:
+				break
+			all_assessments.extend(page)
+			if len(page) < _page_size:
+				break
+			_offset += _page_size
 
 		# Pre-fetch posting cache for fallback requirement recovery
 		cached_postings = await store.list_cached_postings(limit=1000)
@@ -1198,6 +1208,6 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 	@app.get("/dashboard", response_class=HTMLResponse)
 	async def dashboard():
 		html_path = Path(__file__).parent / "static" / "dashboard.html"
-		return HTMLResponse(html_path.read_text())
+		return HTMLResponse(html_path.read_text(encoding="utf-8"))
 
 	return app

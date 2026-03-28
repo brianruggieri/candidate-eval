@@ -1589,37 +1589,49 @@ def dashboard(host: str, port: int) -> None:
 	import urllib.request
 	import webbrowser
 
-	url = f"http://{host}:{port}"
+	# Use a routable connect host for health checks and browser URL,
+	# even when binding to all interfaces
+	if host in ("0.0.0.0", "::"):
+		connect_host = "127.0.0.1" if host == "0.0.0.0" else "localhost"
+	else:
+		connect_host = host
+
+	url = f"http://{connect_host}:{port}"
 	dashboard_url = f"{url}/dashboard"
 
 	# Check if server is already running
 	server_running = False
 	try:
-		urllib.request.urlopen(f"{url}/api/health", timeout=2)
-		server_running = True
+		with urllib.request.urlopen(f"{url}/api/health", timeout=2):
+			server_running = True
 	except Exception:
 		pass
 
 	if not server_running:
 		click.echo("Starting server in the background...")
+		log_path = Path.home() / ".claude-candidate" / "server.log"
+		log_file = open(log_path, "a")  # noqa: SIM115
 		subprocess.Popen(
 			[sys.executable, "-m", "claude_candidate.cli", "server", "start",
 			 "--host", host, "--port", str(port)],
-			stdout=subprocess.DEVNULL,
-			stderr=subprocess.DEVNULL,
+			stdout=log_file,
+			stderr=log_file,
 		)
 		# Wait for server to be ready
 		for _ in range(20):
 			time.sleep(0.5)
 			try:
-				urllib.request.urlopen(f"{url}/api/health", timeout=2)
-				server_running = True
-				break
+				with urllib.request.urlopen(f"{url}/api/health", timeout=2):
+					server_running = True
+					break
 			except Exception:
 				pass
 
 		if not server_running:
-			click.echo("Error: Server failed to start within 10 seconds.", err=True)
+			click.echo(
+				f"Error: Server failed to start within 10 seconds. Check {log_path}",
+				err=True,
+			)
 			raise SystemExit(1)
 
 	click.echo(f"Opening dashboard at {dashboard_url}")

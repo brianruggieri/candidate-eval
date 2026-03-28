@@ -417,7 +417,7 @@
 			document.getElementById('stat-total').textContent = successful.length;
 
 			if (successful.length > 0) {
-				const top = successful[0];
+				const top = successful.reduce((best, r) => (r.percentage || 0) > (best.percentage || 0) ? r : best, successful[0]);
 				document.getElementById('stat-top').textContent = (top.company || 'Unknown') + ' (' + (top.grade || '?') + ')';
 
 				const avg = successful.reduce((s, r) => s + (r.percentage || 0), 0) / successful.length;
@@ -482,17 +482,18 @@
 				}
 
 				// Deduplicate by posting_url (keep highest score)
-				const byUrl = {};
+				const byUrl = new Map();
 				for (const a of assessments) {
 					const d = a.data || a;
 					const url = d.posting_url || d.assessment_id;
 					const score = d.overall_score || 0;
-					if (!byUrl[url] || score > (byUrl[url].overall_score || 0)) {
-						byUrl[url] = d;
+					const existing = byUrl.get(url);
+					if (!existing || score > (existing.overall_score || 0)) {
+						byUrl.set(url, d);
 					}
 				}
 
-				const results = Object.values(byUrl).map(d => ({
+				const results = Array.from(byUrl.values()).map(d => ({
 					url: d.posting_url || '',
 					company: d.company_name || 'Unknown',
 					title: d.job_title || 'Unknown',
@@ -654,18 +655,22 @@
 				});
 				select.addEventListener('change', async (e) => {
 					e.stopPropagation();
+					const prevStatus = item.status || 'shortlisted';
 					const newStatus = select.value;
 					select.className = 'status-select status-' + newStatus;
 					try {
-						await fetch('/api/shortlist/' + item.id, {
+						const resp = await fetch('/api/shortlist/' + item.id, {
 							method: 'PATCH',
 							headers: { 'Content-Type': 'application/json' },
 							body: JSON.stringify({ status: newStatus }),
 						});
+						if (!resp.ok) throw new Error('Server responded with ' + resp.status);
 						item.status = newStatus;
 						updateShortlistStats(shortlistItems);
 					} catch (err) {
 						console.log('Failed to update status:', err);
+						select.value = prevStatus;
+						select.className = 'status-select status-' + prevStatus;
 					}
 				});
 				select.addEventListener('click', (e) => e.stopPropagation());
@@ -697,7 +702,8 @@
 				btnDel.addEventListener('click', async (e) => {
 					e.stopPropagation();
 					try {
-						await fetch('/api/shortlist/' + item.id, { method: 'DELETE' });
+						const resp = await fetch('/api/shortlist/' + item.id, { method: 'DELETE' });
+						if (!resp.ok) throw new Error('Server responded with ' + resp.status);
 						loadShortlist();
 					} catch (err) {
 						console.log('Failed to delete shortlist item:', err);
@@ -800,7 +806,10 @@
 			}
 
 			// Determine the most recent assessment's profile_hash as the reference
-			const withHash = currentResults.filter(r => r._data && r._data.app_version);
+			// Sort by assessed_at to find the latest, independent of current display sort
+			const withHash = currentResults
+				.filter(r => r._data && r._data.app_version)
+				.sort((a, b) => (b._data.assessed_at || '').localeCompare(a._data.assessed_at || ''));
 			const latestHash = withHash.length > 0 ? withHash[0]._data.profile_hash || '' : null;
 
 			let staleCount = 0;
