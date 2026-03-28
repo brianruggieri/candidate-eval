@@ -12,7 +12,7 @@ A pipeline that turns development session logs and resume data into evidence-bac
 
 - **Extracts skills from real work** — Scans Claude Code development sessions, identifies skills and behavioral patterns, and links every claim to specific session evidence. Not self-reported; observed.
 - **Matches against real job postings** — Parses job requirements, scores fit across skills, domain, and culture signals, and produces a letter grade with evidence-linked explanations.
-- **Runs as a browser extension** — Chrome extension assesses LinkedIn postings in real-time via a local FastAPI server.
+- **Runs as a browser extension** — Chrome extension assesses job postings in real-time from any job board via a local FastAPI server.
 
 ---
 
@@ -45,7 +45,8 @@ Full architecture, trust model, and roadmap: [ARCHITECTURE.md](ARCHITECTURE.md)
 
 | Metric | Value |
 |--------|-------|
-| Test coverage | Fully tested |
+| Test coverage | Full unit + integration with fast/slow tiering |
+| Benchmark accuracy | 47/47 postings within 1 grade |
 | Canonical skills in taxonomy | 104 |
 | Sessions scanned (author) | 2,300+ |
 
@@ -78,13 +79,13 @@ claude-candidate assess \
   --title "Senior AI Engineer"
 ```
 
-For the daily-driver workflow: run `claude-candidate server start` and use the Chrome extension to assess LinkedIn postings in-browser.
+For the daily-driver workflow: run `claude-candidate server start` and use the Chrome extension to assess job postings in-browser.
 
 ---
 
 ## Project Status
 
-**v0.5** — Active development. Core pipeline stable. v0.5 adds eligibility filters, adoption velocity scoring, and session compaction.
+**v0.8.2** — Core pipeline stable. Dual evidence model (resume + repos), 104-skill taxonomy with fuzzy matching, eligibility gates, confidence scoring, and Chrome extension for real-time assessment.
 
 The repo is the deliverable.
 

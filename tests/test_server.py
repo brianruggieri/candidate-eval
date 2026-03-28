@@ -1366,8 +1366,8 @@ class TestAssessRequiresRequirements:
 class TestUrlNormalization:
 	"""Tracking params should not defeat the posting cache."""
 
-	async def test_linkedin_tracking_params_normalized(self, client: AsyncClient):
-		"""Same LinkedIn job with different tracking params should hit cache."""
+	async def test_tracking_params_normalized(self, client: AsyncClient):
+		"""Same job posting with different tracking params should hit cache."""
 		url_base = "https://www.linkedin.com/jobs/view/4385180576/"
 		url_with_params = url_base + "?trk=eml-email_job_alert&eBP=abc123&trackingId=xyz"
 

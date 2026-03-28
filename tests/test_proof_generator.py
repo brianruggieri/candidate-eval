@@ -37,7 +37,7 @@ def _make_assessment() -> FitAssessment:
 		job_title="Senior Engineer",
 		company_name="Acme Corp",
 		posting_url="https://example.com/job/123",
-		source="linkedin",
+		source="web",
 		overall_score=0.78,
 		overall_grade="B+",
 		overall_summary="Strong technical match with good culture alignment.",

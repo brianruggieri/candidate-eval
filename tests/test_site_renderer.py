@@ -55,7 +55,7 @@ def _make_assessment(
 		job_title=title,
 		company_name=company,
 		posting_url="https://example.com/jobs/123",
-		source="linkedin",
+		source="web",
 		overall_score=overall_score,
 		overall_grade=overall_grade,
 		overall_summary="Strong fit overall with deep Python and cloud experience.",
@@ -358,7 +358,7 @@ class TestHowItWorksSection:
 			assessment, SAMPLE_RESUME_HTML, SAMPLE_COVER_LETTER, tmp_path
 		)
 		html = result.read_text()
-		assert "https://github.com/brianruggieri/claude-candidate" in html
+		assert "https://github.com/alexdev/claude-candidate" in html
 
 	def test_contains_session_logs_reference(self, tmp_path: Path):
 		assessment = _make_assessment()
@@ -482,7 +482,7 @@ class TestCoverLetterSiteTransparency:
 	def test_cover_letter_site_has_transparency_badge(self, tmp_path: Path):
 		html = _render_cover_letter_site(tmp_path)
 		assert "claude-candidate" in html
-		assert "https://github.com/brianruggieri/claude-candidate" in html
+		assert "https://github.com/alexdev/claude-candidate" in html
 
 	def test_transparency_badge_is_in_hero(self, tmp_path: Path):
 		html = _render_cover_letter_site(tmp_path)
@@ -532,7 +532,7 @@ class TestCoverLetterSiteHowItWorks:
 
 	def test_how_it_works_links_to_github(self, tmp_path: Path):
 		html = _render_cover_letter_site(tmp_path)
-		assert "https://github.com/brianruggieri/claude-candidate" in html
+		assert "https://github.com/alexdev/claude-candidate" in html
 
 	def test_how_it_works_mentions_evidence(self, tmp_path: Path):
 		html = _render_cover_letter_site(tmp_path)

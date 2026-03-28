@@ -4,7 +4,7 @@ Last updated: 2026-03-24
 
 ## Where We Are
 
-**v0.5** — Core pipeline complete, scoring engine calibrated (24/24 within 1 grade), browser extension functional, CLI comprehensive. The tool works end-to-end for Brian's job search. All major accuracy and quality features from the original v0.5 plan are shipped. Remaining work is distribution and polish.
+**v0.8.2** — Core pipeline complete, scoring engine calibrated (47/47 within 1 grade), browser extension functional, CLI comprehensive. Dual evidence model (resume + repos), 104-skill taxonomy, eligibility gates, confidence scoring, and Chrome extension for real-time assessment. All major features shipped.
 
 ---
 
@@ -16,7 +16,7 @@ Last updated: 2026-03-24
 |---------|--------|-------|
 | **Fit Landing Page / export-fit** | Shipped | `fit_exporter.py`, `export-fit` CLI command live |
 | **Session Extractor Overhaul** | Shipped (PR #10) | 15 → 76 skills, all 12 patterns, AI-native signals (tool_use blocks, imports, file extensions) |
-| **LinkedIn-Specific Requirement Parser** | Shipped | `requirement_parser.py` with structured must-have/nice-to-have extraction |
+| **Job Posting Requirement Parser** | Shipped | `requirement_parser.py` with structured must-have/nice-to-have extraction |
 | **Evidence Compaction** | Shipped | `evidence_compactor.py`, `--no-compact` flag in CLI |
 | **Eligibility Filters** | Shipped | Location/work-auth gates in `quick_match.py` (PR #19) |
 | **Adoption Velocity Scoring** | Shipped | Composite velocity score in `quick_match.py` (PR #16) |

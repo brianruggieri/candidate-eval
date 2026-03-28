@@ -83,7 +83,7 @@ def _make_assessment(
 		job_title=title,
 		company_name=company,
 		posting_url="https://example.com/job/123",
-		source="linkedin",
+		source="web",
 		overall_score=0.78,
 		overall_grade="B+",
 		overall_summary="Good fit overall.",

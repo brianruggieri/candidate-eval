@@ -228,12 +228,7 @@ function formatSalary(item) {
 	return raw;
 }
 
-function renderShortlist(items) {
-	const tbody = document.getElementById('shortlist-body');
-	const table = document.getElementById('shortlist-table');
-	const empty = document.getElementById('shortlist-empty');
-
-	// Update summary stats
+function updateShortlistStats(items) {
 	const total = items.length;
 	const applied = items.filter(i => i.status === 'applied').length;
 	const interviewing = items.filter(i => i.status === 'interviewing').length;
@@ -246,12 +241,19 @@ function renderShortlist(items) {
 	const graded = items.filter(i => i.assessment_grade || i.overall_grade);
 	if (graded.length > 0) {
 		const avg = graded.reduce((s, i) => s + gradeValue(i.assessment_grade || i.overall_grade), 0) / graded.length;
-		// Convert back to letter
 		const letters = ['F', 'D-', 'D', 'D+', 'C-', 'C', 'C+', 'B-', 'B', 'B+', 'A-', 'A', 'A+'];
 		document.getElementById('sl-stat-avg-grade').textContent = letters[Math.round(avg)] || '--';
 	} else {
 		document.getElementById('sl-stat-avg-grade').textContent = '--';
 	}
+}
+
+function renderShortlist(items) {
+	const tbody = document.getElementById('shortlist-body');
+	const table = document.getElementById('shortlist-table');
+	const empty = document.getElementById('shortlist-empty');
+
+	updateShortlistStats(items);
 
 	if (items.length === 0) {
 		table.classList.add('hidden');
@@ -307,6 +309,7 @@ function renderShortlist(items) {
 					body: JSON.stringify({ status: newStatus }),
 				});
 				item.status = newStatus;
+				updateShortlistStats(shortlistItems);
 			} catch (err) {
 				console.log('Failed to update status:', err);
 			}

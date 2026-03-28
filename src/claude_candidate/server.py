@@ -20,7 +20,6 @@ logger = logging.getLogger(__name__)
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from claude_candidate import __version__
@@ -831,13 +830,25 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 						existing["id"], assessment_id=req.assessment_id
 					)
 					existing["assessment_id"] = req.assessment_id
-				existing["already_exists"] = True
-				return JSONResponse(content=existing, status_code=200)
+				return {
+					"id": existing["id"],
+					"company_name": existing.get("company_name", ""),
+					"job_title": existing.get("job_title", ""),
+					"posting_url": existing.get("posting_url", ""),
+					"assessment_id": existing.get("assessment_id"),
+					"notes": existing.get("notes"),
+					"status": existing.get("status", "shortlisted"),
+					"salary": existing.get("salary"),
+					"location": existing.get("location"),
+					"overall_grade": existing.get("overall_grade"),
+					"already_exists": True,
+				}
 
+		normalized_url = _normalize_cache_url(req.posting_url) if req.posting_url else req.posting_url
 		sid = await store.add_to_shortlist(
 			company_name=req.company_name,
 			job_title=req.job_title,
-			posting_url=_normalize_cache_url(req.posting_url) if req.posting_url else req.posting_url,
+			posting_url=normalized_url,
 			assessment_id=req.assessment_id,
 			notes=req.notes,
 			salary=req.salary,
@@ -848,7 +859,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 			"id": sid,
 			"company_name": req.company_name,
 			"job_title": req.job_title,
-			"posting_url": req.posting_url,
+			"posting_url": normalized_url,
 			"assessment_id": req.assessment_id,
 			"notes": req.notes,
 			"status": "shortlisted",
