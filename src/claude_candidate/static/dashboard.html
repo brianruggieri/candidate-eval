@@ -96,6 +96,31 @@
 
 		/* Date cell */
 		.date-cell { color: #94a3b8; font-size: 12px; white-space: nowrap; }
+
+		.header-row {
+			display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;
+		}
+		.btn-reassess {
+			padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;
+			background: #6366f1; color: #fff; border: none; cursor: pointer;
+			transition: background 0.15s;
+		}
+		.btn-reassess:hover { background: #4f46e5; }
+		.btn-reassess:disabled { background: #cbd5e1; cursor: not-allowed; }
+		.btn-reassess.has-stale { animation: pulse-btn 2s ease-in-out infinite; }
+		@keyframes pulse-btn {
+			0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
+			50% { box-shadow: 0 0 0 6px rgba(99, 102, 241, 0); }
+		}
+		.status-fresh { color: #059669; font-size: 12px; }
+		.status-stale { color: #d97706; font-size: 12px; font-weight: 600; }
+		.status-unknown { color: #94a3b8; font-size: 12px; }
+		.reassess-banner {
+			background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
+			padding: 12px 16px; margin-bottom: 16px; font-size: 13px; color: #92400e;
+			display: flex; align-items: center; gap: 8px;
+		}
+		.reassess-banner.hidden { display: none; }
 	</style>
 </head>
 <body>
@@ -106,8 +131,15 @@
 		</div>
 
 		<div id="tab-assessments" class="tab-panel">
-			<h1>Assessment Results</h1>
+			<div class="header-row">
+				<h1>Assessments</h1>
+				<button class="btn-reassess" id="btn-reassess" title="Re-score all assessments with current profile and engine">
+					Reassess All
+				</button>
+			</div>
 			<p class="subtitle" id="subtitle">Loading...</p>
+
+			<div class="reassess-banner hidden" id="stale-banner"></div>
 
 			<div class="summary-row hidden" id="summary-row">
 				<div class="summary-card">
@@ -137,6 +169,7 @@
 						<th data-sort="title">Title <span class="sort-arrow"></span></th>
 						<th>Strongest</th>
 						<th>Biggest Gap</th>
+						<th>Status</th>
 					</tr>
 				</thead>
 				<tbody id="results-body"></tbody>
@@ -266,7 +299,7 @@
 				if (r.error) {
 					tr.className = 'error';
 					const td = document.createElement('td');
-					td.colSpan = 6;
+					td.colSpan = 7;
 					td.textContent = '\u26A0 ' + (r.url ? r.url.substring(0, 60) : 'Unknown') + ' \u2014 ' + r.error;
 					tr.appendChild(td);
 				} else {
@@ -275,6 +308,9 @@
 						if (r.url) window.open(r.url, '_blank');
 					});
 
+					const statusCls = r._stale === 'fresh' ? 'status-fresh' : r._stale === 'stale' ? 'status-stale' : 'status-unknown';
+					const statusText = r._stale === 'fresh' ? '\u2713 Current' : r._stale === 'stale' ? '\u26A0 Stale' : '?';
+
 					const cells = [
 						{ html: true, content: `<span class="grade-badge ${gradeClass(r.grade)}">${escapeHtml(r.grade || '?')}</span>` },
 						{ cls: `pct-cell ${pctClass(r.percentage)}`, text: (r.percentage || 0).toFixed(1) + '%' },
@@ -282,6 +318,7 @@
 						{ text: r.title || 'Unknown' },
 						{ cls: 'strongest', text: r.strongest || '--' },
 						{ cls: 'gap', text: r.biggest_gap || '--' },
+						{ cls: statusCls, text: statusText },
 					];
 
 					cells.forEach(c => {
@@ -380,6 +417,7 @@
 					grade: d.overall_grade || '?',
 					strongest: d.strongest_match || '',
 					biggest_gap: d.biggest_gap || '',
+					_data: d, // full assessment data blob for staleness check
 				}));
 
 				currentResults = results;
@@ -610,8 +648,91 @@
 			});
 		});
 
+		// --- Staleness detection ---
+
+		let currentProfileHash = null;
+		let currentAppVersion = null;
+
+		async function checkStaleness() {
+			try {
+				const [profileResp, healthResp] = await Promise.all([
+					fetch('/api/profile/status'),
+					fetch('/api/health'),
+				]);
+				const profileData = await profileResp.json();
+				const healthData = await healthResp.json();
+				currentAppVersion = healthData.version || '';
+				// Use the most recent assessment's profile_hash as the "current" baseline
+				// so we compare relative freshness among all assessments
+				const hashes = profileData.hashes || {};
+				currentProfileHash = Object.values(hashes).sort().join('|');
+			} catch {
+				return; // Can't check staleness, leave as unknown
+			}
+
+			// Determine the most recent assessment's profile_hash as the reference
+			const withHash = currentResults.filter(r => r._data && r._data.app_version);
+			const latestHash = withHash.length > 0 ? withHash[0]._data.profile_hash || '' : null;
+
+			let staleCount = 0;
+			currentResults.forEach(r => {
+				if (!r._data) return;
+				const assessVersion = r._data.app_version || '';
+				const assessHash = r._data.profile_hash || '';
+				if (!assessVersion) {
+					r._stale = 'unknown';
+				} else if (assessVersion !== currentAppVersion || (latestHash !== null && assessHash !== latestHash)) {
+					r._stale = 'stale';
+					staleCount++;
+				} else {
+					r._stale = 'fresh';
+				}
+			});
+
+			const btn = document.getElementById('btn-reassess');
+			const banner = document.getElementById('stale-banner');
+			if (staleCount > 0) {
+				btn.classList.add('has-stale');
+				if (banner) {
+					banner.textContent = '\u26A0 ' + staleCount + ' assessment' + (staleCount > 1 ? 's' : '') + ' scored with outdated profile or engine.';
+					banner.classList.remove('hidden');
+				}
+			} else {
+				btn.classList.remove('has-stale');
+				if (banner) banner.classList.add('hidden');
+			}
+
+			// Re-render to show updated status column
+			renderTable(currentResults);
+		}
+
+		// --- Reassess All button ---
+
+		document.getElementById('btn-reassess').addEventListener('click', async () => {
+			const btn = document.getElementById('btn-reassess');
+			btn.disabled = true;
+			btn.textContent = 'Reassessing...';
+			try {
+				const resp = await fetch('/api/assessments/reassess', { method: 'POST' });
+				if (!resp.ok) throw new Error('Reassess failed: ' + resp.status);
+				const data = await resp.json();
+				btn.textContent = 'Done \u2014 ' + data.changed + ' changed, ' + data.skipped + ' skipped';
+				setTimeout(() => {
+					btn.textContent = 'Reassess All';
+					btn.disabled = false;
+					btn.classList.remove('has-stale');
+				}, 3000);
+				await loadAssessments();
+				await checkStaleness();
+			} catch (e) {
+				btn.textContent = 'Error \u2014 try again';
+				btn.disabled = false;
+				setTimeout(() => { btn.textContent = 'Reassess All'; }, 3000);
+			}
+		});
+
 		// Initial load
-		loadAssessments();
+		loadAssessments().then(() => checkStaleness());
 	</script>
 </body>
 </html>
