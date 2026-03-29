@@ -8,9 +8,9 @@ equally-weighted dimensions grounded entirely in resume + session evidence.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from claude_candidate.schemas.merged_profile import EvidenceSource
 
@@ -161,6 +161,20 @@ class FitAssessment(BaseModel):
 	# Metadata
 	profile_hash: str
 	time_to_assess_seconds: float = Field(ge=0.0)
+
+	@model_validator(mode="before")
+	@classmethod
+	def _strip_legacy_education_match(cls, data: Any) -> Any:
+		"""Strip legacy education_match from old assessment JSON.
+
+		Education was converted from a scored dimension to an eligibility gate
+		in v0.9. Old assessments stored in the DB may still contain an
+		education_match DimensionScore that would fail validation since
+		'education_match' is no longer a valid DimensionScore.dimension value.
+		"""
+		if isinstance(data, dict):
+			data.pop("education_match", None)
+		return data
 
 	def to_json(self) -> str:
 		return self.model_dump_json(indent=2)
