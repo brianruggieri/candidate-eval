@@ -198,8 +198,6 @@ class QuickMatchEngine:
 		skill_dim, skill_details = self._score_skill_match(
 			scorable_reqs,
 			inp.seniority,
-			culture_signals=inp.culture_signals,
-			company_profile=inp.company_profile,
 		)
 		experience_dim = self._score_experience_match(
 			scorable_reqs,
@@ -446,8 +444,6 @@ class QuickMatchEngine:
 		self,
 		requirements: list[QuickRequirement],
 		seniority: str,
-		culture_signals: list[str] | None = None,
-		company_profile: CompanyProfile | None = None,
 	) -> tuple[DimensionScore, list[SkillMatchDetail]]:
 		"""Score the skill gap analysis dimension."""
 		depth_floor = SENIORITY_DEPTH_FLOOR.get(seniority, DepthLevel.APPLIED)
@@ -455,7 +451,7 @@ class QuickMatchEngine:
 		weighted_score = 0.0
 		total_weight = 0.0
 		taxonomy = _get_taxonomy()
-		effective_discount = _soft_skill_discount(culture_signals, company_profile)
+		effective_discount = _soft_skill_discount()
 
 		for req in requirements:
 			weight = req.weight_override if req.weight_override is not None else PRIORITY_WEIGHT.get(req.priority, 1.0)

@@ -76,7 +76,6 @@ from claude_candidate.scoring.constants import (
 	MAX_ACTION_ITEMS,
 	# Soft skill discount
 	SOFT_SKILL_DISCOUNT,
-	SOFT_SKILL_MAX_BOOST,
 	# Rounding precision
 	SCORE_PRECISION,
 	TIMING_PRECISION,
@@ -244,7 +243,6 @@ __all__ = [
 	"MAX_RESUME_ITEMS",
 	"MAX_ACTION_ITEMS",
 	"SOFT_SKILL_DISCOUNT",
-	"SOFT_SKILL_MAX_BOOST",
 	"SCORE_PRECISION",
 	"TIMING_PRECISION",
 	"ELIGIBILITY_SKILL_NAMES",

@@ -35,7 +35,6 @@ from claude_candidate.scoring.constants import (
 	ELIGIBILITY_DESCRIPTION_PATTERNS,
 	# Soft skill discount
 	SOFT_SKILL_DISCOUNT,
-	SOFT_SKILL_MAX_BOOST,
 	# Domain keywords
 	DOMAIN_KEYWORDS,
 	# Status scoring
@@ -94,27 +93,14 @@ def _infer_eligibility(req: "QuickRequirement") -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _soft_skill_discount(
-	culture_signals: list[str] | None,
-	company_profile: "CompanyProfile | None",
-) -> float:
-	"""Compute soft skill weight discount, modulated by culture signal strength.
+def _soft_skill_discount() -> float:
+	"""Return the fixed soft skill weight discount.
 
-	Base discount is SOFT_SKILL_DISCOUNT (0.5). When a CompanyProfile with
-	culture_keywords is available, the discount is boosted up to SOFT_SKILL_MAX_BOOST (0.8)
-	based on the overlap ratio between posting culture_signals and company culture_keywords.
+	Soft skill requirements get reduced weight in Technical Fit because
+	they are hard to evidence from code. The discount is a fixed 0.5.
+	Culture influence flows exclusively through the Culture Fit dimension.
 	"""
-	if not company_profile or not company_profile.culture_keywords:
-		return SOFT_SKILL_DISCOUNT
-	if not culture_signals:
-		return SOFT_SKILL_DISCOUNT
-	company_kw = {kw.lower() for kw in company_profile.culture_keywords}
-	posting_signals = {s.lower() for s in culture_signals}
-	if not posting_signals:
-		return SOFT_SKILL_DISCOUNT
-	overlap = len(posting_signals & company_kw)
-	ratio = overlap / len(posting_signals)
-	return SOFT_SKILL_DISCOUNT + ratio * (SOFT_SKILL_MAX_BOOST - SOFT_SKILL_DISCOUNT)
+	return SOFT_SKILL_DISCOUNT
 
 
 # ---------------------------------------------------------------------------

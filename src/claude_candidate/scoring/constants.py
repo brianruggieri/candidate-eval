@@ -182,7 +182,6 @@ MAX_ACTION_ITEMS = 6
 
 # Soft skill discount factor — reduces weight of soft skill requirements
 SOFT_SKILL_DISCOUNT = 0.5
-SOFT_SKILL_MAX_BOOST = 0.8  # maximum discount when culture signals fully align
 
 # Rounding precision
 SCORE_PRECISION = 3
