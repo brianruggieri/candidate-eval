@@ -2552,3 +2552,9 @@ class TestMissionDataGating:
 			mission_statement="AI for good",
 		)
 		assert profile.has_mission_signals() is True
+
+	def test_mission_from_posting_deleted(self):
+		"""_mission_from_posting no longer exists — proxy approach is killed."""
+		from claude_candidate.scoring import dimensions
+
+		assert not hasattr(dimensions, "_mission_from_posting")

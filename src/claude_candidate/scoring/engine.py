@@ -74,7 +74,6 @@ from claude_candidate.scoring.dimensions import (
 	_find_resume_unverified,
 	_infer_eligibility,
 	_match_signal_to_pattern,
-	_mission_from_posting,
 	_must_have_coverage,
 	select_weights,
 	_score_domain_overlap,
@@ -488,12 +487,15 @@ class QuickMatchEngine:
 		company: str,
 		tech_stack: list[str],
 		company_profile: CompanyProfile | None,
-	) -> DimensionScore:
-		"""Score company/mission alignment."""
-		if company_profile:
-			score, details = self._mission_with_profile(company_profile)
-		else:
-			score, details = _mission_from_posting(self.profile, tech_stack)
+	) -> DimensionScore | None:
+		"""Score company/mission alignment.
+
+		Returns None when no company profile is available (proxy approach removed).
+		"""
+		if not company_profile:
+			return None
+
+		score, details = self._mission_with_profile(company_profile)
 
 		if not details:
 			details = ["Insufficient data for mission alignment assessment"]

@@ -55,8 +55,6 @@ from claude_candidate.scoring.constants import (
 	MISSION_DOMAIN_BONUS,
 	MISSION_TECH_OVERLAP_WEIGHT,
 	MISSION_TEXT_OVERLAP_WEIGHT,
-	MISSION_NO_ENRICHMENT_BASE,
-	MISSION_NO_ENRICHMENT_RANGE,
 	MISSION_DOMAIN_TAXONOMY,
 	# Culture constants
 	CULTURE_PATTERN_STRENGTH_SCORE,
@@ -388,27 +386,6 @@ def _score_mission_text_alignment(
 	ratio = min(len(matched) / max(len(candidate_keywords), 1), 1.0)
 	detail = f"Mission text overlap: {', '.join(sorted(matched)[:MAX_TECH_OVERLAP_DISPLAY])}"
 	return ratio * MISSION_TEXT_OVERLAP_WEIGHT, [detail]
-
-
-def _mission_from_posting(
-	profile: MergedEvidenceProfile,
-	tech_stack: list[str],
-) -> tuple[float, list[str]]:
-	"""Score mission alignment from the posting tech stack alone."""
-	score = MISSION_NEUTRAL_SCORE
-	details: list[str] = []
-	if tech_stack:
-		posting_techs = {t.lower() for t in tech_stack}
-		candidate_techs = _candidate_skill_names(profile)
-		overlap = posting_techs & candidate_techs
-		if overlap:
-			ratio = len(overlap) / max(len(posting_techs), 1)
-			score = MISSION_NO_ENRICHMENT_BASE + ratio * MISSION_NO_ENRICHMENT_RANGE
-			details.append(
-				f"Tech stack overlap: {', '.join(sorted(overlap)[:MAX_TECH_OVERLAP_DISPLAY])}"
-			)
-	details.append("Limited enrichment data — score based on posting tech stack only")
-	return score, details
 
 
 # ---------------------------------------------------------------------------
