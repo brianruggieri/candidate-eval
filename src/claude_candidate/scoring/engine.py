@@ -170,8 +170,9 @@ class QuickMatchEngine:
 	def _run_assessment(self, inp: AssessmentInput, elapsed: float | None = None) -> FitAssessment:
 		"""Orchestrate scoring dimensions and assemble the result.
 
-		Partial assessment: scores skill_match, education_match, and optionally
-		mission_alignment. Experience is folded into skill_match via gradient penalty.
+		Partial assessment: scores skill_match and optionally mission_alignment.
+		Experience is folded into skill_match via gradient penalty.
+		Education is an eligibility gate (soft grade cap), not a scored dimension.
 		"""
 		start_time = time.time() if elapsed is None else 0.0
 
