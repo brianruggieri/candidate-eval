@@ -222,6 +222,14 @@ class AssessmentStore:
 			d["data"] = json.loads(d["data"])
 		if "should_apply" in d:
 			d["should_apply"] = bool(d["should_apply"])
+		# Backfill-on-read: recompute overall using current weight system
+		if "data" in d and isinstance(d["data"], dict):
+			from claude_candidate.scoring.backfill import recompute_overall
+
+			d["data"] = recompute_overall(d["data"])
+			d["overall_score"] = d["data"].get("overall_score", d.get("overall_score"))
+			d["overall_grade"] = d["data"].get("overall_grade", d.get("overall_grade"))
+			d["should_apply"] = d["data"].get("should_apply", d.get("should_apply"))
 		return d
 
 	# ------------------------------------------------------------------
