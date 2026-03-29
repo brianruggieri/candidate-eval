@@ -2510,3 +2510,45 @@ class TestExperienceDimensionRemoved:
 		if assessment.culture_fit:
 			total += assessment.culture_fit.weight
 		assert abs(total - 1.0) < 1e-9
+
+
+class TestMissionDataGating:
+	"""Tests for mission fit data gating — mission activates only with real signals."""
+
+	def _make_profile(self, **overrides) -> CompanyProfile:
+		defaults = dict(
+			company_name="Test Co",
+			product_description="A product",
+			product_domain=[],
+			tech_stack_public=[],
+			mission_statement=None,
+			enriched_at=datetime.now(),
+			enrichment_quality="sparse",
+		)
+		defaults.update(overrides)
+		return CompanyProfile(**defaults)
+
+	def test_no_signals_returns_false(self):
+		"""Empty product_domain, tech_stack_public, and mission_statement = no mission signals."""
+		profile = self._make_profile()
+		assert profile.has_mission_signals() is False
+
+	def test_product_domain_is_sufficient(self):
+		profile = self._make_profile(product_domain=["developer-tooling"])
+		assert profile.has_mission_signals() is True
+
+	def test_tech_stack_public_is_sufficient(self):
+		profile = self._make_profile(tech_stack_public=["python"])
+		assert profile.has_mission_signals() is True
+
+	def test_mission_statement_is_sufficient(self):
+		profile = self._make_profile(mission_statement="We build developer tools")
+		assert profile.has_mission_signals() is True
+
+	def test_all_signals_returns_true(self):
+		profile = self._make_profile(
+			product_domain=["ai"],
+			tech_stack_public=["python"],
+			mission_statement="AI for good",
+		)
+		assert profile.has_mission_signals() is True
