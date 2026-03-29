@@ -628,16 +628,14 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 				company_profile=company_profile,
 			)
 
-		# 5. Recompute overall score with all dimensions (experience folded into skill match)
+		# 5. Recompute overall score with all dimensions (education is now an eligibility gate)
 		# Parse existing dimension scores from the assessment data
 		skill_score = data.get("skill_match", {}).get("score", 0.5)
-		education_score = (data.get("education_match") or {}).get("score")
 		mission_score = mission_dim.score if mission_dim else 0.5
 		culture_score = culture_dim.score if culture_dim else 0.5
 
-		# Full assessment weights: skill 55%, education 10%, mission 17.5%, culture 17.5%
-		weighted_total = skill_score * 0.55
-		weighted_total += (education_score if education_score is not None else 0.5) * 0.10
+		# Full assessment weights: skill 65%, mission 17.5%, culture 17.5%
+		weighted_total = skill_score * 0.65
 		weighted_total += mission_score * 0.175
 		weighted_total += culture_score * 0.175
 
@@ -689,11 +687,9 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 			updated["receptivity_level"] = narrative_result.get("receptivity")
 			updated["receptivity_reason"] = narrative_result.get("receptivity_reason")
 
-		# Update skill/education weights for consistency
+		# Update skill weight for consistency (education is now an eligibility gate)
 		if updated.get("skill_match"):
-			updated["skill_match"]["weight"] = 0.55
-		if updated.get("education_match"):
-			updated["education_match"]["weight"] = 0.10
+			updated["skill_match"]["weight"] = 0.65
 
 		# 7. Save updated assessment to store
 		flat: dict[str, Any] = {
