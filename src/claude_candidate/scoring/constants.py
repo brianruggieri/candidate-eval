@@ -243,31 +243,6 @@ CULTURE_SCORE_MAX = 1.0
 # Years gradient penalty floor (replaces separate experience dimension)
 YEARS_GRADIENT_FLOOR = 0.6
 
-# Education match score parameters
-EDUCATION_NO_REQUIREMENT_SCORE = 0.9  # No requirement stated = effectively met
-EDUCATION_NEUTRAL_SCORE = 0.5
-EDUCATION_MET_SCORE = 0.9
-EDUCATION_PARTIAL_SCORE = 0.5
-EDUCATION_NO_MATCH_SCORE = 0.2
-
-# Degree ranking for education comparison
-DEGREE_RANKING: dict[str, int] = {
-	"bachelor": 1,
-	"bs": 1,
-	"ba": 1,
-	"b.s.": 1,
-	"b.a.": 1,
-	"master": 2,
-	"ms": 2,
-	"ma": 2,
-	"m.s.": 2,
-	"m.a.": 2,
-	"mba": 2,
-	"phd": 3,
-	"ph.d.": 3,
-	"doctorate": 3,
-}
-
 # Display limits
 TOP_SKILL_DETAILS = 5
 MAX_TECH_OVERLAP_DISPLAY = 5
