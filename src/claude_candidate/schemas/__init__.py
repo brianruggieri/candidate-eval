@@ -52,6 +52,9 @@ from claude_candidate.schemas.repo_profile import (
 	RepoProfile,
 	SkillRepoEvidence,
 )
+from claude_candidate.schemas.work_preferences import (
+	WorkPreferences,
+)
 from claude_candidate.schemas.fit_assessment import (
 	DimensionScore,
 	FitAssessment,
@@ -93,6 +96,8 @@ __all__ = [
 	"EvidenceSource",
 	"MergedEvidenceProfile",
 	"MergedSkillEvidence",
+	# work_preferences
+	"WorkPreferences",
 	# company_profile
 	"CompanyProfile",
 	# repo_profile
