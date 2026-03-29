@@ -238,6 +238,38 @@ CULTURE_FULL_MATCH = 1
 CULTURE_SCORE_MIN = 0.0
 CULTURE_SCORE_MAX = 1.0
 
+# Culture preference sub-dimension weights (must sum to 1.0)
+CULTURE_REMOTE_WEIGHT = 0.3
+CULTURE_SIZE_WEIGHT = 0.2
+CULTURE_VALUES_WEIGHT = 0.5
+
+# Remote policy match matrix: (candidate_preference, company_policy) → score
+REMOTE_MATCH_MATRIX: dict[tuple[str, str], float] = {
+	("remote_first", "remote_first"): 1.0,
+	("remote_first", "hybrid"): 0.5,
+	("remote_first", "in_office"): 0.0,
+	("hybrid", "remote_first"): 0.8,
+	("hybrid", "hybrid"): 1.0,
+	("hybrid", "in_office"): 0.5,
+	("in_office", "remote_first"): 0.5,
+	("in_office", "hybrid"): 0.8,
+	("in_office", "in_office"): 1.0,
+	("flexible", "remote_first"): 1.0,
+	("flexible", "hybrid"): 1.0,
+	("flexible", "in_office"): 1.0,
+}
+
+# Fallback score when a sub-dimension has unknown/missing data
+CULTURE_UNKNOWN_SCORE = 0.7
+
+# Company size match/no-match scores
+CULTURE_SIZE_MATCH = 1.0
+CULTURE_SIZE_NO_MATCH = 0.3
+
+# Culture avoid caps — grade ceiling when avoid-values appear in company profile
+CULTURE_AVOID_CAP_ONE = 0.799  # 1 avoid hit → B+ cap
+CULTURE_AVOID_CAP_TWO_PLUS = 0.699  # 2+ avoid hits → B- cap
+
 # Years gradient penalty floor (replaces separate experience dimension)
 YEARS_GRADIENT_FLOOR = 0.6
 

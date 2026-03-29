@@ -79,3 +79,77 @@ class TestWorkPreferencesSchema:
 		prefs = WorkPreferences.model_validate(data)
 		assert prefs.remote_preference == "remote_first"
 		assert prefs.company_size == ["enterprise"]
+
+
+class TestCultureConstants:
+	"""Verify culture preference constants are correctly defined."""
+
+	def test_remote_weight_values(self):
+		from claude_candidate.scoring.constants import (
+			CULTURE_REMOTE_WEIGHT,
+			CULTURE_SIZE_WEIGHT,
+			CULTURE_VALUES_WEIGHT,
+		)
+
+		assert CULTURE_REMOTE_WEIGHT == 0.3
+		assert CULTURE_SIZE_WEIGHT == 0.2
+		assert CULTURE_VALUES_WEIGHT == 0.5
+		assert abs(CULTURE_REMOTE_WEIGHT + CULTURE_SIZE_WEIGHT + CULTURE_VALUES_WEIGHT - 1.0) < 1e-9
+
+	def test_remote_match_matrix_covers_all_combinations(self):
+		from claude_candidate.scoring.constants import REMOTE_MATCH_MATRIX
+
+		candidates = ["remote_first", "hybrid", "in_office", "flexible"]
+		companies = ["remote_first", "hybrid", "in_office"]
+		for cand in candidates:
+			for comp in companies:
+				assert (cand, comp) in REMOTE_MATCH_MATRIX, f"Missing ({cand}, {comp})"
+
+	def test_remote_matrix_perfect_matches_score_one(self):
+		from claude_candidate.scoring.constants import REMOTE_MATCH_MATRIX
+
+		assert REMOTE_MATCH_MATRIX[("remote_first", "remote_first")] == 1.0
+		assert REMOTE_MATCH_MATRIX[("hybrid", "hybrid")] == 1.0
+		assert REMOTE_MATCH_MATRIX[("in_office", "in_office")] == 1.0
+
+	def test_flexible_always_scores_one(self):
+		from claude_candidate.scoring.constants import REMOTE_MATCH_MATRIX
+
+		for policy in ("remote_first", "hybrid", "in_office"):
+			assert REMOTE_MATCH_MATRIX[("flexible", policy)] == 1.0
+
+	def test_unknown_score(self):
+		from claude_candidate.scoring.constants import CULTURE_UNKNOWN_SCORE
+
+		assert CULTURE_UNKNOWN_SCORE == 0.7
+
+	def test_size_match_scores(self):
+		from claude_candidate.scoring.constants import CULTURE_SIZE_MATCH, CULTURE_SIZE_NO_MATCH
+
+		assert CULTURE_SIZE_MATCH == 1.0
+		assert CULTURE_SIZE_NO_MATCH == 0.3
+
+	def test_avoid_caps(self):
+		from claude_candidate.scoring.constants import (
+			CULTURE_AVOID_CAP_ONE,
+			CULTURE_AVOID_CAP_TWO_PLUS,
+		)
+
+		assert CULTURE_AVOID_CAP_ONE == 0.799
+		assert CULTURE_AVOID_CAP_TWO_PLUS == 0.699
+
+	def test_constants_importable_from_scoring_package(self):
+		from claude_candidate.scoring import (
+			CULTURE_REMOTE_WEIGHT,
+			CULTURE_SIZE_WEIGHT,
+			CULTURE_VALUES_WEIGHT,
+			REMOTE_MATCH_MATRIX,
+			CULTURE_UNKNOWN_SCORE,
+			CULTURE_SIZE_MATCH,
+			CULTURE_SIZE_NO_MATCH,
+			CULTURE_AVOID_CAP_ONE,
+			CULTURE_AVOID_CAP_TWO_PLUS,
+		)
+
+		# Just verify they're importable (values tested above)
+		assert CULTURE_REMOTE_WEIGHT is not None
