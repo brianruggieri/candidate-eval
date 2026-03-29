@@ -628,21 +628,18 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 				company_profile=company_profile,
 			)
 
-		# 5. Recompute overall score with all five dimensions
+		# 5. Recompute overall score with all dimensions (experience folded into skill match)
 		# Parse existing dimension scores from the assessment data
 		skill_score = data.get("skill_match", {}).get("score", 0.5)
-		experience_score = (data.get("experience_match") or {}).get("score")
 		education_score = (data.get("education_match") or {}).get("score")
 		mission_score = mission_dim.score if mission_dim else 0.5
 		culture_score = culture_dim.score if culture_dim else 0.5
 
-		# Full assessment weights: skill 40%, experience 20%, education 10%,
-		# mission 15%, culture 15%
-		weighted_total = skill_score * 0.40
-		weighted_total += (experience_score if experience_score is not None else 0.5) * 0.20
+		# Full assessment weights: skill 55%, education 10%, mission 17.5%, culture 17.5%
+		weighted_total = skill_score * 0.55
 		weighted_total += (education_score if education_score is not None else 0.5) * 0.10
-		weighted_total += mission_score * 0.15
-		weighted_total += culture_score * 0.15
+		weighted_total += mission_score * 0.175
+		weighted_total += culture_score * 0.175
 
 		overall_score = round(min(max(weighted_total, 0.0), 1.0), 3)
 		overall_grade = score_to_grade(overall_score)
@@ -692,11 +689,9 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 			updated["receptivity_level"] = narrative_result.get("receptivity")
 			updated["receptivity_reason"] = narrative_result.get("receptivity_reason")
 
-		# Update skill/experience/education weights for consistency
+		# Update skill/education weights for consistency
 		if updated.get("skill_match"):
-			updated["skill_match"]["weight"] = 0.40
-		if updated.get("experience_match"):
-			updated["experience_match"]["weight"] = 0.20
+			updated["skill_match"]["weight"] = 0.55
 		if updated.get("education_match"):
 			updated["education_match"]["weight"] = 0.10
 
@@ -826,9 +821,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 			existing = await store.find_shortlist_by_url(normalized_url)
 			if existing:
 				if req.assessment_id and req.assessment_id != existing.get("assessment_id"):
-					await store.update_shortlist(
-						existing["id"], assessment_id=req.assessment_id
-					)
+					await store.update_shortlist(existing["id"], assessment_id=req.assessment_id)
 					existing["assessment_id"] = req.assessment_id
 				return {
 					"id": existing["id"],
@@ -844,7 +837,9 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 					"already_exists": True,
 				}
 
-		normalized_url = _normalize_cache_url(req.posting_url) if req.posting_url else req.posting_url
+		normalized_url = (
+			_normalize_cache_url(req.posting_url) if req.posting_url else req.posting_url
+		)
 		sid = await store.add_to_shortlist(
 			company_name=req.company_name,
 			job_title=req.job_title,

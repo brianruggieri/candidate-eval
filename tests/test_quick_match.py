@@ -40,7 +40,6 @@ class TestQuickMatchAssessment:
 
 		# Dimensions present (partial assessment)
 		assert assessment.skill_match.dimension == "skill_match"
-		assert assessment.experience_match is not None
 		assert assessment.education_match is not None
 		assert assessment.assessment_phase == "partial"
 		assert assessment.partial_percentage is not None
@@ -398,88 +397,6 @@ class TestCultureFit:
 		assert not dim.insufficient_data
 
 
-class TestExperienceMatchScoring:
-	"""Tests for _score_experience_match dimension."""
-
-	def test_experience_match_sufficient_years(self, candidate_profile, resume_profile):
-		"""Candidate with enough years scores >= 0.7."""
-		merged = merge_profiles(candidate_profile, resume_profile)
-		engine = QuickMatchEngine(merged)
-
-		requirements = [
-			QuickRequirement(
-				description="Python proficiency",
-				skill_mapping=["python"],
-				priority=RequirementPriority.MUST_HAVE,
-				years_experience=5,
-			)
-		]
-
-		dim = engine._score_experience_match(requirements, "senior")
-		# Candidate has 8.5 years, requirement is 5 → should be >= 0.7
-		assert dim.dimension == "experience_match"
-		assert dim.score >= 0.7
-		assert not dim.insufficient_data
-		assert any("Met:" in d for d in dim.details)
-
-	def test_experience_match_insufficient_years(self, candidate_profile, resume_profile):
-		"""Candidate with too few years scores < 0.7."""
-		merged = merge_profiles(candidate_profile, resume_profile)
-		engine = QuickMatchEngine(merged)
-
-		requirements = [
-			QuickRequirement(
-				description="Senior ML engineering",
-				skill_mapping=["machine-learning"],
-				priority=RequirementPriority.MUST_HAVE,
-				years_experience=15,
-			)
-		]
-
-		dim = engine._score_experience_match(requirements, "senior")
-		# Candidate has 8.5 years, requirement is 15 → below threshold
-		assert dim.dimension == "experience_match"
-		assert dim.score < 0.7
-		assert not dim.insufficient_data
-		assert any("Gap:" in d for d in dim.details)
-
-	def test_experience_match_no_years_specified(self, candidate_profile, resume_profile):
-		"""No years requirements → effectively met (0.9) with insufficient_data."""
-		merged = merge_profiles(candidate_profile, resume_profile)
-		engine = QuickMatchEngine(merged)
-
-		requirements = [
-			QuickRequirement(
-				description="Python proficiency",
-				skill_mapping=["python"],
-				priority=RequirementPriority.MUST_HAVE,
-			)
-		]
-
-		dim = engine._score_experience_match(requirements, "senior")
-		assert dim.dimension == "experience_match"
-		assert dim.score == 0.9
-		assert dim.insufficient_data is True
-
-	def test_experience_match_candidate_no_years(self, candidate_profile):
-		"""Candidate with no total_years_experience → neutral with insufficient_data."""
-		merged = merge_candidate_only(candidate_profile)
-		engine = QuickMatchEngine(merged)
-
-		requirements = [
-			QuickRequirement(
-				description="Python proficiency",
-				skill_mapping=["python"],
-				priority=RequirementPriority.MUST_HAVE,
-				years_experience=5,
-			)
-		]
-
-		dim = engine._score_experience_match(requirements, "senior")
-		assert dim.score == 0.5
-		assert dim.insufficient_data is True
-
-
 class TestEducationMatchScoring:
 	"""Tests for _score_education_match dimension."""
 
@@ -643,7 +560,7 @@ class TestPartialAssessmentWeights:
 		]
 
 	def test_partial_assessment_uses_fixed_weights(self, candidate_profile, resume_profile):
-		"""Partial assessment uses 60/20/10/10 weights when mission is present."""
+		"""Partial assessment uses 80/10/10 weights when mission is present."""
 		merged = merge_profiles(candidate_profile, resume_profile)
 		engine = QuickMatchEngine(merged)
 
@@ -654,15 +571,13 @@ class TestPartialAssessmentWeights:
 		)
 
 		if assessment.mission_alignment:
-			# Mission proxy succeeded: 60/20/10 + mission 10
-			assert assessment.skill_match.weight == 0.60
-			assert assessment.experience_match.weight == 0.20
+			# Mission proxy succeeded: 80/10/10
+			assert assessment.skill_match.weight == 0.80
 			assert assessment.education_match.weight == 0.10
 			assert assessment.mission_alignment.weight == 0.10
 		else:
-			# No mission data: fallback to 65/25/10
-			assert assessment.skill_match.weight == 0.65
-			assert assessment.experience_match.weight == 0.25
+			# No mission data: fallback to 90/10
+			assert assessment.skill_match.weight == 0.90
 			assert assessment.education_match.weight == 0.10
 
 	def test_insufficient_data_scores_high(self, candidate_profile, resume_profile):
@@ -676,8 +591,6 @@ class TestPartialAssessmentWeights:
 			title="Engineer",
 		)
 
-		assert assessment.experience_match.insufficient_data is True
-		assert assessment.experience_match.score >= 0.85
 		assert assessment.education_match.insufficient_data is True
 		assert assessment.education_match.score >= 0.85
 
@@ -694,8 +607,7 @@ class TestPartialAssessmentWeights:
 
 		total = (
 			assessment.skill_match.weight
-			+ assessment.experience_match.weight
-			+ assessment.education_match.weight
+			+ (assessment.education_match.weight if assessment.education_match else 0.0)
 			+ (assessment.mission_alignment.weight if assessment.mission_alignment else 0.0)
 		)
 		assert abs(total - 1.0) < 1e-9
@@ -730,10 +642,8 @@ class TestPartialAssessmentWeights:
 		expected = round(assessment.overall_score * 100, 1)
 		assert assessment.partial_percentage == expected
 
-	def test_partial_assessment_experience_and_education_populated(
-		self, candidate_profile, resume_profile
-	):
-		"""Partial assessment populates experience_match and education_match dimensions."""
+	def test_partial_assessment_education_populated(self, candidate_profile, resume_profile):
+		"""Partial assessment populates education_match dimension."""
 		merged = merge_profiles(candidate_profile, resume_profile)
 		engine = QuickMatchEngine(merged)
 
@@ -742,10 +652,6 @@ class TestPartialAssessmentWeights:
 			company="Test Co",
 			title="Engineer",
 		)
-
-		assert assessment.experience_match is not None
-		assert assessment.experience_match.dimension == "experience_match"
-		assert 0.0 <= assessment.experience_match.score <= 1.0
 
 		assert assessment.education_match is not None
 		assert assessment.education_match.dimension == "education_match"
@@ -882,8 +788,12 @@ def test_score_requirement_uses_raw_confidence_no_floor():
 	resume_score = _score_requirement(resume_skill, "strong_match")
 	conflicting_score = _score_requirement(conflicting_skill, "strong_match")
 
-	expected_resume = STATUS_SCORE["strong_match"] * (CONFIDENCE_FLOOR + (1.0 - CONFIDENCE_FLOOR) * 0.85)
-	expected_conflicting = STATUS_SCORE["strong_match"] * (CONFIDENCE_FLOOR + (1.0 - CONFIDENCE_FLOOR) * 0.72)
+	expected_resume = STATUS_SCORE["strong_match"] * (
+		CONFIDENCE_FLOOR + (1.0 - CONFIDENCE_FLOOR) * 0.85
+	)
+	expected_conflicting = STATUS_SCORE["strong_match"] * (
+		CONFIDENCE_FLOOR + (1.0 - CONFIDENCE_FLOOR) * 0.72
+	)
 
 	assert abs(resume_score - expected_resume) < 0.001, (
 		f"resume_only: expected {expected_resume:.4f}, got {resume_score:.4f}"
@@ -1744,12 +1654,12 @@ class TestEligibilityHardCap:
 		assert result.action_items[0].startswith("Eligibility:")
 
 
-
 class TestConflictingDepthDirection:
 	"""CONFLICTING depth: resume anchors, sessions boost by at most one rung."""
 
 	def _make_conflicting(self, resume_depth, session_depth):
 		from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
+
 		return MergedSkillEvidence.compute_effective_depth(
 			EvidenceSource.CONFLICTING,
 			resume_depth=resume_depth,
@@ -1759,18 +1669,21 @@ class TestConflictingDepthDirection:
 	def test_sessions_higher_caps_at_one_above_resume(self):
 		"""Sessions=EXPERT, resume=MENTIONED → effective=USED (one above MENTIONED)."""
 		from claude_candidate.schemas.candidate_profile import DepthLevel
+
 		result = self._make_conflicting(DepthLevel.MENTIONED, DepthLevel.EXPERT)
 		assert result == DepthLevel.USED
 
 	def test_sessions_higher_from_applied_caps_at_deep(self):
 		"""Sessions=EXPERT, resume=APPLIED → effective=DEEP (one above APPLIED)."""
 		from claude_candidate.schemas.candidate_profile import DepthLevel
+
 		result = self._make_conflicting(DepthLevel.APPLIED, DepthLevel.EXPERT)
 		assert result == DepthLevel.DEEP
 
 	def test_resume_higher_trusts_resume(self):
 		"""Resume=DEEP, sessions=MENTIONED → effective=DEEP (resume wins)."""
 		from claude_candidate.schemas.candidate_profile import DepthLevel
+
 		result = self._make_conflicting(DepthLevel.DEEP, DepthLevel.MENTIONED)
 		assert result == DepthLevel.DEEP
 
@@ -1778,6 +1691,7 @@ class TestConflictingDepthDirection:
 		"""Only resume present → use resume depth."""
 		from claude_candidate.schemas.candidate_profile import DepthLevel
 		from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
+
 		result = MergedSkillEvidence.compute_effective_depth(
 			EvidenceSource.CONFLICTING,
 			resume_depth=DepthLevel.APPLIED,
@@ -1855,13 +1769,13 @@ def test_conflicting_confidence_is_072():
 	which is handled in compute_effective_depth, not here.
 	"""
 	from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
+
 	conf = MergedSkillEvidence.compute_confidence(
 		EvidenceSource.CONFLICTING,
 		session_frequency=5,
 		resume_context="Listed on resume",
 	)
 	assert conf == 0.72, f"Expected 0.72, got {conf}"
-
 
 
 # ---------------------------------------------------------------------------
@@ -1875,6 +1789,7 @@ class TestMatchType:
 	def _make_profile(self, skills=None):
 		from datetime import datetime
 		from claude_candidate.schemas.merged_profile import MergedEvidenceProfile
+
 		return MergedEvidenceProfile(
 			skills=skills or [],
 			patterns=[],
@@ -1893,15 +1808,21 @@ class TestMatchType:
 	def _profile_with(self, skill_name: str, source="corroborated") -> "MergedEvidenceProfile":
 		from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
 		from claude_candidate.schemas.candidate_profile import DepthLevel
-		return self._make_profile(skills=[MergedSkillEvidence(
-			name=skill_name,
-			source=EvidenceSource[source.upper()],
-			effective_depth=DepthLevel.APPLIED,
-			confidence=0.85,
-		)])
+
+		return self._make_profile(
+			skills=[
+				MergedSkillEvidence(
+					name=skill_name,
+					source=EvidenceSource[source.upper()],
+					effective_depth=DepthLevel.APPLIED,
+					confidence=0.85,
+				)
+			]
+		)
 
 	def _req(self, skill: str):
 		from claude_candidate.schemas.job_requirements import QuickRequirement, RequirementPriority
+
 		return QuickRequirement(
 			description=f"Experience with {skill}",
 			skill_mapping=[skill],
@@ -1912,6 +1833,7 @@ class TestMatchType:
 		"""Direct name match → match_type='exact'."""
 		from claude_candidate.scoring import _find_best_skill
 		from claude_candidate.schemas.candidate_profile import DepthLevel
+
 		profile = self._profile_with("python")
 		req = self._req("python")
 		match, status, mtype, _yr = _find_best_skill(req, profile, DepthLevel.USED)
@@ -1922,6 +1844,7 @@ class TestMatchType:
 		"""Taxonomy alias resolution (ci/cd → ci-cd) → match_type='exact'."""
 		from claude_candidate.scoring import _find_best_skill
 		from claude_candidate.schemas.candidate_profile import DepthLevel
+
 		profile = self._profile_with("ci-cd")
 		req = self._req("ci/cd")  # alias in taxonomy
 		match, status, mtype, _yr = _find_best_skill(req, profile, DepthLevel.USED)
@@ -1932,6 +1855,7 @@ class TestMatchType:
 		"""Unmatched requirement → match_type='none'."""
 		from claude_candidate.scoring import _find_best_skill
 		from claude_candidate.schemas.candidate_profile import DepthLevel
+
 		profile = self._profile_with("python")
 		req = self._req("cobol")
 		match, status, mtype, _yr = _find_best_skill(req, profile, DepthLevel.USED)
@@ -1943,6 +1867,7 @@ class TestMatchType:
 		"""SkillMatchDetail serialises match_type in the API-facing dict."""
 		from claude_candidate.scoring import _find_best_skill, _build_skill_detail
 		from claude_candidate.schemas.candidate_profile import DepthLevel
+
 		profile = self._profile_with("python")
 		req = self._req("python")
 		match, status, mtype, _yr = _find_best_skill(req, profile, DepthLevel.USED)
@@ -1963,6 +1888,7 @@ class TestDomainPenalty:
 	def _make_profile(self, skills=None):
 		from datetime import datetime
 		from claude_candidate.schemas.merged_profile import MergedEvidenceProfile
+
 		return MergedEvidenceProfile(
 			skills=skills or [],
 			patterns=[],
@@ -1981,6 +1907,7 @@ class TestDomainPenalty:
 	def _reqs_with_domain(self, domain_word: str, count: int):
 		"""Create `count` requirements that mention the domain word."""
 		from claude_candidate.schemas.job_requirements import QuickRequirement, RequirementPriority
+
 		return [
 			QuickRequirement(
 				description=f"Experience in {domain_word} industry applications",
@@ -1993,6 +1920,7 @@ class TestDomainPenalty:
 	def test_domain_fires_when_keyword_in_three_reqs(self):
 		"""'music' in 3 requirements + no music in profile → domain_gap_term='music'."""
 		from claude_candidate.scoring import _detect_domain_gap
+
 		reqs = self._reqs_with_domain("music", 3)
 		profile = self._make_profile()
 		gap = _detect_domain_gap(reqs, profile)
@@ -2001,6 +1929,7 @@ class TestDomainPenalty:
 	def test_domain_does_not_fire_when_keyword_in_two_reqs(self):
 		"""'music' in only 2 requirements → no gap (threshold is 3)."""
 		from claude_candidate.scoring import _detect_domain_gap
+
 		reqs = self._reqs_with_domain("music", 2)
 		profile = self._make_profile()
 		gap = _detect_domain_gap(reqs, profile)
@@ -2011,19 +1940,25 @@ class TestDomainPenalty:
 		from claude_candidate.scoring import _detect_domain_gap
 		from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
 		from claude_candidate.schemas.candidate_profile import DepthLevel
+
 		reqs = self._reqs_with_domain("music", 3)
-		profile = self._make_profile(skills=[MergedSkillEvidence(
-			name="music",
-			source=EvidenceSource.RESUME_ONLY,
-			effective_depth=DepthLevel.MENTIONED,
-			confidence=0.8,
-		)])
+		profile = self._make_profile(
+			skills=[
+				MergedSkillEvidence(
+					name="music",
+					source=EvidenceSource.RESUME_ONLY,
+					effective_depth=DepthLevel.MENTIONED,
+					confidence=0.8,
+				)
+			]
+		)
 		gap = _detect_domain_gap(reqs, profile)
 		assert gap is None
 
 	def test_tech_term_not_in_domain_keywords_does_not_fire(self):
 		"""'python' in 5 requirements → not a domain keyword, no gap."""
 		from claude_candidate.scoring import _detect_domain_gap
+
 		reqs = self._reqs_with_domain("python", 5)
 		profile = self._make_profile()
 		gap = _detect_domain_gap(reqs, profile)
@@ -2042,15 +1977,17 @@ class TestDomainPenalty:
 		reqs = self._reqs_with_domain("music", 3)
 
 		# Profile with strong python evidence (would otherwise score high)
-		profile = self._make_profile(skills=[
-			MergedSkillEvidence(
-				name="python",
-				source=EvidenceSource.SESSIONS_ONLY,
-				effective_depth=DepthLevel.EXPERT,
-				confidence=1.0,
-				session_frequency=100,
-			),
-		])
+		profile = self._make_profile(
+			skills=[
+				MergedSkillEvidence(
+					name="python",
+					source=EvidenceSource.SESSIONS_ONLY,
+					effective_depth=DepthLevel.EXPERT,
+					confidence=1.0,
+					session_frequency=100,
+				),
+			]
+		)
 
 		# Confirm domain-gap detector fires
 		assert _detect_domain_gap(reqs, profile) == "music"
@@ -2192,6 +2129,7 @@ class TestConfidenceWiring:
 	def test_confidence_floor_is_less_than_090(self):
 		"""Verify the floor has been widened from the old ±10%."""
 		from claude_candidate.scoring.constants import CONFIDENCE_FLOOR
+
 		assert CONFIDENCE_FLOOR < 0.90, "Confidence floor should be wider than old ±10%"
 		assert CONFIDENCE_FLOOR >= 0.50, "Confidence floor shouldn't be so low it dominates"
 
@@ -2207,7 +2145,9 @@ class TestVirtualSkillConcentration:
 			name = rule[0]
 			min_count = rule[2]
 			if name == "software-engineering":
-				assert min_count >= 5, f"software-engineering min_count should be ≥5, got {min_count}"
+				assert min_count >= 5, (
+					f"software-engineering min_count should be ≥5, got {min_count}"
+				)
 				break
 		else:
 			pytest.fail("software-engineering not found in VIRTUAL_SKILL_RULES")
@@ -2233,7 +2173,9 @@ class TestVirtualSkillConcentration:
 			name = rule[0]
 			min_count = rule[2]
 			if name == "frontend-development":
-				assert min_count >= 2, f"frontend-development min_count should be ≥2, got {min_count}"
+				assert min_count >= 2, (
+					f"frontend-development min_count should be ≥2, got {min_count}"
+				)
 				break
 		else:
 			pytest.fail("frontend-development not found in VIRTUAL_SKILL_RULES")
@@ -2243,35 +2185,61 @@ class TestVirtualSkillConcentration:
 		from claude_candidate.scoring.constants import VIRTUAL_SKILL_RULES
 		from claude_candidate.schemas.candidate_profile import DepthLevel
 
-		broad_skills = {"software-engineering", "full-stack", "system-design", "product-development"}
+		broad_skills = {
+			"software-engineering",
+			"full-stack",
+			"system-design",
+			"product-development",
+		}
 		for rule in VIRTUAL_SKILL_RULES:
 			name = rule[0]
 			if name in broad_skills:
 				assert len(rule) >= 5, f"{name} should have a 5th element (min_constituent_depth)"
 				min_depth = rule[4]
 				assert min_depth is not None, f"{name} should have a constituent depth requirement"
-				depth_order = [DepthLevel.USED, DepthLevel.APPLIED, DepthLevel.DEEP, DepthLevel.EXPERT]
-				assert depth_order.index(min_depth) >= depth_order.index(DepthLevel.APPLIED), \
+				depth_order = [
+					DepthLevel.USED,
+					DepthLevel.APPLIED,
+					DepthLevel.DEEP,
+					DepthLevel.EXPERT,
+				]
+				assert depth_order.index(min_depth) >= depth_order.index(DepthLevel.APPLIED), (
 					f"{name} constituent depth should be ≥APPLIED, got {min_depth}"
+				)
 
 	def test_virtual_skill_not_inferred_with_shallow_constituents(self):
 		"""Virtual skill should NOT be inferred if constituents are USED depth."""
 		from claude_candidate.scoring.matching import _infer_virtual_skill
-		from claude_candidate.schemas.merged_profile import MergedEvidenceProfile, MergedSkillEvidence, EvidenceSource
+		from claude_candidate.schemas.merged_profile import (
+			MergedEvidenceProfile,
+			MergedSkillEvidence,
+			EvidenceSource,
+		)
 		from claude_candidate.schemas.candidate_profile import DepthLevel
 
 		# Profile with 5 skills at USED depth (too shallow)
 		skills = [
-			MergedSkillEvidence(name=n, source=EvidenceSource.RESUME_ONLY,
-				effective_depth=DepthLevel.USED, confidence=0.8)
+			MergedSkillEvidence(
+				name=n,
+				source=EvidenceSource.RESUME_ONLY,
+				effective_depth=DepthLevel.USED,
+				confidence=0.8,
+			)
 			for n in ["python", "typescript", "javascript", "react", "node.js"]
 		]
 		profile = MergedEvidenceProfile(
-			skills=skills, projects=[], patterns=[], roles=[],
-			corroborated_skill_count=0, resume_only_skill_count=5,
-			sessions_only_skill_count=0, discovery_skills=[],
-			profile_hash="test", resume_hash="test",
-			candidate_profile_hash="test", merged_at=datetime.now(),
+			skills=skills,
+			projects=[],
+			patterns=[],
+			roles=[],
+			corroborated_skill_count=0,
+			resume_only_skill_count=5,
+			sessions_only_skill_count=0,
+			discovery_skills=[],
+			profile_hash="test",
+			resume_hash="test",
+			candidate_profile_hash="test",
+			merged_at=datetime.now(),
 		)
 		result = _infer_virtual_skill("software-engineering", profile)
 		assert result is None, "Should not infer software-engineering from USED-depth skills"
@@ -2279,20 +2247,35 @@ class TestVirtualSkillConcentration:
 	def test_virtual_skill_inferred_with_deep_constituents(self):
 		"""Virtual skill should be inferred if constituents meet depth threshold."""
 		from claude_candidate.scoring.matching import _infer_virtual_skill
-		from claude_candidate.schemas.merged_profile import MergedEvidenceProfile, MergedSkillEvidence, EvidenceSource
+		from claude_candidate.schemas.merged_profile import (
+			MergedEvidenceProfile,
+			MergedSkillEvidence,
+			EvidenceSource,
+		)
 		from claude_candidate.schemas.candidate_profile import DepthLevel
 
 		skills = [
-			MergedSkillEvidence(name=n, source=EvidenceSource.RESUME_AND_REPO,
-				effective_depth=DepthLevel.DEEP, confidence=0.9)
+			MergedSkillEvidence(
+				name=n,
+				source=EvidenceSource.RESUME_AND_REPO,
+				effective_depth=DepthLevel.DEEP,
+				confidence=0.9,
+			)
 			for n in ["python", "typescript", "javascript", "react", "node.js", "ci-cd"]
 		]
 		profile = MergedEvidenceProfile(
-			skills=skills, projects=[], patterns=[], roles=[],
-			corroborated_skill_count=0, resume_only_skill_count=0,
-			sessions_only_skill_count=0, discovery_skills=[],
-			profile_hash="test", resume_hash="test",
-			candidate_profile_hash="test", merged_at=datetime.now(),
+			skills=skills,
+			projects=[],
+			patterns=[],
+			roles=[],
+			corroborated_skill_count=0,
+			resume_only_skill_count=0,
+			sessions_only_skill_count=0,
+			discovery_skills=[],
+			profile_hash="test",
+			resume_hash="test",
+			candidate_profile_hash="test",
+			merged_at=datetime.now(),
 		)
 		result = _infer_virtual_skill("software-engineering", profile)
 		assert result is not None, "Should infer software-engineering from 6 DEEP skills"
@@ -2307,7 +2290,11 @@ class TestYearsGradientPenalty:
 	"""Tests for _find_best_skill returning years_ratio as 4th value."""
 
 	def _make_profile(self, skill_name="python", depth="deep", duration="8 years", total_years=8.5):
-		from claude_candidate.schemas.merged_profile import MergedEvidenceProfile, MergedSkillEvidence, EvidenceSource
+		from claude_candidate.schemas.merged_profile import (
+			MergedEvidenceProfile,
+			MergedSkillEvidence,
+			EvidenceSource,
+		)
 		from claude_candidate.schemas.candidate_profile import DepthLevel
 
 		return MergedEvidenceProfile(
@@ -2484,3 +2471,46 @@ class TestYearsGradientScoring:
 		score_exceeded = _score_requirement(skill, "strong_match", years_ratio=1.5)
 		assert score_met == score_no_ratio
 		assert score_exceeded == score_no_ratio
+
+
+class TestExperienceDimensionRemoved:
+	"""Verify experience_match is fully removed from the scoring engine."""
+
+	def test_assessment_has_no_experience_match(
+		self, candidate_profile, resume_profile, quick_requirements
+	):
+		"""FitAssessment schema has no experience_match field."""
+		from claude_candidate.schemas.fit_assessment import FitAssessment
+
+		assert not hasattr(FitAssessment.model_fields, "experience_match")
+		assert "experience_match" not in FitAssessment.model_fields
+
+	def test_engine_has_no_score_experience_method(self, candidate_profile, resume_profile):
+		"""Engine no longer has _score_experience_match method."""
+		from claude_candidate.merger import merge_profiles
+
+		merged = merge_profiles(candidate_profile, resume_profile)
+		engine = QuickMatchEngine(merged)
+		assert not hasattr(engine, "_score_experience_match")
+
+	def test_weights_sum_to_one_without_experience(
+		self, candidate_profile, resume_profile, quick_requirements
+	):
+		"""Weights sum to 1.0 without experience dimension."""
+		from claude_candidate.merger import merge_profiles
+
+		merged = merge_profiles(candidate_profile, resume_profile)
+		engine = QuickMatchEngine(merged)
+		assessment = engine.assess(
+			requirements=quick_requirements,
+			company="Test Co",
+			title="Engineer",
+		)
+		total = assessment.skill_match.weight
+		if assessment.education_match:
+			total += assessment.education_match.weight
+		if assessment.mission_alignment:
+			total += assessment.mission_alignment.weight
+		if assessment.culture_fit:
+			total += assessment.culture_fit.weight
+		assert abs(total - 1.0) < 1e-9

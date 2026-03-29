@@ -4,7 +4,11 @@ import pytest
 from datetime import datetime
 from claude_candidate.scoring.constants import MISSION_DOMAIN_TAXONOMY
 from claude_candidate.scoring.dimensions import _score_mission_text_alignment
-from claude_candidate.schemas.merged_profile import MergedEvidenceProfile, MergedSkillEvidence, EvidenceSource
+from claude_candidate.schemas.merged_profile import (
+	MergedEvidenceProfile,
+	MergedSkillEvidence,
+	EvidenceSource,
+)
 from claude_candidate.schemas.candidate_profile import DepthLevel
 from claude_candidate.schemas.company_profile import CompanyProfile
 from claude_candidate.schemas.job_requirements import QuickRequirement, RequirementPriority
@@ -85,9 +89,7 @@ class TestImprovedMissionTextAlignment:
 
 	def test_no_domain_match_returns_zero(self):
 		profile = _make_profile(["cobol", "fortran"])
-		company = _make_company(
-			"Revolutionary healthcare diagnostics platform"
-		)
+		company = _make_company("Revolutionary healthcare diagnostics platform")
 		score, details = _score_mission_text_alignment(profile, company)
 		assert score == 0.0
 
@@ -109,8 +111,16 @@ class TestMissionInPartialPath:
 		profile = _make_profile(["python", "react", "typescript", "node.js"])
 		engine = QuickMatchEngine(profile)
 		reqs = [
-			QuickRequirement(description="Python", skill_mapping=["python"], priority=RequirementPriority.MUST_HAVE),
-			QuickRequirement(description="React", skill_mapping=["react"], priority=RequirementPriority.STRONG_PREFERENCE),
+			QuickRequirement(
+				description="Python",
+				skill_mapping=["python"],
+				priority=RequirementPriority.MUST_HAVE,
+			),
+			QuickRequirement(
+				description="React",
+				skill_mapping=["react"],
+				priority=RequirementPriority.STRONG_PREFERENCE,
+			),
 		]
 		result = engine.assess(reqs, company="TestCo", title="Engineer")
 		# Partial assessment should now include mission (proxy-based)
@@ -122,13 +132,27 @@ class TestMissionInPartialPath:
 		profile = _make_profile(["python", "react", "typescript", "docker"])
 		engine = QuickMatchEngine(profile)
 		reqs = [
-			QuickRequirement(description="Python", skill_mapping=["python"], priority=RequirementPriority.MUST_HAVE),
-			QuickRequirement(description="React", skill_mapping=["react", "typescript"], priority=RequirementPriority.MUST_HAVE),
-			QuickRequirement(description="Docker", skill_mapping=["docker"], priority=RequirementPriority.NICE_TO_HAVE),
+			QuickRequirement(
+				description="Python",
+				skill_mapping=["python"],
+				priority=RequirementPriority.MUST_HAVE,
+			),
+			QuickRequirement(
+				description="React",
+				skill_mapping=["react", "typescript"],
+				priority=RequirementPriority.MUST_HAVE,
+			),
+			QuickRequirement(
+				description="Docker",
+				skill_mapping=["docker"],
+				priority=RequirementPriority.NICE_TO_HAVE,
+			),
 		]
 		result = engine.assess(reqs, company="TestCo", title="Engineer")
 		if result.mission_alignment:
-			assert result.mission_alignment.score >= 0.3, "Mission proxy should produce non-trivial score"
+			assert result.mission_alignment.score >= 0.3, (
+				"Mission proxy should produce non-trivial score"
+			)
 
 	def test_partial_weights_redistribute_with_mission(self):
 		from claude_candidate.scoring.engine import QuickMatchEngine
@@ -136,11 +160,15 @@ class TestMissionInPartialPath:
 		profile = _make_profile(["python", "react"])
 		engine = QuickMatchEngine(profile)
 		reqs = [
-			QuickRequirement(description="Python", skill_mapping=["python"], priority=RequirementPriority.MUST_HAVE),
+			QuickRequirement(
+				description="Python",
+				skill_mapping=["python"],
+				priority=RequirementPriority.MUST_HAVE,
+			),
 		]
 		result = engine.assess(reqs, company="TestCo", title="Engineer")
 		if result.mission_alignment:
 			assert result.mission_alignment.weight == pytest.approx(0.10)
-			assert result.skill_match.weight == pytest.approx(0.60)
+			assert result.skill_match.weight == pytest.approx(0.80)
 		# Must still be partial even with mission
 		assert result.assessment_phase == "partial"

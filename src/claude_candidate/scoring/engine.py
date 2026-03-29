@@ -50,11 +50,6 @@ from claude_candidate.scoring.constants import (
 	EDUCATION_NO_MATCH_SCORE,
 	EDUCATION_NO_REQUIREMENT_SCORE,
 	EDUCATION_PARTIAL_SCORE,
-	EXPERIENCE_EXCEED_BONUS,
-	EXPERIENCE_MET_BASE,
-	EXPERIENCE_NEUTRAL_SCORE,
-	EXPERIENCE_NO_REQUIREMENT_SCORE,
-	EXPERIENCE_SCORE_MAX,
 	MAX_ACTION_ITEMS,
 	MAX_GAP_NAMES,
 	MAX_RESUME_ITEMS,
@@ -130,7 +125,6 @@ class SummaryInput:
 	must_coverage: str
 	mission_dim: DimensionScore | None = None
 	culture_dim: DimensionScore | None = None
-	experience_dim: DimensionScore | None = None
 	education_dim: DimensionScore | None = None
 
 
@@ -183,8 +177,8 @@ class QuickMatchEngine:
 	def _run_assessment(self, inp: AssessmentInput, elapsed: float | None = None) -> FitAssessment:
 		"""Orchestrate scoring dimensions and assemble the result.
 
-		Partial assessment: scores skill_match (50%), experience_match (30%),
-		education_match (20%) — mission and culture are left as None.
+		Partial assessment: scores skill_match, education_match, and optionally
+		mission_alignment. Experience is folded into skill_match via gradient penalty.
 		"""
 		start_time = time.time() if elapsed is None else 0.0
 
@@ -196,10 +190,6 @@ class QuickMatchEngine:
 		eligibility_passed = not any(g.status == "unmet" for g in eligibility_gates)
 
 		skill_dim, skill_details = self._score_skill_match(
-			scorable_reqs,
-			inp.seniority,
-		)
-		experience_dim = self._score_experience_match(
 			scorable_reqs,
 			inp.seniority,
 		)
@@ -225,29 +215,25 @@ class QuickMatchEngine:
 				company_profile=inp.company_profile,
 			)
 
-		# Partial-assessment weights.
+		# Partial-assessment weights (experience folded into skill match).
 		# Weights must sum to 1.0 (_compute_overall_score does straight weighted sum).
-		skill_dim.weight = 0.60
-		experience_dim.weight = 0.20
-		education_dim.weight = 0.10
 		if mission_dim is not None:
+			skill_dim.weight = 0.80
+			education_dim.weight = 0.10
 			mission_dim.weight = 0.10
 		else:
-			# No mission signal — redistribute mission weight back to skill/experience.
-			skill_dim.weight = 0.65
-			experience_dim.weight = 0.25
-			# education stays 0.10 → total = 1.0
+			# No mission signal — skill absorbs mission weight.
+			skill_dim.weight = 0.90
+			education_dim.weight = 0.10
 
-		# Cap experience/education scores when skill match is weak.
-		# Prevents generic experience from rescuing a poor technical fit.
+		# Cap education score when skill match is weak.
+		# Prevents generic credentials from rescuing a poor technical fit.
 		if skill_dim.score < 0.55:
-			experience_dim.score = min(experience_dim.score, skill_dim.score + 0.2)
 			education_dim.score = min(education_dim.score, skill_dim.score + 0.2)
 
 		overall_score = _compute_overall_score(
 			skill_dim,
 			mission_dim=mission_dim,
-			experience_dim=experience_dim,
 			education_dim=education_dim,
 		)
 		pre_cap_grade: str | None = None
@@ -280,7 +266,6 @@ class QuickMatchEngine:
 			skill_details,
 			overall_score,
 			elapsed,
-			experience_dim=experience_dim,
 			education_dim=education_dim,
 			partial_percentage=partial_percentage,
 			eligibility_gates=eligibility_gates,
@@ -299,7 +284,6 @@ class QuickMatchEngine:
 		skill_details: list[SkillMatchDetail],
 		overall_score: float,
 		elapsed: float,
-		experience_dim: DimensionScore | None = None,
 		education_dim: DimensionScore | None = None,
 		partial_percentage: float | None = None,
 		eligibility_gates: list[EligibilityGate] | None = None,
@@ -327,7 +311,6 @@ class QuickMatchEngine:
 			must_coverage=must_cov,
 			mission_dim=mission_dim,
 			culture_dim=culture_dim,
-			experience_dim=experience_dim,
 			education_dim=education_dim,
 		)
 		return self._assemble_fit_assessment(
@@ -344,7 +327,6 @@ class QuickMatchEngine:
 			gaps,
 			overall_score,
 			elapsed,
-			experience_dim=experience_dim,
 			education_dim=education_dim,
 			partial_percentage=partial_percentage,
 			eligibility_gates=eligibility_gates or [],
@@ -368,7 +350,6 @@ class QuickMatchEngine:
 		gaps: list[SkillMatchDetail],
 		overall_score: float,
 		elapsed: float,
-		experience_dim: DimensionScore | None = None,
 		education_dim: DimensionScore | None = None,
 		partial_percentage: float | None = None,
 		eligibility_gates: list[EligibilityGate] | None = None,
@@ -411,7 +392,6 @@ class QuickMatchEngine:
 			overall_grade=score_to_grade(overall_score),
 			overall_summary=overall_summary,
 			skill_match=skill_dim,
-			experience_match=experience_dim,
 			education_match=education_dim,
 			mission_alignment=mission_dim,
 			culture_fit=culture_dim,
@@ -653,77 +633,7 @@ class QuickMatchEngine:
 			score = CULTURE_NEUTRAL_SCORE
 		return min(max(score, CULTURE_SCORE_MIN), CULTURE_SCORE_MAX)
 
-	# -- dimension 4: experience match ---------------------------------------
-
-	def _score_experience_match(
-		self,
-		requirements: list[QuickRequirement],
-		seniority: str,
-	) -> DimensionScore:
-		"""Score experience-years alignment between candidate and requirements.
-
-		Compares the candidate's total_years_experience against the maximum
-		years_experience specified across all requirements. Returns a neutral
-		score when no requirements specify years.
-		"""
-		# Collect years requirements from enriched QuickRequirements
-		years_reqs: list[tuple[str, int]] = []
-		for req in requirements:
-			if req.years_experience is not None:
-				years_reqs.append((req.description, req.years_experience))
-
-		if not years_reqs:
-			return DimensionScore(
-				dimension="experience_match",
-				score=EXPERIENCE_NO_REQUIREMENT_SCORE,
-				grade=score_to_grade(EXPERIENCE_NO_REQUIREMENT_SCORE),
-				summary="No specific experience-years required — effectively met",
-				details=["No years requirement stated; no bar to clear"],
-				insufficient_data=True,
-			)
-
-		candidate_years = self.profile.total_years_experience
-		if candidate_years is None:
-			return DimensionScore(
-				dimension="experience_match",
-				score=EXPERIENCE_NEUTRAL_SCORE,
-				grade=score_to_grade(EXPERIENCE_NEUTRAL_SCORE),
-				summary="Candidate experience years unknown",
-				details=["No total years of experience on candidate profile"],
-				insufficient_data=True,
-			)
-
-		max_required = max(yrs for _, yrs in years_reqs)
-		details: list[str] = []
-
-		if candidate_years >= max_required:
-			# Candidate meets or exceeds — score in 0.7-1.0 range
-			ratio = min(candidate_years / max_required, 2.0)  # Cap at 2x
-			score = EXPERIENCE_MET_BASE + (ratio - 1.0) * EXPERIENCE_EXCEED_BONUS
-			score = min(score, EXPERIENCE_SCORE_MAX)
-		else:
-			# Candidate below — proportional score in 0.0-0.7 range
-			ratio = candidate_years / max_required if max_required > 0 else 0.0
-			score = ratio * EXPERIENCE_MET_BASE
-
-		for desc, yrs in years_reqs:
-			if candidate_years >= yrs:
-				details.append(f"Met: {yrs}+ years {desc} (have {candidate_years:.0f} yrs)")
-			else:
-				details.append(f"Gap: {yrs}+ years {desc} (have {candidate_years:.0f} yrs)")
-
-		if not details:
-			details = ["Experience evaluation completed"]
-
-		return DimensionScore(
-			dimension="experience_match",
-			score=round(score, SCORE_PRECISION),
-			grade=score_to_grade(score),
-			summary=f"Experience: {candidate_years:.0f} yrs vs {max_required}+ required",
-			details=details[:7],
-		)
-
-	# -- dimension 5: education match ----------------------------------------
+	# -- dimension 4: education match ----------------------------------------
 
 	def _score_education_match(
 		self,
@@ -881,8 +791,6 @@ class QuickMatchEngine:
 		dims: list[tuple[str, float]] = [
 			("Skills", inp.skill_dim.score),
 		]
-		if inp.experience_dim is not None:
-			dims.append(("Experience", inp.experience_dim.score))
 		if inp.education_dim is not None:
 			dims.append(("Education", inp.education_dim.score))
 		if inp.mission_dim is not None:

@@ -20,7 +20,6 @@ class DimensionScore(BaseModel):
 
 	dimension: Literal[
 		"skill_match",
-		"experience_match",
 		"education_match",
 		"mission_alignment",
 		"culture_fit",
@@ -128,7 +127,6 @@ class FitAssessment(BaseModel):
 
 	# Dimensions
 	skill_match: DimensionScore
-	experience_match: DimensionScore | None = None
 	education_match: DimensionScore | None = None
 	mission_alignment: DimensionScore | None = None
 	culture_fit: DimensionScore | None = None

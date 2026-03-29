@@ -496,12 +496,11 @@ def _compute_overall_score(
 	skill_dim: DimensionScore,
 	mission_dim: DimensionScore | None = None,
 	culture_dim: DimensionScore | None = None,
-	experience_dim: DimensionScore | None = None,
 	education_dim: DimensionScore | None = None,
 ) -> float:
 	"""Compute weighted overall score from available dimensions."""
 	total = skill_dim.score * skill_dim.weight
-	for dim in (mission_dim, culture_dim, experience_dim, education_dim):
+	for dim in (mission_dim, culture_dim, education_dim):
 		if dim is not None:
 			total += dim.score * dim.weight
 	return total

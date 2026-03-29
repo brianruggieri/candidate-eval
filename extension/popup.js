@@ -191,17 +191,8 @@ function renderResults(data) {
 		el(detailId).textContent = dim.summary || '';
 	}
 
-	// Local dimensions (skills always shown; experience/education hidden when insufficient)
+	// Local dimensions (skills always shown; education hidden when insufficient)
 	setDim('skill_match', 'bar-skills', 'pct-skills', 'detail-skills');
-
-	const expDim = data.experience_match;
-	const expRow = el('dim-experience');
-	if (expDim && !expDim.insufficient_data) {
-		setDim('experience_match', 'bar-experience', 'pct-experience', 'detail-experience');
-		if (expRow) expRow.classList.remove('hidden');
-	} else if (expRow) {
-		expRow.classList.add('hidden');
-	}
 
 	const eduDim = data.education_match;
 	const eduRow = el('dim-education');

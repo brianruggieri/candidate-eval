@@ -740,7 +740,6 @@ def _print_rich_card(assessment) -> None:
 
 	for dim in [
 		assessment.skill_match,
-		assessment.experience_match,
 		assessment.education_match,
 		assessment.mission_alignment,
 		assessment.culture_fit,
@@ -808,10 +807,6 @@ def _print_plain_card(assessment) -> None:
 	print(f"  {bar(assessment.overall_score)}")
 	print()
 	print(f"  Skills:  {bar(assessment.skill_match.score)} {assessment.skill_match.grade}")
-	if assessment.experience_match:
-		print(
-			f"  Exper.:  {bar(assessment.experience_match.score)} {assessment.experience_match.grade}"
-		)
 	if assessment.education_match:
 		print(
 			f"  Educ.:   {bar(assessment.education_match.score)} {assessment.education_match.grade}"
@@ -956,6 +951,7 @@ def profile_rebuild(data_dir: str | None) -> None:
 		if candidate_path.exists():
 			try:
 				from claude_candidate.schemas.candidate_profile import CandidateProfile
+
 				sessions_cp = CandidateProfile.from_json(candidate_path.read_text())
 			except Exception:
 				pass

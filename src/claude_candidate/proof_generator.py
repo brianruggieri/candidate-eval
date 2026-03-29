@@ -213,7 +213,6 @@ def _dimension_scores_section(assessment: FitAssessment) -> str:
 	lines = ["## Dimension Scores", ""]
 	for dim in (
 		assessment.skill_match,
-		assessment.experience_match,
 		assessment.education_match,
 		assessment.mission_alignment,
 		assessment.culture_fit,
