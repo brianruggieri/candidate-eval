@@ -629,15 +629,22 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 			)
 
 		# 5. Recompute overall score with all dimensions (education is now an eligibility gate)
-		# Parse existing dimension scores from the assessment data
-		skill_score = data.get("skill_match", {}).get("score", 0.5)
-		mission_score = mission_dim.score if mission_dim else 0.5
-		culture_score = culture_dim.score if culture_dim else 0.5
+		# Use canonical adaptive weights based on data availability
+		from claude_candidate.scoring.dimensions import select_weights
 
-		# Full assessment weights: skill 65%, mission 17.5%, culture 17.5%
-		weighted_total = skill_score * 0.65
-		weighted_total += mission_score * 0.175
-		weighted_total += culture_score * 0.175
+		skill_score = data.get("skill_match", {}).get("score", 0.5)
+		mission_score = mission_dim.score if mission_dim else 0.0
+		culture_score = culture_dim.score if culture_dim else 0.0
+
+		has_mission = mission_dim is not None
+		has_culture = culture_dim is not None and not getattr(
+			culture_dim, "insufficient_data", True
+		)
+		skill_w, mission_w, culture_w = select_weights(has_mission, has_culture)
+
+		weighted_total = skill_score * skill_w
+		weighted_total += mission_score * mission_w
+		weighted_total += culture_score * culture_w
 
 		overall_score = round(min(max(weighted_total, 0.0), 1.0), 3)
 		overall_grade = score_to_grade(overall_score)
@@ -650,9 +657,9 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 
 		# Update dimension weights in the returned data
 		if mission_dim:
-			mission_dim.weight = 0.175
+			mission_dim.weight = mission_w
 		if culture_dim:
-			culture_dim.weight = 0.175
+			culture_dim.weight = culture_w
 
 		# 5b. Narrative verdict + receptivity signal (best-effort)
 		narrative_result = None
@@ -687,9 +694,9 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 			updated["receptivity_level"] = narrative_result.get("receptivity")
 			updated["receptivity_reason"] = narrative_result.get("receptivity_reason")
 
-		# Update skill weight for consistency (education is now an eligibility gate)
+		# Update skill weight for consistency
 		if updated.get("skill_match"):
-			updated["skill_match"]["weight"] = 0.65
+			updated["skill_match"]["weight"] = skill_w
 
 		# 7. Save updated assessment to store
 		flat: dict[str, Any] = {
