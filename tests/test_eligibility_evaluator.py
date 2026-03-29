@@ -188,3 +188,158 @@ class TestMiscGates:
 		req = make_req("security-clearance", "Must hold active TS/SCI clearance")
 		gates = evaluate_gates([req], CandidateEligibility())
 		assert gates[0].description == "Must hold active TS/SCI clearance"
+
+
+class TestEducationGate:
+	"""Tests for detect_education_gap — degree gap detection for grade capping."""
+
+	def _make_edu_req(
+		self,
+		education_level: str,
+		description: str = "Degree required",
+	) -> QuickRequirement:
+		return QuickRequirement(
+			description=description,
+			skill_mapping=["python"],
+			priority=RequirementPriority.MUST_HAVE,
+			education_level=education_level,
+		)
+
+	def test_no_education_requirement_returns_none(self):
+		"""No education_level on any requirement = no cap."""
+		from claude_candidate.eligibility_evaluator import detect_education_gap
+
+		reqs = [
+			QuickRequirement(
+				description="Python proficiency",
+				skill_mapping=["python"],
+				priority=RequirementPriority.MUST_HAVE,
+			)
+		]
+		result = detect_education_gap(reqs, ["B.S. Computer Science"])
+		assert result is None
+
+	def test_requirement_met_returns_none(self):
+		"""Candidate meets degree = no cap."""
+		from claude_candidate.eligibility_evaluator import detect_education_gap
+
+		result = detect_education_gap(
+			[self._make_edu_req("bachelor")],
+			["B.S. Computer Science"],
+		)
+		assert result is None
+
+	def test_requirement_exceeded_returns_none(self):
+		"""Candidate exceeds = no cap."""
+		from claude_candidate.eligibility_evaluator import detect_education_gap
+
+		result = detect_education_gap(
+			[self._make_edu_req("bachelor")],
+			["M.S. Computer Science"],
+		)
+		assert result is None
+
+	def test_ms_gap_returns_b_plus_cap(self):
+		"""Requires MS, have BS = B+ cap (score 0.849)."""
+		from claude_candidate.eligibility_evaluator import detect_education_gap
+
+		result = detect_education_gap(
+			[self._make_edu_req("master")],
+			["B.S. Computer Science"],
+		)
+		assert result is not None
+		assert result.gap == 1
+		assert result.cap_grade == "B+"
+		assert result.cap_score == 0.849
+
+	def test_phd_minus_one_returns_b_minus_cap(self):
+		"""Requires PhD, have MS = B- cap (score 0.749)."""
+		from claude_candidate.eligibility_evaluator import detect_education_gap
+
+		result = detect_education_gap(
+			[self._make_edu_req("phd")],
+			["M.S. Computer Science"],
+		)
+		assert result is not None
+		assert result.gap == 1
+		assert result.cap_grade == "B+"
+		assert result.cap_score == 0.849
+
+	def test_phd_minus_two_returns_c_plus_cap(self):
+		"""Requires PhD, have BS = C+ cap (score 0.699)."""
+		from claude_candidate.eligibility_evaluator import detect_education_gap
+
+		result = detect_education_gap(
+			[self._make_edu_req("phd")],
+			["B.S. Computer Science"],
+		)
+		assert result is not None
+		assert result.gap == 2
+		assert result.cap_grade == "B-"
+		assert result.cap_score == 0.749
+
+	def test_phd_minus_two_no_degree(self):
+		"""Requires PhD, no degree = C+ cap."""
+		from claude_candidate.eligibility_evaluator import detect_education_gap
+
+		result = detect_education_gap(
+			[self._make_edu_req("phd")],
+			[],
+		)
+		assert result is not None
+		assert result.gap == 3
+		assert result.cap_grade == "C+"
+		assert result.cap_score == 0.699
+
+	def test_no_candidate_education_with_bs_requirement(self):
+		"""Requires BS, no education = B+ cap."""
+		from claude_candidate.eligibility_evaluator import detect_education_gap
+
+		result = detect_education_gap(
+			[self._make_edu_req("bachelor")],
+			[],
+		)
+		assert result is not None
+		assert result.gap == 1
+		assert result.cap_grade == "B+"
+		assert result.cap_score == 0.849
+
+	def test_highest_requirement_wins(self):
+		"""Multiple reqs, highest degree determines cap."""
+		from claude_candidate.eligibility_evaluator import detect_education_gap
+
+		reqs = [
+			self._make_edu_req("bachelor"),
+			self._make_edu_req("master"),
+		]
+		result = detect_education_gap(reqs, ["B.S. Computer Science"])
+		assert result is not None
+		assert result.gap == 1
+		assert result.cap_grade == "B+"
+
+	def test_degree_ranking_aliases(self):
+		"""Various degree string formats recognized."""
+		from claude_candidate.eligibility_evaluator import detect_education_gap
+
+		# BS alias for bachelor
+		result = detect_education_gap(
+			[self._make_edu_req("bs")],
+			["B.S. Computer Science"],
+		)
+		assert result is None  # met
+
+		# MBA alias for master
+		result = detect_education_gap(
+			[self._make_edu_req("mba")],
+			["B.A. Liberal Arts"],
+		)
+		assert result is not None
+		assert result.gap == 1
+
+		# ph.d. alias for phd
+		result = detect_education_gap(
+			[self._make_edu_req("ph.d.")],
+			["M.S. Physics"],
+		)
+		assert result is not None
+		assert result.gap == 1

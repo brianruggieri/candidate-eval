@@ -3,14 +3,112 @@ Evaluate eligibility gates against candidate eligibility profile.
 
 Resolves each eligibility QuickRequirement to "met" / "unmet" / "unknown"
 by comparing skill_mapping entries against CandidateEligibility facts.
+
+Also provides education degree gap detection for grade capping.
 """
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 
 from claude_candidate.schemas.curated_resume import CandidateEligibility
 from claude_candidate.schemas.fit_assessment import EligibilityGate
 from claude_candidate.schemas.job_requirements import QuickRequirement
+
+
+# ---------------------------------------------------------------------------
+# Degree ranking and education gap detection
+# ---------------------------------------------------------------------------
+
+DEGREE_RANKING: dict[str, int] = {
+	"bachelor": 1,
+	"bs": 1,
+	"ba": 1,
+	"b.s.": 1,
+	"b.a.": 1,
+	"master": 2,
+	"ms": 2,
+	"ma": 2,
+	"m.s.": 2,
+	"m.a.": 2,
+	"mba": 2,
+	"phd": 3,
+	"ph.d.": 3,
+	"doctorate": 3,
+}
+
+_EDUCATION_GAP_CAPS: dict[int, tuple[str, float]] = {
+	1: ("B+", 0.849),
+	2: ("B-", 0.749),
+	3: ("C+", 0.699),
+}
+
+
+@dataclass(frozen=True)
+class EducationGapResult:
+	"""Result of education gap detection — describes the gap and grade cap."""
+
+	gap: int
+	cap_grade: str
+	cap_score: float
+	required_label: str
+	candidate_label: str
+
+
+def _highest_degree_rank(education: list[str]) -> int:
+	"""Extract the highest degree rank from a list of education strings."""
+	best = 0
+	for entry in education:
+		entry_lower = entry.lower()
+		for keyword, rank in DEGREE_RANKING.items():
+			if keyword in entry_lower:
+				best = max(best, rank)
+	return best
+
+
+def _rank_to_label(rank: int) -> str:
+	"""Convert a degree rank back to a human label."""
+	_RANK_LABELS = {1: "bachelor", 2: "master", 3: "phd"}
+	return _RANK_LABELS.get(rank, "none")
+
+
+def detect_education_gap(
+	reqs: list[QuickRequirement],
+	candidate_education: list[str],
+) -> EducationGapResult | None:
+	"""Detect education degree gap between requirements and candidate.
+
+	Returns None if no education requirement exists or if the candidate
+	meets/exceeds the requirement. Otherwise returns an EducationGapResult
+	with the gap size and corresponding grade cap.
+	"""
+	# Find the highest required degree rank across all requirements
+	required_rank = 0
+	for req in reqs:
+		if req.education_level:
+			rank = DEGREE_RANKING.get(req.education_level.lower(), 0)
+			required_rank = max(required_rank, rank)
+
+	if required_rank == 0:
+		return None  # No education requirement
+
+	candidate_rank = _highest_degree_rank(candidate_education)
+
+	if candidate_rank >= required_rank:
+		return None  # Requirement met or exceeded
+
+	gap = required_rank - candidate_rank
+	# Clamp to max gap of 3
+	gap = min(gap, 3)
+
+	cap_grade, cap_score = _EDUCATION_GAP_CAPS[gap]
+	return EducationGapResult(
+		gap=gap,
+		cap_grade=cap_grade,
+		cap_score=cap_score,
+		required_label=_rank_to_label(required_rank),
+		candidate_label=_rank_to_label(candidate_rank) if candidate_rank > 0 else "none",
+	)
 
 _WORK_AUTH_SKILLS: frozenset[str] = frozenset({
 	"us-work-authorization",
