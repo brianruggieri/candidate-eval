@@ -618,11 +618,13 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 			# Use culture signals from company research or empty list
 			culture_signals = research.get("culture_signals", []) if research else []
 
-			mission_dim = engine._score_mission_alignment(
-				company=company,
-				tech_stack=company_profile.tech_stack_public if company_profile else [],
-				company_profile=company_profile,
-			)
+			# Mission: only score if company profile has real signals
+			if company_profile and company_profile.has_mission_signals():
+				mission_dim = engine._score_mission_alignment(
+					company=company,
+					tech_stack=company_profile.tech_stack_public,
+					company_profile=company_profile,
+				)
 			culture_dim = engine._score_culture_fit(
 				culture_signals=culture_signals,
 				company_profile=company_profile,
