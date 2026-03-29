@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 
 from claude_candidate.schemas.candidate_profile import DepthLevel, DEPTH_RANK, PatternType
 from claude_candidate.schemas.company_profile import CompanyProfile
-from claude_candidate.schemas.job_requirements import QuickRequirement
+from claude_candidate.schemas.job_requirements import QuickRequirement, RequirementPriority
 from claude_candidate.schemas.merged_profile import (
 	EvidenceSource,
 	MergedEvidenceProfile,
@@ -779,16 +779,18 @@ def _find_best_skill(
 	req: QuickRequirement,
 	profile: MergedEvidenceProfile,
 	depth_floor: DepthLevel,
-) -> tuple[MergedSkillEvidence | None, str, str]:
+) -> tuple[MergedSkillEvidence | None, str, str, float | None]:
 	"""Find the best matching skill for a requirement across all mappings.
 
-	Returns (best_match, best_status, match_type).
+	Returns (best_match, best_status, match_type, years_ratio).
 	match_type is "exact", "fuzzy", or "none".
+	years_ratio is candidate_years / required_years when applicable, else None.
 	"""
 	taxonomy = _get_taxonomy()
 	best_match: MergedSkillEvidence | None = None
 	best_status = "no_evidence"
 	best_match_type = "none"
+	years_ratio: float | None = None
 
 	for skill_name in req.skill_mapping:
 		# Try direct match (exact, fuzzy, pattern)
@@ -836,43 +838,35 @@ def _find_best_skill(
 			if STATUS_RANK.get(best_status, 0) > STATUS_RANK.get("partial_match", 0):
 				best_status = "partial_match"
 
-	# Years experience check: boost if candidate meets/exceeds, downgrade if short
+	# Years experience check: compute years_ratio, boost if meeting/exceeding, no cliff-based downgrade
 	if req.years_experience and best_match and best_match.resume_duration:
 		candidate_years = _parse_duration_years(best_match.resume_duration)
 		if candidate_years:
+			years_ratio = candidate_years / req.years_experience
 			if candidate_years >= req.years_experience:
 				# Boost status by one tier if not already exceeds
 				if best_status == "partial_match":
 					best_status = "strong_match"
 				elif best_status == "adjacent":
 					best_status = "partial_match"
-			else:
-				# Candidate has the skill but not enough years — downgrade
-				# Use ratio: <50% of required → major, <100% → minor
-				ratio = candidate_years / req.years_experience
-				if ratio < 0.5:
-					# Major shortfall (e.g. 3mo vs 2yr) — cap at partial_match
-					if STATUS_RANK.get(best_status, 0) > STATUS_RANK.get("partial_match", 0):
-						best_status = "partial_match"
-				else:
-					# Minor shortfall — cap at strong_match (no exceeds)
-					if STATUS_RANK.get(best_status, 0) > STATUS_RANK.get("strong_match", 0):
-						best_status = "strong_match"
+			# No cliff-based downgrade — gradient penalty handles shortfalls at scoring time
 
-	# Total years fallback: when no skill match but candidate has enough total experience
+	# Total years fallback: only for NICE_TO_HAVE / IMPLIED priorities.
+	# Must-have/strong_preference stay hard — no rescue from total years.
 	if req.years_experience and best_status == "no_evidence":
-		if (
-			profile.total_years_experience
-			and profile.total_years_experience >= req.years_experience
-		):
-			best_status = "related"
-			best_match = MergedSkillEvidence(
-				name="general_experience",
-				source=EvidenceSource.RESUME_ONLY,
-				effective_depth=DepthLevel.APPLIED,
-				confidence=0.5,
-			)
-			best_match_type = "fuzzy"
+		if req.priority in (RequirementPriority.NICE_TO_HAVE, RequirementPriority.IMPLIED):
+			if (
+				profile.total_years_experience
+				and profile.total_years_experience >= req.years_experience
+			):
+				best_status = "related"
+				best_match = MergedSkillEvidence(
+					name="general_experience",
+					source=EvidenceSource.RESUME_ONLY,
+					effective_depth=DepthLevel.APPLIED,
+					confidence=0.5,
+				)
+				best_match_type = "fuzzy"
 
 	# Scale check: if requirement mentions consumer scale and skill is personal/team, downgrade
 	if best_match and best_match.scale:
@@ -915,4 +909,4 @@ def _find_best_skill(
 					if STATUS_RANK.get(best_status, 0) > STATUS_RANK.get("strong_match", 0):
 						best_status = "strong_match"
 
-	return best_match, best_status, best_match_type
+	return best_match, best_status, best_match_type, years_ratio

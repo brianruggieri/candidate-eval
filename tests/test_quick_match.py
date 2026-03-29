@@ -809,7 +809,7 @@ def test_find_best_skill_related_fallback():
 		priority=RequirementPriority.MUST_HAVE,
 	)
 
-	match, status, _mtype = _find_best_skill(req, profile, DepthLevel.APPLIED)
+	match, status, _mtype, _years_ratio = _find_best_skill(req, profile, DepthLevel.APPLIED)
 	assert match is not None, "Should find anthropic as a related match"
 	assert status == "related"
 
@@ -1914,7 +1914,7 @@ class TestMatchType:
 		from claude_candidate.schemas.candidate_profile import DepthLevel
 		profile = self._profile_with("python")
 		req = self._req("python")
-		match, status, mtype = _find_best_skill(req, profile, DepthLevel.USED)
+		match, status, mtype, _yr = _find_best_skill(req, profile, DepthLevel.USED)
 		assert match is not None
 		assert mtype == "exact"
 
@@ -1924,7 +1924,7 @@ class TestMatchType:
 		from claude_candidate.schemas.candidate_profile import DepthLevel
 		profile = self._profile_with("ci-cd")
 		req = self._req("ci/cd")  # alias in taxonomy
-		match, status, mtype = _find_best_skill(req, profile, DepthLevel.USED)
+		match, status, mtype, _yr = _find_best_skill(req, profile, DepthLevel.USED)
 		assert match is not None
 		assert mtype == "exact"
 
@@ -1934,7 +1934,7 @@ class TestMatchType:
 		from claude_candidate.schemas.candidate_profile import DepthLevel
 		profile = self._profile_with("python")
 		req = self._req("cobol")
-		match, status, mtype = _find_best_skill(req, profile, DepthLevel.USED)
+		match, status, mtype, _yr = _find_best_skill(req, profile, DepthLevel.USED)
 		assert match is None
 		assert mtype == "none"
 		assert status == "no_evidence"
@@ -1945,7 +1945,7 @@ class TestMatchType:
 		from claude_candidate.schemas.candidate_profile import DepthLevel
 		profile = self._profile_with("python")
 		req = self._req("python")
-		match, status, mtype = _find_best_skill(req, profile, DepthLevel.USED)
+		match, status, mtype, _yr = _find_best_skill(req, profile, DepthLevel.USED)
 		detail = _build_skill_detail(req, match, status, mtype)
 		assert detail.match_type == "exact"
 		d = detail.model_dump()
@@ -2296,3 +2296,130 @@ class TestVirtualSkillConcentration:
 		)
 		result = _infer_virtual_skill("software-engineering", profile)
 		assert result is not None, "Should infer software-engineering from 6 DEEP skills"
+
+
+# ---------------------------------------------------------------------------
+# Plan 01: Years Gradient Penalty Tests
+# ---------------------------------------------------------------------------
+
+
+class TestYearsGradientPenalty:
+	"""Tests for _find_best_skill returning years_ratio as 4th value."""
+
+	def _make_profile(self, skill_name="python", depth="deep", duration="8 years", total_years=8.5):
+		from claude_candidate.schemas.merged_profile import MergedEvidenceProfile, MergedSkillEvidence, EvidenceSource
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+
+		return MergedEvidenceProfile(
+			skills=[
+				MergedSkillEvidence(
+					name=skill_name,
+					source=EvidenceSource.CORROBORATED,
+					session_depth=DepthLevel(depth),
+					resume_depth=DepthLevel(depth),
+					resume_duration=duration,
+					effective_depth=DepthLevel(depth),
+					confidence=0.9,
+				),
+			],
+			patterns=[],
+			projects=[],
+			roles=[],
+			total_years_experience=total_years,
+			corroborated_skill_count=1,
+			resume_only_skill_count=0,
+			sessions_only_skill_count=0,
+			discovery_skills=[],
+			profile_hash="test",
+			resume_hash="test",
+			candidate_profile_hash="test",
+			merged_at=datetime.now(),
+		)
+
+	def _req(self, skill="python", years=None, priority="must_have"):
+		return QuickRequirement(
+			description=f"{years or ''}+ years {skill}" if years else f"{skill} proficiency",
+			skill_mapping=[skill],
+			priority=RequirementPriority(priority),
+			years_experience=years,
+		)
+
+	def test_meeting_years_boosts_one_tier(self):
+		"""Candidate meeting required years boosts partial→strong."""
+		from claude_candidate.scoring import _find_best_skill
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+
+		profile = self._make_profile(depth="applied", duration="5 years")
+		req = self._req("python", years=5)
+		match, status, mtype, years_ratio = _find_best_skill(req, profile, DepthLevel.DEEP)
+		# Candidate has 5 years, req wants 5 → meets → boost from partial_match
+		assert status in ("strong_match", "exceeds")
+		assert years_ratio is not None
+		assert years_ratio >= 1.0
+
+	def test_gradient_1_of_5_years(self):
+		"""1/5 years: no cliff-based downgrade, years_ratio=0.2 returned."""
+		from claude_candidate.scoring import _find_best_skill
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+
+		profile = self._make_profile(depth="deep", duration="1 year")
+		req = self._req("python", years=5)
+		match, status, mtype, years_ratio = _find_best_skill(req, profile, DepthLevel.APPLIED)
+		assert match is not None
+		assert years_ratio is not None
+		assert abs(years_ratio - 0.2) < 0.01
+
+	def test_gradient_3_of_5_years(self):
+		"""3/5 years: years_ratio=0.6 returned."""
+		from claude_candidate.scoring import _find_best_skill
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+
+		profile = self._make_profile(depth="deep", duration="3 years")
+		req = self._req("python", years=5)
+		match, status, mtype, years_ratio = _find_best_skill(req, profile, DepthLevel.APPLIED)
+		assert match is not None
+		assert years_ratio is not None
+		assert abs(years_ratio - 0.6) < 0.01
+
+	def test_total_years_fallback_blocked_for_must_have(self):
+		"""Total years fallback killed for must_have — no_evidence stays no_evidence."""
+		from claude_candidate.scoring import _find_best_skill
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+
+		# Profile has no matching skill, but has enough total years
+		profile = self._make_profile(skill_name="react", total_years=10.0)
+		req = self._req("golang", years=5, priority="must_have")
+		match, status, mtype, years_ratio = _find_best_skill(req, profile, DepthLevel.APPLIED)
+		assert status == "no_evidence"
+
+	def test_total_years_fallback_blocked_for_strong_preference(self):
+		"""Total years fallback killed for strong_preference."""
+		from claude_candidate.scoring import _find_best_skill
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+
+		profile = self._make_profile(skill_name="react", total_years=10.0)
+		req = self._req("golang", years=5, priority="strong_preference")
+		match, status, mtype, years_ratio = _find_best_skill(req, profile, DepthLevel.APPLIED)
+		assert status == "no_evidence"
+
+	def test_total_years_fallback_kept_for_nice_to_have(self):
+		"""Fallback works for nice_to_have."""
+		from claude_candidate.scoring import _find_best_skill
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+
+		profile = self._make_profile(skill_name="react", total_years=10.0)
+		req = self._req("golang", years=5, priority="nice_to_have")
+		match, status, mtype, years_ratio = _find_best_skill(req, profile, DepthLevel.APPLIED)
+		assert status == "related"
+		assert match is not None
+
+	def test_total_years_fallback_kept_for_implied(self):
+		"""Fallback works for implied."""
+		from claude_candidate.scoring import _find_best_skill
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+
+		profile = self._make_profile(skill_name="react", total_years=10.0)
+		req = self._req("golang", years=5, priority="implied")
+		match, status, mtype, years_ratio = _find_best_skill(req, profile, DepthLevel.APPLIED)
+		assert status == "related"
+		assert match is not None

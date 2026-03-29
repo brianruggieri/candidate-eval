@@ -467,7 +467,7 @@ class QuickMatchEngine:
 				weight *= effective_discount
 
 			total_weight += weight
-			best_match, best_status, best_match_type = _find_best_skill(
+			best_match, best_status, best_match_type, years_ratio = _find_best_skill(
 				req,
 				self.profile,
 				depth_floor,

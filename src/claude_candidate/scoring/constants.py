@@ -141,7 +141,10 @@ CULTURE_FULL_MATCH = 1
 CULTURE_SCORE_MIN = 0.0
 CULTURE_SCORE_MAX = 1.0
 
-# Experience match score parameters
+# Years gradient penalty floor (replaces separate experience dimension)
+YEARS_GRADIENT_FLOOR = 0.6
+
+# Experience match score parameters (deprecated — being removed in favour of gradient penalty)
 EXPERIENCE_NO_REQUIREMENT_SCORE = 0.9  # No requirement stated = effectively met
 EXPERIENCE_NEUTRAL_SCORE = 0.5
 EXPERIENCE_MET_BASE = 0.7
