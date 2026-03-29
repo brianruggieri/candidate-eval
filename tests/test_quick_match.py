@@ -2586,3 +2586,27 @@ class TestMissionDataGating:
 		assert assessment.mission_alignment is None
 		assert assessment.culture_fit is None
 		assert abs(assessment.skill_match.weight - 1.0) < 1e-9
+
+	def test_score_mission_alignment_returns_none_without_signals(
+		self, candidate_profile, resume_profile
+	):
+		"""Mission scorer returns None when CompanyProfile has no mission signals."""
+		merged = merge_profiles(candidate_profile, resume_profile)
+		engine = QuickMatchEngine(merged)
+		empty_profile = self._make_profile()
+		result = engine._score_mission_alignment("Test Co", [], empty_profile)
+		assert result is None
+
+	def test_score_mission_alignment_works_with_signals(
+		self, candidate_profile, resume_profile
+	):
+		"""Mission scorer produces a score when CompanyProfile has signals."""
+		merged = merge_profiles(candidate_profile, resume_profile)
+		engine = QuickMatchEngine(merged)
+		profile = self._make_profile(
+			product_domain=["developer-tooling"],
+			tech_stack_public=["python", "typescript"],
+		)
+		result = engine._score_mission_alignment("Test Co", [], profile)
+		assert result is not None
+		assert 0.0 <= result.score <= 1.0

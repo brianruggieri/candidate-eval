@@ -477,9 +477,10 @@ class QuickMatchEngine:
 	) -> DimensionScore | None:
 		"""Score company/mission alignment.
 
-		Returns None when no company profile is available (proxy approach removed).
+		Returns None when insufficient data exists for meaningful scoring.
+		Mission activates only when CompanyProfile has at least one real signal.
 		"""
-		if not company_profile:
+		if company_profile is None or not company_profile.has_mission_signals():
 			return None
 
 		score, details = self._mission_with_profile(company_profile)
