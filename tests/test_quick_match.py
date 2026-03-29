@@ -495,6 +495,46 @@ class TestCandidateOnlyAssessment:
 		assert len(assessment.skill_matches) == len(quick_requirements)
 
 
+class TestAdaptiveWeights:
+	"""Unit tests for the four-state adaptive weight system."""
+
+	def test_weights_tech_only_is_100_percent_skill(self):
+		from claude_candidate.scoring.constants import WEIGHTS_TECH_ONLY
+
+		assert WEIGHTS_TECH_ONLY == (1.00, 0.00, 0.00)
+
+	def test_weights_with_mission_is_75_25_0(self):
+		from claude_candidate.scoring.constants import WEIGHTS_WITH_MISSION
+
+		assert WEIGHTS_WITH_MISSION == (0.75, 0.25, 0.00)
+
+	def test_weights_with_culture_is_85_0_15(self):
+		from claude_candidate.scoring.constants import WEIGHTS_WITH_CULTURE
+
+		assert WEIGHTS_WITH_CULTURE == (0.85, 0.00, 0.15)
+
+	def test_weights_full_is_60_25_15(self):
+		from claude_candidate.scoring.constants import WEIGHTS_FULL
+
+		assert WEIGHTS_FULL == (0.60, 0.25, 0.15)
+
+	def test_all_weight_tuples_sum_to_one(self):
+		from claude_candidate.scoring.constants import (
+			WEIGHTS_TECH_ONLY,
+			WEIGHTS_WITH_MISSION,
+			WEIGHTS_WITH_CULTURE,
+			WEIGHTS_FULL,
+		)
+
+		for name, weights in [
+			("TECH_ONLY", WEIGHTS_TECH_ONLY),
+			("WITH_MISSION", WEIGHTS_WITH_MISSION),
+			("WITH_CULTURE", WEIGHTS_WITH_CULTURE),
+			("FULL", WEIGHTS_FULL),
+		]:
+			assert abs(sum(weights) - 1.0) < 1e-9, f"{name} weights sum to {sum(weights)}"
+
+
 class TestComputeWeights:
 	"""Unit tests for _compute_weights() across all four confidence tiers."""
 

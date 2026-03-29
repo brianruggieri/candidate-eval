@@ -755,10 +755,16 @@ _AI_SKILL_NAMES: frozenset[str] = frozenset(
 )
 
 # ---------------------------------------------------------------------------
-# Adaptive dimension weighting
+# Adaptive dimension weighting — four states based on data availability.
+# Tuples are (skill, mission, culture). Must sum to 1.0.
 # ---------------------------------------------------------------------------
 
-# Weight tuples: (skill, mission, culture)
+WEIGHTS_TECH_ONLY = (1.00, 0.00, 0.00)  # Neither mission nor culture data
+WEIGHTS_WITH_MISSION = (0.75, 0.25, 0.00)  # Mission signals only
+WEIGHTS_WITH_CULTURE = (0.85, 0.00, 0.15)  # Culture signals only
+WEIGHTS_FULL = (0.60, 0.25, 0.15)  # Both mission + culture signals
+
+# Legacy aliases (deprecated — will be removed once all consumers migrate)
 _WEIGHTS_RICH = (0.50, 0.25, 0.25)
 _WEIGHTS_MODERATE = (0.60, 0.20, 0.20)
 _WEIGHTS_SPARSE = (0.70, 0.15, 0.15)
