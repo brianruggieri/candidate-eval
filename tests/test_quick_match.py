@@ -606,7 +606,7 @@ class TestComputeWeights:
 
 
 class TestPartialAssessmentWeights:
-	"""Integration tests verifying partial assessment uses fixed 50/30/20 weights."""
+	"""Integration tests verifying partial assessment uses adaptive weights."""
 
 	def _minimal_requirements(self) -> list[QuickRequirement]:
 		return [
@@ -617,43 +617,49 @@ class TestPartialAssessmentWeights:
 			)
 		]
 
-	def test_partial_assessment_uses_fixed_weights(self, candidate_profile, resume_profile):
-		"""Partial assessment uses 90/10 weights when mission is present, 100% skill without."""
+	def test_partial_no_mission_is_100_percent_skill(self, candidate_profile, resume_profile):
+		"""When mission is absent, skill gets 100% weight."""
 		merged = merge_profiles(candidate_profile, resume_profile)
 		engine = QuickMatchEngine(merged)
-
 		assessment = engine.assess(
 			requirements=self._minimal_requirements(),
 			company="Test Co",
 			title="Engineer",
 		)
+		if assessment.mission_alignment is None:
+			assert abs(assessment.skill_match.weight - 1.0) < 1e-9
 
-		if assessment.mission_alignment:
-			# Mission proxy succeeded: 90/10
-			assert assessment.skill_match.weight == 0.90
-			assert assessment.mission_alignment.weight == 0.10
-		else:
-			# No mission data: skill absorbs all weight
-			assert assessment.skill_match.weight == 1.00
+	def test_partial_with_mission_uses_adaptive_weights(self, candidate_profile, resume_profile):
+		"""When mission is present (no culture), uses WEIGHTS_WITH_MISSION."""
+		merged = merge_profiles(candidate_profile, resume_profile)
+		engine = QuickMatchEngine(merged)
+		assessment = engine.assess(
+			requirements=self._minimal_requirements(),
+			company="Test Co",
+			title="Engineer",
+		)
+		if assessment.mission_alignment is not None:
+			# Adaptive: 75/25/0 (no culture in partial)
+			assert abs(assessment.skill_match.weight - 0.75) < 1e-9
+			assert abs(assessment.mission_alignment.weight - 0.25) < 1e-9
 
 		# Education is no longer a scored dimension
 		assert assessment.education_match is None
 
 	def test_partial_assessment_weights_sum_to_one(self, candidate_profile, resume_profile):
-		"""Partial assessment weights always sum to 1.0."""
+		"""All dimension weights always sum to 1.0."""
 		merged = merge_profiles(candidate_profile, resume_profile)
 		engine = QuickMatchEngine(merged)
-
 		assessment = engine.assess(
 			requirements=self._minimal_requirements(),
 			company="Test Co",
 			title="Engineer",
 		)
-
-		total = (
-			assessment.skill_match.weight
-			+ (assessment.mission_alignment.weight if assessment.mission_alignment else 0.0)
-		)
+		total = assessment.skill_match.weight
+		if assessment.mission_alignment:
+			total += assessment.mission_alignment.weight
+		if assessment.culture_fit:
+			total += assessment.culture_fit.weight
 		assert abs(total - 1.0) < 1e-9
 
 	def test_partial_assessment_no_culture(self, candidate_profile, resume_profile):

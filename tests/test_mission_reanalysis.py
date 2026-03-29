@@ -168,7 +168,8 @@ class TestMissionInPartialPath:
 		]
 		result = engine.assess(reqs, company="TestCo", title="Engineer")
 		if result.mission_alignment:
-			assert result.mission_alignment.weight == pytest.approx(0.10)
-			assert result.skill_match.weight == pytest.approx(0.90)
+			# Adaptive weights: mission-only → 75/25
+			assert result.mission_alignment.weight == pytest.approx(0.25)
+			assert result.skill_match.weight == pytest.approx(0.75)
 		# Must still be partial even with mission
 		assert result.assessment_phase == "partial"

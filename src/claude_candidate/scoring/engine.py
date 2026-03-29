@@ -69,7 +69,6 @@ from claude_candidate.scoring.dimensions import (
 	_candidate_domain_set,
 	_candidate_skill_names,
 	_compute_overall_score,
-	_compute_weights,
 	_detect_domain_gap,
 	_discover_resume_gaps,
 	_find_resume_unverified,
@@ -77,7 +76,7 @@ from claude_candidate.scoring.dimensions import (
 	_match_signal_to_pattern,
 	_mission_from_posting,
 	_must_have_coverage,
-	_redistribute_culture_weight,
+	select_weights,
 	_score_domain_overlap,
 	_score_mission_text_alignment,
 	_score_requirement,
@@ -196,8 +195,9 @@ class QuickMatchEngine:
 			for skill in req.skill_mapping
 		})
 
-		# Mission is optional in partial assessments: only score if we have any mission signal.
+		# Mission and culture are optional; culture is only scored in full assessments.
 		mission_dim: DimensionScore | None = None
+		culture_dim: DimensionScore | None = None
 		if inp.company_profile or inp.tech_stack or proxy_tech_stack:
 			mission_dim = self._score_mission_alignment(
 				company=inp.company,
@@ -205,14 +205,18 @@ class QuickMatchEngine:
 				company_profile=inp.company_profile,
 			)
 
-		# Partial-assessment weights (education removed — now an eligibility gate).
-		# Weights must sum to 1.0 (_compute_overall_score does straight weighted sum).
+		# Determine data availability for adaptive weight selection
+		has_mission = mission_dim is not None and not getattr(mission_dim, "insufficient_data", False)
+		has_culture = culture_dim is not None and not getattr(culture_dim, "insufficient_data", False)
+
+		# Select weights: (skill, mission, culture)
+		skill_w, mission_w, culture_w = select_weights(has_mission, has_culture)
+
+		skill_dim.weight = skill_w
 		if mission_dim is not None:
-			skill_dim.weight = 0.90
-			mission_dim.weight = 0.10
-		else:
-			# No mission signal — skill absorbs all weight.
-			skill_dim.weight = 1.00
+			mission_dim.weight = mission_w
+		if culture_dim is not None:
+			culture_dim.weight = culture_w
 
 		overall_score = _compute_overall_score(
 			skill_dim,
@@ -254,8 +258,8 @@ class QuickMatchEngine:
 		return self._build_assessment(
 			inp,
 			skill_dim,
-			mission_dim,  # Was None — now proxy-based
-			None,  # culture_dim still None for partial
+			mission_dim,
+			culture_dim,
 			skill_details,
 			overall_score,
 			elapsed,
