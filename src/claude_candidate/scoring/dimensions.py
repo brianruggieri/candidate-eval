@@ -58,6 +58,16 @@ from claude_candidate.scoring.constants import (
 	# Culture constants
 	CULTURE_PATTERN_STRENGTH_SCORE,
 	CULTURE_EMERGING_MATCH,
+	# Culture preference constants
+	CULTURE_REMOTE_WEIGHT,
+	CULTURE_SIZE_WEIGHT,
+	CULTURE_VALUES_WEIGHT,
+	REMOTE_MATCH_MATRIX,
+	CULTURE_UNKNOWN_SCORE,
+	CULTURE_SIZE_MATCH,
+	CULTURE_SIZE_NO_MATCH,
+	CULTURE_SCORE_MIN,
+	CULTURE_SCORE_MAX,
 	# Adaptive weight tuples
 	WEIGHTS_TECH_ONLY,
 	WEIGHTS_WITH_MISSION,
@@ -416,6 +426,95 @@ def _match_signal_to_pattern(
 				return score, f"Established {pt_words} pattern aligns with '{signal}'"
 			return score, None
 	return 0.0, None
+
+
+def _score_culture_preferences(
+	preferences: "WorkPreferences | None",
+	company_profile: "CompanyProfile | None",
+) -> tuple[DimensionScore, int] | None:
+	"""Score culture fit based on candidate work preferences vs company profile.
+
+	Returns None when either side lacks data for meaningful scoring.
+	When scored, returns (DimensionScore, avoid_hit_count).
+
+	Three sub-scores weighted together:
+	- Remote policy match (30%)
+	- Company size match (20%)
+	- Values overlap (50%)
+	"""
+	if preferences is None or not preferences.has_preferences:
+		return None
+	if company_profile is None:
+		return None
+
+	details: list[str] = []
+
+	# --- Remote sub-score ---
+	if company_profile.remote_policy != "unknown":
+		remote_score = REMOTE_MATCH_MATRIX.get(
+			(preferences.remote_preference, company_profile.remote_policy),
+			CULTURE_UNKNOWN_SCORE,
+		)
+		policy_label = company_profile.remote_policy.replace("_", " ")
+		pref_label = preferences.remote_preference.replace("_", " ")
+		details.append(f"Remote: {pref_label} preference vs {policy_label} policy")
+	else:
+		remote_score = CULTURE_UNKNOWN_SCORE
+
+	# --- Size sub-score ---
+	if preferences.company_size and company_profile.company_size:
+		company_size_lower = company_profile.company_size.lower()
+		if any(s.lower() in company_size_lower or company_size_lower in s.lower() for s in preferences.company_size):
+			size_score = CULTURE_SIZE_MATCH
+		else:
+			size_score = CULTURE_SIZE_NO_MATCH
+			details.append(f"Size mismatch: prefer {', '.join(preferences.company_size)}, company is {company_profile.company_size}")
+	elif not preferences.company_size:
+		size_score = CULTURE_UNKNOWN_SCORE  # no preference = neutral
+	else:
+		size_score = CULTURE_UNKNOWN_SCORE  # unknown company size
+
+	# --- Values sub-score ---
+	company_keywords = {kw.lower() for kw in company_profile.culture_keywords}
+	if preferences.culture_values and company_keywords:
+		candidate_values = {v.lower() for v in preferences.culture_values}
+		overlap = candidate_values & company_keywords
+		values_score = len(overlap) / len(candidate_values) if candidate_values else 0.0
+		if overlap:
+			details.append(f"Values overlap: {', '.join(sorted(overlap))}")
+	elif not preferences.culture_values:
+		values_score = CULTURE_UNKNOWN_SCORE
+	else:
+		values_score = CULTURE_UNKNOWN_SCORE  # no company keywords
+
+	# --- Avoid detection ---
+	avoid_count = 0
+	if preferences.culture_avoid and company_keywords:
+		candidate_avoid = {a.lower() for a in preferences.culture_avoid}
+		avoid_hits = candidate_avoid & company_keywords
+		avoid_count = len(avoid_hits)
+		if avoid_hits:
+			details.append(f"Avoid flags: {', '.join(sorted(avoid_hits))}")
+
+	# --- Weighted combination ---
+	score = (
+		remote_score * CULTURE_REMOTE_WEIGHT
+		+ size_score * CULTURE_SIZE_WEIGHT
+		+ values_score * CULTURE_VALUES_WEIGHT
+	)
+	score = min(max(score, CULTURE_SCORE_MIN), CULTURE_SCORE_MAX)
+
+	if not details:
+		details = ["Culture preference assessment based on available data"]
+
+	dim = DimensionScore(
+		dimension="culture_fit",
+		score=round(score, SCORE_PRECISION),
+		grade=score_to_grade(score),
+		summary=f"Culture fit based on work preferences",
+		details=details[:7],
+	)
+	return dim, avoid_count
 
 
 # ---------------------------------------------------------------------------

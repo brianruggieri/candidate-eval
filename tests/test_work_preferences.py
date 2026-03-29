@@ -153,3 +153,238 @@ class TestCultureConstants:
 
 		# Just verify they're importable (values tested above)
 		assert CULTURE_REMOTE_WEIGHT is not None
+
+
+class TestScoreCulturePreferences:
+	"""Tests for the _score_culture_preferences scoring function."""
+
+	@pytest.fixture
+	def _company(self):
+		from datetime import datetime
+		from claude_candidate.schemas.company_profile import CompanyProfile
+
+		return CompanyProfile(
+			company_name="TestCo",
+			product_description="A test company",
+			product_domain=["developer-tools"],
+			remote_policy="remote_first",
+			company_size="startup",
+			culture_keywords=["autonomy", "transparency", "innovation"],
+			enriched_at=datetime.now(),
+		)
+
+	@pytest.fixture
+	def _prefs(self):
+		return WorkPreferences(
+			remote_preference="remote_first",
+			company_size=["startup"],
+			culture_values=["autonomy", "transparency"],
+			culture_avoid=[],
+		)
+
+	def test_none_preferences_returns_none(self, _company):
+		from claude_candidate.scoring.dimensions import _score_culture_preferences
+
+		assert _score_culture_preferences(None, _company) is None
+
+	def test_default_preferences_returns_none(self, _company):
+		from claude_candidate.scoring.dimensions import _score_culture_preferences
+
+		prefs = WorkPreferences()  # all defaults, has_preferences=False
+		assert _score_culture_preferences(prefs, _company) is None
+
+	def test_none_company_returns_none(self, _prefs):
+		from claude_candidate.scoring.dimensions import _score_culture_preferences
+
+		assert _score_culture_preferences(_prefs, None) is None
+
+	def test_perfect_match_scores_high(self, _prefs, _company):
+		from claude_candidate.scoring.dimensions import _score_culture_preferences
+
+		result = _score_culture_preferences(_prefs, _company)
+		assert result is not None
+		dim, avoid_count = result
+		assert dim.dimension == "culture_fit"
+		assert dim.score >= 0.8  # perfect remote + size + partial values
+		assert avoid_count == 0
+
+	def test_remote_mismatch_lowers_score(self, _prefs, _company):
+		from claude_candidate.scoring.dimensions import _score_culture_preferences
+
+		# Baseline: perfect remote match
+		perfect_result = _score_culture_preferences(_prefs, _company)
+		assert perfect_result is not None
+		perfect_score = perfect_result[0].score
+
+		# Mismatched remote preference
+		prefs = WorkPreferences(
+			remote_preference="in_office",
+			company_size=["startup"],
+			culture_values=["autonomy", "transparency"],
+		)
+		result = _score_culture_preferences(prefs, _company)
+		assert result is not None
+		dim, _ = result
+		# in_office vs remote_first = 0.5 penalty on remote sub-score
+		assert dim.score < perfect_score
+
+	def test_size_mismatch_lowers_score(self, _company):
+		from claude_candidate.scoring.dimensions import _score_culture_preferences
+
+		prefs = WorkPreferences(
+			remote_preference="remote_first",
+			company_size=["enterprise"],
+			culture_values=["autonomy", "transparency"],
+		)
+		result = _score_culture_preferences(prefs, _company)
+		assert result is not None
+		dim, _ = result
+		# enterprise vs startup = SIZE_NO_MATCH
+		assert dim.score < 0.9
+
+	def test_no_values_overlap(self, _company):
+		from claude_candidate.scoring.dimensions import _score_culture_preferences
+
+		prefs = WorkPreferences(
+			remote_preference="remote_first",
+			company_size=["startup"],
+			culture_values=["bureaucracy", "hierarchy"],
+		)
+		result = _score_culture_preferences(prefs, _company)
+		assert result is not None
+		dim, _ = result
+		# values sub-score = 0 (no overlap), but remote and size match
+		assert dim.score < 0.6
+
+	def test_avoid_single_hit(self, _company):
+		from claude_candidate.scoring.dimensions import _score_culture_preferences
+
+		prefs = WorkPreferences(
+			remote_preference="remote_first",
+			company_size=["startup"],
+			culture_values=["autonomy"],
+			culture_avoid=["innovation"],  # this IS in company keywords
+		)
+		result = _score_culture_preferences(prefs, _company)
+		assert result is not None
+		_, avoid_count = result
+		assert avoid_count == 1
+
+	def test_avoid_multiple_hits(self, _company):
+		from claude_candidate.scoring.dimensions import _score_culture_preferences
+
+		prefs = WorkPreferences(
+			remote_preference="remote_first",
+			company_size=["startup"],
+			culture_values=[],
+			culture_avoid=["autonomy", "transparency"],
+		)
+		result = _score_culture_preferences(prefs, _company)
+		assert result is not None
+		_, avoid_count = result
+		assert avoid_count == 2
+
+	def test_unknown_remote_policy(self, _prefs):
+		from datetime import datetime
+		from claude_candidate.schemas.company_profile import CompanyProfile
+		from claude_candidate.scoring.dimensions import _score_culture_preferences
+		from claude_candidate.scoring.constants import CULTURE_UNKNOWN_SCORE
+
+		company = CompanyProfile(
+			company_name="Mystery Corp",
+			product_description="Unknown",
+			product_domain=[],
+			remote_policy="unknown",
+			enriched_at=datetime.now(),
+		)
+		result = _score_culture_preferences(_prefs, company)
+		assert result is not None
+		# Remote sub-score should be CULTURE_UNKNOWN_SCORE
+
+	def test_unknown_company_size(self, _prefs):
+		from datetime import datetime
+		from claude_candidate.schemas.company_profile import CompanyProfile
+		from claude_candidate.scoring.dimensions import _score_culture_preferences
+
+		company = CompanyProfile(
+			company_name="NullSize Inc",
+			product_description="No size info",
+			product_domain=[],
+			company_size=None,
+			enriched_at=datetime.now(),
+		)
+		result = _score_culture_preferences(_prefs, company)
+		assert result is not None
+
+	def test_flexible_preference_scores_one_for_any_policy(self):
+		from datetime import datetime
+		from claude_candidate.schemas.company_profile import CompanyProfile
+		from claude_candidate.scoring.dimensions import _score_culture_preferences
+
+		prefs = WorkPreferences(
+			remote_preference="flexible",
+			company_size=["startup"],
+		)
+		for policy in ("remote_first", "hybrid", "in_office"):
+			company = CompanyProfile(
+				company_name="Flex Corp",
+				product_description="Flexible",
+				product_domain=[],
+				remote_policy=policy,
+				company_size="startup",
+				enriched_at=datetime.now(),
+			)
+			result = _score_culture_preferences(prefs, company)
+			assert result is not None
+			dim, _ = result
+			# Remote sub-score should be 1.0 for flexible
+			# Combined with size match, score should be high
+			assert dim.score >= 0.7
+
+	def test_values_case_insensitive(self, _company):
+		from claude_candidate.scoring.dimensions import _score_culture_preferences
+
+		prefs = WorkPreferences(
+			remote_preference="remote_first",
+			company_size=["startup"],
+			culture_values=["AUTONOMY", "Transparency"],
+		)
+		result = _score_culture_preferences(prefs, _company)
+		assert result is not None
+		dim, _ = result
+		# Should match despite case differences
+		assert dim.score >= 0.8
+
+	def test_avoid_case_insensitive(self, _company):
+		from claude_candidate.scoring.dimensions import _score_culture_preferences
+
+		prefs = WorkPreferences(
+			remote_preference="remote_first",
+			company_size=["startup"],
+			culture_avoid=["INNOVATION"],
+		)
+		result = _score_culture_preferences(prefs, _company)
+		assert result is not None
+		_, avoid_count = result
+		assert avoid_count == 1
+
+	def test_score_bounded_zero_to_one(self, _company):
+		from claude_candidate.scoring.dimensions import _score_culture_preferences
+
+		prefs = WorkPreferences(
+			remote_preference="in_office",
+			company_size=["enterprise"],
+			culture_values=["bureaucracy", "hierarchy"],
+		)
+		result = _score_culture_preferences(prefs, _company)
+		assert result is not None
+		dim, _ = result
+		assert 0.0 <= dim.score <= 1.0
+
+	def test_dimension_label(self, _prefs, _company):
+		from claude_candidate.scoring.dimensions import _score_culture_preferences
+
+		result = _score_culture_preferences(_prefs, _company)
+		assert result is not None
+		dim, _ = result
+		assert dim.dimension == "culture_fit"
