@@ -40,6 +40,8 @@ from claude_candidate.schemas.merged_profile import (
 from claude_candidate.eligibility_evaluator import evaluate_gates, detect_education_gap
 from claude_candidate.scoring.constants import (
 	CONFIDENCE_FLOOR,
+	CULTURE_AVOID_CAP_ONE,
+	CULTURE_AVOID_CAP_TWO_PLUS,
 	CULTURE_NEUTRAL_SCORE,
 	MAX_ACTION_ITEMS,
 	MAX_GAP_NAMES,
@@ -71,6 +73,7 @@ from claude_candidate.scoring.dimensions import (
 	_infer_eligibility,
 	_must_have_coverage,
 	select_weights,
+	_score_culture_preferences,
 	_score_domain_overlap,
 	_score_mission_text_alignment,
 	_score_requirement,
@@ -99,6 +102,7 @@ class AssessmentInput:
 	tech_stack: list[str] | None = None
 	company_profile: CompanyProfile | None = None
 	curated_eligibility: CandidateEligibility = field(default_factory=CandidateEligibility)
+	work_preferences: object | None = None  # WorkPreferences when available
 
 
 @dataclass
@@ -142,6 +146,7 @@ class QuickMatchEngine:
 		company_profile: CompanyProfile | None = None,
 		curated_eligibility: CandidateEligibility | None = None,
 		elapsed: float | None = None,
+		work_preferences: object | None = None,
 	) -> FitAssessment:
 		"""Run the three-dimensional fit assessment."""
 		inp = AssessmentInput(
@@ -155,6 +160,7 @@ class QuickMatchEngine:
 			tech_stack=tech_stack,
 			company_profile=company_profile,
 			curated_eligibility=curated_eligibility or CandidateEligibility(),
+			work_preferences=work_preferences,
 		)
 		return self._run_assessment(inp, elapsed=elapsed)
 
@@ -181,16 +187,22 @@ class QuickMatchEngine:
 			inp.seniority,
 		)
 
-		# Partial assessment = technical only. No mission, no culture.
+		# 1. Score dimensions: skill is always scored; mission and culture depend on data.
 		# Mission activates only via full assessment when CompanyProfile has real signals.
 		mission_dim: DimensionScore | None = None
 		culture_dim: DimensionScore | None = None
+		avoid_count = 0
 
-		# Determine data availability for adaptive weight selection
+		# 2. Score culture via work preferences (replaces old pattern-based scorer)
+		culture_result = _score_culture_preferences(inp.work_preferences, inp.company_profile)
+		if culture_result is not None:
+			culture_dim, avoid_count = culture_result
+
+		# 3. Determine data availability for adaptive weight selection
 		has_mission = mission_dim is not None and not getattr(mission_dim, "insufficient_data", False)
 		has_culture = culture_dim is not None and not getattr(culture_dim, "insufficient_data", False)
 
-		# Select weights: (skill, mission, culture)
+		# 4. Select weights: (skill, mission, culture)
 		skill_w, mission_w, culture_w = select_weights(has_mission, has_culture)
 
 		skill_dim.weight = skill_w
@@ -202,6 +214,7 @@ class QuickMatchEngine:
 		overall_score = _compute_overall_score(
 			skill_dim,
 			mission_dim=mission_dim,
+			culture_dim=culture_dim,
 		)
 		pre_cap_grade: str | None = None
 		unmet_gates = [g for g in eligibility_gates if g.status == "unmet"]
@@ -231,6 +244,20 @@ class QuickMatchEngine:
 					pre_cap_grade = candidate_grade
 				overall_score = min(overall_score, edu_gap.cap_score)
 				education_gap_cap = edu_gap.cap_grade
+
+		# Culture avoid cap: grade ceiling when avoid-values appear in company profile
+		if avoid_count >= 2 and not unmet_gates:
+			candidate_grade = score_to_grade(overall_score)
+			if _GRADE_ORDER.index(candidate_grade) < _GRADE_ORDER.index("B-"):
+				if pre_cap_grade is None:
+					pre_cap_grade = candidate_grade
+				overall_score = min(overall_score, CULTURE_AVOID_CAP_TWO_PLUS)
+		elif avoid_count == 1 and not unmet_gates:
+			candidate_grade = score_to_grade(overall_score)
+			if _GRADE_ORDER.index(candidate_grade) < _GRADE_ORDER.index("B+"):
+				if pre_cap_grade is None:
+					pre_cap_grade = candidate_grade
+				overall_score = min(overall_score, CULTURE_AVOID_CAP_ONE)
 
 		partial_percentage = round(overall_score * 100, 1)
 

@@ -81,6 +81,186 @@ class TestWorkPreferencesSchema:
 		assert prefs.company_size == ["enterprise"]
 
 
+class TestCultureEngineIntegration:
+	"""Tests for culture preferences wired into the QuickMatchEngine."""
+
+	def test_assess_without_preferences_has_no_culture_dim(
+		self, candidate_profile, resume_profile, quick_requirements
+	):
+		from claude_candidate.merger import merge_profiles
+		from claude_candidate.scoring import QuickMatchEngine
+
+		merged = merge_profiles(candidate_profile, resume_profile)
+		engine = QuickMatchEngine(merged)
+		result = engine.assess(
+			requirements=quick_requirements,
+			company="Test",
+			title="Engineer",
+		)
+		assert result.culture_fit is None
+
+	def test_assess_with_preferences_produces_culture_dim(
+		self, candidate_profile, resume_profile, quick_requirements
+	):
+		from datetime import datetime
+		from claude_candidate.merger import merge_profiles
+		from claude_candidate.scoring import QuickMatchEngine
+		from claude_candidate.schemas.company_profile import CompanyProfile
+
+		merged = merge_profiles(candidate_profile, resume_profile)
+		engine = QuickMatchEngine(merged)
+		prefs = WorkPreferences(
+			remote_preference="remote_first",
+			company_size=["startup"],
+			culture_values=["innovation"],
+		)
+		company = CompanyProfile(
+			company_name="CultureCo",
+			product_description="Culture test",
+			product_domain=[],
+			remote_policy="remote_first",
+			company_size="startup",
+			culture_keywords=["innovation", "autonomy"],
+			enriched_at=datetime.now(),
+		)
+		result = engine.assess(
+			requirements=quick_requirements,
+			company="CultureCo",
+			title="Engineer",
+			company_profile=company,
+			work_preferences=prefs,
+		)
+		assert result.culture_fit is not None
+		assert result.culture_fit.dimension == "culture_fit"
+		# With culture_dim present, phase is "full" per existing logic
+		assert result.assessment_phase == "full"
+
+	def test_culture_dim_affects_overall_score(
+		self, candidate_profile, resume_profile, quick_requirements
+	):
+		from datetime import datetime
+		from claude_candidate.merger import merge_profiles
+		from claude_candidate.scoring import QuickMatchEngine
+		from claude_candidate.schemas.company_profile import CompanyProfile
+
+		merged = merge_profiles(candidate_profile, resume_profile)
+		engine = QuickMatchEngine(merged)
+
+		# Baseline: no preferences
+		baseline = engine.assess(
+			requirements=quick_requirements,
+			company="Test",
+			title="Engineer",
+		)
+
+		# With preferences + company profile → culture dimension scored
+		prefs = WorkPreferences(
+			remote_preference="remote_first",
+			company_size=["startup"],
+			culture_values=["innovation"],
+		)
+		company = CompanyProfile(
+			company_name="CultureCo",
+			product_description="Culture test",
+			product_domain=[],
+			remote_policy="remote_first",
+			company_size="startup",
+			culture_keywords=["innovation"],
+			enriched_at=datetime.now(),
+		)
+		with_culture = engine.assess(
+			requirements=quick_requirements,
+			company="CultureCo",
+			title="Engineer",
+			company_profile=company,
+			work_preferences=prefs,
+		)
+		# Scores differ because culture dimension is now factored in
+		assert with_culture.overall_score != baseline.overall_score
+
+	def test_avoid_cap_one_caps_at_b_plus(
+		self, candidate_profile, resume_profile, quick_requirements
+	):
+		from datetime import datetime
+		from claude_candidate.merger import merge_profiles
+		from claude_candidate.scoring import QuickMatchEngine
+		from claude_candidate.schemas.company_profile import CompanyProfile
+
+		merged = merge_profiles(candidate_profile, resume_profile)
+		engine = QuickMatchEngine(merged)
+		prefs = WorkPreferences(
+			remote_preference="remote_first",
+			company_size=["startup"],
+			culture_values=["innovation"],
+			culture_avoid=["micromanagement"],  # 1 hit
+		)
+		company = CompanyProfile(
+			company_name="BadCo",
+			product_description="Bad culture",
+			product_domain=[],
+			remote_policy="remote_first",
+			company_size="startup",
+			culture_keywords=["innovation", "micromanagement"],
+			enriched_at=datetime.now(),
+		)
+		result = engine.assess(
+			requirements=quick_requirements,
+			company="BadCo",
+			title="Engineer",
+			company_profile=company,
+			work_preferences=prefs,
+		)
+		# Overall score should be capped at 0.799 (B+ cap)
+		assert result.overall_score <= 0.799
+
+	def test_avoid_cap_two_plus_caps_at_b_minus(
+		self, candidate_profile, resume_profile, quick_requirements
+	):
+		from datetime import datetime
+		from claude_candidate.merger import merge_profiles
+		from claude_candidate.scoring import QuickMatchEngine
+		from claude_candidate.schemas.company_profile import CompanyProfile
+
+		merged = merge_profiles(candidate_profile, resume_profile)
+		engine = QuickMatchEngine(merged)
+		prefs = WorkPreferences(
+			remote_preference="remote_first",
+			company_size=["startup"],
+			culture_values=["innovation"],
+			culture_avoid=["micromanagement", "crunch"],  # 2 hits
+		)
+		company = CompanyProfile(
+			company_name="AwfulCo",
+			product_description="Terrible culture",
+			product_domain=[],
+			remote_policy="remote_first",
+			company_size="startup",
+			culture_keywords=["innovation", "micromanagement", "crunch"],
+			enriched_at=datetime.now(),
+		)
+		result = engine.assess(
+			requirements=quick_requirements,
+			company="AwfulCo",
+			title="Engineer",
+			company_profile=company,
+			work_preferences=prefs,
+		)
+		# Overall score should be capped at 0.699 (B- cap)
+		assert result.overall_score <= 0.699
+
+	def test_work_preferences_field_on_assessment_input(self):
+		from claude_candidate.scoring.engine import AssessmentInput
+
+		inp = AssessmentInput(
+			requirements=[],
+			company="Test",
+			title="Engineer",
+			work_preferences=WorkPreferences(remote_preference="hybrid"),
+		)
+		assert inp.work_preferences is not None
+		assert inp.work_preferences.remote_preference == "hybrid"
+
+
 class TestOldCultureCodeRemoved:
 	"""Verify old pattern-based culture scoring code has been deleted."""
 
