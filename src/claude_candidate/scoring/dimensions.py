@@ -51,7 +51,6 @@ from claude_candidate.scoring.constants import (
 	# Years gradient
 	YEARS_GRADIENT_FLOOR,
 	# Mission constants
-	MISSION_NEUTRAL_SCORE,
 	MISSION_DOMAIN_BONUS,
 	MISSION_TECH_OVERLAP_WEIGHT,
 	MISSION_TEXT_OVERLAP_WEIGHT,
