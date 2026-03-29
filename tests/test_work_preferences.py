@@ -81,6 +81,83 @@ class TestWorkPreferencesSchema:
 		assert prefs.company_size == ["enterprise"]
 
 
+class TestPreferencesOnboardCLI:
+	"""Tests for the preferences CLI commands."""
+
+	def test_onboard_accept_defaults(self, tmp_path):
+		from click.testing import CliRunner
+		from claude_candidate.cli import main
+
+		out_path = tmp_path / "prefs.json"
+		runner = CliRunner()
+		result = runner.invoke(main, ["preferences", "onboard", "--accept-defaults", "-o", str(out_path)])
+		assert result.exit_code == 0
+		assert out_path.exists()
+		loaded = WorkPreferences.load(out_path)
+		assert loaded is not None
+		assert loaded.has_preferences is False
+
+	def test_onboard_interactive(self, tmp_path):
+		from click.testing import CliRunner
+		from claude_candidate.cli import main
+
+		out_path = tmp_path / "prefs.json"
+		runner = CliRunner()
+		# Simulate: remote=1 (remote_first), size=1,2, values=autonomy, avoid=crunch
+		result = runner.invoke(
+			main,
+			["preferences", "onboard", "-o", str(out_path)],
+			input="1\n1,2\nautonomy\ncrunch\n",
+		)
+		assert result.exit_code == 0
+		loaded = WorkPreferences.load(out_path)
+		assert loaded is not None
+		assert loaded.remote_preference == "remote_first"
+		assert loaded.company_size == ["startup", "mid"]
+		assert loaded.culture_values == ["autonomy"]
+		assert loaded.culture_avoid == ["crunch"]
+
+	def test_show_missing_file(self, tmp_path):
+		from click.testing import CliRunner
+		from claude_candidate.cli import main
+
+		runner = CliRunner()
+		result = runner.invoke(main, ["preferences", "show", "--path", str(tmp_path / "nope.json")])
+		assert result.exit_code == 0
+		assert "No preferences found" in result.output
+
+	def test_show_existing_file(self, tmp_path):
+		from click.testing import CliRunner
+		from claude_candidate.cli import main
+
+		prefs = WorkPreferences(
+			remote_preference="hybrid",
+			company_size=["startup"],
+			culture_values=["autonomy"],
+			culture_avoid=["crunch"],
+		)
+		path = tmp_path / "prefs.json"
+		prefs.save(path)
+
+		runner = CliRunner()
+		result = runner.invoke(main, ["preferences", "show", "--path", str(path)])
+		assert result.exit_code == 0
+		assert "hybrid" in result.output
+		assert "startup" in result.output
+		assert "autonomy" in result.output
+		assert "crunch" in result.output
+
+	def test_preferences_group_registered(self):
+		from click.testing import CliRunner
+		from claude_candidate.cli import main
+
+		runner = CliRunner()
+		result = runner.invoke(main, ["preferences", "--help"])
+		assert result.exit_code == 0
+		assert "onboard" in result.output
+		assert "show" in result.output
+
+
 class TestCultureEngineIntegration:
 	"""Tests for culture preferences wired into the QuickMatchEngine."""
 
