@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from claude_candidate.merger import merge_profiles, merge_candidate_only
-from claude_candidate.scoring import QuickMatchEngine, _compute_weights
+from claude_candidate.scoring import QuickMatchEngine
 from claude_candidate.schemas.company_profile import CompanyProfile
 from claude_candidate.schemas.job_requirements import QuickRequirement, RequirementPriority
 
@@ -553,56 +553,6 @@ class TestAdaptiveWeights:
 		from claude_candidate.scoring.dimensions import select_weights
 
 		assert select_weights(has_mission=False, has_culture=False) == (1.00, 0.00, 0.00)
-
-
-class TestComputeWeights:
-	"""Unit tests for _compute_weights() across all four confidence tiers."""
-
-	def _make_profile(self, quality: str) -> CompanyProfile:
-		return CompanyProfile(
-			company_name="Test Co",
-			product_description="A product",
-			product_domain=["saas"],
-			enriched_at=datetime.now(),
-			enrichment_quality=quality,  # type: ignore[arg-type]
-		)
-
-	def test_no_company_data_returns_none_tier_weights(self):
-		skill_w, mission_w, culture_w = _compute_weights(None)
-		assert skill_w == 0.85
-		assert mission_w == 0.10
-		assert culture_w == 0.05
-
-	def test_sparse_enrichment_returns_sparse_tier_weights(self):
-		profile = self._make_profile("sparse")
-		skill_w, mission_w, culture_w = _compute_weights(profile)
-		assert skill_w == 0.70
-		assert mission_w == 0.15
-		assert culture_w == 0.15
-
-	def test_moderate_enrichment_returns_moderate_tier_weights(self):
-		profile = self._make_profile("moderate")
-		skill_w, mission_w, culture_w = _compute_weights(profile)
-		assert skill_w == 0.60
-		assert mission_w == 0.20
-		assert culture_w == 0.20
-
-	def test_rich_enrichment_returns_rich_tier_weights(self):
-		profile = self._make_profile("rich")
-		skill_w, mission_w, culture_w = _compute_weights(profile)
-		assert skill_w == 0.50
-		assert mission_w == 0.25
-		assert culture_w == 0.25
-
-	def test_weights_sum_to_one_for_each_tier(self):
-		for quality in ("rich", "moderate", "sparse"):
-			profile = self._make_profile(quality)
-			weights = _compute_weights(profile)
-			assert abs(sum(weights) - 1.0) < 1e-9, (
-				f"Weights for {quality!r} do not sum to 1.0: {weights}"
-			)
-		none_weights = _compute_weights(None)
-		assert abs(sum(none_weights) - 1.0) < 1e-9
 
 
 class TestPartialAssessmentWeights:

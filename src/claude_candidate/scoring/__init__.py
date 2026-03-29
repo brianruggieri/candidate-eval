@@ -110,16 +110,11 @@ from claude_candidate.scoring.constants import (
 	_SCALE_KEYWORDS,
 	_AI_KEYWORDS_RE,
 	_AI_SKILL_NAMES,
-	# Adaptive dimension weights (new)
+	# Adaptive dimension weights
 	WEIGHTS_TECH_ONLY,
 	WEIGHTS_WITH_MISSION,
 	WEIGHTS_WITH_CULTURE,
 	WEIGHTS_FULL,
-	# Adaptive dimension weights (legacy, deprecated)
-	_WEIGHTS_RICH,
-	_WEIGHTS_MODERATE,
-	_WEIGHTS_SPARSE,
-	_WEIGHTS_NONE,
 )
 
 # ---------------------------------------------------------------------------
@@ -154,7 +149,6 @@ from claude_candidate.scoring.dimensions import (
 	_build_skill_dimension,
 	_format_detail_point,
 	_compute_overall_score,
-	_compute_weights,
 	_detect_domain_gap,
 	_discover_resume_gaps,
 	_find_resume_unverified,
@@ -162,7 +156,6 @@ from claude_candidate.scoring.dimensions import (
 	_match_signal_to_pattern,
 	_mission_from_posting,
 	_must_have_coverage,
-	_redistribute_culture_weight,
 	select_weights,
 	_score_domain_overlap,
 	_score_mission_text_alignment,
@@ -269,10 +262,6 @@ __all__ = [
 	"WEIGHTS_WITH_MISSION",
 	"WEIGHTS_WITH_CULTURE",
 	"WEIGHTS_FULL",
-	"_WEIGHTS_RICH",
-	"_WEIGHTS_MODERATE",
-	"_WEIGHTS_SPARSE",
-	"_WEIGHTS_NONE",
 	# Matching
 	"AdoptionVelocityResult",
 	"compute_match_confidence",
@@ -297,7 +286,6 @@ __all__ = [
 	"_build_skill_dimension",
 	"_format_detail_point",
 	"_compute_overall_score",
-	"_compute_weights",
 	"_detect_domain_gap",
 	"_discover_resume_gaps",
 	"_find_resume_unverified",
@@ -305,7 +293,6 @@ __all__ = [
 	"_match_signal_to_pattern",
 	"_mission_from_posting",
 	"_must_have_coverage",
-	"_redistribute_culture_weight",
 	"select_weights",
 	"_score_domain_overlap",
 	"_score_mission_text_alignment",

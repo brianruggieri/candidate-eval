@@ -468,53 +468,6 @@ def select_weights(
 	return WEIGHTS_TECH_ONLY
 
 
-# Legacy wrappers (deprecated — will be removed once all consumers migrate)
-
-
-def _redistribute_culture_weight(
-	skill_w: float,
-	mission_w: float,
-	culture_w: float,
-) -> tuple[float, float]:
-	"""Redistribute culture weight proportionally to skill and mission.
-
-	Returns (new_skill_w, new_mission_w) — culture weight becomes 0 at call site.
-
-	Deprecated: use select_weights() instead.
-	"""
-	total_remaining = skill_w + mission_w
-	if total_remaining == 0.0:
-		half = culture_w / 2.0
-		return skill_w + half, mission_w + half
-	skill_ratio = skill_w / total_remaining
-	mission_ratio = mission_w / total_remaining
-	return skill_w + culture_w * skill_ratio, mission_w + culture_w * mission_ratio
-
-
-def _compute_weights(
-	company_profile: "CompanyProfile | None",
-) -> tuple[float, float, float]:
-	"""Return (skill_weight, mission_weight, culture_weight) based on company data richness.
-
-	Deprecated: use select_weights() instead.
-	"""
-	from claude_candidate.scoring.constants import (
-		_WEIGHTS_NONE,
-		_WEIGHTS_RICH,
-		_WEIGHTS_MODERATE,
-		_WEIGHTS_SPARSE,
-	)
-
-	if company_profile is None:
-		return _WEIGHTS_NONE
-	quality = company_profile.enrichment_quality
-	if quality == "rich":
-		return _WEIGHTS_RICH
-	if quality == "moderate":
-		return _WEIGHTS_MODERATE
-	return _WEIGHTS_SPARSE
-
-
 # ---------------------------------------------------------------------------
 # Assessment result builders
 # ---------------------------------------------------------------------------

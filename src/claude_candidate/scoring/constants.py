@@ -764,8 +764,3 @@ WEIGHTS_WITH_MISSION = (0.75, 0.25, 0.00)  # Mission signals only
 WEIGHTS_WITH_CULTURE = (0.85, 0.00, 0.15)  # Culture signals only
 WEIGHTS_FULL = (0.60, 0.25, 0.15)  # Both mission + culture signals
 
-# Legacy aliases (deprecated — will be removed once all consumers migrate)
-_WEIGHTS_RICH = (0.50, 0.25, 0.25)
-_WEIGHTS_MODERATE = (0.60, 0.20, 0.20)
-_WEIGHTS_SPARSE = (0.70, 0.15, 0.15)
-_WEIGHTS_NONE = (0.85, 0.10, 0.05)
