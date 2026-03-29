@@ -740,7 +740,6 @@ def _print_rich_card(assessment) -> None:
 
 	for dim in [
 		assessment.skill_match,
-		assessment.education_match,
 		assessment.mission_alignment,
 		assessment.culture_fit,
 	]:
@@ -807,10 +806,6 @@ def _print_plain_card(assessment) -> None:
 	print(f"  {bar(assessment.overall_score)}")
 	print()
 	print(f"  Skills:  {bar(assessment.skill_match.score)} {assessment.skill_match.grade}")
-	if assessment.education_match:
-		print(
-			f"  Educ.:   {bar(assessment.education_match.score)} {assessment.education_match.grade}"
-		)
 	if assessment.mission_alignment:
 		print(
 			f"  Mission: {bar(assessment.mission_alignment.score)} {assessment.mission_alignment.grade}"

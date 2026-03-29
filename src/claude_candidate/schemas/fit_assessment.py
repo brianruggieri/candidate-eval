@@ -20,7 +20,6 @@ class DimensionScore(BaseModel):
 
 	dimension: Literal[
 		"skill_match",
-		"education_match",
 		"mission_alignment",
 		"culture_fit",
 	]
@@ -155,6 +154,9 @@ class FitAssessment(BaseModel):
 
 	# Domain penalty (B+ cap when industry domain in 3+ reqs but absent from profile)
 	domain_gap_term: str | None = None
+
+	# Education gap cap (grade cap when candidate's degree is below requirement)
+	education_gap_cap: str | None = None
 
 	# Metadata
 	profile_hash: str

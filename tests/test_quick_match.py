@@ -40,7 +40,7 @@ class TestQuickMatchAssessment:
 
 		# Dimensions present (partial assessment)
 		assert assessment.skill_match.dimension == "skill_match"
-		assert assessment.education_match is not None
+		assert assessment.education_match is None  # education is now an eligibility gate
 		assert assessment.assessment_phase == "partial"
 		assert assessment.partial_percentage is not None
 		assert 0.0 <= assessment.partial_percentage <= 100.0
@@ -397,32 +397,11 @@ class TestCultureFit:
 		assert not dim.insufficient_data
 
 
-class TestEducationMatchScoring:
-	"""Tests for _score_education_match dimension."""
+class TestEducationEligibilityGate:
+	"""Tests for education as an eligibility gate (not a scored dimension)."""
 
-	def test_education_match_degree_met(self, candidate_profile, resume_profile):
-		"""Candidate with matching degree scores well."""
-		merged = merge_profiles(candidate_profile, resume_profile)
-		engine = QuickMatchEngine(merged)
-
-		requirements = [
-			QuickRequirement(
-				description="CS degree required",
-				skill_mapping=["python"],
-				priority=RequirementPriority.MUST_HAVE,
-				education_level="bachelor",
-			)
-		]
-
-		dim = engine._score_education_match(requirements, [])
-		# Candidate has "B.S. Computer Science" → meets bachelor requirement
-		assert dim.dimension == "education_match"
-		assert dim.score >= 0.7
-		assert not dim.insufficient_data
-		assert any("met" in d.lower() for d in dim.details)
-
-	def test_education_match_tech_stack_overlap(self, candidate_profile, resume_profile):
-		"""Tech stack overlap produces a positive score."""
+	def test_assessment_has_no_education_dimension(self, candidate_profile, resume_profile):
+		"""education_match should be None after converting to eligibility gate."""
 		merged = merge_profiles(candidate_profile, resume_profile)
 		engine = QuickMatchEngine(merged)
 
@@ -434,14 +413,29 @@ class TestEducationMatchScoring:
 			)
 		]
 
-		dim = engine._score_education_match(requirements, ["python", "typescript", "react"])
-		assert dim.dimension == "education_match"
-		assert dim.score > 0.5
-		assert not dim.insufficient_data
-		assert any("tech stack" in d.lower() for d in dim.details)
+		assessment = engine.assess(
+			requirements=requirements,
+			company="Test",
+			title="Test",
+		)
+		assert assessment.education_match is None
 
-	def test_education_match_no_requirements(self, candidate_profile, resume_profile):
-		"""No education or tech stack requirements → neutral with insufficient_data."""
+	def test_no_education_requirement_no_cap(
+		self, candidate_profile, resume_profile, quick_requirements
+	):
+		"""No education req = no cap, education_gap_cap is None."""
+		merged = merge_profiles(candidate_profile, resume_profile)
+		engine = QuickMatchEngine(merged)
+
+		assessment = engine.assess(
+			requirements=quick_requirements,
+			company="Test Co",
+			title="Engineer",
+		)
+		assert assessment.education_gap_cap is None
+
+	def test_education_met_no_cap(self, candidate_profile, resume_profile):
+		"""Candidate meets degree = no cap (fixture has 'B.S. Computer Science')."""
 		merged = merge_profiles(candidate_profile, resume_profile)
 		engine = QuickMatchEngine(merged)
 
@@ -450,34 +444,38 @@ class TestEducationMatchScoring:
 				description="Python proficiency",
 				skill_mapping=["python"],
 				priority=RequirementPriority.MUST_HAVE,
+				education_level="bachelor",
 			)
 		]
 
-		dim = engine._score_education_match(requirements, [])
-		assert dim.dimension == "education_match"
-		assert dim.score == 0.9
-		assert dim.insufficient_data is True
+		assessment = engine.assess(
+			requirements=requirements,
+			company="Test",
+			title="Test",
+		)
+		assert assessment.education_gap_cap is None
 
-	def test_education_match_combined_signals(self, candidate_profile, resume_profile):
-		"""Both education and tech stack produce an averaged score."""
+	def test_ms_gap_caps_at_b_plus(self, candidate_profile, resume_profile):
+		"""Requires MS, candidate has BS = capped at B+, overall_score <= 0.849."""
 		merged = merge_profiles(candidate_profile, resume_profile)
 		engine = QuickMatchEngine(merged)
 
 		requirements = [
 			QuickRequirement(
-				description="CS degree required",
+				description="Python proficiency",
 				skill_mapping=["python"],
 				priority=RequirementPriority.MUST_HAVE,
-				education_level="bachelor",
+				education_level="master",
 			)
 		]
 
-		dim = engine._score_education_match(requirements, ["python", "typescript"])
-		assert dim.dimension == "education_match"
-		assert dim.score > 0.5
-		assert not dim.insufficient_data
-		# Should have details for both signals
-		assert len(dim.details) >= 2
+		assessment = engine.assess(
+			requirements=requirements,
+			company="Test",
+			title="Test",
+		)
+		assert assessment.education_gap_cap == "B+"
+		assert assessment.overall_score <= 0.849
 
 
 class TestCandidateOnlyAssessment:
@@ -560,7 +558,7 @@ class TestPartialAssessmentWeights:
 		]
 
 	def test_partial_assessment_uses_fixed_weights(self, candidate_profile, resume_profile):
-		"""Partial assessment uses 80/10/10 weights when mission is present."""
+		"""Partial assessment uses 90/10 weights when mission is present, 100% skill without."""
 		merged = merge_profiles(candidate_profile, resume_profile)
 		engine = QuickMatchEngine(merged)
 
@@ -571,28 +569,15 @@ class TestPartialAssessmentWeights:
 		)
 
 		if assessment.mission_alignment:
-			# Mission proxy succeeded: 80/10/10
-			assert assessment.skill_match.weight == 0.80
-			assert assessment.education_match.weight == 0.10
+			# Mission proxy succeeded: 90/10
+			assert assessment.skill_match.weight == 0.90
 			assert assessment.mission_alignment.weight == 0.10
 		else:
-			# No mission data: fallback to 90/10
-			assert assessment.skill_match.weight == 0.90
-			assert assessment.education_match.weight == 0.10
+			# No mission data: skill absorbs all weight
+			assert assessment.skill_match.weight == 1.00
 
-	def test_insufficient_data_scores_high(self, candidate_profile, resume_profile):
-		"""No requirement stated = effectively met (score ~0.9)."""
-		merged = merge_profiles(candidate_profile, resume_profile)
-		engine = QuickMatchEngine(merged)
-
-		assessment = engine.assess(
-			requirements=self._minimal_requirements(),
-			company="Test Co",
-			title="Engineer",
-		)
-
-		assert assessment.education_match.insufficient_data is True
-		assert assessment.education_match.score >= 0.85
+		# Education is no longer a scored dimension
+		assert assessment.education_match is None
 
 	def test_partial_assessment_weights_sum_to_one(self, candidate_profile, resume_profile):
 		"""Partial assessment weights always sum to 1.0."""
@@ -607,7 +592,6 @@ class TestPartialAssessmentWeights:
 
 		total = (
 			assessment.skill_match.weight
-			+ (assessment.education_match.weight if assessment.education_match else 0.0)
 			+ (assessment.mission_alignment.weight if assessment.mission_alignment else 0.0)
 		)
 		assert abs(total - 1.0) < 1e-9
@@ -642,8 +626,8 @@ class TestPartialAssessmentWeights:
 		expected = round(assessment.overall_score * 100, 1)
 		assert assessment.partial_percentage == expected
 
-	def test_partial_assessment_education_populated(self, candidate_profile, resume_profile):
-		"""Partial assessment populates education_match dimension."""
+	def test_partial_assessment_education_not_scored(self, candidate_profile, resume_profile):
+		"""Partial assessment does not populate education_match dimension (now a gate)."""
 		merged = merge_profiles(candidate_profile, resume_profile)
 		engine = QuickMatchEngine(merged)
 
@@ -653,9 +637,7 @@ class TestPartialAssessmentWeights:
 			title="Engineer",
 		)
 
-		assert assessment.education_match is not None
-		assert assessment.education_match.dimension == "education_match"
-		assert 0.0 <= assessment.education_match.score <= 1.0
+		assert assessment.education_match is None
 
 	def test_partial_percentage_in_valid_range(self, candidate_profile, resume_profile):
 		"""partial_percentage is between 0 and 100."""
@@ -2507,8 +2489,6 @@ class TestExperienceDimensionRemoved:
 			title="Engineer",
 		)
 		total = assessment.skill_match.weight
-		if assessment.education_match:
-			total += assessment.education_match.weight
 		if assessment.mission_alignment:
 			total += assessment.mission_alignment.weight
 		if assessment.culture_fit:

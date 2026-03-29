@@ -191,15 +191,12 @@ function renderResults(data) {
 		el(detailId).textContent = dim.summary || '';
 	}
 
-	// Local dimensions (skills always shown; education hidden when insufficient)
+	// Local dimensions (skills always shown; education is now an eligibility gate)
 	setDim('skill_match', 'bar-skills', 'pct-skills', 'detail-skills');
 
-	const eduDim = data.education_match;
+	// Hide legacy education row if present
 	const eduRow = el('dim-education');
-	if (eduDim && !eduDim.insufficient_data) {
-		setDim('education_match', 'bar-education', 'pct-education', 'detail-education');
-		if (eduRow) eduRow.classList.remove('hidden');
-	} else if (eduRow) {
+	if (eduRow) {
 		eduRow.classList.add('hidden');
 	}
 
