@@ -61,11 +61,11 @@ from claude_candidate.scoring.constants import (
 	# Culture constants
 	CULTURE_PATTERN_STRENGTH_SCORE,
 	CULTURE_EMERGING_MATCH,
-	# Weight tuples
-	_WEIGHTS_RICH,
-	_WEIGHTS_MODERATE,
-	_WEIGHTS_SPARSE,
-	_WEIGHTS_NONE,
+	# Adaptive weight tuples
+	WEIGHTS_TECH_ONLY,
+	WEIGHTS_WITH_MISSION,
+	WEIGHTS_WITH_CULTURE,
+	WEIGHTS_FULL,
 )
 from claude_candidate.scoring.matching import compute_match_confidence, _evidence_summary
 
@@ -447,6 +447,30 @@ def _match_signal_to_pattern(
 # ---------------------------------------------------------------------------
 
 
+def select_weights(
+	has_mission: bool,
+	has_culture: bool,
+) -> tuple[float, float, float]:
+	"""Return (skill_weight, mission_weight, culture_weight) based on data availability.
+
+	Four states:
+	  both     → 60/25/15
+	  mission  → 75/25/0
+	  culture  → 85/0/15
+	  neither  → 100/0/0
+	"""
+	if has_mission and has_culture:
+		return WEIGHTS_FULL
+	if has_mission:
+		return WEIGHTS_WITH_MISSION
+	if has_culture:
+		return WEIGHTS_WITH_CULTURE
+	return WEIGHTS_TECH_ONLY
+
+
+# Legacy wrappers (deprecated — will be removed once all consumers migrate)
+
+
 def _redistribute_culture_weight(
 	skill_w: float,
 	mission_w: float,
@@ -455,10 +479,11 @@ def _redistribute_culture_weight(
 	"""Redistribute culture weight proportionally to skill and mission.
 
 	Returns (new_skill_w, new_mission_w) — culture weight becomes 0 at call site.
+
+	Deprecated: use select_weights() instead.
 	"""
 	total_remaining = skill_w + mission_w
 	if total_remaining == 0.0:
-		# Degenerate case: split evenly
 		half = culture_w / 2.0
 		return skill_w + half, mission_w + half
 	skill_ratio = skill_w / total_remaining
@@ -467,16 +492,19 @@ def _redistribute_culture_weight(
 
 
 def _compute_weights(
-	company_profile: CompanyProfile | None,
+	company_profile: "CompanyProfile | None",
 ) -> tuple[float, float, float]:
 	"""Return (skill_weight, mission_weight, culture_weight) based on company data richness.
 
-	Tiers (based on CompanyProfile.enrichment_quality):
-	  rich     → 50/25/25
-	  moderate → 60/20/20
-	  sparse   → 70/15/15
-	  None     → 85/10/5   (no company data at all)
+	Deprecated: use select_weights() instead.
 	"""
+	from claude_candidate.scoring.constants import (
+		_WEIGHTS_NONE,
+		_WEIGHTS_RICH,
+		_WEIGHTS_MODERATE,
+		_WEIGHTS_SPARSE,
+	)
+
 	if company_profile is None:
 		return _WEIGHTS_NONE
 	quality = company_profile.enrichment_quality

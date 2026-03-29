@@ -534,6 +534,26 @@ class TestAdaptiveWeights:
 		]:
 			assert abs(sum(weights) - 1.0) < 1e-9, f"{name} weights sum to {sum(weights)}"
 
+	def test_select_weights_both_signals(self):
+		from claude_candidate.scoring.dimensions import select_weights
+
+		assert select_weights(has_mission=True, has_culture=True) == (0.60, 0.25, 0.15)
+
+	def test_select_weights_mission_only(self):
+		from claude_candidate.scoring.dimensions import select_weights
+
+		assert select_weights(has_mission=True, has_culture=False) == (0.75, 0.25, 0.00)
+
+	def test_select_weights_culture_only(self):
+		from claude_candidate.scoring.dimensions import select_weights
+
+		assert select_weights(has_mission=False, has_culture=True) == (0.85, 0.00, 0.15)
+
+	def test_select_weights_neither(self):
+		from claude_candidate.scoring.dimensions import select_weights
+
+		assert select_weights(has_mission=False, has_culture=False) == (1.00, 0.00, 0.00)
+
 
 class TestComputeWeights:
 	"""Unit tests for _compute_weights() across all four confidence tiers."""
