@@ -186,23 +186,10 @@ class QuickMatchEngine:
 			inp.seniority,
 		)
 
-		# Partial-path mission: derive tech_stack from requirement skill_mappings
-		# (eng review decision 4A→C: skill_mapping proxy, no extraction model change)
-		proxy_tech_stack = list({
-			skill
-			for req in scorable_reqs
-			for skill in req.skill_mapping
-		})
-
-		# Mission and culture are optional; culture is only scored in full assessments.
+		# Partial assessment = technical only. No mission, no culture.
+		# Mission activates only via full assessment when CompanyProfile has real signals.
 		mission_dim: DimensionScore | None = None
 		culture_dim: DimensionScore | None = None
-		if inp.company_profile or inp.tech_stack or proxy_tech_stack:
-			mission_dim = self._score_mission_alignment(
-				company=inp.company,
-				tech_stack=proxy_tech_stack if not inp.tech_stack else inp.tech_stack,
-				company_profile=inp.company_profile,
-			)
 
 		# Determine data availability for adaptive weight selection
 		has_mission = mission_dim is not None and not getattr(mission_dim, "insufficient_data", False)

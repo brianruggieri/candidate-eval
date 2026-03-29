@@ -44,8 +44,8 @@ class TestQuickMatchAssessment:
 		assert assessment.assessment_phase == "partial"
 		assert assessment.partial_percentage is not None
 		assert 0.0 <= assessment.partial_percentage <= 100.0
-		# Mission is now proxy-based in partial assessment; culture remains None
-		assert assessment.mission_alignment is not None
+		# Partial assessment = technical only: no mission, no culture
+		assert assessment.mission_alignment is None
 		assert assessment.culture_fit is None
 
 		# Skill details match requirements count
@@ -235,13 +235,8 @@ class TestMissionAlignment:
 			None,
 		)
 
-		# Should still produce a score, but with lower confidence
-		assert 0.0 <= dim.score <= 1.0
-		assert (
-			"Limited enrichment" in dim.details[-1]
-			or "Insufficient" in dim.details[-1]
-			or "overlap" in " ".join(dim.details).lower()
-		)
+		# No company profile → no mission scoring (proxy approach removed)
+		assert dim is None
 
 	def test_tech_stack_overlap_signal(self, candidate_profile, resume_profile):
 		"""Tech stack overlap produces a non-zero bonus when company techs match candidate skills."""
@@ -613,7 +608,7 @@ class TestPartialAssessmentWeights:
 		assert abs(total - 1.0) < 1e-9
 
 	def test_partial_assessment_no_culture(self, candidate_profile, resume_profile):
-		"""Partial assessment includes proxy mission but leaves culture as None."""
+		"""Partial assessment is technical only — no mission, no culture."""
 		merged = merge_profiles(candidate_profile, resume_profile)
 		engine = QuickMatchEngine(merged)
 
@@ -624,8 +619,8 @@ class TestPartialAssessmentWeights:
 			culture_signals=["documentation driven"],
 		)
 
-		# Mission is now proxy-based in partial; culture still skipped
-		assert assessment.mission_alignment is not None
+		# Partial assessment = technical only: no mission, no culture
+		assert assessment.mission_alignment is None
 		assert assessment.culture_fit is None
 
 	def test_partial_percentage_matches_weighted_score(self, candidate_profile, resume_profile):
@@ -2558,3 +2553,36 @@ class TestMissionDataGating:
 		from claude_candidate.scoring import dimensions
 
 		assert not hasattr(dimensions, "_mission_from_posting")
+
+	def test_partial_assessment_has_no_mission(self, candidate_profile, resume_profile):
+		"""Partial assessment never includes mission."""
+		merged = merge_profiles(candidate_profile, resume_profile)
+		engine = QuickMatchEngine(merged)
+		assessment = engine.assess(
+			requirements=[QuickRequirement(
+				description="Python",
+				skill_mapping=["python"],
+				priority=RequirementPriority.MUST_HAVE,
+			)],
+			company="Test Co",
+			title="Engineer",
+		)
+		assert assessment.assessment_phase == "partial"
+		assert assessment.mission_alignment is None
+
+	def test_partial_weights_technical_only(self, candidate_profile, resume_profile):
+		"""Partial assessment uses skill weight = 1.0."""
+		merged = merge_profiles(candidate_profile, resume_profile)
+		engine = QuickMatchEngine(merged)
+		assessment = engine.assess(
+			requirements=[QuickRequirement(
+				description="Python",
+				skill_mapping=["python"],
+				priority=RequirementPriority.MUST_HAVE,
+			)],
+			company="Test Co",
+			title="Engineer",
+		)
+		assert assessment.mission_alignment is None
+		assert assessment.culture_fit is None
+		assert abs(assessment.skill_match.weight - 1.0) < 1e-9
