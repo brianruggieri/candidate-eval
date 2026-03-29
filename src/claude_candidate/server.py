@@ -652,9 +652,9 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 
 		# Update dimension weights in the returned data
 		if mission_dim:
-			mission_dim.weight = 0.15
+			mission_dim.weight = 0.175
 		if culture_dim:
-			culture_dim.weight = 0.15
+			culture_dim.weight = 0.175
 
 		# 5b. Narrative verdict + receptivity signal (best-effort)
 		narrative_result = None
