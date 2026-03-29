@@ -230,11 +230,6 @@ MISSION_DOMAIN_TAXONOMY: dict[str, list[str]] = {
 
 # Culture fit score parameters
 CULTURE_NEUTRAL_SCORE = 0.5
-CULTURE_BASE_SCORE = 0.3
-CULTURE_SIGNAL_WEIGHT = 0.6
-CULTURE_ESTABLISHED_MATCH = 0.7
-CULTURE_EMERGING_MATCH = 0.3
-CULTURE_FULL_MATCH = 1
 CULTURE_SCORE_MIN = 0.0
 CULTURE_SCORE_MAX = 1.0
 
@@ -551,14 +546,6 @@ DOMAIN_KEYWORDS: frozenset[str] = frozenset(
 		"warehouse",
 	}
 )
-
-# Pattern strength → culture match value
-CULTURE_PATTERN_STRENGTH_SCORE: dict[str, float] = {
-	"exceptional": 1.0,
-	"strong": 1.0,
-	"established": CULTURE_ESTABLISHED_MATCH,
-	"emerging": CULTURE_EMERGING_MATCH,
-}
 
 # ---------------------------------------------------------------------------
 # Virtual skill inference rules + pattern mappings

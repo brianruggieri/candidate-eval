@@ -40,11 +40,7 @@ from claude_candidate.schemas.merged_profile import (
 from claude_candidate.eligibility_evaluator import evaluate_gates, detect_education_gap
 from claude_candidate.scoring.constants import (
 	CONFIDENCE_FLOOR,
-	CULTURE_BASE_SCORE,
 	CULTURE_NEUTRAL_SCORE,
-	CULTURE_SCORE_MAX,
-	CULTURE_SCORE_MIN,
-	CULTURE_SIGNAL_WEIGHT,
 	MAX_ACTION_ITEMS,
 	MAX_GAP_NAMES,
 	MAX_RESUME_ITEMS,
@@ -73,7 +69,6 @@ from claude_candidate.scoring.dimensions import (
 	_discover_resume_gaps,
 	_find_resume_unverified,
 	_infer_eligibility,
-	_match_signal_to_pattern,
 	_must_have_coverage,
 	select_weights,
 	_score_domain_overlap,
@@ -532,102 +527,6 @@ class QuickMatchEngine:
 		details.extend(text_details)
 
 		return min(score, MISSION_SCORE_MAX), details
-
-	# -- dimension 3: culture fit -------------------------------------------
-
-	def _score_culture_fit(
-		self,
-		culture_signals: list[str],
-		company_profile: CompanyProfile | None,
-	) -> DimensionScore:
-		"""Score culture/working style fit via direct pattern matching.
-
-		Compares each culture signal to the candidate's observed behavioral
-		patterns. If no signals are present, or if the candidate has no
-		patterns, marks insufficient_data=True.
-		"""
-		all_signals = self._collect_culture_signals(
-			culture_signals,
-			company_profile,
-		)
-		if not self.profile.patterns:
-			return None  # No behavioral data (sessions parked) — omit dimension
-		if not all_signals:
-			return self._neutral_culture_dimension()
-
-		matches, total_signals, details = self._evaluate_culture_signals(
-			all_signals,
-		)
-		score = self._compute_culture_score(matches, total_signals)
-
-		if company_profile and company_profile.remote_policy != "unknown":
-			policy = company_profile.remote_policy.replace("_", " ")
-			details.append(f"Work policy: {policy}")
-
-		if not details:
-			details = ["Culture alignment assessment based on available signals"]
-
-		confidence = matches / total_signals if total_signals > 0 else 0.0
-
-		return DimensionScore(
-			dimension="culture_fit",
-			score=round(score, SCORE_PRECISION),
-			grade=score_to_grade(score),
-			summary=f"Culture fit based on {total_signals} pattern signals",
-			details=details[:7],
-			confidence=round(confidence, SCORE_PRECISION),
-		)
-
-	def _collect_culture_signals(
-		self,
-		culture_signals: list[str],
-		company_profile: CompanyProfile | None,
-	) -> list[str]:
-		"""Merge culture signals from the posting and company profile."""
-		all_signals = list(culture_signals)
-		if company_profile:
-			all_signals.extend(company_profile.culture_keywords)
-		return all_signals
-
-	def _neutral_culture_dimension(self) -> DimensionScore:
-		"""Return a neutral culture dimension when data is insufficient."""
-		return DimensionScore(
-			dimension="culture_fit",
-			score=CULTURE_NEUTRAL_SCORE,
-			grade=score_to_grade(CULTURE_NEUTRAL_SCORE),
-			summary="Insufficient culture data for assessment",
-			details=["No culture signals or candidate patterns available"],
-			confidence=0.0,
-			insufficient_data=True,
-		)
-
-	def _evaluate_culture_signals(
-		self,
-		signals: list[str],
-	) -> tuple[float, int, list[str]]:
-		"""Match culture signals directly against candidate patterns.
-
-		Returns (total_match_value, signal_count, detail_lines).
-		"""
-		matches = 0.0
-		total_signals = len(signals)
-		details: list[str] = []
-
-		for signal in signals:
-			value, detail = _match_signal_to_pattern(signal, self.profile)
-			matches += value
-			if detail:
-				details.append(detail)
-
-		return matches, total_signals, details
-
-	def _compute_culture_score(self, matches: float, total: int) -> float:
-		"""Compute bounded culture fit score from match ratio."""
-		if total > 0:
-			score = CULTURE_BASE_SCORE + (matches / total) * CULTURE_SIGNAL_WEIGHT
-		else:
-			score = CULTURE_NEUTRAL_SCORE
-		return min(max(score, CULTURE_SCORE_MIN), CULTURE_SCORE_MAX)
 
 	# -- summary & action items ---------------------------------------------
 

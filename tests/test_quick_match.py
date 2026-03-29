@@ -331,67 +331,6 @@ class TestMissionAlignment:
 		assert dim_base.score == dim_oss.score
 
 
-class TestCultureFit:
-	"""Tests for _score_culture_fit — called directly since partial assessment skips it."""
-
-	def test_with_directly_matching_signals(self, candidate_profile, resume_profile):
-		"""Direct pattern name matches (documentation driven, scope management) produce score > 0.5."""
-		merged = merge_profiles(candidate_profile, resume_profile)
-		engine = QuickMatchEngine(merged)
-
-		dim = engine._score_culture_fit(
-			["documentation driven", "scope management"],
-			None,
-		)
-
-		# Both signals match patterns directly; score should exceed 0.5
-		assert dim.score > 0.5
-		assert not dim.insufficient_data
-		assert dim.confidence > 0.0
-
-	def test_no_culture_signals_marks_insufficient_data(self, candidate_profile, resume_profile):
-		"""No culture signals → insufficient_data=True, confidence=0.0."""
-		merged = merge_profiles(candidate_profile, resume_profile)
-		engine = QuickMatchEngine(merged)
-
-		dim = engine._score_culture_fit([], None)
-
-		assert dim.score == 0.5
-		assert dim.insufficient_data is True
-		assert dim.confidence == 0.0
-
-	def test_partial_signal_match_produces_intermediate_score(
-		self, candidate_profile, resume_profile
-	):
-		"""One matching signal among multiple produces score between 0.3 and 0.9."""
-		merged = merge_profiles(candidate_profile, resume_profile)
-		engine = QuickMatchEngine(merged)
-
-		# Only "documentation driven" matches; "move fast" and "open source" do not
-		dim = engine._score_culture_fit(
-			["documentation driven", "move fast", "open source"],
-			None,
-		)
-
-		# 1 match out of 3 → score = 0.3 + (1/3)*0.6 = 0.5 exactly
-		assert 0.3 <= dim.score <= 0.9
-		assert not dim.insufficient_data
-
-	def test_confidence_equals_match_ratio(self, candidate_profile, resume_profile):
-		"""Confidence field equals matched / total signals."""
-		merged = merge_profiles(candidate_profile, resume_profile)
-		engine = QuickMatchEngine(merged)
-
-		dim = engine._score_culture_fit(
-			["documentation driven", "scope management", "no match signal"],
-			None,
-		)
-
-		# 2 out of 3 match → confidence ≈ 0.667
-		assert 0.0 <= dim.confidence <= 1.0
-		assert not dim.insufficient_data
-
-
 class TestEducationEligibilityGate:
 	"""Tests for education as an eligibility gate (not a scored dimension)."""
 

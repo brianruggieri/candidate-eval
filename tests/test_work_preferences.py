@@ -81,6 +81,40 @@ class TestWorkPreferencesSchema:
 		assert prefs.company_size == ["enterprise"]
 
 
+class TestOldCultureCodeRemoved:
+	"""Verify old pattern-based culture scoring code has been deleted."""
+
+	def test_engine_has_no_score_culture_fit(self):
+		from claude_candidate.scoring.engine import QuickMatchEngine
+
+		assert not hasattr(QuickMatchEngine, "_score_culture_fit")
+
+	def test_engine_has_no_collect_culture_signals(self):
+		from claude_candidate.scoring.engine import QuickMatchEngine
+
+		assert not hasattr(QuickMatchEngine, "_collect_culture_signals")
+
+	def test_engine_has_no_neutral_culture_dimension(self):
+		from claude_candidate.scoring.engine import QuickMatchEngine
+
+		assert not hasattr(QuickMatchEngine, "_neutral_culture_dimension")
+
+	def test_engine_has_no_evaluate_culture_signals(self):
+		from claude_candidate.scoring.engine import QuickMatchEngine
+
+		assert not hasattr(QuickMatchEngine, "_evaluate_culture_signals")
+
+	def test_engine_has_no_compute_culture_score(self):
+		from claude_candidate.scoring.engine import QuickMatchEngine
+
+		assert not hasattr(QuickMatchEngine, "_compute_culture_score")
+
+	def test_dimensions_has_no_match_signal_to_pattern(self):
+		import claude_candidate.scoring.dimensions as dims
+
+		assert not hasattr(dims, "_match_signal_to_pattern")
+
+
 class TestCultureConstants:
 	"""Verify culture preference constants are correctly defined."""
 

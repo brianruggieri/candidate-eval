@@ -55,9 +55,6 @@ from claude_candidate.scoring.constants import (
 	MISSION_TECH_OVERLAP_WEIGHT,
 	MISSION_TEXT_OVERLAP_WEIGHT,
 	MISSION_DOMAIN_TAXONOMY,
-	# Culture constants
-	CULTURE_PATTERN_STRENGTH_SCORE,
-	CULTURE_EMERGING_MATCH,
 	# Culture preference constants
 	CULTURE_REMOTE_WEIGHT,
 	CULTURE_SIZE_WEIGHT,
@@ -400,32 +397,6 @@ def _score_mission_text_alignment(
 # ---------------------------------------------------------------------------
 # Culture helpers
 # ---------------------------------------------------------------------------
-
-
-def _match_signal_to_pattern(
-	signal: str,
-	profile: MergedEvidenceProfile,
-) -> tuple[float, str | None]:
-	"""Match a single culture signal directly to a candidate pattern by name.
-
-	Checks whether any of the candidate's observed patterns have a pattern_type
-	whose value (the enum string) appears as a substring of the culture signal,
-	or the culture signal appears as a substring of the pattern_type value.
-	Returns (match_value, detail_or_None).
-	"""
-	signal_lower = signal.lower()
-	for pat in profile.patterns:
-		pt_value = pat.pattern_type.value  # e.g. "documentation_driven"
-		# Normalize pattern type to words for comparison
-		pt_words = pt_value.replace("_", " ")
-		if pt_words in signal_lower or signal_lower in pt_words:
-			score = CULTURE_PATTERN_STRENGTH_SCORE.get(pat.strength, CULTURE_EMERGING_MATCH)
-			if pat.strength in ("strong", "exceptional"):
-				return score, f"Strong {pt_words} pattern aligns with '{signal}'"
-			if pat.strength == "established":
-				return score, f"Established {pt_words} pattern aligns with '{signal}'"
-			return score, None
-	return 0.0, None
 
 
 def _score_culture_preferences(
