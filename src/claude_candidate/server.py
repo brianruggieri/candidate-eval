@@ -613,11 +613,6 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 		if merged_profile:
 			engine = QuickMatchEngine(merged_profile)
 
-			# Extract tech_stack and culture_signals from the existing assessment data
-			tech_stack = data.get("skill_match", {}).get("details", [])
-			# Use culture signals from company research or empty list
-			culture_signals = research.get("culture_signals", []) if research else []
-
 			# Mission: only score if company profile has real signals
 			if company_profile and company_profile.has_mission_signals():
 				mission_dim = engine._score_mission_alignment(
@@ -625,10 +620,16 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 					tech_stack=company_profile.tech_stack_public,
 					company_profile=company_profile,
 				)
-			culture_dim = engine._score_culture_fit(
-				culture_signals=culture_signals,
-				company_profile=company_profile,
-			)
+
+			# Culture: preference-based scoring (replaces old pattern matching)
+			from claude_candidate.schemas.work_preferences import WorkPreferences
+			from claude_candidate.scoring.dimensions import _score_culture_preferences
+
+			prefs_path = Path.home() / ".claude-candidate" / "work_preferences.json"
+			work_preferences = WorkPreferences.load(prefs_path)
+			culture_result = _score_culture_preferences(work_preferences, company_profile)
+			if culture_result is not None:
+				culture_dim, _avoid_count = culture_result
 
 		# 5. Recompute overall score with all dimensions (education is now an eligibility gate)
 		# Use canonical adaptive weights based on data availability

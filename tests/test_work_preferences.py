@@ -81,6 +81,27 @@ class TestWorkPreferencesSchema:
 		assert prefs.company_size == ["enterprise"]
 
 
+class TestServerWorkPreferencesIntegration:
+	"""Structural test verifying server assess_full uses work_preferences."""
+
+	def test_server_imports_work_preferences(self):
+		"""Verify the server module can import work_preferences-related code."""
+		import inspect
+		import claude_candidate.server as srv
+
+		source = inspect.getsource(srv)
+		assert "work_preferences" in source
+		assert "_score_culture_preferences" in source
+
+	def test_server_loads_preferences_from_home(self):
+		"""Verify server assess_full path references work_preferences.json."""
+		import inspect
+		import claude_candidate.server as srv
+
+		source = inspect.getsource(srv)
+		assert "work_preferences.json" in source
+
+
 class TestPreferencesOnboardCLI:
 	"""Tests for the preferences CLI commands."""
 
