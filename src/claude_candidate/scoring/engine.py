@@ -10,7 +10,6 @@ only import sources have changed (constants/matching/dimensions come from scorin
 
 from __future__ import annotations
 
-import re
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -29,20 +28,16 @@ from claude_candidate.schemas.fit_assessment import (
 )
 from claude_candidate.schemas.job_requirements import (
 	QuickRequirement,
-	RequirementPriority,
 	PRIORITY_WEIGHT,
 )
 from claude_candidate.schemas.merged_profile import (
-	EvidenceSource,
 	MergedEvidenceProfile,
-	MergedSkillEvidence,
 )
 from claude_candidate.eligibility_evaluator import evaluate_gates, detect_education_gap
 from claude_candidate.scoring.constants import (
 	CONFIDENCE_FLOOR,
 	CULTURE_AVOID_CAP_ONE,
 	CULTURE_AVOID_CAP_TWO_PLUS,
-	CULTURE_NEUTRAL_SCORE,
 	MAX_ACTION_ITEMS,
 	MAX_GAP_NAMES,
 	MAX_RESUME_ITEMS,
@@ -59,13 +54,10 @@ from claude_candidate.scoring.matching import (
 	_assess_depth_match,
 	_find_best_skill,
 	_find_skill_match,
-	compute_match_confidence,
 )
 from claude_candidate.scoring.dimensions import (
 	_build_skill_detail,
 	_build_skill_dimension,
-	_candidate_domain_set,
-	_candidate_skill_names,
 	_compute_overall_score,
 	_detect_domain_gap,
 	_discover_resume_gaps,

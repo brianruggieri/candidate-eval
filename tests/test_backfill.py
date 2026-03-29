@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 
 from claude_candidate.schemas.fit_assessment import score_to_grade, score_to_verdict
 from claude_candidate.scoring.backfill import recompute_overall, _has_real_data, _infer_avoid_count
@@ -10,7 +9,6 @@ from claude_candidate.scoring.constants import (
 	CULTURE_AVOID_CAP_ONE,
 	CULTURE_AVOID_CAP_TWO_PLUS,
 	WEIGHTS_FULL,
-	WEIGHTS_TECH_ONLY,
 	WEIGHTS_WITH_CULTURE,
 	WEIGHTS_WITH_MISSION,
 )

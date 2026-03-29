@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
 
 import pytest
 
@@ -453,14 +451,6 @@ class TestCultureConstants:
 	def test_constants_importable_from_scoring_package(self):
 		from claude_candidate.scoring import (
 			CULTURE_REMOTE_WEIGHT,
-			CULTURE_SIZE_WEIGHT,
-			CULTURE_VALUES_WEIGHT,
-			REMOTE_MATCH_MATRIX,
-			CULTURE_UNKNOWN_SCORE,
-			CULTURE_SIZE_MATCH,
-			CULTURE_SIZE_NO_MATCH,
-			CULTURE_AVOID_CAP_ONE,
-			CULTURE_AVOID_CAP_TWO_PLUS,
 		)
 
 		# Just verify they're importable (values tested above)
@@ -600,7 +590,6 @@ class TestScoreCulturePreferences:
 		from datetime import datetime
 		from claude_candidate.schemas.company_profile import CompanyProfile
 		from claude_candidate.scoring.dimensions import _score_culture_preferences
-		from claude_candidate.scoring.constants import CULTURE_UNKNOWN_SCORE
 
 		company = CompanyProfile(
 			company_name="Mystery Corp",
