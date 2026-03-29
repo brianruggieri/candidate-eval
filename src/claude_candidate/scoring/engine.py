@@ -472,7 +472,7 @@ class QuickMatchEngine:
 				self.profile,
 				depth_floor,
 			)
-			req_score = _score_requirement(best_match, best_status, req.priority)
+			req_score = _score_requirement(best_match, best_status, req.priority, years_ratio=years_ratio)
 
 			# Compound scoring: also check average of all constituent skills
 			if len(req.skill_mapping) > 1:

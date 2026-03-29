@@ -2423,3 +2423,64 @@ class TestYearsGradientPenalty:
 		match, status, mtype, years_ratio = _find_best_skill(req, profile, DepthLevel.APPLIED)
 		assert status == "related"
 		assert match is not None
+
+
+class TestYearsGradientScoring:
+	"""Tests for gradient penalty applied inside _score_requirement."""
+
+	def _make_skill(self, confidence=0.9):
+		from claude_candidate.schemas.merged_profile import MergedSkillEvidence, EvidenceSource
+		from claude_candidate.schemas.candidate_profile import DepthLevel
+
+		return MergedSkillEvidence(
+			name="python",
+			source=EvidenceSource.CORROBORATED,
+			session_depth=DepthLevel.DEEP,
+			effective_depth=DepthLevel.DEEP,
+			confidence=confidence,
+		)
+
+	def test_no_years_requirement_no_penalty(self):
+		"""No years_ratio → no penalty."""
+		from claude_candidate.scoring.dimensions import _score_requirement
+		from claude_candidate.scoring.constants import STATUS_SCORE, CONFIDENCE_FLOOR
+
+		skill = self._make_skill(confidence=1.0)
+		score_without = _score_requirement(skill, "strong_match")
+		score_with_none = _score_requirement(skill, "strong_match", years_ratio=None)
+		assert score_without == score_with_none
+		assert score_without == pytest.approx(STATUS_SCORE["strong_match"])
+
+	def test_gradient_penalty_half_years(self):
+		"""years_ratio=0.5 → penalty = 0.8 multiplier (FLOOR=0.6: 0.6+0.4*0.5=0.8)."""
+		from claude_candidate.scoring.dimensions import _score_requirement
+		from claude_candidate.scoring.constants import STATUS_SCORE, YEARS_GRADIENT_FLOOR
+
+		skill = self._make_skill(confidence=1.0)
+		score = _score_requirement(skill, "strong_match", years_ratio=0.5)
+		base = STATUS_SCORE["strong_match"]
+		gradient = YEARS_GRADIENT_FLOOR + (1.0 - YEARS_GRADIENT_FLOOR) * 0.5
+		assert score == pytest.approx(base * gradient)
+
+	def test_gradient_penalty_extreme_shortfall(self):
+		"""years_ratio=0.2 → penalty = 0.68 multiplier (0.6+0.4*0.2=0.68)."""
+		from claude_candidate.scoring.dimensions import _score_requirement
+		from claude_candidate.scoring.constants import STATUS_SCORE, YEARS_GRADIENT_FLOOR
+
+		skill = self._make_skill(confidence=1.0)
+		score = _score_requirement(skill, "strong_match", years_ratio=0.2)
+		base = STATUS_SCORE["strong_match"]
+		gradient = YEARS_GRADIENT_FLOOR + (1.0 - YEARS_GRADIENT_FLOOR) * 0.2
+		assert score == pytest.approx(base * gradient)
+
+	def test_gradient_penalty_meets_years_no_penalty(self):
+		"""years_ratio>=1.0 → no penalty."""
+		from claude_candidate.scoring.dimensions import _score_requirement
+		from claude_candidate.scoring.constants import STATUS_SCORE
+
+		skill = self._make_skill(confidence=1.0)
+		score_no_ratio = _score_requirement(skill, "strong_match")
+		score_met = _score_requirement(skill, "strong_match", years_ratio=1.0)
+		score_exceeded = _score_requirement(skill, "strong_match", years_ratio=1.5)
+		assert score_met == score_no_ratio
+		assert score_exceeded == score_no_ratio

@@ -48,6 +48,8 @@ from claude_candidate.scoring.constants import (
 	SCORE_PRECISION,
 	# Confidence adjustment
 	CONFIDENCE_FLOOR,
+	# Years gradient
+	YEARS_GRADIENT_FLOOR,
 	# Mission constants
 	MISSION_NEUTRAL_SCORE,
 	MISSION_DOMAIN_BONUS,
@@ -150,6 +152,7 @@ def _score_requirement(
 	best_match: MergedSkillEvidence | None,
 	best_status: str,
 	priority: RequirementPriority = RequirementPriority.MUST_HAVE,
+	years_ratio: float | None = None,
 ) -> float:
 	"""Compute the score for one requirement given its best match.
 
@@ -161,6 +164,9 @@ def _score_requirement(
 	No-evidence scoring is priority-dependent:
 	- must_have/strong_preference: 0.0 (hard gaps should hurt)
 	- nice_to_have/implied: STATUS_SCORE_NONE floor (transferable skills)
+
+	Years gradient penalty: when years_ratio < 1.0, a gradient multiplier
+	penalises shortfalls proportionally instead of using cliff-based downgrades.
 	"""
 	if best_status == "no_evidence":
 		if priority in (RequirementPriority.MUST_HAVE, RequirementPriority.STRONG_PREFERENCE):
@@ -174,6 +180,12 @@ def _score_requirement(
 		conf = best_match.confidence if best_match.confidence is not None else 1.0
 		adjustment = CONFIDENCE_FLOOR + (1.0 - CONFIDENCE_FLOOR) * conf
 		req_score *= adjustment
+
+	# Years gradient penalty: proportional penalty for experience shortfalls
+	if years_ratio is not None and years_ratio < 1.0:
+		gradient = YEARS_GRADIENT_FLOOR + (1.0 - YEARS_GRADIENT_FLOOR) * years_ratio
+		req_score *= gradient
+
 	return req_score
 
 
