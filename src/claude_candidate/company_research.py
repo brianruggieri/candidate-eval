@@ -19,6 +19,7 @@ Research the company "{company_name}" and return a JSON object with the followin
 - "tech_philosophy": a brief description of their engineering/tech philosophy
 - "ai_native": boolean — true if the company is AI-native or heavily AI-focused
 - "product_domains": an array of product domains or industries they operate in
+- "tech_stack": an array of known technologies, languages, frameworks, and tools used by the engineering team (e.g. "python", "kubernetes", "react", "pytorch")
 - "team_size_signal": a rough description of team size (e.g. "startup (<50)", "mid-size (50-500)", "enterprise (500+)")
 
 Return ONLY valid JSON, no commentary or markdown. Example format:
@@ -29,6 +30,7 @@ Return ONLY valid JSON, no commentary or markdown. Example format:
   "tech_philosophy": "...",
   "ai_native": false,
   "product_domains": ["...", "..."],
+  "tech_stack": ["...", "..."],
   "team_size_signal": "..."
 }}
 """

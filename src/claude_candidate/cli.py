@@ -145,6 +145,9 @@ def assess(
 
 	# Run assessment
 	click.echo(f"\nAssessing fit for {title} at {company}...")
+	from claude_candidate.scoring import prepare_assess_inputs
+
+	extras = prepare_assess_inputs(company)
 	engine = QuickMatchEngine(merged)
 	assessment = engine.assess(
 		requirements=requirements,
@@ -155,6 +158,7 @@ def assess(
 		seniority=seniority,
 		elapsed=elapsed,
 		curated_eligibility=curated_eligibility,
+		**extras,
 	)
 
 	# Output

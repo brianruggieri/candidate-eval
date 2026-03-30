@@ -474,6 +474,13 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 				logger.debug("Could not parse curated eligibility — using defaults")
 
 		# Run assessment
+		from claude_candidate.scoring import prepare_assess_inputs
+
+		extras = prepare_assess_inputs(
+			req.company,
+			culture_signals=req.culture_signals,
+			tech_stack=req.tech_stack,
+		)
 		engine = QuickMatchEngine(merged)
 		assessment = engine.assess(
 			requirements=requirements,
@@ -482,13 +489,14 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 			posting_url=req.posting_url,
 			source="api",
 			seniority=req.seniority,
-			culture_signals=req.culture_signals,
-			tech_stack=req.tech_stack,
 			curated_eligibility=curated_eligibility,
+			**extras,
 		)
 
 		# Persist
 		assessment_dict = json.loads(assessment.to_json())
+		# Engine may set "full" when culture is scored, but this endpoint is partial
+		assessment_dict["assessment_phase"] = "partial"
 		# Store input requirements for future reassessment
 		assessment_dict["input_requirements"] = [r.model_dump() for r in requirements]
 		assessment_dict["input_meta"] = {
@@ -544,10 +552,6 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 		from datetime import datetime
 
 		from claude_candidate.schemas.company_profile import CompanyProfile
-		from claude_candidate.schemas.fit_assessment import (
-			score_to_grade,
-			score_to_verdict,
-		)
 		from claude_candidate.scoring import QuickMatchEngine
 
 		store = get_store()
@@ -616,112 +620,121 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 				enrichment_quality=quality,
 			)
 
-		# 4. Build merged profile and engine to compute mission/culture
+		# 4. Re-run full assessment through the engine with enriched company profile
 		merged_profile = _build_merged_profile()
+		if merged_profile is None:
+			raise HTTPException(
+				status_code=422,
+				detail="No candidate profile loaded.",
+			)
 
-		mission_dim = None
-		culture_dim = None
-		if merged_profile:
-			engine = QuickMatchEngine(merged_profile)
+		# Recover original requirements from stored assessment
+		from claude_candidate.schemas.job_requirements import QuickRequirement
 
-			# Mission: only score if company profile has real signals
-			if company_profile and company_profile.has_mission_signals():
-				mission_dim = engine._score_mission_alignment(
-					company=company,
-					tech_stack=company_profile.tech_stack_public,
-					company_profile=company_profile,
+		stored_reqs = data.get("input_requirements", [])
+		requirements = []
+		for r in stored_reqs:
+			try:
+				requirements.append(QuickRequirement(**r))
+			except Exception:
+				continue
+
+		if not requirements:
+			raise HTTPException(
+				status_code=422,
+				detail="No stored requirements found — cannot re-score.",
+			)
+
+		# Load curated eligibility (same pattern as partial endpoint)
+		from claude_candidate.schemas.curated_resume import CandidateEligibility
+		from pydantic import ValidationError
+
+		curated_eligibility: CandidateEligibility | None = None
+		curated_data = get_profiles().get("curated_resume")
+		if isinstance(curated_data, dict):
+			try:
+				curated_eligibility = CandidateEligibility.model_validate(
+					curated_data.get("eligibility", {})
 				)
+			except ValidationError:
+				logger.debug("Could not parse curated eligibility — using defaults")
 
-			# Culture: preference-based scoring (replaces old pattern matching)
-			from claude_candidate.schemas.work_preferences import WorkPreferences
-			from claude_candidate.scoring.dimensions import _score_culture_preferences
+		# Run through canonical engine path
+		from claude_candidate.scoring import prepare_assess_inputs
 
-			prefs_path = Path.home() / ".claude-candidate" / "work_preferences.json"
-			work_preferences = WorkPreferences.load(prefs_path)
-			culture_result = _score_culture_preferences(work_preferences, company_profile)
-			if culture_result is not None:
-				culture_dim, _avoid_count = culture_result
-
-		# 5. Recompute overall score with all dimensions (education is now an eligibility gate)
-		# Use canonical adaptive weights based on data availability
-		from claude_candidate.scoring.dimensions import select_weights
-
-		skill_score = data.get("skill_match", {}).get("score", 0.5)
-		mission_score = mission_dim.score if mission_dim else 0.0
-		culture_score = culture_dim.score if culture_dim else 0.0
-
-		has_mission = mission_dim is not None
-		has_culture = culture_dim is not None and not getattr(
-			culture_dim, "insufficient_data", True
+		meta = data.get("input_meta") or {}
+		extras = prepare_assess_inputs(company, company_profile=company_profile)
+		engine = QuickMatchEngine(merged_profile)
+		assessment = engine.assess(
+			requirements=requirements,
+			company=company,
+			title=data.get("job_title", ""),
+			posting_url=data.get("posting_url"),
+			source="enrich",
+			seniority=meta.get("seniority", "unknown"),
+			curated_eligibility=curated_eligibility,
+			**extras,
 		)
-		skill_w, mission_w, culture_w = select_weights(has_mission, has_culture)
 
-		weighted_total = skill_score * skill_w
-		weighted_total += mission_score * mission_w
-		weighted_total += culture_score * culture_w
+		# Convert engine output to dict for storage
+		updated = json.loads(assessment.to_json())
+		updated["assessment_phase"] = "full"
 
-		overall_score = round(min(max(weighted_total, 0.0), 1.0), 3)
-		overall_grade = score_to_grade(overall_score)
+		# Preserve identity from the original partial assessment
+		updated["assessment_id"] = data.get("assessment_id", req.assessment_id)
+		updated["assessed_at"] = data.get("assessed_at", updated.get("assessed_at"))
 
-		# Re-apply eligibility hard cap — unmet gates override the recomputed score regardless of dimension weights
-		stored_gates = data.get("eligibility_gates", [])
-		if any(g.get("status") == "unmet" for g in stored_gates):
-			overall_score = 0.0
-			overall_grade = "F"
+		# Carry forward stored input_requirements and input_meta
+		updated["input_requirements"] = data.get("input_requirements", [])
+		updated["input_meta"] = meta
 
-		# Update dimension weights in the returned data
-		if mission_dim:
-			mission_dim.weight = mission_w
-		if culture_dim:
-			culture_dim.weight = culture_w
+		# AI engineering scores from candidate profile (pre-computed, optional)
+		profiles = get_profiles()
+		candidate_data = profiles.get("candidate")
+		if candidate_data:
+			ai_scores = candidate_data.get("ai_engineering_scores")
+			if ai_scores:
+				updated["ai_engineering_scores"] = ai_scores
 
-		# 5b. Narrative verdict + receptivity signal (best-effort)
+		# 5. Narrative verdict + receptivity signal (best-effort)
 		narrative_result = None
 		try:
 			from claude_candidate.generator import generate_narrative_verdict
 
 			loop = asyncio.get_event_loop()
-			# Build a snapshot of assessment context for the narrative prompt
-			_narrative_assessment = dict(data)
-			_narrative_assessment["overall_grade"] = overall_grade
+			research_data = research or {}
 			narrative_result = await loop.run_in_executor(
 				None,
-				lambda: generate_narrative_verdict(_narrative_assessment, research or {}),
+				lambda: generate_narrative_verdict(updated, research_data),
 			)
 		except Exception:
 			pass  # Narrative is best-effort
 
-		# 6. Merge into updated assessment data
-		updated = dict(data)
-		updated["assessment_phase"] = "full"
-		updated["overall_score"] = overall_score
-		updated["overall_grade"] = overall_grade
-		updated["should_apply"] = score_to_verdict(overall_score)
-		if mission_dim:
-			updated["mission_alignment"] = mission_dim.model_dump()
-		if culture_dim:
-			updated["culture_fit"] = culture_dim.model_dump()
-		if ai_scores:
-			updated["ai_engineering_scores"] = ai_scores
 		if narrative_result:
 			updated["narrative_verdict"] = narrative_result.get("narrative")
 			updated["receptivity_level"] = narrative_result.get("receptivity")
 			updated["receptivity_reason"] = narrative_result.get("receptivity_reason")
 
-		# Update skill weight for consistency
-		if updated.get("skill_match"):
-			updated["skill_match"]["weight"] = skill_w
+		# Company enrichment metadata
+		updated["company_profile_summary"] = (
+			company_profile.product_description
+			if company_profile
+			else "No enrichment data available"
+		)
+		updated["company_enrichment_quality"] = (
+			company_profile.enrichment_quality if company_profile else "none"
+		)
 
-		# 7. Save updated assessment to store
+		# 6. Save updated assessment to store
 		flat: dict[str, Any] = {
 			"assessment_id": data.get("assessment_id", req.assessment_id),
-			"assessed_at": data.get("assessed_at"),
-			"job_title": data.get("job_title"),
+			"assessed_at": updated.get("assessed_at"),
+			"job_title": updated.get("job_title"),
 			"company_name": company,
 			"posting_url": data.get("posting_url"),
-			"overall_score": overall_score,
-			"overall_grade": overall_grade,
-			"should_apply": updated["should_apply"],
+			"overall_score": updated["overall_score"],
+			"overall_grade": updated["overall_grade"],
+			"should_apply": updated.get("should_apply"),
 			"data": updated,
 		}
 		await store.save_assessment(flat)
@@ -775,7 +788,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 		"""Re-score all assessments against the current profile and engine."""
 		import asyncio
 		from claude_candidate.schemas.job_requirements import QuickRequirement
-		from claude_candidate.scoring import QuickMatchEngine
+		from claude_candidate.scoring import QuickMatchEngine, prepare_assess_inputs
 		from claude_candidate.requirement_parser import CACHE_PROMPT_VERSION
 		from claude_candidate.schemas.curated_resume import CandidateEligibility
 		from pydantic import ValidationError
@@ -858,6 +871,11 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 
 		def _run_batch():
 			"""CPU-bound: score all assessments. Runs in executor thread."""
+			from claude_candidate.schemas.work_preferences import WorkPreferences
+
+			prefs_path = Path.home() / ".claude-candidate" / "work_preferences.json"
+			cached_prefs = WorkPreferences.load(prefs_path)
+
 			engine = QuickMatchEngine(merged)
 			results = []
 			for a in all_assessments:
@@ -878,16 +896,22 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 					continue
 
 				meta = data.get("input_meta") or {}
+				company_name = meta.get("company") or data.get("company_name", "")
+				extras = prepare_assess_inputs(
+					company_name,
+					culture_signals=meta.get("culture_signals"),
+					tech_stack=meta.get("tech_stack"),
+					work_preferences=cached_prefs,
+				)
 				assessment = engine.assess(
 					requirements=reqs,
-					company=meta.get("company") or data.get("company_name", ""),
+					company=company_name,
 					title=meta.get("title") or data.get("job_title", ""),
 					posting_url=meta.get("posting_url") or data.get("posting_url"),
 					source="reassess",
 					seniority=meta.get("seniority", "unknown"),
-					culture_signals=meta.get("culture_signals"),
-					tech_stack=meta.get("tech_stack"),
 					curated_eligibility=curated_eligibility,
+					**extras,
 				)
 
 				new_dict = json.loads(assessment.to_json())
