@@ -786,7 +786,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 		"""Re-score all assessments against the current profile and engine."""
 		import asyncio
 		from claude_candidate.schemas.job_requirements import QuickRequirement
-		from claude_candidate.scoring import QuickMatchEngine
+		from claude_candidate.scoring import QuickMatchEngine, prepare_assess_inputs
 		from claude_candidate.requirement_parser import CACHE_PROMPT_VERSION
 		from claude_candidate.schemas.curated_resume import CandidateEligibility
 		from pydantic import ValidationError
@@ -889,16 +889,21 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 					continue
 
 				meta = data.get("input_meta") or {}
+				company_name = meta.get("company") or data.get("company_name", "")
+				extras = prepare_assess_inputs(
+					company_name,
+					culture_signals=meta.get("culture_signals"),
+					tech_stack=meta.get("tech_stack"),
+				)
 				assessment = engine.assess(
 					requirements=reqs,
-					company=meta.get("company") or data.get("company_name", ""),
+					company=company_name,
 					title=meta.get("title") or data.get("job_title", ""),
 					posting_url=meta.get("posting_url") or data.get("posting_url"),
 					source="reassess",
 					seniority=meta.get("seniority", "unknown"),
-					culture_signals=meta.get("culture_signals"),
-					tech_stack=meta.get("tech_stack"),
 					curated_eligibility=curated_eligibility,
+					**extras,
 				)
 
 				new_dict = json.loads(assessment.to_json())
