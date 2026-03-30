@@ -236,7 +236,7 @@ def compute_evidence_tier(
 # ── Benchmark Metadata ──
 
 # Default path relative to the project root (resolved at call time)
-_BENCHMARK_HISTORY_PATH = Path(__file__).parent.parent.parent.parent / "tests" / "golden_set" / "benchmark_history.jsonl"
+_BENCHMARK_HISTORY_PATH = Path(__file__).parent.parent.parent / "tests" / "golden_set" / "benchmark_history.jsonl"
 
 
 def load_benchmark_metadata() -> dict[str, Any]:
