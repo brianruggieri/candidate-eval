@@ -580,10 +580,10 @@ class TestPerTypeTimeouts:
 			_, kwargs = mock_call.call_args
 			assert kwargs.get("timeout") == CLAUDE_TIMEOUTS["interview-prep"]
 
-	def test_site_narrative_empty_type_resolves_to_default_timeout(self):
-		"""Empty deliverable_type (generate_site_narrative's path) uses DEFAULT_CLAUDE_TIMEOUT.
+	def test_unknown_type_resolves_to_default_timeout(self):
+		"""Unknown deliverable_type uses DEFAULT_CLAUDE_TIMEOUT as fallback.
 
-		generate_site_narrative calls _call_claude(prompt) with no type string, which
-		defaults to "" — verify that resolves to DEFAULT_CLAUDE_TIMEOUT via CLAUDE_TIMEOUTS.get.
+		Any caller using _call_claude(prompt) with no type string defaults to ""
+		— verify that resolves to DEFAULT_CLAUDE_TIMEOUT via CLAUDE_TIMEOUTS.get.
 		"""
 		assert CLAUDE_TIMEOUTS.get("", DEFAULT_CLAUDE_TIMEOUT) == DEFAULT_CLAUDE_TIMEOUT
