@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from pathlib import Path
-
-import pytest
 
 from claude_candidate.schemas.company_profile import CompanyProfile
 from claude_candidate.schemas.work_preferences import WorkPreferences

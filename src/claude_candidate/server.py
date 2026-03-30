@@ -495,6 +495,8 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 
 		# Persist
 		assessment_dict = json.loads(assessment.to_json())
+		# Engine may set "full" when culture is scored, but this endpoint is partial
+		assessment_dict["assessment_phase"] = "partial"
 		# Store input requirements for future reassessment
 		assessment_dict["input_requirements"] = [r.model_dump() for r in requirements]
 		assessment_dict["input_meta"] = {
@@ -726,7 +728,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 		# 6. Save updated assessment to store
 		flat: dict[str, Any] = {
 			"assessment_id": data.get("assessment_id", req.assessment_id),
-			"assessed_at": data.get("assessed_at"),
+			"assessed_at": updated.get("assessed_at"),
 			"job_title": updated.get("job_title"),
 			"company_name": company,
 			"posting_url": data.get("posting_url"),
@@ -869,6 +871,11 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 
 		def _run_batch():
 			"""CPU-bound: score all assessments. Runs in executor thread."""
+			from claude_candidate.schemas.work_preferences import WorkPreferences
+
+			prefs_path = Path.home() / ".claude-candidate" / "work_preferences.json"
+			cached_prefs = WorkPreferences.load(prefs_path)
+
 			engine = QuickMatchEngine(merged)
 			results = []
 			for a in all_assessments:
@@ -894,6 +901,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 					company_name,
 					culture_signals=meta.get("culture_signals"),
 					tech_stack=meta.get("tech_stack"),
+					work_preferences=cached_prefs,
 				)
 				assessment = engine.assess(
 					requirements=reqs,

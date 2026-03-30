@@ -189,17 +189,23 @@ def prepare_assess_inputs(
 	culture_signals: list[str] | None = None,
 	tech_stack: list[str] | None = None,
 	company_profile: "CompanyProfile | None" = None,
+	work_preferences: object | None = ...,
 ) -> dict:
 	"""Resolve work_preferences and company_profile for engine.assess().
 
 	Returns dict with keys: work_preferences, company_profile.
 	Designed to be **kwargs'd into engine.assess().
+
+	Pass *work_preferences* to skip the disk load (useful in batch loops).
+	Omit it (or pass the sentinel ``...``) to load from
+	``~/.claude-candidate/work_preferences.json``.
 	"""
 	from claude_candidate.schemas.company_profile import CompanyProfile as _CP
 	from claude_candidate.schemas.work_preferences import WorkPreferences
 
-	prefs_path = _Path.home() / ".claude-candidate" / "work_preferences.json"
-	work_preferences = WorkPreferences.load(prefs_path)
+	if work_preferences is ...:
+		prefs_path = _Path.home() / ".claude-candidate" / "work_preferences.json"
+		work_preferences = WorkPreferences.load(prefs_path)
 
 	if company_profile is None and (culture_signals or tech_stack):
 		from datetime import datetime

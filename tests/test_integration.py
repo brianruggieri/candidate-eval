@@ -95,8 +95,16 @@ class TestAssessCommand:
 		# Should print the assessment card
 		assert "Test Corp" in result.output
 
-	def test_assess_includes_culture_fit_when_preferences_exist(self, fixtures_dir, tmp_path):
-		"""CLI assess should produce culture_fit when work_preferences.json exists."""
+	def test_assess_loads_preferences_without_error(self, fixtures_dir, tmp_path):
+		"""CLI assess should succeed when work_preferences.json exists.
+
+		Culture_fit requires company_profile (from server enrichment or culture
+		signals), which the CLI path does not provide, so it stays None here.
+		The server test_assess_partial_includes_culture_when_preferences_exist
+		covers the full culture scoring path.
+		"""
+		import claude_candidate
+
 		output = tmp_path / "assessment.json"
 
 		# Create a work_preferences.json in the fake home
@@ -136,7 +144,11 @@ class TestAssessCommand:
 
 		assert result.exit_code == 0, f"CLI failed: {result.output}"
 		data = json.loads(output.read_text())
-		assert data["app_version"] == "0.9.0"
+		assert data["app_version"] == claude_candidate.__version__
+		assert "overall_grade" in data
+		assert "skill_match" in data
+		# CLI has no company research — culture_fit should not be scored
+		assert data["culture_fit"] is None
 
 
 class TestManifestCommands:
