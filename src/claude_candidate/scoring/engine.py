@@ -181,10 +181,17 @@ class QuickMatchEngine:
 		)
 
 		# 1. Score dimensions: skill is always scored; mission and culture depend on data.
-		# Mission activates only via full assessment when CompanyProfile has real signals.
 		mission_dim: DimensionScore | None = None
 		culture_dim: DimensionScore | None = None
 		avoid_count = 0
+
+		# Mission activates only when CompanyProfile has real signals.
+		if inp.company_profile is not None and inp.company_profile.has_mission_signals():
+			mission_dim = self._score_mission_alignment(
+				inp.company,
+				inp.tech_stack or [],
+				inp.company_profile,
+			)
 
 		# 2. Score culture via work preferences (replaces old pattern-based scorer)
 		culture_result = _score_culture_preferences(inp.work_preferences, inp.company_profile)

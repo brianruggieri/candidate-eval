@@ -265,8 +265,8 @@ class TestEducationGate:
 		assert result.cap_grade == "B+"
 		assert result.cap_score == 0.849
 
-	def test_phd_minus_two_returns_c_plus_cap(self):
-		"""Requires PhD, have BS = C+ cap (score 0.699)."""
+	def test_phd_minus_two_returns_b_minus_cap(self):
+		"""Requires PhD, have BS = B- cap (score 0.749)."""
 		from claude_candidate.eligibility_evaluator import detect_education_gap
 
 		result = detect_education_gap(

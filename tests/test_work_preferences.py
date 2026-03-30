@@ -306,8 +306,8 @@ class TestCultureEngineIntegration:
 			company_profile=company,
 			work_preferences=prefs,
 		)
-		# Overall score should be capped at 0.799 (B+ cap)
-		assert result.overall_score <= 0.799
+		# Overall score should be capped at 0.849 (B+ cap)
+		assert result.overall_score <= 0.849
 
 	def test_avoid_cap_two_plus_caps_at_b_minus(
 		self, candidate_profile, resume_profile, quick_requirements
@@ -341,8 +341,8 @@ class TestCultureEngineIntegration:
 			company_profile=company,
 			work_preferences=prefs,
 		)
-		# Overall score should be capped at 0.699 (B- cap)
-		assert result.overall_score <= 0.699
+		# Overall score should be capped at 0.749 (B- cap)
+		assert result.overall_score <= 0.749
 
 	def test_work_preferences_field_on_assessment_input(self):
 		from claude_candidate.scoring.engine import AssessmentInput
@@ -445,8 +445,8 @@ class TestCultureConstants:
 			CULTURE_AVOID_CAP_TWO_PLUS,
 		)
 
-		assert CULTURE_AVOID_CAP_ONE == 0.799
-		assert CULTURE_AVOID_CAP_TWO_PLUS == 0.699
+		assert CULTURE_AVOID_CAP_ONE == 0.849
+		assert CULTURE_AVOID_CAP_TWO_PLUS == 0.749
 
 	def test_constants_importable_from_scoring_package(self):
 		from claude_candidate.scoring import (
