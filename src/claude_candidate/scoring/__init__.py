@@ -177,7 +177,51 @@ from claude_candidate.scoring.engine import (
 	SummaryInput,
 )
 
+# ---------------------------------------------------------------------------
+# Shared assessment input preparation
+# ---------------------------------------------------------------------------
+from pathlib import Path as _Path
+
+
+def prepare_assess_inputs(
+	company: str,
+	*,
+	culture_signals: list[str] | None = None,
+	tech_stack: list[str] | None = None,
+	company_profile: "CompanyProfile | None" = None,
+) -> dict:
+	"""Resolve work_preferences and company_profile for engine.assess().
+
+	Returns dict with keys: work_preferences, company_profile.
+	Designed to be **kwargs'd into engine.assess().
+	"""
+	from claude_candidate.schemas.company_profile import CompanyProfile as _CP
+	from claude_candidate.schemas.work_preferences import WorkPreferences
+
+	prefs_path = _Path.home() / ".claude-candidate" / "work_preferences.json"
+	work_preferences = WorkPreferences.load(prefs_path)
+
+	if company_profile is None and (culture_signals or tech_stack):
+		from datetime import datetime
+
+		company_profile = _CP(
+			company_name=company,
+			product_description=f"{company} company",
+			product_domain=[],
+			culture_keywords=culture_signals or [],
+			tech_stack_public=tech_stack or [],
+			enriched_at=datetime.now(),
+		)
+
+	return {
+		"work_preferences": work_preferences,
+		"company_profile": company_profile,
+	}
+
+
 __all__ = [
+	# Shared helpers
+	"prepare_assess_inputs",
 	# Constants
 	"_get_taxonomy",
 	"PATTERN_CONFIDENCE_HIGH",
