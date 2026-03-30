@@ -38,6 +38,7 @@ Job posting → requirement_parser → QuickRequirement[]
 | Module | Purpose |
 |--------|---------|
 | `quick_match.py` | Scoring engine — matches profile skills against job requirements |
+| `scoring/__init__.py` | Public API + `prepare_assess_inputs()` shared helper for CLI/server |
 | `skill_taxonomy.py` | Canonical skill resolution (aliases, fuzzy, relationships) |
 | `merger.py` | Combines session + resume evidence into unified profile |
 | `extractor.py` | Extracts skills/patterns/projects from session logs |
