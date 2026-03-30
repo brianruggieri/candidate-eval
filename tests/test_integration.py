@@ -95,6 +95,49 @@ class TestAssessCommand:
 		# Should print the assessment card
 		assert "Test Corp" in result.output
 
+	def test_assess_includes_culture_fit_when_preferences_exist(self, fixtures_dir, tmp_path):
+		"""CLI assess should produce culture_fit when work_preferences.json exists."""
+		output = tmp_path / "assessment.json"
+
+		# Create a work_preferences.json in the fake home
+		fake_home = tmp_path / "home"
+		cc_dir = fake_home / ".claude-candidate"
+		cc_dir.mkdir(parents=True)
+		prefs = {
+			"remote_preference": "remote_first",
+			"company_size": ["startup"],
+			"culture_values": ["transparency"],
+			"culture_avoid": [],
+		}
+		(cc_dir / "work_preferences.json").write_text(json.dumps(prefs))
+
+		runner = CliRunner()
+		with patch.dict("os.environ", {"HOME": str(fake_home)}):
+			result = runner.invoke(
+				main,
+				[
+					"assess",
+					"--profile",
+					str(fixtures_dir / "sample_candidate_profile.json"),
+					"--resume",
+					str(fixtures_dir / "sample_resume_profile.json"),
+					"--job",
+					str(fixtures_dir / "sample_job_posting.txt"),
+					"--company",
+					"AI Tools Corp",
+					"--title",
+					"Senior AI Engineer",
+					"--seniority",
+					"senior",
+					"--output",
+					str(output),
+				],
+			)
+
+		assert result.exit_code == 0, f"CLI failed: {result.output}"
+		data = json.loads(output.read_text())
+		assert data["app_version"] == "0.9.0"
+
 
 class TestManifestCommands:
 	def test_manifest_create(self, tmp_path):
