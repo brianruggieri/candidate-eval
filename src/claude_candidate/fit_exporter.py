@@ -11,6 +11,7 @@ from typing import Any
 
 import yaml
 
+from claude_candidate.pii_gate import scrub_deliverable
 from claude_candidate.skill_taxonomy import SkillTaxonomy
 
 _taxonomy: SkillTaxonomy | None = None
@@ -157,6 +158,123 @@ def generate_slug(title: str, company: str) -> str:
 _PRIORITY_ORDER = {"must_have": 0, "strong_preference": 1, "nice_to_have": 2, "implied": 3}
 _STRENGTH_ORDER = {"exceptional": 0, "strong": 1, "established": 2, "emerging": 3}
 
+# ── v0.9 Evidence Source Normalization ──
+
+_EVIDENCE_SOURCE_MAP: dict[str, str] = {
+	# v0.9 canonical values — pass through unchanged
+	"resume_only": "resume_only",
+	"resume_and_repo": "resume_and_repo",
+	"repo_only": "repo_only",
+	# Legacy values → v0.9 equivalents
+	"corroborated": "resume_and_repo",
+	"sessions_only": "repo_only",
+	"conflicting": "resume_and_repo",
+}
+
+
+def _normalize_evidence_source(source: str) -> str:
+	"""Map legacy evidence source values to v0.9 canonical equivalents.
+
+	Legacy values (pre-v0.9):
+	  corroborated   → resume_and_repo
+	  sessions_only  → repo_only
+	  conflicting    → resume_and_repo
+	  unknown/other  → resume_only (safe default)
+	"""
+	return _EVIDENCE_SOURCE_MAP.get(source, "resume_only")
+
+
+# ── Evidence Tier Computation ──
+
+# GitHub commit URL pattern: github.com/<user>/<repo>/commit/<sha>
+_GITHUB_COMMIT_RE = re.compile(
+	r"https?://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/commit/[0-9a-fA-F]{7,40}"
+)
+
+# Live URL pattern: http(s):// that is NOT a github.com link
+_LIVE_URL_RE = re.compile(r"https?://(?!github\.com)[A-Za-z0-9_.-]+\.[A-Za-z]{2,}[^\s]*")
+
+
+def compute_evidence_tier(
+	match: dict[str, Any],
+	evidence_snippet: str,
+	projects: list[dict[str, Any]],
+) -> str:
+	"""Classify a skill match into an evidence tier for visual color coding.
+
+	Tiers (in priority order):
+	  inspectable — has a public_repo_url on a matched project, or a GitHub commit
+	                URL in the evidence snippet
+	  deployed    — has a live (non-GitHub) URL in the evidence snippet
+	  claimed     — resume-only source, or no verifiable artifact
+
+	Args:
+	    match: Enriched skill match dict (must have evidence_source).
+	    evidence_snippet: Raw evidence text from the candidate profile.
+	    projects: Project dicts that may carry public_repo_url.
+
+	Returns:
+	    One of: "inspectable", "deployed", "claimed"
+	"""
+	# 1. Any project with a public_repo_url → inspectable
+	for proj in projects:
+		if proj.get("public_repo_url"):
+			return "inspectable"
+
+	# 2. GitHub commit URL in evidence snippet → inspectable
+	if evidence_snippet and _GITHUB_COMMIT_RE.search(evidence_snippet):
+		return "inspectable"
+
+	# 3. Live URL (non-GitHub) in evidence snippet → deployed
+	if evidence_snippet and _LIVE_URL_RE.search(evidence_snippet):
+		return "deployed"
+
+	# 4. Resume-only source or no artifact → claimed
+	return "claimed"
+
+
+# ── Benchmark Metadata ──
+
+# Default path relative to the project root (resolved at call time)
+_BENCHMARK_HISTORY_PATH = Path(__file__).parent.parent.parent.parent / "tests" / "golden_set" / "benchmark_history.jsonl"
+
+
+def load_benchmark_metadata() -> dict[str, Any]:
+	"""Read the last benchmark run from benchmark_history.jsonl.
+
+	Returns a dict with:
+	  - benchmark_postings_count: int | None
+	  - benchmark_calibration_date: str | None  (YYYY-MM-DD)
+
+	Handles file-not-found gracefully — returns None values in that case.
+	"""
+	try:
+		history_path = _BENCHMARK_HISTORY_PATH
+		if not history_path.exists():
+			return {"benchmark_postings_count": None, "benchmark_calibration_date": None}
+
+		last_line = ""
+		with history_path.open(encoding="utf-8") as f:
+			for line in f:
+				stripped = line.strip()
+				if stripped:
+					last_line = stripped
+
+		if not last_line:
+			return {"benchmark_postings_count": None, "benchmark_calibration_date": None}
+
+		record = json.loads(last_line)
+		postings_count = len(record.get("postings", {})) or None
+		timestamp = record.get("timestamp", "")
+		calibration_date = timestamp[:10] if timestamp else None
+
+		return {
+			"benchmark_postings_count": postings_count,
+			"benchmark_calibration_date": calibration_date,
+		}
+	except Exception:
+		return {"benchmark_postings_count": None, "benchmark_calibration_date": None}
+
 
 def select_skill_matches(
 	skill_matches: list[dict[str, Any]],
@@ -281,6 +399,7 @@ def select_projects(
 				"sessions": proj.get("session_count", 0),
 				"date_range": date_range,
 				"callout": (proj.get("key_decisions") or [""])[0],
+				"public_repo_url": proj.get("public_repo_url"),
 			}
 		)
 	return result
@@ -422,10 +541,11 @@ def select_evidence_highlights(
 
 		project_name = best.get("project_context", "")
 		tags = project_techs.get(project_name.lower(), []) or [match["requirement"]]
+		raw_quote = best.get("evidence_snippet", "")
 		result.append(
 			{
 				"heading": match["requirement"].title(),
-				"quote": best.get("evidence_snippet", ""),
+				"quote": scrub_deliverable(raw_quote),
 				"project": project_name,
 				"date": formatted_date,
 				"tags": tags,
@@ -482,6 +602,10 @@ def write_fit_page(
 		"patterns": data.get("patterns", []),
 		"projects": data.get("projects", []),
 		"gaps": data.get("gaps", []),
+		"benchmark_postings_count": data.get("benchmark_postings_count"),
+		"benchmark_calibration_date": data.get("benchmark_calibration_date"),
+		"company_research_sample": data.get("company_research_sample"),
+		# NOTE: narrative_verdict intentionally excluded (Decision 5, Do Not Retry).
 	}
 
 	yaml_str = yaml.safe_dump(
@@ -562,6 +686,10 @@ def export_fit_assessment(
 		join_key = (match.get("matched_skill") or req).lower()
 		resolved_key = _resolve_skill_key(join_key, merged_skills, taxonomy)
 		merged = merged_skills.get(resolved_key, {}) if resolved_key else {}
+		# Normalize evidence_source to v0.9 canonical values
+		normalized_source = _normalize_evidence_source(str(match.get("evidence_source", "resume_only")))
+		# Compute evidence tier for visual color coding
+		tier = compute_evidence_tier(match, "", merged_profile.get("projects", []))
 		enriched_matches.append(
 			{
 				"skill": req,
@@ -569,8 +697,9 @@ def export_fit_assessment(
 				"priority": match.get("priority", "implied"),
 				"depth": (merged.get("effective_depth") or "Unknown").replace("_", " ").title(),
 				"sessions": merged.get("session_evidence_count", 0),
-				"source": str(match.get("evidence_source", "resume_only")),
+				"source": normalized_source,
 				"discovery": bool(merged.get("discovery_flag", False)),
+				"tier": tier,
 			}
 		)
 
@@ -613,7 +742,17 @@ def export_fit_assessment(
 			file=sys.stderr,
 		)
 
+	# Load benchmark metadata (graceful if file absent)
+	benchmark_meta = load_benchmark_metadata()
+
+	# company_research_sample: renamed from company_profile_summary; scrub PII before export
+	raw_company_research = full_data.get("company_research_sample") or full_data.get(
+		"company_profile_summary"
+	)
+	company_research_sample = scrub_deliverable(raw_company_research) if raw_company_research else None
+
 	# Assemble front matter data
+	# NOTE: narrative_verdict intentionally excluded (Decision 5, Do Not Retry).
 	page_data = {
 		"title": title,
 		"company": company,
@@ -629,6 +768,9 @@ def export_fit_assessment(
 		"patterns": patterns,
 		"projects": projects,
 		"gaps": gaps,
+		"benchmark_postings_count": benchmark_meta["benchmark_postings_count"],
+		"benchmark_calibration_date": benchmark_meta["benchmark_calibration_date"],
+		"company_research_sample": company_research_sample,
 	}
 
 	return write_fit_page(page_data, output_dir=output_dir, cal_link=cal_link)

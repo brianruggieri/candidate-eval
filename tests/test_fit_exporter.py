@@ -1,5 +1,6 @@
 import json
 
+import pytest
 import yaml
 
 from claude_candidate.fit_exporter import (
@@ -11,6 +12,9 @@ from claude_candidate.fit_exporter import (
 	select_gaps,
 	write_fit_page,
 	export_fit_assessment,
+	_normalize_evidence_source,
+	compute_evidence_tier,
+	load_benchmark_metadata,
 )
 
 
@@ -406,8 +410,6 @@ def test_empty_title_uses_company():
 
 def test_export_fails_below_skill_threshold(tmp_path):
 	"""Export should fail when fewer than 3 skill matches."""
-	import pytest
-
 	merged = {
 		"skills": [],
 		"patterns": [],
@@ -622,3 +624,743 @@ def test_select_evidence_highlights_no_false_positive():
 
 	result = select_evidence_highlights(skill_matches, candidate_skills)
 	assert result == []  # "experience" should not fuzzy-match to "startup-experience"
+
+
+# ── Task 4: Normalize Evidence Source ──
+
+
+class TestNormalizeEvidenceSource:
+	def test_resume_only_passes_through(self):
+		assert _normalize_evidence_source("resume_only") == "resume_only"
+
+	def test_resume_and_repo_passes_through(self):
+		assert _normalize_evidence_source("resume_and_repo") == "resume_and_repo"
+
+	def test_repo_only_passes_through(self):
+		assert _normalize_evidence_source("repo_only") == "repo_only"
+
+	def test_corroborated_maps_to_resume_and_repo(self):
+		assert _normalize_evidence_source("corroborated") == "resume_and_repo"
+
+	def test_sessions_only_maps_to_repo_only(self):
+		assert _normalize_evidence_source("sessions_only") == "repo_only"
+
+	def test_conflicting_maps_to_resume_and_repo(self):
+		assert _normalize_evidence_source("conflicting") == "resume_and_repo"
+
+	def test_unknown_maps_to_resume_only(self):
+		assert _normalize_evidence_source("totally_unknown_value") == "resume_only"
+
+
+# ── Task 1: Evidence Tier Computation ──
+
+
+class TestComputeEvidenceTier:
+	def test_inspectable_when_public_repo_url(self):
+		match = {"evidence_source": "repo_only", "confidence": 0.9}
+		projects = [{"project_name": "my-project", "public_repo_url": "https://github.com/user/my-project"}]
+		# evidence_snippet referencing a project with public_repo_url
+		snippet = "Built the pipeline for my-project"
+		tier = compute_evidence_tier(match, snippet, projects)
+		assert tier == "inspectable"
+
+	def test_inspectable_when_github_commit_in_evidence(self):
+		match = {"evidence_source": "repo_only", "confidence": 0.9}
+		snippet = "Implemented feature https://github.com/user/repo/commit/abc123def456 in production"
+		tier = compute_evidence_tier(match, snippet, [])
+		assert tier == "inspectable"
+
+	def test_claimed_when_resume_only(self):
+		match = {"evidence_source": "resume_only", "confidence": 0.7}
+		tier = compute_evidence_tier(match, "", [])
+		assert tier == "claimed"
+
+	def test_claimed_when_no_repo_no_url(self):
+		match = {"evidence_source": "repo_only", "confidence": 0.8}
+		snippet = "Used Python extensively in backend work"
+		tier = compute_evidence_tier(match, snippet, [])
+		assert tier == "claimed"
+
+	def test_deployed_when_live_url_in_evidence(self):
+		match = {"evidence_source": "repo_only", "confidence": 0.85}
+		snippet = "Deployed at https://myapp.example.com for production use"
+		tier = compute_evidence_tier(match, snippet, [])
+		assert tier == "deployed"
+
+
+# ── Task 2: public_repo_url on projects ──
+
+
+def test_select_projects_includes_public_repo_url():
+	"""projects pass through public_repo_url when present, None when absent."""
+	projects = [
+		{
+			"project_name": "open-source-lib",
+			"description": "A Python library",
+			"complexity": "moderate",
+			"technologies": ["Python"],
+			"session_count": 10,
+			"date_range_start": "2025-01-01",
+			"date_range_end": "2025-06-01",
+			"key_decisions": ["Chose MIT license"],
+			"public_repo_url": "https://github.com/user/open-source-lib",
+		},
+		{
+			"project_name": "private-project",
+			"description": "A private project",
+			"complexity": "simple",
+			"technologies": ["Go"],
+			"session_count": 5,
+			"date_range_start": "2025-07-01",
+			"date_range_end": "2025-09-01",
+			"key_decisions": ["Used microservices"],
+		},
+	]
+	result = select_projects(projects)
+	names = {p["name"]: p for p in result}
+	assert names["open-source-lib"]["public_repo_url"] == "https://github.com/user/open-source-lib"
+	assert names["private-project"]["public_repo_url"] is None
+
+
+# ── Task 3: Benchmark Metadata Fields ──
+
+
+def test_write_fit_page_includes_benchmark_metadata(tmp_path):
+	"""benchmark_postings_count and benchmark_calibration_date should appear in YAML output."""
+	data = {
+		"title": "Staff Engineer",
+		"company": "Anthropic",
+		"slug": "staff-engineer-anthropic",
+		"description": "Test",
+		"overall_grade": "A+",
+		"overall_score": 0.97,
+		"should_apply": "strong_yes",
+		"overall_summary": "Great fit.",
+		"skill_matches": [],
+		"evidence_highlights": [],
+		"patterns": [],
+		"projects": [],
+		"gaps": [],
+		"benchmark_postings_count": 47,
+		"benchmark_calibration_date": "2026-03-23",
+	}
+	result = write_fit_page(data, output_dir=tmp_path)
+	parsed = yaml.safe_load(result.read_text().split("---\n", 2)[1])
+	assert parsed["benchmark_postings_count"] == 47
+	assert parsed["benchmark_calibration_date"] == "2026-03-23"
+
+
+# ── Task 5: company_research_sample and narrative_verdict exclusion ──
+
+
+def test_export_includes_company_research_sample(tmp_path):
+	"""company_research_sample should appear in the YAML output."""
+	merged = {
+		"skills": [
+			{"name": "python", "source": "resume_only", "effective_depth": "EXPERT",
+			 "session_evidence_count": 100, "discovery_flag": False, "confidence": 0.9},
+			{"name": "react", "source": "resume_only", "effective_depth": "APPLIED",
+			 "session_evidence_count": 50, "discovery_flag": False, "confidence": 0.8},
+			{"name": "fastapi", "source": "resume_only", "effective_depth": "APPLIED",
+			 "session_evidence_count": 30, "discovery_flag": False, "confidence": 0.75},
+		],
+		"patterns": [],
+		"projects": [
+			{
+				"project_name": "test-proj",
+				"description": "Test",
+				"complexity": "simple",
+				"technologies": ["Python"],
+				"session_count": 5,
+				"date_range_start": "2025-01-01",
+				"date_range_end": "2025-06-01",
+				"key_decisions": ["Used FastAPI"],
+			}
+		],
+	}
+	candidate = {"skills": []}
+	candidate_path = tmp_path / "candidate.json"
+	candidate_path.write_text(json.dumps(candidate))
+
+	assessment = {
+		"data": {
+			"job_title": "Engineer",
+			"company_name": "TestCo",
+			"overall_grade": "B",
+			"overall_score": 0.75,
+			"should_apply": "yes",
+			"overall_summary": "Good fit.",
+			"skill_matches": [
+				{"requirement": "python", "priority": "must_have", "match_status": "strong_match",
+				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.9},
+				{"requirement": "react", "priority": "must_have", "match_status": "strong_match",
+				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.8},
+				{"requirement": "fastapi", "priority": "strong_preference", "match_status": "strong_match",
+				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.75},
+			],
+			"action_items": [],
+			"company_research_sample": "TestCo is a fast-growing startup in SF.",
+		},
+	}
+
+	output_dir = tmp_path / "out"
+	output_dir.mkdir()
+	result = export_fit_assessment(
+		assessment,
+		merged_profile_data=merged,
+		candidate_profile_path=candidate_path,
+		output_dir=output_dir,
+	)
+	parsed = yaml.safe_load(result.read_text().split("---\n", 2)[1])
+	assert "company_research_sample" in parsed
+	assert parsed["company_research_sample"] == "TestCo is a fast-growing startup in SF."
+
+
+def test_narrative_verdict_never_exported(tmp_path):
+	"""narrative_verdict must never appear in YAML output — Decision 5."""
+	merged = {
+		"skills": [
+			{"name": "python", "source": "resume_only", "effective_depth": "EXPERT",
+			 "session_evidence_count": 100, "discovery_flag": False, "confidence": 0.9},
+			{"name": "react", "source": "resume_only", "effective_depth": "APPLIED",
+			 "session_evidence_count": 50, "discovery_flag": False, "confidence": 0.8},
+			{"name": "fastapi", "source": "resume_only", "effective_depth": "APPLIED",
+			 "session_evidence_count": 30, "discovery_flag": False, "confidence": 0.75},
+		],
+		"patterns": [],
+		"projects": [
+			{
+				"project_name": "test-proj",
+				"description": "Test",
+				"complexity": "simple",
+				"technologies": ["Python"],
+				"session_count": 5,
+				"date_range_start": "2025-01-01",
+				"date_range_end": "2025-06-01",
+				"key_decisions": ["Used FastAPI"],
+			}
+		],
+	}
+	candidate = {"skills": []}
+	candidate_path = tmp_path / "candidate.json"
+	candidate_path.write_text(json.dumps(candidate))
+
+	assessment = {
+		"data": {
+			"job_title": "Engineer",
+			"company_name": "TestCo",
+			"overall_grade": "B",
+			"overall_score": 0.75,
+			"should_apply": "yes",
+			"overall_summary": "Good fit.",
+			"narrative_verdict": "This candidate is perfect for the role.",
+			"skill_matches": [
+				{"requirement": "python", "priority": "must_have", "match_status": "strong_match",
+				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.9},
+				{"requirement": "react", "priority": "must_have", "match_status": "strong_match",
+				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.8},
+				{"requirement": "fastapi", "priority": "strong_preference", "match_status": "strong_match",
+				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.75},
+			],
+			"action_items": [],
+		},
+	}
+
+	output_dir = tmp_path / "out"
+	output_dir.mkdir()
+	result = export_fit_assessment(
+		assessment,
+		merged_profile_data=merged,
+		candidate_profile_path=candidate_path,
+		output_dir=output_dir,
+	)
+	parsed = yaml.safe_load(result.read_text().split("---\n", 2)[1])
+	assert "narrative_verdict" not in parsed
+
+
+# ── Task 6: PII Gate ──
+
+
+def test_evidence_highlights_scrub_pii():
+	"""Evidence snippet with phone number should have [PHONE] placeholder after scrubbing."""
+	skill_matches = [
+		{
+			"requirement": "python",
+			"match_status": "strong_match",
+			"evidence_source": "corroborated",
+			"confidence": 0.95,
+		},
+	]
+	candidate_skills = [
+		{
+			"name": "python",
+			"evidence": [
+				{
+					"session_id": "s1",
+					"session_date": "2026-03-01T00:00:00",
+					"project_context": "test-project",
+					"evidence_snippet": "Call me at 555-867-5309 for the Python project demo",
+					"confidence": 0.9,
+				},
+			],
+		},
+	]
+	result = select_evidence_highlights(skill_matches, candidate_skills)
+	assert len(result) == 1
+	assert "[PHONE]" in result[0]["quote"]
+	assert "555-867-5309" not in result[0]["quote"]
+
+
+def test_company_research_sample_scrubs_pii(tmp_path):
+	"""company_research_sample with PII should have it scrubbed in output."""
+	merged = {
+		"skills": [
+			{"name": "python", "source": "resume_only", "effective_depth": "EXPERT",
+			 "session_evidence_count": 100, "discovery_flag": False, "confidence": 0.9},
+			{"name": "react", "source": "resume_only", "effective_depth": "APPLIED",
+			 "session_evidence_count": 50, "discovery_flag": False, "confidence": 0.8},
+			{"name": "fastapi", "source": "resume_only", "effective_depth": "APPLIED",
+			 "session_evidence_count": 30, "discovery_flag": False, "confidence": 0.75},
+		],
+		"patterns": [],
+		"projects": [
+			{
+				"project_name": "test-proj",
+				"description": "Test",
+				"complexity": "simple",
+				"technologies": ["Python"],
+				"session_count": 5,
+				"date_range_start": "2025-01-01",
+				"date_range_end": "2025-06-01",
+				"key_decisions": ["Used FastAPI"],
+			}
+		],
+	}
+	candidate = {"skills": []}
+	candidate_path = tmp_path / "candidate.json"
+	candidate_path.write_text(json.dumps(candidate))
+
+	assessment = {
+		"data": {
+			"job_title": "Engineer",
+			"company_name": "TestCo",
+			"overall_grade": "B",
+			"overall_score": 0.75,
+			"should_apply": "yes",
+			"overall_summary": "Good fit.",
+			"skill_matches": [
+				{"requirement": "python", "priority": "must_have", "match_status": "strong_match",
+				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.9},
+				{"requirement": "react", "priority": "must_have", "match_status": "strong_match",
+				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.8},
+				{"requirement": "fastapi", "priority": "strong_preference", "match_status": "strong_match",
+				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.75},
+			],
+			"action_items": [],
+			"company_research_sample": "Contact HR at 555-123-4567 for more info about TestCo.",
+		},
+	}
+
+	output_dir = tmp_path / "out"
+	output_dir.mkdir()
+	result = export_fit_assessment(
+		assessment,
+		merged_profile_data=merged,
+		candidate_profile_path=candidate_path,
+		output_dir=output_dir,
+	)
+	parsed = yaml.safe_load(result.read_text().split("---\n", 2)[1])
+	assert "company_research_sample" in parsed
+	assert "[PHONE]" in parsed["company_research_sample"]
+	assert "555-123-4567" not in parsed["company_research_sample"]
+
+
+# ── Task 7: Integration Test Updates ──
+
+
+def test_integration_tier_field_present(tmp_path):
+	"""tier field must be on every skill match, with valid value."""
+	merged = {
+		"skills": [
+			{"name": "python", "source": "resume_and_repo", "effective_depth": "EXPERT",
+			 "session_evidence_count": 551, "discovery_flag": False, "confidence": 0.95},
+			{"name": "react", "source": "repo_only", "effective_depth": "APPLIED",
+			 "session_evidence_count": 229, "discovery_flag": True, "confidence": 0.8},
+			{"name": "fastapi", "source": "resume_only", "effective_depth": "APPLIED",
+			 "session_evidence_count": 0, "discovery_flag": False, "confidence": 0.75},
+		],
+		"patterns": [],
+		"projects": [
+			{
+				"project_name": "test-proj",
+				"description": "Test project",
+				"complexity": "moderate",
+				"technologies": ["Python", "FastAPI"],
+				"session_count": 10,
+				"date_range_start": "2025-01-01",
+				"date_range_end": "2025-06-01",
+				"key_decisions": ["Chose FastAPI"],
+				"public_repo_url": "https://github.com/user/test-proj",
+			}
+		],
+	}
+	candidate = {"skills": []}
+	candidate_path = tmp_path / "candidate.json"
+	candidate_path.write_text(json.dumps(candidate))
+
+	assessment = {
+		"data": {
+			"job_title": "Staff Engineer",
+			"company_name": "Anthropic",
+			"overall_grade": "A+",
+			"overall_score": 0.97,
+			"should_apply": "strong_yes",
+			"overall_summary": "Exceptional fit.",
+			"skill_matches": [
+				{"requirement": "python", "priority": "must_have", "match_status": "strong_match",
+				 "candidate_evidence": "Yes", "evidence_source": "resume_and_repo", "confidence": 0.95,
+				 "matched_skill": "python"},
+				{"requirement": "react", "priority": "must_have", "match_status": "strong_match",
+				 "candidate_evidence": "Yes", "evidence_source": "repo_only", "confidence": 0.8,
+				 "matched_skill": "react"},
+				{"requirement": "fastapi", "priority": "strong_preference", "match_status": "strong_match",
+				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.75,
+				 "matched_skill": "fastapi"},
+			],
+			"action_items": [],
+		},
+	}
+
+	output_dir = tmp_path / "out"
+	output_dir.mkdir()
+	result = export_fit_assessment(
+		assessment,
+		merged_profile_data=merged,
+		candidate_profile_path=candidate_path,
+		output_dir=output_dir,
+	)
+	parsed = yaml.safe_load(result.read_text().split("---\n", 2)[1])
+
+	valid_tiers = {"inspectable", "deployed", "claimed"}
+	for match in parsed["skill_matches"]:
+		assert "tier" in match, f"Missing tier on {match}"
+		assert match["tier"] in valid_tiers, f"Invalid tier value: {match['tier']}"
+
+
+def test_integration_no_legacy_source_values(tmp_path):
+	"""No corroborated or sessions_only values should survive to the output."""
+	merged = {
+		"skills": [
+			{"name": "python", "source": "resume_and_repo", "effective_depth": "EXPERT",
+			 "session_evidence_count": 551, "discovery_flag": False, "confidence": 0.95},
+			{"name": "react", "source": "repo_only", "effective_depth": "APPLIED",
+			 "session_evidence_count": 229, "discovery_flag": True, "confidence": 0.8},
+			{"name": "fastapi", "source": "resume_only", "effective_depth": "APPLIED",
+			 "session_evidence_count": 0, "discovery_flag": False, "confidence": 0.75},
+		],
+		"patterns": [],
+		"projects": [
+			{
+				"project_name": "test-proj",
+				"description": "Test project",
+				"complexity": "moderate",
+				"technologies": ["Python"],
+				"session_count": 10,
+				"date_range_start": "2025-01-01",
+				"date_range_end": "2025-06-01",
+				"key_decisions": ["Chose FastAPI"],
+			}
+		],
+	}
+	candidate = {"skills": []}
+	candidate_path = tmp_path / "candidate.json"
+	candidate_path.write_text(json.dumps(candidate))
+
+	assessment = {
+		"data": {
+			"job_title": "Staff Engineer",
+			"company_name": "Anthropic",
+			"overall_grade": "A+",
+			"overall_score": 0.97,
+			"should_apply": "strong_yes",
+			"overall_summary": "Exceptional fit.",
+			"skill_matches": [
+				{"requirement": "python", "priority": "must_have", "match_status": "strong_match",
+				 "candidate_evidence": "Yes", "evidence_source": "corroborated", "confidence": 0.95,
+				 "matched_skill": "python"},
+				{"requirement": "react", "priority": "must_have", "match_status": "strong_match",
+				 "candidate_evidence": "Yes", "evidence_source": "sessions_only", "confidence": 0.8,
+				 "matched_skill": "react"},
+				{"requirement": "fastapi", "priority": "strong_preference", "match_status": "strong_match",
+				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.75,
+				 "matched_skill": "fastapi"},
+			],
+			"action_items": [],
+		},
+	}
+
+	output_dir = tmp_path / "out"
+	output_dir.mkdir()
+	result = export_fit_assessment(
+		assessment,
+		merged_profile_data=merged,
+		candidate_profile_path=candidate_path,
+		output_dir=output_dir,
+	)
+	parsed = yaml.safe_load(result.read_text().split("---\n", 2)[1])
+
+	legacy_values = {"corroborated", "sessions_only"}
+	for match in parsed["skill_matches"]:
+		assert match["source"] not in legacy_values, f"Legacy source value in output: {match['source']}"
+
+
+def test_integration_benchmark_fields_present(tmp_path):
+	"""benchmark_postings_count and benchmark_calibration_date must be present."""
+	merged = {
+		"skills": [
+			{"name": "python", "source": "resume_only", "effective_depth": "EXPERT",
+			 "session_evidence_count": 100, "discovery_flag": False, "confidence": 0.9},
+			{"name": "react", "source": "resume_only", "effective_depth": "APPLIED",
+			 "session_evidence_count": 50, "discovery_flag": False, "confidence": 0.8},
+			{"name": "fastapi", "source": "resume_only", "effective_depth": "APPLIED",
+			 "session_evidence_count": 30, "discovery_flag": False, "confidence": 0.75},
+		],
+		"patterns": [],
+		"projects": [
+			{
+				"project_name": "test-proj",
+				"description": "Test",
+				"complexity": "simple",
+				"technologies": ["Python"],
+				"session_count": 5,
+				"date_range_start": "2025-01-01",
+				"date_range_end": "2025-06-01",
+				"key_decisions": ["Used FastAPI"],
+			}
+		],
+	}
+	candidate = {"skills": []}
+	candidate_path = tmp_path / "candidate.json"
+	candidate_path.write_text(json.dumps(candidate))
+
+	assessment = {
+		"data": {
+			"job_title": "Engineer",
+			"company_name": "TestCo",
+			"overall_grade": "B",
+			"overall_score": 0.75,
+			"should_apply": "yes",
+			"overall_summary": "Good fit.",
+			"skill_matches": [
+				{"requirement": "python", "priority": "must_have", "match_status": "strong_match",
+				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.9},
+				{"requirement": "react", "priority": "must_have", "match_status": "strong_match",
+				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.8},
+				{"requirement": "fastapi", "priority": "strong_preference", "match_status": "strong_match",
+				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.75},
+			],
+			"action_items": [],
+		},
+	}
+
+	output_dir = tmp_path / "out"
+	output_dir.mkdir()
+	result = export_fit_assessment(
+		assessment,
+		merged_profile_data=merged,
+		candidate_profile_path=candidate_path,
+		output_dir=output_dir,
+	)
+	parsed = yaml.safe_load(result.read_text().split("---\n", 2)[1])
+	# Fields must exist (may be None if benchmark file not found — that is acceptable)
+	assert "benchmark_postings_count" in parsed
+	assert "benchmark_calibration_date" in parsed
+
+
+def test_integration_narrative_verdict_absent(tmp_path):
+	"""narrative_verdict must never appear in output."""
+	merged = {
+		"skills": [
+			{"name": "python", "source": "resume_only", "effective_depth": "EXPERT",
+			 "session_evidence_count": 100, "discovery_flag": False, "confidence": 0.9},
+			{"name": "react", "source": "resume_only", "effective_depth": "APPLIED",
+			 "session_evidence_count": 50, "discovery_flag": False, "confidence": 0.8},
+			{"name": "fastapi", "source": "resume_only", "effective_depth": "APPLIED",
+			 "session_evidence_count": 30, "discovery_flag": False, "confidence": 0.75},
+		],
+		"patterns": [],
+		"projects": [
+			{
+				"project_name": "test-proj",
+				"description": "Test",
+				"complexity": "simple",
+				"technologies": ["Python"],
+				"session_count": 5,
+				"date_range_start": "2025-01-01",
+				"date_range_end": "2025-06-01",
+				"key_decisions": ["Used FastAPI"],
+			}
+		],
+	}
+	candidate = {"skills": []}
+	candidate_path = tmp_path / "candidate.json"
+	candidate_path.write_text(json.dumps(candidate))
+
+	assessment = {
+		"data": {
+			"job_title": "Engineer",
+			"company_name": "TestCo",
+			"overall_grade": "B",
+			"overall_score": 0.75,
+			"should_apply": "yes",
+			"overall_summary": "Good fit.",
+			"narrative_verdict": "This candidate is exceptional.",
+			"skill_matches": [
+				{"requirement": "python", "priority": "must_have", "match_status": "strong_match",
+				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.9},
+				{"requirement": "react", "priority": "must_have", "match_status": "strong_match",
+				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.8},
+				{"requirement": "fastapi", "priority": "strong_preference", "match_status": "strong_match",
+				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.75},
+			],
+			"action_items": [],
+		},
+	}
+
+	output_dir = tmp_path / "out"
+	output_dir.mkdir()
+	result = export_fit_assessment(
+		assessment,
+		merged_profile_data=merged,
+		candidate_profile_path=candidate_path,
+		output_dir=output_dir,
+	)
+	parsed = yaml.safe_load(result.read_text().split("---\n", 2)[1])
+	assert "narrative_verdict" not in parsed
+
+
+def test_integration_public_repo_url_on_projects(tmp_path):
+	"""public_repo_url should pass through on projects that have it."""
+	merged = {
+		"skills": [
+			{"name": "python", "source": "resume_only", "effective_depth": "EXPERT",
+			 "session_evidence_count": 100, "discovery_flag": False, "confidence": 0.9},
+			{"name": "react", "source": "resume_only", "effective_depth": "APPLIED",
+			 "session_evidence_count": 50, "discovery_flag": False, "confidence": 0.8},
+			{"name": "fastapi", "source": "resume_only", "effective_depth": "APPLIED",
+			 "session_evidence_count": 30, "discovery_flag": False, "confidence": 0.75},
+		],
+		"patterns": [],
+		"projects": [
+			{
+				"project_name": "open-source-proj",
+				"description": "A public project",
+				"complexity": "moderate",
+				"technologies": ["Python"],
+				"session_count": 20,
+				"date_range_start": "2025-01-01",
+				"date_range_end": "2025-06-01",
+				"key_decisions": ["Used MIT license"],
+				"public_repo_url": "https://github.com/user/open-source-proj",
+			}
+		],
+	}
+	candidate = {"skills": []}
+	candidate_path = tmp_path / "candidate.json"
+	candidate_path.write_text(json.dumps(candidate))
+
+	assessment = {
+		"data": {
+			"job_title": "Engineer",
+			"company_name": "TestCo",
+			"overall_grade": "B",
+			"overall_score": 0.75,
+			"should_apply": "yes",
+			"overall_summary": "Good fit.",
+			"skill_matches": [
+				{"requirement": "python", "priority": "must_have", "match_status": "strong_match",
+				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.9},
+				{"requirement": "react", "priority": "must_have", "match_status": "strong_match",
+				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.8},
+				{"requirement": "fastapi", "priority": "strong_preference", "match_status": "strong_match",
+				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.75},
+			],
+			"action_items": [],
+		},
+	}
+
+	output_dir = tmp_path / "out"
+	output_dir.mkdir()
+	result = export_fit_assessment(
+		assessment,
+		merged_profile_data=merged,
+		candidate_profile_path=candidate_path,
+		output_dir=output_dir,
+	)
+	parsed = yaml.safe_load(result.read_text().split("---\n", 2)[1])
+	assert len(parsed["projects"]) >= 1
+	proj = parsed["projects"][0]
+	assert "public_repo_url" in proj
+	assert proj["public_repo_url"] == "https://github.com/user/open-source-proj"
+
+
+def test_integration_company_research_sample_present(tmp_path):
+	"""company_research_sample should be in output when provided."""
+	merged = {
+		"skills": [
+			{"name": "python", "source": "resume_only", "effective_depth": "EXPERT",
+			 "session_evidence_count": 100, "discovery_flag": False, "confidence": 0.9},
+			{"name": "react", "source": "resume_only", "effective_depth": "APPLIED",
+			 "session_evidence_count": 50, "discovery_flag": False, "confidence": 0.8},
+			{"name": "fastapi", "source": "resume_only", "effective_depth": "APPLIED",
+			 "session_evidence_count": 30, "discovery_flag": False, "confidence": 0.75},
+		],
+		"patterns": [],
+		"projects": [
+			{
+				"project_name": "test-proj",
+				"description": "Test",
+				"complexity": "simple",
+				"technologies": ["Python"],
+				"session_count": 5,
+				"date_range_start": "2025-01-01",
+				"date_range_end": "2025-06-01",
+				"key_decisions": ["Used FastAPI"],
+			}
+		],
+	}
+	candidate = {"skills": []}
+	candidate_path = tmp_path / "candidate.json"
+	candidate_path.write_text(json.dumps(candidate))
+
+	assessment = {
+		"data": {
+			"job_title": "Engineer",
+			"company_name": "TestCo",
+			"overall_grade": "B",
+			"overall_score": 0.75,
+			"should_apply": "yes",
+			"overall_summary": "Good fit.",
+			"skill_matches": [
+				{"requirement": "python", "priority": "must_have", "match_status": "strong_match",
+				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.9},
+				{"requirement": "react", "priority": "must_have", "match_status": "strong_match",
+				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.8},
+				{"requirement": "fastapi", "priority": "strong_preference", "match_status": "strong_match",
+				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.75},
+			],
+			"action_items": [],
+			"company_research_sample": "TestCo is a great company.",
+		},
+	}
+
+	output_dir = tmp_path / "out"
+	output_dir.mkdir()
+	result = export_fit_assessment(
+		assessment,
+		merged_profile_data=merged,
+		candidate_profile_path=candidate_path,
+		output_dir=output_dir,
+	)
+	parsed = yaml.safe_load(result.read_text().split("---\n", 2)[1])
+	assert "company_research_sample" in parsed
