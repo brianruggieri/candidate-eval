@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>claude-candidate — Dashboard</title>
+	<style>
+		* { box-sizing: border-box; margin: 0; padding: 0; }
+		body {
+			font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+			background: #f8fafc; color: #1e293b; padding: 24px;
+		}
+		.container { max-width: 1100px; margin: 0 auto; }
+		h1 { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+		.subtitle { color: #64748b; font-size: 14px; margin-bottom: 24px; }
+		.progress-bar {
+			background: #e2e8f0; border-radius: 8px; height: 8px; margin-bottom: 8px; overflow: hidden;
+		}
+		.progress-fill {
+			background: #6366f1; height: 100%; border-radius: 8px;
+			transition: width 0.3s ease;
+		}
+		.progress-text { font-size: 12px; color: #64748b; margin-bottom: 20px; }
+		table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+		thead { background: #f1f5f9; }
+		th { padding: 12px 16px; text-align: left; font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; user-select: none; }
+		th:hover { color: #334155; }
+		th .sort-arrow { font-size: 10px; margin-left: 4px; }
+		td { padding: 12px 16px; font-size: 13px; border-top: 1px solid #f1f5f9; }
+		tr.clickable { cursor: pointer; transition: background 0.15s; }
+		tr.clickable:hover { background: #f8fafc; }
+		tr.error td { color: #94a3b8; font-style: italic; }
+		.grade-badge {
+			display: inline-flex; align-items: center; justify-content: center;
+			width: 36px; height: 36px; border-radius: 10px; font-weight: 800; font-size: 14px;
+			border: 2px solid;
+		}
+		.grade-A { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
+		.grade-B { background: #eff6ff; color: #1e40af; border-color: #bfdbfe; }
+		.grade-C { background: #fffbeb; color: #92400e; border-color: #fde68a; }
+		.grade-D, .grade-F { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+		.pct-cell { font-weight: 600; font-size: 14px; }
+		.pct-high { color: #059669; }
+		.pct-mid { color: #d97706; }
+		.pct-low { color: #dc2626; }
+		.strongest { color: #059669; font-size: 12px; }
+		.gap { color: #dc2626; font-size: 12px; }
+		.summary-row {
+			display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap;
+		}
+		.summary-card {
+			background: #fff; border-radius: 10px; padding: 16px 20px;
+			box-shadow: 0 1px 3px rgba(0,0,0,0.08); flex: 1; min-width: 150px;
+		}
+		.summary-card .label { font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em; }
+		.summary-card .value { font-size: 24px; font-weight: 700; margin-top: 4px; }
+		.empty-state { text-align: center; padding: 60px 20px; color: #94a3b8; }
+		.empty-state h2 { font-size: 18px; margin-bottom: 8px; color: #64748b; }
+		@keyframes pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+		.loading { animation: pulse 1.5s ease-in-out infinite; }
+
+		/* Tab navigation */
+		.tab-bar {
+			display: flex; border-bottom: 2px solid #e2e8f0; margin-bottom: 24px; gap: 0;
+		}
+		.tab-btn {
+			padding: 12px 24px; font-size: 14px; font-weight: 600; color: #64748b;
+			background: none; border: none; border-bottom: 2px solid transparent;
+			margin-bottom: -2px; cursor: pointer; transition: color 0.15s, border-color 0.15s;
+		}
+		.tab-btn:hover { color: #334155; }
+		.tab-btn.active { color: #6366f1; border-bottom-color: #6366f1; }
+		.hidden { display: none !important; }
+
+		/* Status dropdown */
+		.status-select {
+			padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 600;
+			border: 1px solid transparent; cursor: pointer; appearance: none;
+			-webkit-appearance: none; background-repeat: no-repeat;
+			background-position: right 6px center; background-size: 10px;
+			background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E");
+			padding-right: 20px;
+		}
+		.status-shortlisted { background: #eef2ff; color: #4f46e5; border-color: #c7d2fe; }
+		.status-applied { background: #ecfeff; color: #0891b2; border-color: #a5f3fc; }
+		.status-interviewing { background: #fffbeb; color: #d97706; border-color: #fde68a; }
+		.status-offer { background: #ecfdf5; color: #059669; border-color: #a7f3d0; }
+		.status-rejected { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
+
+		/* Delete button */
+		.btn-delete {
+			background: none; border: none; color: #cbd5e1; cursor: pointer;
+			font-size: 14px; padding: 4px 8px; border-radius: 4px; transition: color 0.15s, background 0.15s;
+		}
+		.btn-delete:hover { color: #dc2626; background: #fef2f2; }
+
+		/* Date cell */
+		.date-cell { color: #94a3b8; font-size: 12px; white-space: nowrap; }
+
+		.header-row {
+			display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;
+		}
+		.btn-reassess {
+			padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;
+			background: #6366f1; color: #fff; border: none; cursor: pointer;
+			transition: background 0.15s;
+		}
+		.btn-reassess:hover { background: #4f46e5; }
+		.btn-reassess:disabled { background: #cbd5e1; cursor: not-allowed; }
+		.btn-reassess.has-stale { animation: pulse-btn 2s ease-in-out infinite; }
+		@keyframes pulse-btn {
+			0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
+			50% { box-shadow: 0 0 0 6px rgba(99, 102, 241, 0); }
+		}
+		.status-fresh { color: #059669; font-size: 12px; }
+		.status-stale { color: #d97706; font-size: 12px; font-weight: 600; }
+		.status-unknown { color: #94a3b8; font-size: 12px; }
+		.reassess-banner {
+			background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
+			padding: 12px 16px; margin-bottom: 16px; font-size: 13px; color: #92400e;
+			display: flex; align-items: center; gap: 8px;
+		}
+
+		/* Pagination */
+		.pagination {
+			display: flex; align-items: center; justify-content: space-between;
+			padding: 12px 0; font-size: 13px; color: #64748b;
+		}
+		.pagination .page-info { font-weight: 500; }
+		.page-size-select {
+			padding: 4px 8px; border-radius: 6px; border: 1px solid #e2e8f0;
+			font-size: 12px; color: #334155; cursor: pointer; background: #fff;
+		}
+		.page-btn {
+			padding: 4px 10px; border-radius: 6px; border: 1px solid #e2e8f0;
+			background: #fff; font-size: 12px; color: #334155; cursor: pointer;
+			transition: background 0.15s;
+		}
+		.page-btn:hover:not(:disabled) { background: #f1f5f9; }
+		.page-btn:disabled { color: #cbd5e1; cursor: not-allowed; }
+		.page-controls { display: flex; align-items: center; gap: 8px; }
+	</style>
+</head>
+<body>
+	<div class="container">
+		<div class="tab-bar">
+			<button class="tab-btn active" data-tab="assessments">Assessments</button>
+			<button class="tab-btn" data-tab="shortlist">Shortlist</button>
+		</div>
+
+		<div id="tab-assessments" class="tab-panel">
+			<div class="header-row">
+				<h1>Assessments</h1>
+				<button class="btn-reassess" id="btn-reassess" title="Re-score all assessments with current profile and engine">
+					Reassess All
+				</button>
+			</div>
+			<p class="subtitle" id="subtitle">Loading...</p>
+
+			<div class="reassess-banner hidden" id="stale-banner"></div>
+
+			<div class="summary-row hidden" id="summary-row">
+				<div class="summary-card">
+					<div class="label">Jobs Assessed</div>
+					<div class="value" id="stat-total">0</div>
+				</div>
+				<div class="summary-card">
+					<div class="label">Top Match</div>
+					<div class="value" id="stat-top" style="font-size: 16px;">--</div>
+				</div>
+				<div class="summary-card">
+					<div class="label">Average Score</div>
+					<div class="value" id="stat-avg">--</div>
+				</div>
+				<div class="summary-card">
+					<div class="label">A/B Grades</div>
+					<div class="value" id="stat-ab">0</div>
+				</div>
+			</div>
+
+			<table class="hidden" id="results-table">
+				<thead>
+					<tr>
+						<th data-sort="grade">Grade <span class="sort-arrow"></span></th>
+						<th data-sort="percentage">Match % <span class="sort-arrow"></span></th>
+						<th data-sort="company">Company <span class="sort-arrow"></span></th>
+						<th data-sort="title">Title <span class="sort-arrow"></span></th>
+						<th>Strongest</th>
+						<th>Biggest Gap</th>
+						<th>Status</th>
+					</tr>
+				</thead>
+				<tbody id="results-body"></tbody>
+			</table>
+
+			<div class="pagination hidden" id="assess-pagination">
+				<div class="page-controls">
+					<span>Show</span>
+					<select class="page-size-select" id="assess-page-size">
+						<option value="25" selected>25</option>
+						<option value="50">50</option>
+						<option value="100">100</option>
+						<option value="0">All</option>
+					</select>
+				</div>
+				<span class="page-info" id="assess-page-info"></span>
+				<div class="page-controls">
+					<button class="page-btn" id="assess-prev">&#8592; Prev</button>
+					<button class="page-btn" id="assess-next">Next &#8594;</button>
+				</div>
+			</div>
+
+			<div class="empty-state hidden" id="empty-state">
+				<h2>No assessments yet</h2>
+				<p>Run an assessment via the CLI or Chrome extension to see results here.</p>
+			</div>
+		</div>
+
+		<div id="tab-shortlist" class="tab-panel hidden">
+			<div class="summary-row" id="shortlist-summary">
+				<div class="summary-card">
+					<div class="label">Shortlisted</div>
+					<div class="value" id="sl-stat-total">0</div>
+				</div>
+				<div class="summary-card">
+					<div class="label">Applied</div>
+					<div class="value" id="sl-stat-applied">0</div>
+				</div>
+				<div class="summary-card">
+					<div class="label">Interviewing</div>
+					<div class="value" id="sl-stat-interviewing">0</div>
+				</div>
+				<div class="summary-card">
+					<div class="label">Avg Grade</div>
+					<div class="value" id="sl-stat-avg-grade">--</div>
+				</div>
+			</div>
+
+			<table class="hidden" id="shortlist-table">
+				<thead>
+					<tr>
+						<th data-sl-sort="grade">Grade <span class="sort-arrow"></span></th>
+						<th data-sl-sort="company">Company <span class="sort-arrow"></span></th>
+						<th data-sl-sort="role">Role <span class="sort-arrow"></span></th>
+						<th>Status</th>
+						<th data-sl-sort="location">Location <span class="sort-arrow"></span></th>
+						<th data-sl-sort="salary">Salary <span class="sort-arrow"></span></th>
+						<th data-sl-sort="added">Added <span class="sort-arrow"></span></th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody id="shortlist-body"></tbody>
+			</table>
+
+			<div class="pagination hidden" id="sl-pagination">
+				<div class="page-controls">
+					<span>Show</span>
+					<select class="page-size-select" id="sl-page-size">
+						<option value="25" selected>25</option>
+						<option value="50">50</option>
+						<option value="100">100</option>
+						<option value="0">All</option>
+					</select>
+				</div>
+				<span class="page-info" id="sl-page-info"></span>
+				<div class="page-controls">
+					<button class="page-btn" id="sl-prev">&#8592; Prev</button>
+					<button class="page-btn" id="sl-next">Next &#8594;</button>
+				</div>
+			</div>
+
+			<div class="empty-state hidden" id="shortlist-empty">
+				<h2>No shortlisted jobs</h2>
+				<p>Click the star icon on any assessment to add it to your shortlist.</p>
+			</div>
+		</div>
+	</div>
+
+	<script>
+		/**
+		 * Standalone dashboard — loads data from the FastAPI server via relative URLs.
+		 * No chrome.storage dependency.
+		 */
+
+		let currentResults = [];
+		let sortCol = 'percentage';
+		let sortDir = -1; // descending (highest first)
+
+		let shortlistItems = [];
+		let slSortCol = 'added';
+		let slSortDir = -1; // -1 = descending (newest first)
+
+		const STATUS_OPTIONS = ['shortlisted', 'applied', 'interviewing', 'offer', 'rejected'];
+
+		// Pagination state
+		let assessPage = 0;
+		let assessPageSize = 25;
+		let slPage = 0;
+		let slPageSize = 25;
+
+		function escapeHtml(str) {
+			const div = document.createElement('div');
+			div.textContent = str || '';
+			return div.innerHTML;
+		}
+
+		function gradeClass(grade) {
+			if (!grade) return 'grade-F';
+			const letter = grade.charAt(0);
+			if (letter === 'A') return 'grade-A';
+			if (letter === 'B') return 'grade-B';
+			if (letter === 'C') return 'grade-C';
+			return 'grade-D';
+		}
+
+		function pctClass(pct) {
+			if (pct >= 70) return 'pct-high';
+			if (pct >= 50) return 'pct-mid';
+			return 'pct-low';
+		}
+
+		function gradeValue(grade) {
+			if (!grade) return 0;
+			const map = {
+				'A+': 12, 'A': 11, 'A-': 10,
+				'B+': 9, 'B': 8, 'B-': 7,
+				'C+': 6, 'C': 5, 'C-': 4,
+				'D+': 3, 'D': 2, 'D-': 1, 'F': 0,
+			};
+			return map[grade] ?? 0;
+		}
+
+		function formatDate(isoStr) {
+			if (!isoStr) return '--';
+			try {
+				const d = new Date(isoStr);
+				return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+			} catch {
+				return '--';
+			}
+		}
+
+		function formatSalary(item) {
+			const raw = item.salary;
+			if (!raw || (typeof raw === 'string' && !raw.trim())) return '--';
+			return raw;
+		}
+
+		// --- Assessments tab ---
+
+		function renderTable(results) {
+			const tbody = document.getElementById('results-body');
+			tbody.innerHTML = '';
+
+			// Pagination
+			const total = results.length;
+			const pageSize = assessPageSize || total;
+			const start = pageSize ? assessPage * pageSize : 0;
+			const end = pageSize ? Math.min(start + pageSize, total) : total;
+			const pageResults = results.slice(start, end);
+
+			const pag = document.getElementById('assess-pagination');
+			if (total > 0) {
+				pag.classList.remove('hidden');
+				document.getElementById('assess-page-info').textContent =
+					`${start + 1}–${end} of ${total}`;
+				document.getElementById('assess-prev').disabled = assessPage === 0;
+				document.getElementById('assess-next').disabled = end >= total;
+			} else {
+				pag.classList.add('hidden');
+			}
+
+			pageResults.forEach(r => {
+				const tr = document.createElement('tr');
+				if (r.error) {
+					tr.className = 'error';
+					const td = document.createElement('td');
+					td.colSpan = 7;
+					td.textContent = '\u26A0 ' + (r.url ? r.url.substring(0, 60) : 'Unknown') + ' \u2014 ' + r.error;
+					tr.appendChild(td);
+				} else {
+					tr.className = 'clickable';
+					tr.addEventListener('click', () => {
+						if (r.url) window.open(r.url, '_blank');
+					});
+
+					const statusCls = r._stale === 'fresh' ? 'status-fresh' : r._stale === 'stale' ? 'status-stale' : 'status-unknown';
+					const statusText = r._stale === 'fresh' ? '\u2713 Current' : r._stale === 'stale' ? '\u26A0 Stale' : '?';
+
+					const cells = [
+						{ html: true, content: `<span class="grade-badge ${gradeClass(r.grade)}">${escapeHtml(r.grade || '?')}</span>` },
+						{ cls: `pct-cell ${pctClass(r.percentage)}`, text: (r.percentage || 0).toFixed(1) + '%' },
+						{ html: true, content: `<strong>${escapeHtml(r.company || 'Unknown')}</strong>` },
+						{ text: r.title || 'Unknown' },
+						{ cls: 'strongest', text: r.strongest || '--' },
+						{ cls: 'gap', text: r.biggest_gap || '--' },
+						{ cls: statusCls, text: statusText },
+					];
+
+					cells.forEach(c => {
+						const td = document.createElement('td');
+						if (c.cls) td.className = c.cls;
+						if (c.html) {
+							td.innerHTML = c.content;
+						} else {
+							td.textContent = c.text;
+						}
+						tr.appendChild(td);
+					});
+				}
+				tbody.appendChild(tr);
+			});
+		}
+
+		function updateSummary(results) {
+			const successful = results.filter(r => !r.error);
+			document.getElementById('stat-total').textContent = successful.length;
+
+			if (successful.length > 0) {
+				const top = successful.reduce((best, r) => (r.percentage || 0) > (best.percentage || 0) ? r : best, successful[0]);
+				document.getElementById('stat-top').textContent = (top.company || 'Unknown') + ' (' + (top.grade || '?') + ')';
+
+				const avg = successful.reduce((s, r) => s + (r.percentage || 0), 0) / successful.length;
+				document.getElementById('stat-avg').textContent = avg.toFixed(0) + '%';
+
+				const ab = successful.filter(r => r.grade && (r.grade.startsWith('A') || r.grade.startsWith('B'))).length;
+				document.getElementById('stat-ab').textContent = ab;
+			}
+		}
+
+		function applySortResults() {
+			const successful = currentResults.filter(r => !r.error);
+			const errors = currentResults.filter(r => r.error);
+
+			successful.sort((a, b) => {
+				if (sortCol === 'grade') {
+					return (gradeValue(a.grade) - gradeValue(b.grade)) * sortDir;
+				}
+				const va = a[sortCol] || '';
+				const vb = b[sortCol] || '';
+				if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * sortDir;
+				return String(va).localeCompare(String(vb)) * sortDir;
+			});
+
+			currentResults = [...successful, ...errors];
+			renderTable(currentResults);
+
+			document.querySelectorAll('th[data-sort]').forEach(th => {
+				const arrow = th.querySelector('.sort-arrow');
+				if (th.dataset.sort === sortCol) {
+					arrow.textContent = sortDir > 0 ? '\u25B2' : '\u25BC';
+				} else {
+					arrow.textContent = '';
+				}
+			});
+		}
+
+		function sortResults(col) {
+			if (sortCol === col) {
+				sortDir *= -1;
+			} else {
+				sortCol = col;
+				sortDir = (col === 'percentage' || col === 'grade') ? -1 : 1;
+			}
+			assessPage = 0;
+			applySortResults();
+		}
+
+		async function loadAssessments() {
+			try {
+				const resp = await fetch('/api/assessments?limit=200');
+				if (!resp.ok) {
+					document.getElementById('subtitle').textContent = 'Could not load assessments (server error ' + resp.status + ')';
+					document.getElementById('empty-state').classList.remove('hidden');
+					return;
+				}
+				const assessments = await resp.json();
+				if (!assessments || assessments.length === 0) {
+					document.getElementById('subtitle').textContent = 'No assessments found';
+					document.getElementById('empty-state').classList.remove('hidden');
+					return;
+				}
+
+				// Deduplicate by posting_url (keep highest score)
+				const byUrl = new Map();
+				for (const a of assessments) {
+					const d = a.data || a;
+					const url = d.posting_url || d.assessment_id;
+					const score = d.overall_score || 0;
+					const existing = byUrl.get(url);
+					if (!existing || score > (existing.overall_score || 0)) {
+						byUrl.set(url, d);
+					}
+				}
+
+				const results = Array.from(byUrl.values()).map(d => ({
+					url: d.posting_url || '',
+					company: d.company_name || 'Unknown',
+					title: d.job_title || 'Unknown',
+					percentage: (d.overall_score != null) ? d.overall_score * 100 : (d.partial_percentage || 0),
+					grade: d.overall_grade || '?',
+					strongest: d.strongest_match || '',
+					biggest_gap: d.biggest_gap || '',
+					_data: d, // full assessment data blob for staleness check
+				}));
+
+				currentResults = results;
+				applySortResults();
+				updateSummary(currentResults);
+
+				document.getElementById('results-table').classList.remove('hidden');
+				document.getElementById('summary-row').classList.remove('hidden');
+				document.getElementById('empty-state').classList.add('hidden');
+				document.getElementById('subtitle').textContent = results.length + ' assessments loaded';
+			} catch (e) {
+				console.log('Could not load assessments:', e);
+				document.getElementById('subtitle').textContent = 'Could not connect to server';
+				document.getElementById('empty-state').classList.remove('hidden');
+			}
+		}
+
+		// Column header click to sort (assessments tab)
+		document.querySelectorAll('th[data-sort]').forEach(th => {
+			th.addEventListener('click', () => sortResults(th.dataset.sort));
+		});
+
+		// --- Shortlist tab ---
+
+		function updateShortlistStats(items) {
+			const total = items.length;
+			const applied = items.filter(i => i.status === 'applied').length;
+			const interviewing = items.filter(i => i.status === 'interviewing').length;
+
+			document.getElementById('sl-stat-total').textContent = total;
+			document.getElementById('sl-stat-applied').textContent = applied;
+			document.getElementById('sl-stat-interviewing').textContent = interviewing;
+
+			const graded = items.filter(i => i.assessment_grade || i.overall_grade);
+			if (graded.length > 0) {
+				const avg = graded.reduce((s, i) => s + gradeValue(i.assessment_grade || i.overall_grade), 0) / graded.length;
+				const letters = ['F', 'D-', 'D', 'D+', 'C-', 'C', 'C+', 'B-', 'B', 'B+', 'A-', 'A', 'A+'];
+				document.getElementById('sl-stat-avg-grade').textContent = letters[Math.round(avg)] || '--';
+			} else {
+				document.getElementById('sl-stat-avg-grade').textContent = '--';
+			}
+		}
+
+		function sortShortlist(col) {
+			if (slSortCol === col) {
+				slSortDir *= -1;
+			} else {
+				slSortCol = col;
+				slSortDir = (col === 'added' || col === 'grade') ? -1 : 1;
+			}
+			slPage = 0;
+
+			shortlistItems.sort((a, b) => {
+				let va, vb;
+				if (col === 'grade') {
+					va = gradeValue(a.assessment_grade || a.overall_grade);
+					vb = gradeValue(b.assessment_grade || b.overall_grade);
+				} else if (col === 'added') {
+					va = a.added_at || '';
+					vb = b.added_at || '';
+				} else if (col === 'salary') {
+					va = a.salary || '';
+					vb = b.salary || '';
+				} else {
+					va = a[col] || '';
+					vb = b[col] || '';
+				}
+				if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * slSortDir;
+				return String(va).localeCompare(String(vb)) * slSortDir;
+			});
+
+			renderShortlist(shortlistItems);
+
+			document.querySelectorAll('th[data-sl-sort]').forEach(th => {
+				const arrow = th.querySelector('.sort-arrow');
+				if (th.dataset.slSort === col) {
+					arrow.textContent = slSortDir > 0 ? '\u25B2' : '\u25BC';
+				} else {
+					arrow.textContent = '';
+				}
+			});
+		}
+
+		function renderShortlist(items) {
+			const tbody = document.getElementById('shortlist-body');
+			const table = document.getElementById('shortlist-table');
+			const empty = document.getElementById('shortlist-empty');
+
+			updateShortlistStats(items);
+
+			if (items.length === 0) {
+				table.classList.add('hidden');
+				empty.classList.remove('hidden');
+				tbody.innerHTML = '';
+				return;
+			}
+
+			table.classList.remove('hidden');
+			empty.classList.add('hidden');
+			tbody.innerHTML = '';
+
+			// Pagination
+			const total = items.length;
+			const pageSize = slPageSize || total;
+			const start = pageSize ? slPage * pageSize : 0;
+			const end = pageSize ? Math.min(start + pageSize, total) : total;
+			const pageItems = items.slice(start, end);
+
+			const pag = document.getElementById('sl-pagination');
+			if (total > 0) {
+				pag.classList.remove('hidden');
+				document.getElementById('sl-page-info').textContent =
+					`${start + 1}–${end} of ${total}`;
+				document.getElementById('sl-prev').disabled = slPage === 0;
+				document.getElementById('sl-next').disabled = end >= total;
+			} else {
+				pag.classList.add('hidden');
+			}
+
+			pageItems.forEach(item => {
+				const tr = document.createElement('tr');
+				tr.className = 'clickable';
+
+				const grade = item.assessment_grade || item.overall_grade || '?';
+
+				// Grade badge
+				const tdGrade = document.createElement('td');
+				tdGrade.innerHTML = '<span class="grade-badge ' + gradeClass(grade) + '">' + escapeHtml(grade) + '</span>';
+				tr.appendChild(tdGrade);
+
+				// Company
+				const tdCompany = document.createElement('td');
+				tdCompany.innerHTML = '<strong>' + escapeHtml(item.company_name || item.company || 'Unknown') + '</strong>';
+				tr.appendChild(tdCompany);
+
+				// Role
+				const tdRole = document.createElement('td');
+				tdRole.textContent = item.role || item.job_title || 'Unknown';
+				tr.appendChild(tdRole);
+
+				// Status dropdown
+				const tdStatus = document.createElement('td');
+				const select = document.createElement('select');
+				select.className = 'status-select status-' + (item.status || 'shortlisted');
+				STATUS_OPTIONS.forEach(opt => {
+					const option = document.createElement('option');
+					option.value = opt;
+					option.textContent = opt.charAt(0).toUpperCase() + opt.slice(1);
+					if (opt === (item.status || 'shortlisted')) option.selected = true;
+					select.appendChild(option);
+				});
+				select.addEventListener('change', async (e) => {
+					e.stopPropagation();
+					const prevStatus = item.status || 'shortlisted';
+					const newStatus = select.value;
+					select.className = 'status-select status-' + newStatus;
+					try {
+						const resp = await fetch('/api/shortlist/' + item.id, {
+							method: 'PATCH',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ status: newStatus }),
+						});
+						if (!resp.ok) throw new Error('Server responded with ' + resp.status);
+						item.status = newStatus;
+						updateShortlistStats(shortlistItems);
+					} catch (err) {
+						console.log('Failed to update status:', err);
+						select.value = prevStatus;
+						select.className = 'status-select status-' + prevStatus;
+					}
+				});
+				select.addEventListener('click', (e) => e.stopPropagation());
+				tdStatus.appendChild(select);
+				tr.appendChild(tdStatus);
+
+				// Location
+				const tdLoc = document.createElement('td');
+				tdLoc.textContent = item.location || '--';
+				tr.appendChild(tdLoc);
+
+				// Salary
+				const tdSalary = document.createElement('td');
+				tdSalary.textContent = formatSalary(item);
+				tr.appendChild(tdSalary);
+
+				// Added date
+				const tdDate = document.createElement('td');
+				tdDate.className = 'date-cell';
+				tdDate.textContent = formatDate(item.added_at || item.created_at);
+				tr.appendChild(tdDate);
+
+				// Delete button
+				const tdDel = document.createElement('td');
+				const btnDel = document.createElement('button');
+				btnDel.className = 'btn-delete';
+				btnDel.textContent = '\u2715';
+				btnDel.title = 'Remove from shortlist';
+				btnDel.addEventListener('click', async (e) => {
+					e.stopPropagation();
+					try {
+						const resp = await fetch('/api/shortlist/' + item.id, { method: 'DELETE' });
+						if (!resp.ok) throw new Error('Server responded with ' + resp.status);
+						loadShortlist();
+					} catch (err) {
+						console.log('Failed to delete shortlist item:', err);
+					}
+				});
+				tdDel.appendChild(btnDel);
+				tr.appendChild(tdDel);
+
+				// Row click opens posting URL
+				tr.addEventListener('click', () => {
+					if (item.posting_url) window.open(item.posting_url, '_blank');
+				});
+
+				tbody.appendChild(tr);
+			});
+		}
+
+		async function loadShortlist() {
+			try {
+				const resp = await fetch('/api/shortlist/enriched?limit=200');
+				if (!resp.ok) {
+					console.log('Shortlist fetch failed:', resp.status);
+					return;
+				}
+				const items = await resp.json();
+				shortlistItems = items || [];
+				renderShortlist(shortlistItems);
+			} catch (e) {
+				console.log('Could not load shortlist:', e);
+			}
+		}
+
+		// Column header click to sort (shortlist tab)
+		document.querySelectorAll('th[data-sl-sort]').forEach(th => {
+			th.addEventListener('click', () => sortShortlist(th.dataset.slSort));
+		});
+
+		// Tab navigation
+		document.querySelectorAll('.tab-btn').forEach(btn => {
+			btn.addEventListener('click', () => {
+				document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+				btn.classList.add('active');
+
+				document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+				document.getElementById('tab-' + btn.dataset.tab).classList.remove('hidden');
+
+				if (btn.dataset.tab === 'shortlist') {
+					loadShortlist();
+				}
+			});
+		});
+
+		// --- Pagination controls ---
+
+		document.getElementById('assess-page-size').addEventListener('change', (e) => {
+			assessPageSize = parseInt(e.target.value) || 0;
+			assessPage = 0;
+			renderTable(currentResults);
+		});
+		document.getElementById('assess-prev').addEventListener('click', () => {
+			if (assessPage > 0) { assessPage--; renderTable(currentResults); }
+		});
+		document.getElementById('assess-next').addEventListener('click', () => {
+			const maxPage = assessPageSize ? Math.ceil(currentResults.length / assessPageSize) - 1 : 0;
+			if (assessPage < maxPage) { assessPage++; renderTable(currentResults); }
+		});
+		document.getElementById('sl-page-size').addEventListener('change', (e) => {
+			slPageSize = parseInt(e.target.value) || 0;
+			slPage = 0;
+			renderShortlist(shortlistItems);
+		});
+		document.getElementById('sl-prev').addEventListener('click', () => {
+			if (slPage > 0) { slPage--; renderShortlist(shortlistItems); }
+		});
+		document.getElementById('sl-next').addEventListener('click', () => {
+			const maxPage = slPageSize ? Math.ceil(shortlistItems.length / slPageSize) - 1 : 0;
+			if (slPage < maxPage) { slPage++; renderShortlist(shortlistItems); }
+		});
+
+		// --- Staleness detection ---
+
+		let currentProfileHash = null;
+		let currentAppVersion = null;
+
+		async function checkStaleness() {
+			try {
+				const [profileResp, healthResp] = await Promise.all([
+					fetch('/api/profile/status'),
+					fetch('/api/health'),
+				]);
+				const profileData = await profileResp.json();
+				const healthData = await healthResp.json();
+				currentAppVersion = healthData.version || '';
+				// Use the most recent assessment's profile_hash as the "current" baseline
+				// so we compare relative freshness among all assessments
+				const hashes = profileData.hashes || {};
+				currentProfileHash = Object.values(hashes).sort().join('|');
+			} catch {
+				return; // Can't check staleness, leave as unknown
+			}
+
+			// Determine the most recent assessment's profile_hash as the reference
+			// Sort by assessed_at to find the latest, independent of current display sort
+			const withHash = currentResults
+				.filter(r => r._data && r._data.app_version)
+				.sort((a, b) => (b._data.assessed_at || '').localeCompare(a._data.assessed_at || ''));
+			const latestHash = withHash.length > 0 ? withHash[0]._data.profile_hash || '' : null;
+
+			let staleCount = 0;
+			currentResults.forEach(r => {
+				if (!r._data) return;
+				const assessVersion = r._data.app_version || '';
+				const assessHash = r._data.profile_hash || '';
+				if (!assessVersion) {
+					r._stale = 'unknown';
+				} else if (assessVersion !== currentAppVersion || (latestHash !== null && assessHash !== latestHash)) {
+					r._stale = 'stale';
+					staleCount++;
+				} else {
+					r._stale = 'fresh';
+				}
+			});
+
+			const btn = document.getElementById('btn-reassess');
+			const banner = document.getElementById('stale-banner');
+			if (staleCount > 0) {
+				btn.classList.add('has-stale');
+				if (banner) {
+					banner.textContent = '\u26A0 ' + staleCount + ' assessment' + (staleCount > 1 ? 's' : '') + ' scored with outdated profile or engine.';
+					banner.classList.remove('hidden');
+				}
+			} else {
+				btn.classList.remove('has-stale');
+				if (banner) banner.classList.add('hidden');
+			}
+
+			// Re-render to show updated status column
+			renderTable(currentResults);
+		}
+
+		// --- Reassess All button ---
+
+		document.getElementById('btn-reassess').addEventListener('click', async () => {
+			const btn = document.getElementById('btn-reassess');
+			btn.disabled = true;
+			btn.textContent = 'Reassessing...';
+			try {
+				const resp = await fetch('/api/assessments/reassess', { method: 'POST' });
+				if (!resp.ok) throw new Error('Reassess failed: ' + resp.status);
+				const data = await resp.json();
+				btn.textContent = 'Done \u2014 ' + data.changed + ' changed, ' + data.skipped + ' skipped';
+				setTimeout(() => {
+					btn.textContent = 'Reassess All';
+					btn.disabled = false;
+					btn.classList.remove('has-stale');
+				}, 3000);
+				await loadAssessments();
+				await checkStaleness();
+			} catch (e) {
+				btn.textContent = 'Error \u2014 try again';
+				btn.disabled = false;
+				setTimeout(() => { btn.textContent = 'Reassess All'; }, 3000);
+			}
+		});
+
+		// Initial load
+		loadAssessments().then(() => checkStaleness());
+	</script>
+</body>
+</html>

@@ -1545,3 +1545,43 @@ def test_merge_triad_sessions_integration():
 	merged = merge_triad(curated, repo, sessions=sessions)
 	if sessions.problem_solving_patterns:
 		assert len(merged.patterns) > 0
+
+
+# ---------------------------------------------------------------------------
+# Dashboard endpoint tests
+# ---------------------------------------------------------------------------
+
+
+class TestDashboardEndpoint:
+	async def test_dashboard_returns_html(self, client: AsyncClient):
+		resp = await client.get("/dashboard")
+		assert resp.status_code == 200
+		assert "text/html" in resp.headers["content-type"]
+		assert "<title>claude-candidate" in resp.text
+
+	async def test_dashboard_contains_expected_elements(self, client: AsyncClient):
+		resp = await client.get("/dashboard")
+		assert resp.status_code == 200
+		assert "loadAssessments" in resp.text
+		assert "loadShortlist" in resp.text
+
+
+# ---------------------------------------------------------------------------
+# Reassess endpoint tests
+# ---------------------------------------------------------------------------
+
+
+class TestReassessEndpoint:
+	async def test_reassess_without_profile_returns_422(self, client: AsyncClient):
+		resp = await client.post("/api/assessments/reassess")
+		assert resp.status_code == 422
+
+	async def test_reassess_with_profile_returns_200(
+		self, client_with_profile: AsyncClient
+	):
+		resp = await client_with_profile.post("/api/assessments/reassess")
+		assert resp.status_code == 200
+		data = resp.json()
+		assert "changed" in data
+		assert "skipped" in data
+		assert "total" in data

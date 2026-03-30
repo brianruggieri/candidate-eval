@@ -159,6 +159,7 @@ class FitAssessment(BaseModel):
 	education_gap_cap: str | None = None
 
 	# Metadata
+	app_version: str = ""
 	profile_hash: str
 	time_to_assess_seconds: float = Field(ge=0.0)
 

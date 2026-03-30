@@ -33,6 +33,7 @@ from claude_candidate.schemas.job_requirements import (
 from claude_candidate.schemas.merged_profile import (
 	MergedEvidenceProfile,
 )
+from claude_candidate import __version__
 from claude_candidate.eligibility_evaluator import evaluate_gates, detect_education_gap
 from claude_candidate.scoring.constants import (
 	CONFIDENCE_FLOOR,
@@ -420,6 +421,7 @@ class QuickMatchEngine:
 			education_gap_cap=education_gap_cap,
 			should_apply=score_to_verdict(overall_score),
 			action_items=action_items,
+			app_version=__version__,
 			profile_hash=self.profile.profile_hash,
 			time_to_assess_seconds=round(elapsed, TIMING_PRECISION),
 		)
