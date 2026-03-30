@@ -474,6 +474,13 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 				logger.debug("Could not parse curated eligibility — using defaults")
 
 		# Run assessment
+		from claude_candidate.scoring import prepare_assess_inputs
+
+		extras = prepare_assess_inputs(
+			req.company,
+			culture_signals=req.culture_signals,
+			tech_stack=req.tech_stack,
+		)
 		engine = QuickMatchEngine(merged)
 		assessment = engine.assess(
 			requirements=requirements,
@@ -482,9 +489,8 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 			posting_url=req.posting_url,
 			source="api",
 			seniority=req.seniority,
-			culture_signals=req.culture_signals,
-			tech_stack=req.tech_stack,
 			curated_eligibility=curated_eligibility,
+			**extras,
 		)
 
 		# Persist

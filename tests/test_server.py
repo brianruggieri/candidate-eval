@@ -387,6 +387,31 @@ class TestAssessPartialEndpoint:
 		resp = await client_with_profile.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
 		assert "deliverables" not in resp.json()
 
+	async def test_assess_partial_includes_culture_when_preferences_exist(
+		self, client_with_profile: AsyncClient
+	):
+		"""Partial assessment should include culture_fit when preferences are loaded."""
+		from claude_candidate.schemas.work_preferences import WorkPreferences
+
+		mock_prefs = WorkPreferences(
+			remote_preference="remote_first",
+			company_size=["startup"],
+			culture_values=["transparency"],
+		)
+		payload = dict(SAMPLE_ASSESS_PAYLOAD)
+		payload["culture_signals"] = ["collaborative", "remote-friendly"]
+
+		with patch(
+			"claude_candidate.schemas.work_preferences.WorkPreferences.load",
+			return_value=mock_prefs,
+		):
+			resp = await client_with_profile.post("/api/assess/partial", json=payload)
+
+		assert resp.status_code == 200
+		data = resp.json()
+		assert data.get("culture_fit") is not None
+		assert "score" in data["culture_fit"]
+
 
 # ---------------------------------------------------------------------------
 # Server eligibility
