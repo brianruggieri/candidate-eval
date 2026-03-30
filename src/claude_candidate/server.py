@@ -624,36 +624,41 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 		if merged_profile:
 			engine = QuickMatchEngine(merged_profile)
 
-			# Extract tech_stack and culture_signals from the existing assessment data
-			tech_stack = data.get("skill_match", {}).get("details", [])
-			# Use culture signals from company research or empty list
-			culture_signals = research.get("culture_signals", []) if research else []
+			# Mission: only score if company profile has real signals
+			if company_profile and company_profile.has_mission_signals():
+				mission_dim = engine._score_mission_alignment(
+					company=company,
+					tech_stack=company_profile.tech_stack_public,
+					company_profile=company_profile,
+				)
 
-			mission_dim = engine._score_mission_alignment(
-				company=company,
-				tech_stack=company_profile.tech_stack_public if company_profile else [],
-				company_profile=company_profile,
-			)
-			culture_dim = engine._score_culture_fit(
-				culture_signals=culture_signals,
-				company_profile=company_profile,
-			)
+			# Culture: preference-based scoring (replaces old pattern matching)
+			from claude_candidate.schemas.work_preferences import WorkPreferences
+			from claude_candidate.scoring.dimensions import _score_culture_preferences
 
-		# 5. Recompute overall score with all five dimensions
-		# Parse existing dimension scores from the assessment data
+			prefs_path = Path.home() / ".claude-candidate" / "work_preferences.json"
+			work_preferences = WorkPreferences.load(prefs_path)
+			culture_result = _score_culture_preferences(work_preferences, company_profile)
+			if culture_result is not None:
+				culture_dim, _avoid_count = culture_result
+
+		# 5. Recompute overall score with all dimensions (education is now an eligibility gate)
+		# Use canonical adaptive weights based on data availability
+		from claude_candidate.scoring.dimensions import select_weights
+
 		skill_score = data.get("skill_match", {}).get("score", 0.5)
-		experience_score = (data.get("experience_match") or {}).get("score")
-		education_score = (data.get("education_match") or {}).get("score")
-		mission_score = mission_dim.score if mission_dim else 0.5
-		culture_score = culture_dim.score if culture_dim else 0.5
+		mission_score = mission_dim.score if mission_dim else 0.0
+		culture_score = culture_dim.score if culture_dim else 0.0
 
-		# Full assessment weights: skill 40%, experience 20%, education 10%,
-		# mission 15%, culture 15%
-		weighted_total = skill_score * 0.40
-		weighted_total += (experience_score if experience_score is not None else 0.5) * 0.20
-		weighted_total += (education_score if education_score is not None else 0.5) * 0.10
-		weighted_total += mission_score * 0.15
-		weighted_total += culture_score * 0.15
+		has_mission = mission_dim is not None
+		has_culture = culture_dim is not None and not getattr(
+			culture_dim, "insufficient_data", True
+		)
+		skill_w, mission_w, culture_w = select_weights(has_mission, has_culture)
+
+		weighted_total = skill_score * skill_w
+		weighted_total += mission_score * mission_w
+		weighted_total += culture_score * culture_w
 
 		overall_score = round(min(max(weighted_total, 0.0), 1.0), 3)
 		overall_grade = score_to_grade(overall_score)
@@ -666,9 +671,9 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 
 		# Update dimension weights in the returned data
 		if mission_dim:
-			mission_dim.weight = 0.15
+			mission_dim.weight = mission_w
 		if culture_dim:
-			culture_dim.weight = 0.15
+			culture_dim.weight = culture_w
 
 		# 5b. Narrative verdict + receptivity signal (best-effort)
 		narrative_result = None
@@ -703,13 +708,9 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 			updated["receptivity_level"] = narrative_result.get("receptivity")
 			updated["receptivity_reason"] = narrative_result.get("receptivity_reason")
 
-		# Update skill/experience/education weights for consistency
+		# Update skill weight for consistency
 		if updated.get("skill_match"):
-			updated["skill_match"]["weight"] = 0.40
-		if updated.get("experience_match"):
-			updated["experience_match"]["weight"] = 0.20
-		if updated.get("education_match"):
-			updated["education_match"]["weight"] = 0.10
+			updated["skill_match"]["weight"] = skill_w
 
 		# 7. Save updated assessment to store
 		flat: dict[str, Any] = {
@@ -1019,9 +1020,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 			existing = await store.find_shortlist_by_url(normalized_url)
 			if existing:
 				if req.assessment_id and req.assessment_id != existing.get("assessment_id"):
-					await store.update_shortlist(
-						existing["id"], assessment_id=req.assessment_id
-					)
+					await store.update_shortlist(existing["id"], assessment_id=req.assessment_id)
 					existing["assessment_id"] = req.assessment_id
 				return {
 					"id": existing["id"],
@@ -1037,7 +1036,9 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 					"already_exists": True,
 				}
 
-		normalized_url = _normalize_cache_url(req.posting_url) if req.posting_url else req.posting_url
+		normalized_url = (
+			_normalize_cache_url(req.posting_url) if req.posting_url else req.posting_url
+		)
 		sid = await store.add_to_shortlist(
 			company_name=req.company_name,
 			job_title=req.job_title,

@@ -469,17 +469,30 @@ class TestAssessFullEndpoint:
 		partial = await client_with_profile.post("/api/assess/partial", json=SAMPLE_ASSESS_PAYLOAD)
 		aid = partial.json()["assessment_id"]
 
-		with patch(
-			"claude_candidate.company_research.research_company",
-			return_value={
-				"mission": "Building the future of work",
-				"values": ["transparency", "impact"],
-				"culture_signals": ["async communication", "documentation driven"],
-				"tech_philosophy": "Microservices, Python, Docker",
-				"ai_native": True,
-				"product_domains": ["enterprise-software"],
-				"team_size_signal": "startup (<50)",
-			},
+		from claude_candidate.schemas.work_preferences import WorkPreferences
+
+		mock_prefs = WorkPreferences(
+			remote_preference="remote_first",
+			company_size=["startup"],
+			culture_values=["transparency", "impact"],
+		)
+		with (
+			patch(
+				"claude_candidate.company_research.research_company",
+				return_value={
+					"mission": "Building the future of work",
+					"values": ["transparency", "impact"],
+					"culture_signals": ["async communication", "documentation driven"],
+					"tech_philosophy": "Microservices, Python, Docker",
+					"ai_native": True,
+					"product_domains": ["enterprise-software"],
+					"team_size_signal": "startup (<50)",
+				},
+			),
+			patch(
+				"claude_candidate.schemas.work_preferences.WorkPreferences.load",
+				return_value=mock_prefs,
+			),
 		):
 			resp = await client_with_profile.post("/api/assess/full", json={"assessment_id": aid})
 
@@ -711,6 +724,28 @@ class TestAssessFullEndpoint:
 				"company": "GovCo",
 				"title": "Senior Python Engineer",
 				"seniority": "senior",
+				"requirements": [
+					{
+						"description": "5+ years of Python experience",
+						"skill_mapping": ["python"],
+						"priority": "must_have",
+						"source_text": "5+ years of Python",
+					},
+					{
+						"description": "Must be fluent in Spanish",
+						"skill_mapping": ["spanish-fluency"],
+						"priority": "must_have",
+						"source_text": "Must be fluent in Spanish (required)",
+						"is_eligibility": True,
+					},
+					{
+						"description": "Must have active security clearance",
+						"skill_mapping": ["security-clearance"],
+						"priority": "must_have",
+						"source_text": "Must have active security clearance (required)",
+						"is_eligibility": True,
+					},
+				],
 			},
 		)
 		assert partial.status_code == 200

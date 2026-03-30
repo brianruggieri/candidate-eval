@@ -72,8 +72,6 @@ MISSION_NEUTRAL_SCORE = 0.5
 MISSION_DOMAIN_BONUS = 0.15
 MISSION_TECH_OVERLAP_WEIGHT = 0.2
 MISSION_TEXT_OVERLAP_WEIGHT = 0.15
-MISSION_NO_ENRICHMENT_BASE = 0.3
-MISSION_NO_ENRICHMENT_RANGE = 0.4
 MISSION_SCORE_MAX = 1.0
 
 # Domain keyword taxonomy for mission alignment scoring.
@@ -81,97 +79,194 @@ MISSION_SCORE_MAX = 1.0
 # Used to strengthen mission alignment when the candidate has domain-adjacent experience.
 MISSION_DOMAIN_TAXONOMY: dict[str, list[str]] = {
 	"developer-tools": [
-		"developer", "devtools", "ide", "sdk", "api", "cli", "infrastructure",
-		"platform", "tooling", "devops", "ci/cd", "deployment", "monitoring",
+		"developer",
+		"devtools",
+		"ide",
+		"sdk",
+		"api",
+		"cli",
+		"infrastructure",
+		"platform",
+		"tooling",
+		"devops",
+		"ci/cd",
+		"deployment",
+		"monitoring",
 	],
 	"ai": [
-		"artificial intelligence", "machine learning", "ml", "llm", "nlp",
-		"deep learning", "neural", "model", "inference", "training", "prompt",
-		"agent", "agentic", "generative", "transformer", "embedding",
+		"artificial intelligence",
+		"machine learning",
+		"ml",
+		"llm",
+		"nlp",
+		"deep learning",
+		"neural",
+		"model",
+		"inference",
+		"training",
+		"prompt",
+		"agent",
+		"agentic",
+		"generative",
+		"transformer",
+		"embedding",
 	],
 	"fintech": [
-		"financial", "fintech", "banking", "payments", "trading", "crypto",
-		"blockchain", "defi", "insurance", "lending", "compliance",
+		"financial",
+		"fintech",
+		"banking",
+		"payments",
+		"trading",
+		"crypto",
+		"blockchain",
+		"defi",
+		"insurance",
+		"lending",
+		"compliance",
 	],
 	"healthcare": [
-		"health", "medical", "clinical", "patient", "biotech", "pharma",
-		"genomic", "bioinformatics", "ehr", "telehealth", "diagnostic",
+		"health",
+		"medical",
+		"clinical",
+		"patient",
+		"biotech",
+		"pharma",
+		"genomic",
+		"bioinformatics",
+		"ehr",
+		"telehealth",
+		"diagnostic",
 	],
 	"education": [
-		"education", "edtech", "learning", "teaching", "student", "course",
-		"curriculum", "tutoring", "assessment", "classroom",
+		"education",
+		"edtech",
+		"learning",
+		"teaching",
+		"student",
+		"course",
+		"curriculum",
+		"tutoring",
+		"assessment",
+		"classroom",
 	],
 	"e-commerce": [
-		"commerce", "retail", "shopping", "marketplace", "merchant",
-		"catalog", "inventory", "checkout", "fulfillment",
+		"commerce",
+		"retail",
+		"shopping",
+		"marketplace",
+		"merchant",
+		"catalog",
+		"inventory",
+		"checkout",
+		"fulfillment",
 	],
 	"gaming": [
-		"game", "gaming", "unity", "unreal", "3d", "interactive",
-		"multiplayer", "virtual", "simulation", "real-time",
+		"game",
+		"gaming",
+		"unity",
+		"unreal",
+		"3d",
+		"interactive",
+		"multiplayer",
+		"virtual",
+		"simulation",
+		"real-time",
 	],
 	"creative-tools": [
-		"creative", "design", "media", "video", "audio", "music",
-		"animation", "rendering", "content creation", "editor",
+		"creative",
+		"design",
+		"media",
+		"video",
+		"audio",
+		"music",
+		"animation",
+		"rendering",
+		"content creation",
+		"editor",
 	],
 	"security": [
-		"security", "cybersecurity", "encryption", "authentication",
-		"vulnerability", "threat", "compliance", "privacy", "zero trust",
+		"security",
+		"cybersecurity",
+		"encryption",
+		"authentication",
+		"vulnerability",
+		"threat",
+		"compliance",
+		"privacy",
+		"zero trust",
 	],
 	"data": [
-		"data", "analytics", "visualization", "dashboard", "metrics",
-		"warehouse", "pipeline", "etl", "business intelligence",
+		"data",
+		"analytics",
+		"visualization",
+		"dashboard",
+		"metrics",
+		"warehouse",
+		"pipeline",
+		"etl",
+		"business intelligence",
 	],
 	"infrastructure": [
-		"cloud", "infrastructure", "kubernetes", "containers", "serverless",
-		"networking", "storage", "compute", "orchestration",
+		"cloud",
+		"infrastructure",
+		"kubernetes",
+		"containers",
+		"serverless",
+		"networking",
+		"storage",
+		"compute",
+		"orchestration",
 	],
 	"collaboration": [
-		"collaboration", "productivity", "communication", "team",
-		"workflow", "project management", "remote work",
+		"collaboration",
+		"productivity",
+		"communication",
+		"team",
+		"workflow",
+		"project management",
+		"remote work",
 	],
 }
 
 # Culture fit score parameters
 CULTURE_NEUTRAL_SCORE = 0.5
-CULTURE_BASE_SCORE = 0.3
-CULTURE_SIGNAL_WEIGHT = 0.6
-CULTURE_ESTABLISHED_MATCH = 0.7
-CULTURE_EMERGING_MATCH = 0.3
-CULTURE_FULL_MATCH = 1
 CULTURE_SCORE_MIN = 0.0
 CULTURE_SCORE_MAX = 1.0
 
-# Experience match score parameters
-EXPERIENCE_NO_REQUIREMENT_SCORE = 0.9  # No requirement stated = effectively met
-EXPERIENCE_NEUTRAL_SCORE = 0.5
-EXPERIENCE_MET_BASE = 0.7
-EXPERIENCE_EXCEED_BONUS = 0.3  # Bonus range for exceeding requirement
-EXPERIENCE_SCORE_MAX = 1.0
+# Culture preference sub-dimension weights (must sum to 1.0)
+CULTURE_REMOTE_WEIGHT = 0.3
+CULTURE_SIZE_WEIGHT = 0.2
+CULTURE_VALUES_WEIGHT = 0.5
 
-# Education match score parameters
-EDUCATION_NO_REQUIREMENT_SCORE = 0.9  # No requirement stated = effectively met
-EDUCATION_NEUTRAL_SCORE = 0.5
-EDUCATION_MET_SCORE = 0.9
-EDUCATION_PARTIAL_SCORE = 0.5
-EDUCATION_NO_MATCH_SCORE = 0.2
-
-# Degree ranking for education comparison
-DEGREE_RANKING: dict[str, int] = {
-	"bachelor": 1,
-	"bs": 1,
-	"ba": 1,
-	"b.s.": 1,
-	"b.a.": 1,
-	"master": 2,
-	"ms": 2,
-	"ma": 2,
-	"m.s.": 2,
-	"m.a.": 2,
-	"mba": 2,
-	"phd": 3,
-	"ph.d.": 3,
-	"doctorate": 3,
+# Remote policy match matrix: (candidate_preference, company_policy) → score
+REMOTE_MATCH_MATRIX: dict[tuple[str, str], float] = {
+	("remote_first", "remote_first"): 1.0,
+	("remote_first", "hybrid"): 0.5,
+	("remote_first", "in_office"): 0.0,
+	("hybrid", "remote_first"): 0.8,
+	("hybrid", "hybrid"): 1.0,
+	("hybrid", "in_office"): 0.5,
+	("in_office", "remote_first"): 0.5,
+	("in_office", "hybrid"): 0.8,
+	("in_office", "in_office"): 1.0,
+	("flexible", "remote_first"): 1.0,
+	("flexible", "hybrid"): 1.0,
+	("flexible", "in_office"): 1.0,
 }
+
+# Fallback score when a sub-dimension has unknown/missing data
+CULTURE_UNKNOWN_SCORE = 0.7
+
+# Company size match/no-match scores
+CULTURE_SIZE_MATCH = 1.0
+CULTURE_SIZE_NO_MATCH = 0.3
+
+# Culture avoid caps — grade ceiling when avoid-values appear in company profile
+CULTURE_AVOID_CAP_ONE = 0.849  # 1 avoid hit → B+ cap (top of B+ band)
+CULTURE_AVOID_CAP_TWO_PLUS = 0.749  # 2+ avoid hits → B- cap (top of B- band)
+
+# Years gradient penalty floor (replaces separate experience dimension)
+YEARS_GRADIENT_FLOOR = 0.6
 
 # Display limits
 TOP_SKILL_DETAILS = 5
@@ -182,7 +277,6 @@ MAX_ACTION_ITEMS = 6
 
 # Soft skill discount factor — reduces weight of soft skill requirements
 SOFT_SKILL_DISCOUNT = 0.5
-SOFT_SKILL_MAX_BOOST = 0.8  # maximum discount when culture signals fully align
 
 # Rounding precision
 SCORE_PRECISION = 3
@@ -453,14 +547,6 @@ DOMAIN_KEYWORDS: frozenset[str] = frozenset(
 	}
 )
 
-# Pattern strength → culture match value
-CULTURE_PATTERN_STRENGTH_SCORE: dict[str, float] = {
-	"exceptional": 1.0,
-	"strong": 1.0,
-	"established": CULTURE_ESTABLISHED_MATCH,
-	"emerging": CULTURE_EMERGING_MATCH,
-}
-
 # ---------------------------------------------------------------------------
 # Virtual skill inference rules + pattern mappings
 # ---------------------------------------------------------------------------
@@ -507,7 +593,13 @@ VIRTUAL_SKILL_RULES: list[tuple[str, list[str], int, DepthLevel, DepthLevel | No
 		DepthLevel.APPLIED,
 	),
 	# frontend-development: need a frontend framework at APPLIED+ depth
-	("frontend-development", ["react", "vue", "angular", "nextjs", "html-css"], 2, DepthLevel.DEEP, DepthLevel.APPLIED),
+	(
+		"frontend-development",
+		["react", "vue", "angular", "nextjs", "html-css"],
+		2,
+		DepthLevel.DEEP,
+		DepthLevel.APPLIED,
+	),
 	# backend-development: need a backend stack
 	(
 		"backend-development",
@@ -680,11 +772,12 @@ _AI_SKILL_NAMES: frozenset[str] = frozenset(
 )
 
 # ---------------------------------------------------------------------------
-# Adaptive dimension weighting
+# Adaptive dimension weighting — four states based on data availability.
+# Tuples are (skill, mission, culture). Must sum to 1.0.
 # ---------------------------------------------------------------------------
 
-# Weight tuples: (skill, mission, culture)
-_WEIGHTS_RICH = (0.50, 0.25, 0.25)
-_WEIGHTS_MODERATE = (0.60, 0.20, 0.20)
-_WEIGHTS_SPARSE = (0.70, 0.15, 0.15)
-_WEIGHTS_NONE = (0.85, 0.10, 0.05)
+WEIGHTS_TECH_ONLY = (1.00, 0.00, 0.00)  # Neither mission nor culture data
+WEIGHTS_WITH_MISSION = (0.75, 0.25, 0.00)  # Mission signals only
+WEIGHTS_WITH_CULTURE = (0.85, 0.00, 0.15)  # Culture signals only
+WEIGHTS_FULL = (0.60, 0.25, 0.15)  # Both mission + culture signals
+

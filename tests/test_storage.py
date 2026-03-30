@@ -515,3 +515,142 @@ class TestShortlistEnriched:
 		assert shortlisted[0]["company_name"] == "Active Co"
 		assert len(applied) == 1
 		assert applied[0]["company_name"] == "Applied Co"
+
+
+# ---------------------------------------------------------------------------
+# Backfill on read
+# ---------------------------------------------------------------------------
+
+
+def _make_dim(dimension: str, score: float, **overrides) -> dict:
+	"""Build a minimal dimension dict for storage tests."""
+	from claude_candidate.schemas.fit_assessment import score_to_grade
+
+	d = {
+		"dimension": dimension,
+		"score": score,
+		"grade": score_to_grade(score),
+		"weight": 0.333,
+		"summary": f"Test {dimension}",
+		"details": [f"{dimension} detail"],
+		"confidence": 1.0,
+		"insufficient_data": False,
+	}
+	d.update(overrides)
+	return d
+
+
+class TestBackfillOnRead:
+	"""Verify that _decode_assessment runs recompute_overall on the data blob,
+	refreshing overall_score / overall_grade / should_apply at read time."""
+
+	def test_get_assessment_recomputes_overall(self, store: AssessmentStore):
+		"""A stale overall_score stored with old weights should be refreshed
+		on read to reflect the current weight system."""
+		from claude_candidate.schemas.fit_assessment import score_to_grade, score_to_verdict
+
+		# Store an assessment with a deliberately wrong overall (stale)
+		stale = {
+			"assessment_id": "backfill-001",
+			"assessed_at": "2026-03-01T10:00:00",
+			"job_title": "Engineer",
+			"company_name": "TestCo",
+			"posting_url": None,
+			"overall_score": 50,  # stale integer score
+			"overall_grade": "C",  # stale
+			"should_apply": False,
+			"data": {
+				"skill_match": _make_dim("skill_match", 0.90),
+				"overall_score": 0.50,  # stale in blob too
+				"overall_grade": "C",
+				"should_apply": "maybe",
+			},
+		}
+		run(store.save_assessment(stale))
+		result = run(store.get_assessment("backfill-001"))
+		assert result is not None
+		# skill_match=0.90 with tech_only weights -> overall=0.90
+		assert result["data"]["overall_score"] == 0.90
+		assert result["overall_score"] == 0.90
+		assert result["overall_grade"] == score_to_grade(0.90)
+		assert result["should_apply"] == score_to_verdict(0.90)
+
+	def test_list_assessments_recomputes_overall(self, store: AssessmentStore):
+		"""list_assessments also goes through _decode_assessment,
+		so backfill should apply to listed results too."""
+		from claude_candidate.schemas.fit_assessment import score_to_grade
+
+		stale = {
+			"assessment_id": "backfill-list-001",
+			"assessed_at": "2026-03-01T10:00:00",
+			"job_title": "Engineer",
+			"company_name": "ListCo",
+			"overall_score": 50,
+			"overall_grade": "C",
+			"should_apply": False,
+			"data": {
+				"skill_match": _make_dim("skill_match", 0.85),
+				"overall_score": 0.50,
+				"overall_grade": "C",
+				"should_apply": "maybe",
+			},
+		}
+		run(store.save_assessment(stale))
+		results = run(store.list_assessments())
+		assert len(results) >= 1
+		entry = next(r for r in results if r["assessment_id"] == "backfill-list-001")
+		assert entry["overall_score"] == 0.85
+		assert entry["overall_grade"] == score_to_grade(0.85)
+
+	def test_backfill_preserves_original_dimensions(self, store: AssessmentStore):
+		"""Legacy dimension keys (experience_match, education_match) in the
+		data blob should survive the backfill unchanged."""
+		stale = {
+			"assessment_id": "backfill-legacy-001",
+			"assessed_at": "2026-03-01T10:00:00",
+			"job_title": "Engineer",
+			"company_name": "LegacyCo",
+			"overall_score": 50,
+			"overall_grade": "C",
+			"should_apply": False,
+			"data": {
+				"skill_match": _make_dim("skill_match", 0.80),
+				"experience_match": _make_dim("skill_match", 0.70),
+				"education_match": _make_dim("skill_match", 0.60),
+				"overall_score": 0.50,
+				"overall_grade": "C",
+				"should_apply": "maybe",
+			},
+		}
+		run(store.save_assessment(stale))
+		result = run(store.get_assessment("backfill-legacy-001"))
+		assert result is not None
+		# Legacy dims preserved in data blob
+		assert "experience_match" in result["data"]
+		assert "education_match" in result["data"]
+		# Overall recomputed from skill_match only (tech_only weights)
+		assert result["overall_score"] == 0.80
+
+	def test_backfill_handles_missing_skill_match(self, store: AssessmentStore):
+		"""If data blob has no skill_match, recompute_overall passes through.
+		The stored overall should be preserved as-is."""
+		no_skill = {
+			"assessment_id": "backfill-noskill-001",
+			"assessed_at": "2026-03-01T10:00:00",
+			"job_title": "Engineer",
+			"company_name": "NoSkillCo",
+			"overall_score": 75,
+			"overall_grade": "B",
+			"should_apply": True,
+			"data": {
+				"summary": "No skill_match dim",
+				"overall_score": 0.75,
+			},
+		}
+		run(store.save_assessment(no_skill))
+		result = run(store.get_assessment("backfill-noskill-001"))
+		assert result is not None
+		# Passthrough -- data blob unchanged
+		assert result["data"]["overall_score"] == 0.75
+		# Top-level reflects data blob value
+		assert result["overall_score"] == 0.75

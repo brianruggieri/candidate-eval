@@ -47,6 +47,10 @@ class CompanyProfile(BaseModel):
 	sources: list[str] = Field(default_factory=list)
 	enrichment_quality: Literal["rich", "moderate", "sparse"] = "sparse"
 
+	def has_mission_signals(self) -> bool:
+		"""Return True if at least one mission-relevant signal is populated."""
+		return bool(self.product_domain or self.tech_stack_public or self.mission_statement)
+
 	def to_json(self) -> str:
 		return self.model_dump_json(indent=2)
 

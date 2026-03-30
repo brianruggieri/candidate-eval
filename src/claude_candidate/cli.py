@@ -740,8 +740,6 @@ def _print_rich_card(assessment) -> None:
 
 	for dim in [
 		assessment.skill_match,
-		assessment.experience_match,
-		assessment.education_match,
 		assessment.mission_alignment,
 		assessment.culture_fit,
 	]:
@@ -808,14 +806,6 @@ def _print_plain_card(assessment) -> None:
 	print(f"  {bar(assessment.overall_score)}")
 	print()
 	print(f"  Skills:  {bar(assessment.skill_match.score)} {assessment.skill_match.grade}")
-	if assessment.experience_match:
-		print(
-			f"  Exper.:  {bar(assessment.experience_match.score)} {assessment.experience_match.grade}"
-		)
-	if assessment.education_match:
-		print(
-			f"  Educ.:   {bar(assessment.education_match.score)} {assessment.education_match.grade}"
-		)
 	if assessment.mission_alignment:
 		print(
 			f"  Mission: {bar(assessment.mission_alignment.score)} {assessment.mission_alignment.grade}"
@@ -956,6 +946,7 @@ def profile_rebuild(data_dir: str | None) -> None:
 		if candidate_path.exists():
 			try:
 				from claude_candidate.schemas.candidate_profile import CandidateProfile
+
 				sessions_cp = CandidateProfile.from_json(candidate_path.read_text())
 			except Exception:
 				pass
@@ -2263,6 +2254,168 @@ def repos_scan(config: str | None, data_dir: str | None) -> None:
 	click.echo(f"Found {len(profile.skill_evidence)} skills")
 	click.echo(f"Timeline: {profile.repo_timeline_days} days")
 	click.echo(f"Profile written to {output_path}")
+
+
+# === Preferences commands ===
+
+
+def _parse_freetext_list(raw: str) -> list[str]:
+	"""Parse a comma-separated freetext input, stripping markdown and deduplicating."""
+	import re
+
+	# Strip markdown bold/italic markers
+	cleaned = re.sub(r"\*+", "", raw)
+	values = [v.strip() for v in cleaned.split(",") if v.strip()]
+	# Deduplicate while preserving order
+	seen: set[str] = set()
+	result: list[str] = []
+	for v in values:
+		key = v.lower()
+		if key not in seen:
+			seen.add(key)
+			result.append(v)
+	return result
+
+
+def _flush_stdin() -> None:
+	"""Discard any buffered stdin (e.g. leftover lines from multi-line paste)."""
+	import select
+	import sys
+
+	try:
+		while select.select([sys.stdin], [], [], 0.0)[0]:
+			sys.stdin.readline()
+	except (OSError, ValueError):
+		pass  # Not a real terminal (e.g. piped input in tests)
+
+
+@main.group()
+def preferences() -> None:
+	"""Work preferences management commands."""
+	pass
+
+
+@preferences.command("onboard")
+@click.option(
+	"--output",
+	"-o",
+	type=click.Path(),
+	default=None,
+	help="Output path (default: ~/.claude-candidate/work_preferences.json)",
+)
+@click.option(
+	"--accept-defaults",
+	is_flag=True,
+	default=False,
+	help="Accept all defaults without prompting",
+)
+def preferences_onboard(output: str | None, accept_defaults: bool) -> None:
+	"""Interactive work preferences onboarding.
+
+	Prompts for remote preference, company size, cultural values, and
+	values to avoid. Saves to ~/.claude-candidate/work_preferences.json.
+	"""
+	from claude_candidate.schemas.work_preferences import WorkPreferences
+
+	if accept_defaults:
+		prefs = WorkPreferences()
+	else:
+		# Remote preference
+		remote_choices = ["remote_first", "hybrid", "in_office", "flexible"]
+		click.echo("\nRemote work preference:")
+		for i, choice in enumerate(remote_choices, 1):
+			click.echo(f"  {i}. {choice.replace('_', ' ')}")
+		remote_idx = click.prompt(
+			"Choice",
+			type=click.IntRange(1, 4),
+			default=4,
+			show_default=True,
+		)
+		remote_pref = remote_choices[remote_idx - 1]
+
+		# Company size
+		size_choices = ["startup", "mid", "enterprise"]
+		click.echo("\nPreferred company sizes (comma-separated, or Enter to skip):")
+		for i, choice in enumerate(size_choices, 1):
+			click.echo(f"  {i}. {choice}")
+		size_raw = click.prompt("Choices (e.g. 1,2)", default="", show_default=False)
+		company_size = []
+		if size_raw.strip():
+			for part in size_raw.split(","):
+				part = part.strip()
+				if part.isdigit() and 1 <= int(part) <= 3:
+					company_size.append(size_choices[int(part) - 1])
+				elif part in size_choices:
+					company_size.append(part)
+
+		# Culture values
+		click.echo(
+			"\nCulture values you seek (comma-separated, e.g. autonomy,transparency):"
+		)
+		values_raw = click.prompt("Values", default="", show_default=False)
+		culture_values = _parse_freetext_list(values_raw)
+		# Flush stdin to discard leftover lines from multi-line paste
+		_flush_stdin()
+
+		# Culture avoid
+		click.echo(
+			"\nCulture traits to avoid (comma-separated, e.g. micromanagement,crunch):"
+		)
+		avoid_raw = click.prompt("Avoid", default="", show_default=False)
+		culture_avoid = _parse_freetext_list(avoid_raw)
+		_flush_stdin()
+
+		prefs = WorkPreferences(
+			remote_preference=remote_pref,
+			company_size=company_size,
+			culture_values=culture_values,
+			culture_avoid=culture_avoid,
+		)
+
+	out_path = Path(output) if output else Path.home() / ".claude-candidate" / "work_preferences.json"
+	prefs.save(out_path)
+	click.echo(f"\nPreferences saved to {out_path}")
+	if prefs.has_preferences:
+		click.echo(f"  Remote: {prefs.remote_preference}")
+		if prefs.company_size:
+			click.echo(f"  Size: {', '.join(prefs.company_size)}")
+		if prefs.culture_values:
+			click.echo(f"  Values: {', '.join(prefs.culture_values)}")
+		if prefs.culture_avoid:
+			click.echo(f"  Avoid: {', '.join(prefs.culture_avoid)}")
+	else:
+		click.echo("  (all defaults — culture scoring will be skipped)")
+
+
+@preferences.command("show")
+@click.option(
+	"--path",
+	type=click.Path(),
+	default=None,
+	help="Path to preferences JSON (default: ~/.claude-candidate/work_preferences.json)",
+)
+def preferences_show(path: str | None) -> None:
+	"""Display current work preferences."""
+	from claude_candidate.schemas.work_preferences import WorkPreferences
+
+	prefs_path = Path(path) if path else Path.home() / ".claude-candidate" / "work_preferences.json"
+	prefs = WorkPreferences.load(prefs_path)
+
+	if prefs is None:
+		click.echo(f"No preferences found at {prefs_path}")
+		click.echo("Run 'preferences onboard' to set up your preferences.")
+		return
+
+	click.echo(f"Work preferences ({prefs_path}):")
+	click.echo(f"  Remote preference: {prefs.remote_preference}")
+	click.echo(f"  Company size: {', '.join(prefs.company_size) if prefs.company_size else '(any)'}")
+	click.echo(
+		f"  Culture values: {', '.join(prefs.culture_values) if prefs.culture_values else '(none)'}"
+	)
+	click.echo(
+		f"  Culture avoid: {', '.join(prefs.culture_avoid) if prefs.culture_avoid else '(none)'}"
+	)
+	click.echo(f"  Has preferences: {prefs.has_preferences}")
 
 
 # Register corpus subcommand group (deferred import avoids E402 lint warning)

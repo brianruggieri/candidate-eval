@@ -1,190 +1,246 @@
 {
-  "anthropic-software-engineer-claude-code": {
+  "adobe-senior-ai-platform-engineer": {
     "expected": "A",
-    "rationale": "v0.8: A+\u2192A \u2014 mission proxy + confidence wiring shift; still top-tier fit for Claude Code role"
-  },
-  "schoolai-fullstack-software-engineer": {
-    "expected": "A",
-    "rationale": "v0.8: A+\u2192A \u2014 confidence penalty on fuzzy matches + mission proxy; strong full-stack + edtech fit"
-  },
-  "npr-senior-ai-engineer-ai-labs": {
-    "expected": "B+",
-    "rationale": "v0.8: A\u2192B+ \u2014 confidence wiring + virtual skill concentration reduce inflated AI match; media domain gap now visible"
-  },
-  "deeprec-ai-senior-agentic-ai-engineer": {
-    "expected": "A-",
-    "rationale": "v0.8: A\u2192A- \u2014 confidence penalty on fuzzy agentic matches; still good fit"
-  },
-  "motion-recruitment-sr-react-three-js-unreal-engine-unity-nod": {
-    "expected": "A-",
-    "rationale": "v0.8: A+\u2192A- \u2014 3D/game engine specialization gap now penalized by confidence wiring + virtual skill concentration"
-  },
-  "arcadia-senior-software-engineer-ai-agents": {
-    "expected": "A",
-    "rationale": "v0.8: A+\u2192A \u2014 mission proxy + confidence shift; core AI agents competency still strong"
-  },
-  "change-org-senior-staff-software-engineer-ai-and-tools": {
-    "expected": "A-",
-    "rationale": "v0.8: A+\u2192A- \u2014 Sr Staff expectations + confidence wiring tighten scoring; still strong AI tools fit"
-  },
-  "microsoft-member-of-technical-staff-senior-applied-ai-engine": {
-    "expected": "A-",
-    "rationale": "v0.8: A\u2192A- \u2014 Microsoft-specific infra expectations + confidence penalty; good applied AI match"
-  },
-  "backflip-ai-senior-ai-systems-engineer-agents-reasoning": {
-    "expected": "A-",
-    "rationale": "v0.8: A\u2192A- \u2014 confidence penalty on systems-level AI matches; strong agentic fit"
-  },
-  "cohere-senior-software-engineer-agent-infrastructure": {
-    "expected": "B+",
-    "rationale": "v0.8: A\u2192B+ \u2014 infra specialization gap now visible with stricter virtual skill inference + confidence wiring"
-  },
-  "product-ai-software-engineer-ai-commerce": {
-    "expected": "A-",
-    "rationale": "v0.8: A\u2192A- \u2014 commerce domain + confidence penalty shift; AI + full-stack still solid"
-  },
-  "staffing-science-senior-staff-software-engineer-agentic": {
-    "expected": "A",
-    "rationale": "v0.8: A+\u2192A \u2014 mission proxy + confidence shift; agentic engineering core competency"
-  },
-  "kiddom-machine-learning-engineer": {
-    "expected": "A-",
-    "rationale": "v0.8: A+\u2192A- \u2014 ML specialization gap now penalized; AI/agentic overlap is real but not pure ML"
-  },
-  "adobe-senior-software-development-engineer": {
-    "expected": "A-",
-    "rationale": "v0.8: A\u2192A- \u2014 confidence penalty on broad SDE matches; strong but not specialized fit"
-  },
-  "milwaukee-brewers-senior-software-engineer-baseball-systems": {
-    "expected": "B+",
-    "rationale": "v0.8: A\u2192B+ \u2014 baseball domain gap + confidence wiring now correctly penalize; strong SWE with domain mismatch"
+    "rationale": "v0.9: new posting, baselined at A"
   },
   "adobe-senior-customer-facing-applied-ai-engineer": {
+    "expected": "A+",
+    "rationale": "v0.9: A->A+ \u2014 scoring consolidation (5D->3D, experience/education folded)"
+  },
+  "adobe-senior-software-development-engineer": {
     "expected": "A",
-    "rationale": "v0.8: A+\u2192A \u2014 mission proxy shift; customer-facing AI skills still well covered"
+    "rationale": "v0.9: A-->A \u2014 scoring consolidation (5D->3D, experience/education folded)"
   },
-  "imbue-product-engineer": {
-    "expected": "A-",
-    "rationale": "v0.8: A\u2192A- \u2014 confidence penalty on product engineer matches; AI alignment still strong"
-  },
-  "fullstack-principal-agentic-engineer": {
-    "expected": "A-",
-    "rationale": "v0.8: A\u2192A- \u2014 principal-level expectations + confidence shift; agentic expertise well evidenced"
-  },
-  "interplay-learning-principal-react-engineer": {
-    "expected": "A-",
-    "rationale": "v0.8: A\u2192A- \u2014 confidence penalty on React specialization matches; good frontend fit"
-  },
-  "substack-full-stack-product-engineer-creator-activation": {
-    "expected": "A",
-    "rationale": "Substack \u2014 Full Stack Product Engineer. TypeScript/React/Postgres stack fully evidenced."
-  },
-  "suno-staff-software-engineer": {
-    "expected": "A-",
-    "rationale": "v0.8: A\u2192A- \u2014 confidence penalty + mission proxy shift; music domain neutral but scoring tighter"
-  },
-  "the-walt-disney-company-software-engineer-interactive-visual": {
-    "expected": "B",
-    "rationale": "v0.8: A-\u2192B \u2014 interactive visualization specialization gap now visible with confidence wiring + virtual skill concentration"
-  },
-  "microsoft-ai-sr-principal-product-manager": {
+  "adobe-senior-software-engineer-experience-league-knowledge-platform": {
     "expected": "B+",
-    "rationale": "Microsoft AI \u2014 Sr. Principal Product Manager. Not a PM \u2014 engineering-focused profile. But AI domain knowledge, metrics, product-development skills overlap."
+    "rationale": "v0.9: new posting, baselined at B+"
   },
-  "the-walt-disney-company-sr-staff-r-d-engineer": {
-    "expected": "C+",
-    "rationale": "v0.8: B-\u2192C+ \u2014 R&D research focus with tighter confidence scoring; genuine skill coverage limited"
-  },
-  "anthropic-design-engineer-ai-capability-development": {
-    "expected": "A",
-    "rationale": "v0.8: A+\u2192A \u2014 mission proxy + confidence shift; repo-evidenced AI + frontend still very strong"
+  "anthropic-design-engineer-ai-capability-development-education-labs": {
+    "expected": "B+",
+    "rationale": "v0.9: new posting, baselined at B+"
   },
   "anthropic-research-engineer-agents": {
-    "expected": "A",
-    "rationale": "Anthropic \u2014 Research Engineer, Agents. Repo-proven agentic expertise is strong. Research role favors practitioners who build agent systems."
+    "expected": "C",
+    "rationale": "v0.9: A->C \u2014 scoring consolidation (5D->3D, experience/education folded)"
   },
-  "anthropic-research-engineer-audio": {
+  "anthropic-research-engineerresearch-scientist-audio": {
+    "expected": "C+",
+    "rationale": "v0.9: new posting, baselined at C+"
+  },
+  "anthropic-software-engineer-claude-code": {
+    "expected": "A+",
+    "rationale": "v0.9: A->A+ \u2014 scoring consolidation (5D->3D, experience/education folded)"
+  },
+  "arcade-product-engineer-ai": {
     "expected": "B+",
-    "rationale": "Anthropic \u2014 Research Engineer, Audio. Domain gap fires for 'audio'. Engineering skills transfer but audio ML is foreign. B+ is the correct domain-gap cap."
+    "rationale": "v0.9: new posting, baselined at B+"
+  },
+  "arcadia-senior-software-engineer-ai-agents": {
+    "expected": "A+",
+    "rationale": "v0.9: A->A+ \u2014 scoring consolidation (5D->3D, experience/education folded)"
+  },
+  "backflip-ai-senior-ai-systems-engineer-agents-reasoning": {
+    "expected": "A",
+    "rationale": "v0.9: A-->A \u2014 scoring consolidation (5D->3D, experience/education folded)"
   },
   "bastion-senior-software-engineer": {
     "expected": "B+",
     "rationale": "Bastion \u2014 Senior SWE. Go/Rust/Kafka/K8s are gaps but TS/Node/API/Postgres skills match. B+ reflects strong general SWE with missing primary language."
   },
-  "baylor-genetics-lead-bioinformatics-scientist": {
-    "expected": "B+",
-    "rationale": "Baylor Genetics \u2014 Lead Bioinformatics Scientist. Domain gap fires for 'bioinformatics'/'genomics'. B+ cap is correct."
+  "brightwheel-staff-ai-product-builder": {
+    "expected": "A+",
+    "rationale": "v0.9: new posting, baselined at A+"
   },
-  "cubby-beds-senior-product-engineer-ai-growth": {
+  "camber-senior-software-engineer": {
+    "expected": "C",
+    "rationale": "v0.9: new posting, baselined at C"
+  },
+  "changeorg-senior-staff-software-engineer-ai-and-tools": {
     "expected": "A",
-    "rationale": "v0.8: A+\u2192A \u2014 mission proxy + confidence shift; strong product + AI + startup alignment"
+    "rationale": "v0.9: new posting, baselined at A"
+  },
+  "cohere-applied-ai-engineer-agentic-workflows": {
+    "expected": "A+",
+    "rationale": "v0.9: new posting, baselined at A+"
+  },
+  "cohere-senior-software-engineer-agent-infrastructure": {
+    "expected": "A-",
+    "rationale": "v0.9: B+->A- \u2014 scoring consolidation (5D->3D, experience/education folded)"
+  },
+  "cubby-beds-senior-product-engineer-ai-growth-systems": {
+    "expected": "A+",
+    "rationale": "v0.9: new posting, baselined at A+"
   },
   "decagon-senior-software-engineer-agent-orchestration": {
+    "expected": "A-",
+    "rationale": "v0.9: A->A- \u2014 scoring consolidation (5D->3D, experience/education folded)"
+  },
+  "decagon-senior-software-engineer-agents": {
+    "expected": "A-",
+    "rationale": "v0.9: new posting, baselined at A-"
+  },
+  "deeprecai-senior-agentic-ai-engineer": {
     "expected": "A",
-    "rationale": "v0.8: A+\u2192A \u2014 mission proxy + confidence shift; agent orchestration is core competency"
+    "rationale": "v0.9: new posting, baselined at A"
   },
   "descript-senior-software-engineer-agent": {
-    "expected": "A",
-    "rationale": "v0.8: A+\u2192A \u2014 mission proxy + confidence shift; agentic + creative tools repo-evidenced"
+    "expected": "A+",
+    "rationale": "v0.9: A->A+ \u2014 scoring consolidation (5D->3D, experience/education folded)"
   },
-  "disney-senior-gameplay-engineer": {
-    "expected": "B+",
-    "rationale": "Disney \u2014 Senior Gameplay Engineer. Domain gap fires for 'gameplay'. B+ domain-gap cap is correct."
-  },
-  "doordash-senior-software-engineer-data-engineering": {
-    "expected": "B+",
-    "rationale": "DoorDash \u2014 Senior SWE, Data Engineering. Domain gap fires for 'etl'/'warehouse'. B+ cap correct."
-  },
-  "duolingo-staff-ios-engineer-app-builds": {
-    "expected": "B+",
-    "rationale": "Duolingo \u2014 Staff iOS Engineer. Domain gap fires for 'ios'. B+ is correct."
-  },
-  "fellow-firmware-engineer": {
+  "disney-interactive-senior-gameplay-engineer": {
     "expected": "B-",
-    "rationale": "Fellow \u2014 Firmware Engineer. Domain gap fires for 'firmware'. B- reflects the natural score floor."
+    "rationale": "v0.9: new posting, baselined at B-"
   },
-  "harvey-software-engineer-ai-platform": {
+  "eightfold-ai-senior-software-engineer---ai-agentic-product": {
+    "expected": "A+",
+    "rationale": "v0.9: new posting, baselined at A+"
+  },
+  "ello-senior-design-engineer": {
     "expected": "A",
-    "rationale": "v0.8: A+\u2192A \u2014 mission proxy + confidence shift; AI platform engineering strong match"
+    "rationale": "v0.9: new posting, baselined at A"
   },
-  "meet-life-sciences-staff-firmware-engineer": {
-    "expected": "D",
-    "rationale": "Meet Life Sciences \u2014 Staff Firmware Engineer. Complete domain and tech stack mismatch. Eligibility gates unmet."
+  "fleetworks-senior-product-engineer---ai": {
+    "expected": "A+",
+    "rationale": "v0.9: new posting, baselined at A+"
   },
-  "mobasi-founding-engineer": {
+  "fullstack-principal-agentic-engineer": {
+    "expected": "A",
+    "rationale": "v0.9: A-->A \u2014 scoring consolidation (5D->3D, experience/education folded)"
+  },
+  "hedra-agentic-engineer": {
+    "expected": "A+",
+    "rationale": "v0.9: new posting, baselined at A+"
+  },
+  "imbue-product-engineer": {
+    "expected": "A",
+    "rationale": "v0.9: A-->A \u2014 scoring consolidation (5D->3D, experience/education folded)"
+  },
+  "interplay-learning-principal-react-engineer": {
+    "expected": "A",
+    "rationale": "v0.9: A-->A \u2014 scoring consolidation (5D->3D, experience/education folded)"
+  },
+  "khan-academy-senior-ai-engineer-24-months-fixed-term": {
+    "expected": "A-",
+    "rationale": "v0.9: new posting, baselined at A-"
+  },
+  "kiddom-machine-learning-engineer": {
+    "expected": "A+",
+    "rationale": "v0.9: A-->A+ \u2014 scoring consolidation (5D->3D, experience/education folded)"
+  },
+  "machine-learning-research-engineer": {
+    "expected": "C+",
+    "rationale": "v0.9: new posting, baselined at C+"
+  },
+  "microsoft-ai-sr-principal-product-manager": {
     "expected": "B+",
-    "rationale": "Mobasi \u2014 Founding Engineer. Rust is must_have but TS/Python/Docker overlap is substantial. B+ reflects broad match with primary language gap."
+    "rationale": "Microsoft AI \u2014 Sr. Principal Product Manager. Not a PM \u2014 engineering-focused profile. But AI domain knowledge, metrics, product-development skills overlap."
   },
-  "modus-create-senior-ai-ml-engineer": {
-    "expected": "A",
-    "rationale": "Modus Create \u2014 Senior AI/ML Engineer. Repo-evidenced AI depth validates senior ML expectations."
+  "microsoft-member-of-technical-staff-senior-applied-ai": {
+    "expected": "B-",
+    "rationale": "v0.9: new posting, baselined at B-"
   },
-  "new-york-mets-applied-ai-engineer": {
+  "milwaukee-brewers-senior-software-engineer-baseball-systems": {
+    "expected": "A-",
+    "rationale": "v0.9: B+->A- \u2014 scoring consolidation (5D->3D, experience/education folded)"
+  },
+  "mirage-software-engineer-applied-ai": {
+    "expected": "B+",
+    "rationale": "v0.9: new posting, baselined at B+"
+  },
+  "motion-recruitment-sr-react-threejs-unreal-engine-unity-node": {
     "expected": "A",
-    "rationale": "NY Mets \u2014 Applied AI Engineer. 'baseball' appears <3 times, no domain gap. Applied AI is a strength."
+    "rationale": "v0.9: new posting, baselined at A"
+  },
+  "npr-senior-ai-engineer-ai-labs": {
+    "expected": "B+",
+    "rationale": "v0.8: A\u2192B+ \u2014 confidence wiring + virtual skill concentration reduce inflated AI match; media domain gap now visible"
+  },
+  "numeral-software-engineer-ai": {
+    "expected": "B+",
+    "rationale": "v0.9: new posting, baselined at B+"
+  },
+  "pathai-machine-learning-engineer-iiiii-applied-research-model": {
+    "expected": "A",
+    "rationale": "v0.9: new posting, baselined at A"
+  },
+  "pathai-senior-software-engineer-fullstack": {
+    "expected": "B+",
+    "rationale": "v0.9: new posting, baselined at B+"
+  },
+  "pingo-ai-founding-ai-systems-engineer": {
+    "expected": "A",
+    "rationale": "v0.9: new posting, baselined at A"
+  },
+  "plot-senior-software-engineer----applied-ai": {
+    "expected": "A+",
+    "rationale": "v0.9: new posting, baselined at A+"
   },
   "podium-staff-ai-engineer": {
-    "expected": "A-",
-    "rationale": "v0.8: A\u2192A- \u2014 confidence penalty on staff AI matches; strong foundation but tighter scoring"
+    "expected": "A+",
+    "rationale": "v0.9: A-->A+ \u2014 scoring consolidation (5D->3D, experience/education folded)"
+  },
+  "productai-software-engineer---ai-commerce": {
+    "expected": "A",
+    "rationale": "v0.9: new posting, baselined at A"
   },
   "remesh-software-engineer": {
-    "expected": "A",
-    "rationale": "v0.8: A+\u2192A \u2014 mission proxy + confidence shift; still exceeds mid-level requirements"
+    "expected": "A+",
+    "rationale": "v0.9: A->A+ \u2014 scoring consolidation (5D->3D, experience/education folded)"
   },
-  "rockstar-games-associate-engine-programmer": {
+  "schoolai-fullstack-software-engineer": {
+    "expected": "A+",
+    "rationale": "v0.9: A->A+ \u2014 scoring consolidation (5D->3D, experience/education folded)"
+  },
+  "senior-python-backend-engineer": {
+    "expected": "C",
+    "rationale": "v0.9: new posting, baselined at C"
+  },
+  "senior-python-developer": {
     "expected": "B+",
-    "rationale": "Rockstar Games \u2014 Associate Engine Programmer. Domain gap fires for 'gameplay'. B+ domain-gap cap is correct."
+    "rationale": "v0.9: new posting, baselined at B+"
   },
-  "temporal-staff-software-engineer-ai-sdk": {
+  "senior-site-reliability-engineer": {
+    "expected": "B-",
+    "rationale": "v0.9: new posting, baselined at B-"
+  },
+  "staffing-science-seniorstaff-software-engineer-agentic": {
     "expected": "A-",
-    "rationale": "v0.8: A\u2192A- \u2014 confidence penalty on SDK/tooling matches; developer tools expertise still strong"
+    "rationale": "v0.9: new posting, baselined at A-"
   },
-  "webai-rnd-software-engineer": {
+  "substack-full-stack-product-engineer-creator-activation": {
+    "expected": "A+",
+    "rationale": "v0.9: A->A+ \u2014 scoring consolidation (5D->3D, experience/education folded)"
+  },
+  "suno-staff-software-engineer": {
+    "expected": "A",
+    "rationale": "v0.9: A-->A \u2014 scoring consolidation (5D->3D, experience/education folded)"
+  },
+  "the-walt-disney-company-software-engineer---interactive-visualization": {
+    "expected": "B",
+    "rationale": "v0.9: new posting, baselined at B"
+  },
+  "the-walt-disney-company-sports-data-engineer": {
+    "expected": "D",
+    "rationale": "v0.9: new posting, baselined at D"
+  },
+  "the-walt-disney-company-sr-staff-rd-engineer": {
+    "expected": "B",
+    "rationale": "v0.9: new posting, baselined at B"
+  },
+  "unreal-engine-gameplay-programmer": {
     "expected": "B+",
-    "rationale": "webAI \u2014 R&D Software Engineer. Domain gap fires for 'embedded'. B+ domain-gap cap is correct."
+    "rationale": "v0.9: new posting, baselined at B+"
+  },
+  "webai-rd-software-engineer": {
+    "expected": "A",
+    "rationale": "v0.9: new posting, baselined at A"
   },
   "worldscape-lead-technical-artist": {
+    "expected": "B-",
+    "rationale": "v0.9: A->B- \u2014 scoring consolidation (5D->3D, experience/education folded)"
+  },
+  "writer-software-engineer-agents": {
     "expected": "A",
-    "rationale": "Worldscape \u2014 Lead Technical Artist. Unity/WebGL/creative-tools match well. A is correct."
+    "rationale": "v0.9: new posting, baselined at A"
   }
 }

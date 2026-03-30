@@ -175,7 +175,7 @@ class AssessmentStore:
 				data.get("posting_url"),
 				data.get("overall_score"),
 				data.get("overall_grade"),
-				1 if data.get("should_apply") else 0,
+				data.get("should_apply", ""),
 				data_json,
 			),
 		)
@@ -221,7 +221,18 @@ class AssessmentStore:
 		if "data" in d and isinstance(d["data"], str):
 			d["data"] = json.loads(d["data"])
 		if "should_apply" in d:
-			d["should_apply"] = bool(d["should_apply"])
+			sa = d["should_apply"]
+			# Legacy rows store 0/1; new rows store verdict strings. Coerce only ints.
+			if isinstance(sa, int):
+				d["should_apply"] = bool(sa)
+		# Backfill-on-read: recompute overall using current weight system
+		if "data" in d and isinstance(d["data"], dict):
+			from claude_candidate.scoring.backfill import recompute_overall
+
+			d["data"] = recompute_overall(d["data"])
+			d["overall_score"] = d["data"].get("overall_score", d.get("overall_score"))
+			d["overall_grade"] = d["data"].get("overall_grade", d.get("overall_grade"))
+			d["should_apply"] = d["data"].get("should_apply", d.get("should_apply"))
 		return d
 
 	# ------------------------------------------------------------------

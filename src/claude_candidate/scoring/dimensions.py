@@ -35,7 +35,6 @@ from claude_candidate.scoring.constants import (
 	ELIGIBILITY_DESCRIPTION_PATTERNS,
 	# Soft skill discount
 	SOFT_SKILL_DISCOUNT,
-	SOFT_SKILL_MAX_BOOST,
 	# Domain keywords
 	DOMAIN_KEYWORDS,
 	# Status scoring
@@ -49,22 +48,28 @@ from claude_candidate.scoring.constants import (
 	SCORE_PRECISION,
 	# Confidence adjustment
 	CONFIDENCE_FLOOR,
+	# Years gradient
+	YEARS_GRADIENT_FLOOR,
 	# Mission constants
-	MISSION_NEUTRAL_SCORE,
 	MISSION_DOMAIN_BONUS,
 	MISSION_TECH_OVERLAP_WEIGHT,
 	MISSION_TEXT_OVERLAP_WEIGHT,
-	MISSION_NO_ENRICHMENT_BASE,
-	MISSION_NO_ENRICHMENT_RANGE,
 	MISSION_DOMAIN_TAXONOMY,
-	# Culture constants
-	CULTURE_PATTERN_STRENGTH_SCORE,
-	CULTURE_EMERGING_MATCH,
-	# Weight tuples
-	_WEIGHTS_RICH,
-	_WEIGHTS_MODERATE,
-	_WEIGHTS_SPARSE,
-	_WEIGHTS_NONE,
+	# Culture preference constants
+	CULTURE_REMOTE_WEIGHT,
+	CULTURE_SIZE_WEIGHT,
+	CULTURE_VALUES_WEIGHT,
+	REMOTE_MATCH_MATRIX,
+	CULTURE_UNKNOWN_SCORE,
+	CULTURE_SIZE_MATCH,
+	CULTURE_SIZE_NO_MATCH,
+	CULTURE_SCORE_MIN,
+	CULTURE_SCORE_MAX,
+	# Adaptive weight tuples
+	WEIGHTS_TECH_ONLY,
+	WEIGHTS_WITH_MISSION,
+	WEIGHTS_WITH_CULTURE,
+	WEIGHTS_FULL,
 )
 from claude_candidate.scoring.matching import compute_match_confidence, _evidence_summary
 
@@ -94,27 +99,14 @@ def _infer_eligibility(req: "QuickRequirement") -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _soft_skill_discount(
-	culture_signals: list[str] | None,
-	company_profile: "CompanyProfile | None",
-) -> float:
-	"""Compute soft skill weight discount, modulated by culture signal strength.
+def _soft_skill_discount() -> float:
+	"""Return the fixed soft skill weight discount.
 
-	Base discount is SOFT_SKILL_DISCOUNT (0.5). When a CompanyProfile with
-	culture_keywords is available, the discount is boosted up to SOFT_SKILL_MAX_BOOST (0.8)
-	based on the overlap ratio between posting culture_signals and company culture_keywords.
+	Soft skill requirements get reduced weight in Technical Fit because
+	they are hard to evidence from code. The discount is a fixed 0.5.
+	Culture influence flows exclusively through the Culture Fit dimension.
 	"""
-	if not company_profile or not company_profile.culture_keywords:
-		return SOFT_SKILL_DISCOUNT
-	if not culture_signals:
-		return SOFT_SKILL_DISCOUNT
-	company_kw = {kw.lower() for kw in company_profile.culture_keywords}
-	posting_signals = {s.lower() for s in culture_signals}
-	if not posting_signals:
-		return SOFT_SKILL_DISCOUNT
-	overlap = len(posting_signals & company_kw)
-	ratio = overlap / len(posting_signals)
-	return SOFT_SKILL_DISCOUNT + ratio * (SOFT_SKILL_MAX_BOOST - SOFT_SKILL_DISCOUNT)
+	return SOFT_SKILL_DISCOUNT
 
 
 # ---------------------------------------------------------------------------
@@ -164,6 +156,7 @@ def _score_requirement(
 	best_match: MergedSkillEvidence | None,
 	best_status: str,
 	priority: RequirementPriority = RequirementPriority.MUST_HAVE,
+	years_ratio: float | None = None,
 ) -> float:
 	"""Compute the score for one requirement given its best match.
 
@@ -175,6 +168,9 @@ def _score_requirement(
 	No-evidence scoring is priority-dependent:
 	- must_have/strong_preference: 0.0 (hard gaps should hurt)
 	- nice_to_have/implied: STATUS_SCORE_NONE floor (transferable skills)
+
+	Years gradient penalty: when years_ratio < 1.0, a gradient multiplier
+	penalises shortfalls proportionally instead of using cliff-based downgrades.
 	"""
 	if best_status == "no_evidence":
 		if priority in (RequirementPriority.MUST_HAVE, RequirementPriority.STRONG_PREFERENCE):
@@ -188,6 +184,12 @@ def _score_requirement(
 		conf = best_match.confidence if best_match.confidence is not None else 1.0
 		adjustment = CONFIDENCE_FLOOR + (1.0 - CONFIDENCE_FLOOR) * conf
 		req_score *= adjustment
+
+	# Years gradient penalty: proportional penalty for experience shortfalls
+	if years_ratio is not None and years_ratio < 1.0:
+		gradient = YEARS_GRADIENT_FLOOR + (1.0 - YEARS_GRADIENT_FLOOR) * years_ratio
+		req_score *= gradient
+
 	return req_score
 
 
@@ -392,56 +394,98 @@ def _score_mission_text_alignment(
 	return ratio * MISSION_TEXT_OVERLAP_WEIGHT, [detail]
 
 
-def _mission_from_posting(
-	profile: MergedEvidenceProfile,
-	tech_stack: list[str],
-) -> tuple[float, list[str]]:
-	"""Score mission alignment from the posting tech stack alone."""
-	score = MISSION_NEUTRAL_SCORE
-	details: list[str] = []
-	if tech_stack:
-		posting_techs = {t.lower() for t in tech_stack}
-		candidate_techs = _candidate_skill_names(profile)
-		overlap = posting_techs & candidate_techs
-		if overlap:
-			ratio = len(overlap) / max(len(posting_techs), 1)
-			score = MISSION_NO_ENRICHMENT_BASE + ratio * MISSION_NO_ENRICHMENT_RANGE
-			details.append(
-				f"Tech stack overlap: {', '.join(sorted(overlap)[:MAX_TECH_OVERLAP_DISPLAY])}"
-			)
-	details.append("Limited enrichment data — score based on posting tech stack only")
-	return score, details
-
-
 # ---------------------------------------------------------------------------
 # Culture helpers
 # ---------------------------------------------------------------------------
 
 
-def _match_signal_to_pattern(
-	signal: str,
-	profile: MergedEvidenceProfile,
-) -> tuple[float, str | None]:
-	"""Match a single culture signal directly to a candidate pattern by name.
+def _score_culture_preferences(
+	preferences: "WorkPreferences | None",
+	company_profile: "CompanyProfile | None",
+) -> tuple[DimensionScore, int] | None:
+	"""Score culture fit based on candidate work preferences vs company profile.
 
-	Checks whether any of the candidate's observed patterns have a pattern_type
-	whose value (the enum string) appears as a substring of the culture signal,
-	or the culture signal appears as a substring of the pattern_type value.
-	Returns (match_value, detail_or_None).
+	Returns None when either side lacks data for meaningful scoring.
+	When scored, returns (DimensionScore, avoid_hit_count).
+
+	Three sub-scores weighted together:
+	- Remote policy match (30%)
+	- Company size match (20%)
+	- Values overlap (50%)
 	"""
-	signal_lower = signal.lower()
-	for pat in profile.patterns:
-		pt_value = pat.pattern_type.value  # e.g. "documentation_driven"
-		# Normalize pattern type to words for comparison
-		pt_words = pt_value.replace("_", " ")
-		if pt_words in signal_lower or signal_lower in pt_words:
-			score = CULTURE_PATTERN_STRENGTH_SCORE.get(pat.strength, CULTURE_EMERGING_MATCH)
-			if pat.strength in ("strong", "exceptional"):
-				return score, f"Strong {pt_words} pattern aligns with '{signal}'"
-			if pat.strength == "established":
-				return score, f"Established {pt_words} pattern aligns with '{signal}'"
-			return score, None
-	return 0.0, None
+	if preferences is None or not preferences.has_preferences:
+		return None
+	if company_profile is None:
+		return None
+
+	details: list[str] = []
+
+	# --- Remote sub-score ---
+	if company_profile.remote_policy != "unknown":
+		remote_score = REMOTE_MATCH_MATRIX.get(
+			(preferences.remote_preference, company_profile.remote_policy),
+			CULTURE_UNKNOWN_SCORE,
+		)
+		policy_label = company_profile.remote_policy.replace("_", " ")
+		pref_label = preferences.remote_preference.replace("_", " ")
+		details.append(f"Remote: {pref_label} preference vs {policy_label} policy")
+	else:
+		remote_score = CULTURE_UNKNOWN_SCORE
+
+	# --- Size sub-score ---
+	if preferences.company_size and company_profile.company_size:
+		company_size_lower = company_profile.company_size.lower()
+		if any(s.lower() in company_size_lower or company_size_lower in s.lower() for s in preferences.company_size):
+			size_score = CULTURE_SIZE_MATCH
+		else:
+			size_score = CULTURE_SIZE_NO_MATCH
+			details.append(f"Size mismatch: prefer {', '.join(preferences.company_size)}, company is {company_profile.company_size}")
+	elif not preferences.company_size:
+		size_score = CULTURE_UNKNOWN_SCORE  # no preference = neutral
+	else:
+		size_score = CULTURE_UNKNOWN_SCORE  # unknown company size
+
+	# --- Values sub-score ---
+	company_keywords = {kw.lower() for kw in company_profile.culture_keywords}
+	if preferences.culture_values and company_keywords:
+		candidate_values = {v.lower() for v in preferences.culture_values}
+		overlap = candidate_values & company_keywords
+		values_score = len(overlap) / len(candidate_values) if candidate_values else 0.0
+		if overlap:
+			details.append(f"Values overlap: {', '.join(sorted(overlap))}")
+	elif not preferences.culture_values:
+		values_score = CULTURE_UNKNOWN_SCORE
+	else:
+		values_score = CULTURE_UNKNOWN_SCORE  # no company keywords
+
+	# --- Avoid detection ---
+	avoid_count = 0
+	if preferences.culture_avoid and company_keywords:
+		candidate_avoid = {a.lower() for a in preferences.culture_avoid}
+		avoid_hits = candidate_avoid & company_keywords
+		avoid_count = len(avoid_hits)
+		if avoid_hits:
+			details.append(f"Avoid flags: {', '.join(sorted(avoid_hits))}")
+
+	# --- Weighted combination ---
+	score = (
+		remote_score * CULTURE_REMOTE_WEIGHT
+		+ size_score * CULTURE_SIZE_WEIGHT
+		+ values_score * CULTURE_VALUES_WEIGHT
+	)
+	score = min(max(score, CULTURE_SCORE_MIN), CULTURE_SCORE_MAX)
+
+	if not details:
+		details = ["Culture preference assessment based on available data"]
+
+	dim = DimensionScore(
+		dimension="culture_fit",
+		score=round(score, SCORE_PRECISION),
+		grade=score_to_grade(score),
+		summary=f"Culture fit based on work preferences",
+		details=details[:7],
+	)
+	return dim, avoid_count
 
 
 # ---------------------------------------------------------------------------
@@ -449,44 +493,25 @@ def _match_signal_to_pattern(
 # ---------------------------------------------------------------------------
 
 
-def _redistribute_culture_weight(
-	skill_w: float,
-	mission_w: float,
-	culture_w: float,
-) -> tuple[float, float]:
-	"""Redistribute culture weight proportionally to skill and mission.
-
-	Returns (new_skill_w, new_mission_w) — culture weight becomes 0 at call site.
-	"""
-	total_remaining = skill_w + mission_w
-	if total_remaining == 0.0:
-		# Degenerate case: split evenly
-		half = culture_w / 2.0
-		return skill_w + half, mission_w + half
-	skill_ratio = skill_w / total_remaining
-	mission_ratio = mission_w / total_remaining
-	return skill_w + culture_w * skill_ratio, mission_w + culture_w * mission_ratio
-
-
-def _compute_weights(
-	company_profile: CompanyProfile | None,
+def select_weights(
+	has_mission: bool,
+	has_culture: bool,
 ) -> tuple[float, float, float]:
-	"""Return (skill_weight, mission_weight, culture_weight) based on company data richness.
+	"""Return (skill_weight, mission_weight, culture_weight) based on data availability.
 
-	Tiers (based on CompanyProfile.enrichment_quality):
-	  rich     → 50/25/25
-	  moderate → 60/20/20
-	  sparse   → 70/15/15
-	  None     → 85/10/5   (no company data at all)
+	Four states:
+	  both     → 60/25/15
+	  mission  → 75/25/0
+	  culture  → 85/0/15
+	  neither  → 100/0/0
 	"""
-	if company_profile is None:
-		return _WEIGHTS_NONE
-	quality = company_profile.enrichment_quality
-	if quality == "rich":
-		return _WEIGHTS_RICH
-	if quality == "moderate":
-		return _WEIGHTS_MODERATE
-	return _WEIGHTS_SPARSE
+	if has_mission and has_culture:
+		return WEIGHTS_FULL
+	if has_mission:
+		return WEIGHTS_WITH_MISSION
+	if has_culture:
+		return WEIGHTS_WITH_CULTURE
+	return WEIGHTS_TECH_ONLY
 
 
 # ---------------------------------------------------------------------------
@@ -498,12 +523,10 @@ def _compute_overall_score(
 	skill_dim: DimensionScore,
 	mission_dim: DimensionScore | None = None,
 	culture_dim: DimensionScore | None = None,
-	experience_dim: DimensionScore | None = None,
-	education_dim: DimensionScore | None = None,
 ) -> float:
 	"""Compute weighted overall score from available dimensions."""
 	total = skill_dim.score * skill_dim.weight
-	for dim in (mission_dim, culture_dim, experience_dim, education_dim):
+	for dim in (mission_dim, culture_dim):
 		if dim is not None:
 			total += dim.score * dim.weight
 	return total

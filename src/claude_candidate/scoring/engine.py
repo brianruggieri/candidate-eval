@@ -10,7 +10,6 @@ only import sources have changed (constants/matching/dimensions come from scorin
 
 from __future__ import annotations
 
-import re
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -29,37 +28,20 @@ from claude_candidate.schemas.fit_assessment import (
 )
 from claude_candidate.schemas.job_requirements import (
 	QuickRequirement,
-	RequirementPriority,
 	PRIORITY_WEIGHT,
 )
 from claude_candidate.schemas.merged_profile import (
-	EvidenceSource,
 	MergedEvidenceProfile,
-	MergedSkillEvidence,
 )
 from claude_candidate import __version__
-from claude_candidate.eligibility_evaluator import evaluate_gates
+from claude_candidate.eligibility_evaluator import evaluate_gates, detect_education_gap
 from claude_candidate.scoring.constants import (
 	CONFIDENCE_FLOOR,
-	CULTURE_BASE_SCORE,
-	CULTURE_NEUTRAL_SCORE,
-	CULTURE_SCORE_MAX,
-	CULTURE_SCORE_MIN,
-	CULTURE_SIGNAL_WEIGHT,
-	DEGREE_RANKING,
-	EDUCATION_MET_SCORE,
-	EDUCATION_NO_MATCH_SCORE,
-	EDUCATION_NO_REQUIREMENT_SCORE,
-	EDUCATION_PARTIAL_SCORE,
-	EXPERIENCE_EXCEED_BONUS,
-	EXPERIENCE_MET_BASE,
-	EXPERIENCE_NEUTRAL_SCORE,
-	EXPERIENCE_NO_REQUIREMENT_SCORE,
-	EXPERIENCE_SCORE_MAX,
+	CULTURE_AVOID_CAP_ONE,
+	CULTURE_AVOID_CAP_TWO_PLUS,
 	MAX_ACTION_ITEMS,
 	MAX_GAP_NAMES,
 	MAX_RESUME_ITEMS,
-	MAX_TECH_OVERLAP_DISPLAY,
 	MISSION_NEUTRAL_SCORE,
 	MISSION_SCORE_MAX,
 	SCORE_PRECISION,
@@ -73,23 +55,18 @@ from claude_candidate.scoring.matching import (
 	_assess_depth_match,
 	_find_best_skill,
 	_find_skill_match,
-	compute_match_confidence,
 )
 from claude_candidate.scoring.dimensions import (
 	_build_skill_detail,
 	_build_skill_dimension,
-	_candidate_domain_set,
-	_candidate_skill_names,
 	_compute_overall_score,
-	_compute_weights,
 	_detect_domain_gap,
 	_discover_resume_gaps,
 	_find_resume_unverified,
 	_infer_eligibility,
-	_match_signal_to_pattern,
-	_mission_from_posting,
 	_must_have_coverage,
-	_redistribute_culture_weight,
+	select_weights,
+	_score_culture_preferences,
 	_score_domain_overlap,
 	_score_mission_text_alignment,
 	_score_requirement,
@@ -118,6 +95,7 @@ class AssessmentInput:
 	tech_stack: list[str] | None = None
 	company_profile: CompanyProfile | None = None
 	curated_eligibility: CandidateEligibility = field(default_factory=CandidateEligibility)
+	work_preferences: object | None = None  # WorkPreferences when available
 
 
 @dataclass
@@ -131,8 +109,6 @@ class SummaryInput:
 	must_coverage: str
 	mission_dim: DimensionScore | None = None
 	culture_dim: DimensionScore | None = None
-	experience_dim: DimensionScore | None = None
-	education_dim: DimensionScore | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -163,6 +139,7 @@ class QuickMatchEngine:
 		company_profile: CompanyProfile | None = None,
 		curated_eligibility: CandidateEligibility | None = None,
 		elapsed: float | None = None,
+		work_preferences: object | None = None,
 	) -> FitAssessment:
 		"""Run the three-dimensional fit assessment."""
 		inp = AssessmentInput(
@@ -176,6 +153,7 @@ class QuickMatchEngine:
 			tech_stack=tech_stack,
 			company_profile=company_profile,
 			curated_eligibility=curated_eligibility or CandidateEligibility(),
+			work_preferences=work_preferences,
 		)
 		return self._run_assessment(inp, elapsed=elapsed)
 
@@ -184,8 +162,9 @@ class QuickMatchEngine:
 	def _run_assessment(self, inp: AssessmentInput, elapsed: float | None = None) -> FitAssessment:
 		"""Orchestrate scoring dimensions and assemble the result.
 
-		Partial assessment: scores skill_match (50%), experience_match (30%),
-		education_match (20%) — mission and culture are left as None.
+		Partial assessment: scores skill_match and optionally mission_alignment.
+		Experience is folded into skill_match via gradient penalty.
+		Education is an eligibility gate (soft grade cap), not a scored dimension.
 		"""
 		start_time = time.time() if elapsed is None else 0.0
 
@@ -199,59 +178,43 @@ class QuickMatchEngine:
 		skill_dim, skill_details = self._score_skill_match(
 			scorable_reqs,
 			inp.seniority,
-			culture_signals=inp.culture_signals,
-			company_profile=inp.company_profile,
-		)
-		experience_dim = self._score_experience_match(
-			scorable_reqs,
-			inp.seniority,
-		)
-		education_dim = self._score_education_match(
-			scorable_reqs,
-			inp.tech_stack or [],
 		)
 
-		# Partial-path mission: derive tech_stack from requirement skill_mappings
-		# (eng review decision 4A→C: skill_mapping proxy, no extraction model change)
-		proxy_tech_stack = list({
-			skill
-			for req in scorable_reqs
-			for skill in req.skill_mapping
-		})
-
-		# Mission is optional in partial assessments: only score if we have any mission signal.
+		# 1. Score dimensions: skill is always scored; mission and culture depend on data.
 		mission_dim: DimensionScore | None = None
-		if inp.company_profile or inp.tech_stack or proxy_tech_stack:
+		culture_dim: DimensionScore | None = None
+		avoid_count = 0
+
+		# Mission activates only when CompanyProfile has real signals.
+		if inp.company_profile is not None and inp.company_profile.has_mission_signals():
 			mission_dim = self._score_mission_alignment(
-				company=inp.company,
-				tech_stack=proxy_tech_stack if not inp.tech_stack else inp.tech_stack,
-				company_profile=inp.company_profile,
+				inp.company,
+				inp.tech_stack or [],
+				inp.company_profile,
 			)
 
-		# Partial-assessment weights.
-		# Weights must sum to 1.0 (_compute_overall_score does straight weighted sum).
-		skill_dim.weight = 0.60
-		experience_dim.weight = 0.20
-		education_dim.weight = 0.10
-		if mission_dim is not None:
-			mission_dim.weight = 0.10
-		else:
-			# No mission signal — redistribute mission weight back to skill/experience.
-			skill_dim.weight = 0.65
-			experience_dim.weight = 0.25
-			# education stays 0.10 → total = 1.0
+		# 2. Score culture via work preferences (replaces old pattern-based scorer)
+		culture_result = _score_culture_preferences(inp.work_preferences, inp.company_profile)
+		if culture_result is not None:
+			culture_dim, avoid_count = culture_result
 
-		# Cap experience/education scores when skill match is weak.
-		# Prevents generic experience from rescuing a poor technical fit.
-		if skill_dim.score < 0.55:
-			experience_dim.score = min(experience_dim.score, skill_dim.score + 0.2)
-			education_dim.score = min(education_dim.score, skill_dim.score + 0.2)
+		# 3. Determine data availability for adaptive weight selection
+		has_mission = mission_dim is not None and not getattr(mission_dim, "insufficient_data", False)
+		has_culture = culture_dim is not None and not getattr(culture_dim, "insufficient_data", False)
+
+		# 4. Select weights: (skill, mission, culture)
+		skill_w, mission_w, culture_w = select_weights(has_mission, has_culture)
+
+		skill_dim.weight = skill_w
+		if mission_dim is not None:
+			mission_dim.weight = mission_w
+		if culture_dim is not None:
+			culture_dim.weight = culture_w
 
 		overall_score = _compute_overall_score(
 			skill_dim,
 			mission_dim=mission_dim,
-			experience_dim=experience_dim,
-			education_dim=education_dim,
+			culture_dim=culture_dim,
 		)
 		pre_cap_grade: str | None = None
 		unmet_gates = [g for g in eligibility_gates if g.status == "unmet"]
@@ -271,6 +234,31 @@ class QuickMatchEngine:
 				# Drop score to top of B+ band (just below A- threshold of 0.85)
 				overall_score = min(overall_score, 0.849)
 
+		# Education gap cap: soft grade cap when candidate's degree is below requirement
+		edu_gap = detect_education_gap(scorable_reqs, self.profile.education)
+		education_gap_cap: str | None = None
+		if edu_gap and not unmet_gates:
+			candidate_grade = score_to_grade(overall_score)
+			if _GRADE_ORDER.index(candidate_grade) < _GRADE_ORDER.index(edu_gap.cap_grade):
+				if pre_cap_grade is None:
+					pre_cap_grade = candidate_grade
+				overall_score = min(overall_score, edu_gap.cap_score)
+				education_gap_cap = edu_gap.cap_grade
+
+		# Culture avoid cap: grade ceiling when avoid-values appear in company profile
+		if avoid_count >= 2 and not unmet_gates:
+			candidate_grade = score_to_grade(overall_score)
+			if _GRADE_ORDER.index(candidate_grade) < _GRADE_ORDER.index("B-"):
+				if pre_cap_grade is None:
+					pre_cap_grade = candidate_grade
+				overall_score = min(overall_score, CULTURE_AVOID_CAP_TWO_PLUS)
+		elif avoid_count == 1 and not unmet_gates:
+			candidate_grade = score_to_grade(overall_score)
+			if _GRADE_ORDER.index(candidate_grade) < _GRADE_ORDER.index("B+"):
+				if pre_cap_grade is None:
+					pre_cap_grade = candidate_grade
+				overall_score = min(overall_score, CULTURE_AVOID_CAP_ONE)
+
 		partial_percentage = round(overall_score * 100, 1)
 
 		if elapsed is None:
@@ -278,19 +266,18 @@ class QuickMatchEngine:
 		return self._build_assessment(
 			inp,
 			skill_dim,
-			mission_dim,  # Was None — now proxy-based
-			None,  # culture_dim still None for partial
+			mission_dim,
+			culture_dim,
 			skill_details,
 			overall_score,
 			elapsed,
-			experience_dim=experience_dim,
-			education_dim=education_dim,
 			partial_percentage=partial_percentage,
 			eligibility_gates=eligibility_gates,
 			eligibility_passed=eligibility_passed,
 			scorable_reqs=scorable_reqs,
 			pre_cap_grade=pre_cap_grade,
 			domain_gap_term=domain_gap_term,
+			education_gap_cap=education_gap_cap,
 		)
 
 	def _build_assessment(
@@ -302,14 +289,13 @@ class QuickMatchEngine:
 		skill_details: list[SkillMatchDetail],
 		overall_score: float,
 		elapsed: float,
-		experience_dim: DimensionScore | None = None,
-		education_dim: DimensionScore | None = None,
 		partial_percentage: float | None = None,
 		eligibility_gates: list[EligibilityGate] | None = None,
 		eligibility_passed: bool = True,
 		scorable_reqs: list[QuickRequirement] | None = None,
 		pre_cap_grade: str | None = None,
 		domain_gap_term: str | None = None,
+		education_gap_cap: str | None = None,
 	) -> FitAssessment:
 		"""Assemble the final FitAssessment from scored dimensions."""
 		reqs_for_gaps = scorable_reqs if scorable_reqs is not None else inp.requirements
@@ -330,8 +316,6 @@ class QuickMatchEngine:
 			must_coverage=must_cov,
 			mission_dim=mission_dim,
 			culture_dim=culture_dim,
-			experience_dim=experience_dim,
-			education_dim=education_dim,
 		)
 		return self._assemble_fit_assessment(
 			inp,
@@ -347,13 +331,12 @@ class QuickMatchEngine:
 			gaps,
 			overall_score,
 			elapsed,
-			experience_dim=experience_dim,
-			education_dim=education_dim,
 			partial_percentage=partial_percentage,
 			eligibility_gates=eligibility_gates or [],
 			eligibility_passed=eligibility_passed,
 			pre_cap_grade=pre_cap_grade,
 			domain_gap_term=domain_gap_term,
+			education_gap_cap=education_gap_cap,
 		)
 
 	def _assemble_fit_assessment(
@@ -371,13 +354,12 @@ class QuickMatchEngine:
 		gaps: list[SkillMatchDetail],
 		overall_score: float,
 		elapsed: float,
-		experience_dim: DimensionScore | None = None,
-		education_dim: DimensionScore | None = None,
 		partial_percentage: float | None = None,
 		eligibility_gates: list[EligibilityGate] | None = None,
 		eligibility_passed: bool = True,
 		pre_cap_grade: str | None = None,
 		domain_gap_term: str | None = None,
+		education_gap_cap: str | None = None,
 	) -> FitAssessment:
 		"""Construct the FitAssessment pydantic model."""
 		is_partial = culture_dim is None  # Partial = no company research (no culture dim)
@@ -393,12 +375,22 @@ class QuickMatchEngine:
 			blocker_descriptions = "; ".join(
 				g.description for g in (eligibility_gates or []) if g.status == "unmet"
 			)
+			cap_parts = []
+			if blocker_descriptions:
+				cap_parts.append(f"Eligibility blocked: {blocker_descriptions}")
+			if domain_gap_term:
+				cap_parts.append(f"Domain gap ({domain_gap_term}) caps grade")
+			if education_gap_cap:
+				cap_parts.append(f"Education gap caps grade at {education_gap_cap}")
+			cap_reason = ". ".join(cap_parts) if cap_parts else "Grade capped"
 			overall_summary = (
-				f"Eligibility blocked: {blocker_descriptions}. "
+				f"{cap_reason}. "
 				f"Skill fit would be {pre_cap_grade} if eligible."
 			)
 			action_items = [
-				f"Eligibility: {blocker_descriptions} — skip this role",
+				f"Eligibility: {blocker_descriptions} — skip this role"
+				if blocker_descriptions
+				else f"Note: grade capped at {education_gap_cap or domain_gap_term}",
 				*action_items[:5],
 			]
 		return FitAssessment(
@@ -414,8 +406,6 @@ class QuickMatchEngine:
 			overall_grade=score_to_grade(overall_score),
 			overall_summary=overall_summary,
 			skill_match=skill_dim,
-			experience_match=experience_dim,
-			education_match=education_dim,
 			mission_alignment=mission_dim,
 			culture_fit=culture_dim,
 			skill_matches=skill_details,
@@ -435,6 +425,7 @@ class QuickMatchEngine:
 			eligibility_gates=eligibility_gates or [],
 			eligibility_passed=eligibility_passed,
 			domain_gap_term=domain_gap_term,
+			education_gap_cap=education_gap_cap,
 			should_apply=score_to_verdict(overall_score),
 			action_items=action_items,
 			app_version=__version__,
@@ -448,8 +439,6 @@ class QuickMatchEngine:
 		self,
 		requirements: list[QuickRequirement],
 		seniority: str,
-		culture_signals: list[str] | None = None,
-		company_profile: CompanyProfile | None = None,
 	) -> tuple[DimensionScore, list[SkillMatchDetail]]:
 		"""Score the skill gap analysis dimension."""
 		depth_floor = SENIORITY_DEPTH_FLOOR.get(seniority, DepthLevel.APPLIED)
@@ -457,7 +446,7 @@ class QuickMatchEngine:
 		weighted_score = 0.0
 		total_weight = 0.0
 		taxonomy = _get_taxonomy()
-		effective_discount = _soft_skill_discount(culture_signals, company_profile)
+		effective_discount = _soft_skill_discount()
 
 		for req in requirements:
 			weight = req.weight_override if req.weight_override is not None else PRIORITY_WEIGHT.get(req.priority, 1.0)
@@ -473,12 +462,12 @@ class QuickMatchEngine:
 				weight *= effective_discount
 
 			total_weight += weight
-			best_match, best_status, best_match_type = _find_best_skill(
+			best_match, best_status, best_match_type, years_ratio = _find_best_skill(
 				req,
 				self.profile,
 				depth_floor,
 			)
-			req_score = _score_requirement(best_match, best_status, req.priority)
+			req_score = _score_requirement(best_match, best_status, req.priority, years_ratio=years_ratio)
 
 			# Compound scoring: also check average of all constituent skills
 			if len(req.skill_mapping) > 1:
@@ -508,12 +497,16 @@ class QuickMatchEngine:
 		company: str,
 		tech_stack: list[str],
 		company_profile: CompanyProfile | None,
-	) -> DimensionScore:
-		"""Score company/mission alignment."""
-		if company_profile:
-			score, details = self._mission_with_profile(company_profile)
-		else:
-			score, details = _mission_from_posting(self.profile, tech_stack)
+	) -> DimensionScore | None:
+		"""Score company/mission alignment.
+
+		Returns None when insufficient data exists for meaningful scoring.
+		Mission activates only when CompanyProfile has at least one real signal.
+		"""
+		if company_profile is None or not company_profile.has_mission_signals():
+			return None
+
+		score, details = self._mission_with_profile(company_profile)
 
 		if not details:
 			details = ["Insufficient data for mission alignment assessment"]
@@ -563,307 +556,6 @@ class QuickMatchEngine:
 
 		return min(score, MISSION_SCORE_MAX), details
 
-	# -- dimension 3: culture fit -------------------------------------------
-
-	def _score_culture_fit(
-		self,
-		culture_signals: list[str],
-		company_profile: CompanyProfile | None,
-	) -> DimensionScore:
-		"""Score culture/working style fit via direct pattern matching.
-
-		Compares each culture signal to the candidate's observed behavioral
-		patterns. If no signals are present, or if the candidate has no
-		patterns, marks insufficient_data=True.
-		"""
-		all_signals = self._collect_culture_signals(
-			culture_signals,
-			company_profile,
-		)
-		if not self.profile.patterns:
-			return None  # No behavioral data (sessions parked) — omit dimension
-		if not all_signals:
-			return self._neutral_culture_dimension()
-
-		matches, total_signals, details = self._evaluate_culture_signals(
-			all_signals,
-		)
-		score = self._compute_culture_score(matches, total_signals)
-
-		if company_profile and company_profile.remote_policy != "unknown":
-			policy = company_profile.remote_policy.replace("_", " ")
-			details.append(f"Work policy: {policy}")
-
-		if not details:
-			details = ["Culture alignment assessment based on available signals"]
-
-		confidence = matches / total_signals if total_signals > 0 else 0.0
-
-		return DimensionScore(
-			dimension="culture_fit",
-			score=round(score, SCORE_PRECISION),
-			grade=score_to_grade(score),
-			summary=f"Culture fit based on {total_signals} pattern signals",
-			details=details[:7],
-			confidence=round(confidence, SCORE_PRECISION),
-		)
-
-	def _collect_culture_signals(
-		self,
-		culture_signals: list[str],
-		company_profile: CompanyProfile | None,
-	) -> list[str]:
-		"""Merge culture signals from the posting and company profile."""
-		all_signals = list(culture_signals)
-		if company_profile:
-			all_signals.extend(company_profile.culture_keywords)
-		return all_signals
-
-	def _neutral_culture_dimension(self) -> DimensionScore:
-		"""Return a neutral culture dimension when data is insufficient."""
-		return DimensionScore(
-			dimension="culture_fit",
-			score=CULTURE_NEUTRAL_SCORE,
-			grade=score_to_grade(CULTURE_NEUTRAL_SCORE),
-			summary="Insufficient culture data for assessment",
-			details=["No culture signals or candidate patterns available"],
-			confidence=0.0,
-			insufficient_data=True,
-		)
-
-	def _evaluate_culture_signals(
-		self,
-		signals: list[str],
-	) -> tuple[float, int, list[str]]:
-		"""Match culture signals directly against candidate patterns.
-
-		Returns (total_match_value, signal_count, detail_lines).
-		"""
-		matches = 0.0
-		total_signals = len(signals)
-		details: list[str] = []
-
-		for signal in signals:
-			value, detail = _match_signal_to_pattern(signal, self.profile)
-			matches += value
-			if detail:
-				details.append(detail)
-
-		return matches, total_signals, details
-
-	def _compute_culture_score(self, matches: float, total: int) -> float:
-		"""Compute bounded culture fit score from match ratio."""
-		if total > 0:
-			score = CULTURE_BASE_SCORE + (matches / total) * CULTURE_SIGNAL_WEIGHT
-		else:
-			score = CULTURE_NEUTRAL_SCORE
-		return min(max(score, CULTURE_SCORE_MIN), CULTURE_SCORE_MAX)
-
-	# -- dimension 4: experience match ---------------------------------------
-
-	def _score_experience_match(
-		self,
-		requirements: list[QuickRequirement],
-		seniority: str,
-	) -> DimensionScore:
-		"""Score experience-years alignment between candidate and requirements.
-
-		Compares the candidate's total_years_experience against the maximum
-		years_experience specified across all requirements. Returns a neutral
-		score when no requirements specify years.
-		"""
-		# Collect years requirements from enriched QuickRequirements
-		years_reqs: list[tuple[str, int]] = []
-		for req in requirements:
-			if req.years_experience is not None:
-				years_reqs.append((req.description, req.years_experience))
-
-		if not years_reqs:
-			return DimensionScore(
-				dimension="experience_match",
-				score=EXPERIENCE_NO_REQUIREMENT_SCORE,
-				grade=score_to_grade(EXPERIENCE_NO_REQUIREMENT_SCORE),
-				summary="No specific experience-years required — effectively met",
-				details=["No years requirement stated; no bar to clear"],
-				insufficient_data=True,
-			)
-
-		candidate_years = self.profile.total_years_experience
-		if candidate_years is None:
-			return DimensionScore(
-				dimension="experience_match",
-				score=EXPERIENCE_NEUTRAL_SCORE,
-				grade=score_to_grade(EXPERIENCE_NEUTRAL_SCORE),
-				summary="Candidate experience years unknown",
-				details=["No total years of experience on candidate profile"],
-				insufficient_data=True,
-			)
-
-		max_required = max(yrs for _, yrs in years_reqs)
-		details: list[str] = []
-
-		if candidate_years >= max_required:
-			# Candidate meets or exceeds — score in 0.7-1.0 range
-			ratio = min(candidate_years / max_required, 2.0)  # Cap at 2x
-			score = EXPERIENCE_MET_BASE + (ratio - 1.0) * EXPERIENCE_EXCEED_BONUS
-			score = min(score, EXPERIENCE_SCORE_MAX)
-		else:
-			# Candidate below — proportional score in 0.0-0.7 range
-			ratio = candidate_years / max_required if max_required > 0 else 0.0
-			score = ratio * EXPERIENCE_MET_BASE
-
-		for desc, yrs in years_reqs:
-			if candidate_years >= yrs:
-				details.append(f"Met: {yrs}+ years {desc} (have {candidate_years:.0f} yrs)")
-			else:
-				details.append(f"Gap: {yrs}+ years {desc} (have {candidate_years:.0f} yrs)")
-
-		if not details:
-			details = ["Experience evaluation completed"]
-
-		return DimensionScore(
-			dimension="experience_match",
-			score=round(score, SCORE_PRECISION),
-			grade=score_to_grade(score),
-			summary=f"Experience: {candidate_years:.0f} yrs vs {max_required}+ required",
-			details=details[:7],
-		)
-
-	# -- dimension 5: education match ----------------------------------------
-
-	def _score_education_match(
-		self,
-		requirements: list[QuickRequirement],
-		tech_stack: list[str],
-	) -> DimensionScore:
-		"""Score education and tech-stack alignment.
-
-		Combines two signals when available:
-		1. Education level match (candidate degree vs required degree)
-		2. Tech stack overlap (posting tech stack vs candidate skills)
-
-		Returns a neutral score when neither signal is available.
-		"""
-		edu_score = self._score_education_level(requirements)
-		tech_score, tech_details = self._score_tech_stack_overlap(tech_stack)
-
-		scores: list[float] = []
-		details: list[str] = []
-
-		if edu_score is not None:
-			scores.append(edu_score[0])
-			details.extend(edu_score[1])
-
-		if tech_score is not None:
-			scores.append(tech_score)
-			details.extend(tech_details)
-
-		if not scores:
-			return DimensionScore(
-				dimension="education_match",
-				score=EDUCATION_NO_REQUIREMENT_SCORE,
-				grade=score_to_grade(EDUCATION_NO_REQUIREMENT_SCORE),
-				summary="No specific education or tech stack required — effectively met",
-				details=["No education or tech stack requirement stated; no bar to clear"],
-				insufficient_data=True,
-			)
-
-		score = sum(scores) / len(scores)
-		if not details:
-			details = ["Education/tech evaluation completed"]
-
-		return DimensionScore(
-			dimension="education_match",
-			score=round(score, SCORE_PRECISION),
-			grade=score_to_grade(score),
-			summary=f"Education & tech stack alignment: {score_to_grade(score)}",
-			details=details[:7],
-		)
-
-	def _score_education_level(
-		self,
-		requirements: list[QuickRequirement],
-	) -> tuple[float, list[str]] | None:
-		"""Score education level match. Returns None if no education requirements."""
-		# Collect education requirements
-		edu_reqs: list[str] = []
-		for req in requirements:
-			if req.education_level:
-				edu_reqs.append(req.education_level.lower())
-
-		if not edu_reqs:
-			return None
-
-		candidate_edu = self.profile.education
-		if not candidate_edu:
-			return (0.2, ["No education listed on candidate profile"])
-
-		# Parse candidate's highest degree
-		candidate_rank = self._highest_degree_rank(candidate_edu)
-		# Parse highest required degree
-		required_rank = max(DEGREE_RANKING.get(edu, 0) for edu in edu_reqs)
-
-		details: list[str] = []
-		if candidate_rank >= required_rank:
-			score = EDUCATION_MET_SCORE
-			details.append(
-				f"Education met: have {self._rank_to_label(candidate_rank)}, "
-				f"need {self._rank_to_label(required_rank)}"
-			)
-		elif candidate_rank > 0:
-			score = EDUCATION_PARTIAL_SCORE
-			details.append(
-				f"Education partial: have {self._rank_to_label(candidate_rank)}, "
-				f"need {self._rank_to_label(required_rank)}"
-			)
-		else:
-			score = EDUCATION_NO_MATCH_SCORE
-			details.append("Education requirement not met")
-
-		return (score, details)
-
-	def _score_tech_stack_overlap(
-		self,
-		tech_stack: list[str],
-	) -> tuple[float | None, list[str]]:
-		"""Score tech stack overlap. Returns (None, []) if no tech stack specified."""
-		if not tech_stack:
-			return None, []
-
-		posting_techs = {t.lower() for t in tech_stack}
-		candidate_techs = {s.name for s in self.profile.skills}
-		overlap = posting_techs & candidate_techs
-
-		if not overlap:
-			return 0.3, [f"No tech stack overlap (0/{len(posting_techs)} match)"]
-
-		ratio = len(overlap) / len(posting_techs)
-		score = 0.3 + ratio * 0.7  # Maps 0..1 ratio to 0.3..1.0
-		details = [
-			f"Tech stack: {len(overlap)}/{len(posting_techs)} match "
-			f"({', '.join(sorted(overlap)[:MAX_TECH_OVERLAP_DISPLAY])})"
-		]
-		return score, details
-
-	@staticmethod
-	def _highest_degree_rank(education: list[str]) -> int:
-		"""Extract the highest degree rank from a list of education strings."""
-		best = 0
-		for entry in education:
-			entry_lower = entry.lower()
-			for keyword, rank in DEGREE_RANKING.items():
-				if keyword in entry_lower:
-					best = max(best, rank)
-		return best
-
-	@staticmethod
-	def _rank_to_label(rank: int) -> str:
-		"""Convert a degree rank back to a human label."""
-		for label, r in DEGREE_RANKING.items():
-			if r == rank:
-				return label
-		return "unknown"
-
 	# -- summary & action items ---------------------------------------------
 
 	def _generate_summary(self, inp: SummaryInput) -> str:
@@ -887,10 +579,6 @@ class QuickMatchEngine:
 		dims: list[tuple[str, float]] = [
 			("Skills", inp.skill_dim.score),
 		]
-		if inp.experience_dim is not None:
-			dims.append(("Experience", inp.experience_dim.score))
-		if inp.education_dim is not None:
-			dims.append(("Education", inp.education_dim.score))
 		if inp.mission_dim is not None:
 			dims.append(("Mission", inp.mission_dim.score))
 		if inp.culture_dim is not None:
