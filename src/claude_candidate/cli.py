@@ -2259,6 +2259,36 @@ def repos_scan(config: str | None, data_dir: str | None) -> None:
 # === Preferences commands ===
 
 
+def _parse_freetext_list(raw: str) -> list[str]:
+	"""Parse a comma-separated freetext input, stripping markdown and deduplicating."""
+	import re
+
+	# Strip markdown bold/italic markers
+	cleaned = re.sub(r"\*+", "", raw)
+	values = [v.strip() for v in cleaned.split(",") if v.strip()]
+	# Deduplicate while preserving order
+	seen: set[str] = set()
+	result: list[str] = []
+	for v in values:
+		key = v.lower()
+		if key not in seen:
+			seen.add(key)
+			result.append(v)
+	return result
+
+
+def _flush_stdin() -> None:
+	"""Discard any buffered stdin (e.g. leftover lines from multi-line paste)."""
+	import select
+	import sys
+
+	try:
+		while select.select([sys.stdin], [], [], 0.0)[0]:
+			sys.stdin.readline()
+	except (OSError, ValueError):
+		pass  # Not a real terminal (e.g. piped input in tests)
+
+
 @main.group()
 def preferences() -> None:
 	"""Work preferences management commands."""
@@ -2323,14 +2353,17 @@ def preferences_onboard(output: str | None, accept_defaults: bool) -> None:
 			"\nCulture values you seek (comma-separated, e.g. autonomy,transparency):"
 		)
 		values_raw = click.prompt("Values", default="", show_default=False)
-		culture_values = [v.strip() for v in values_raw.split(",") if v.strip()]
+		culture_values = _parse_freetext_list(values_raw)
+		# Flush stdin to discard leftover lines from multi-line paste
+		_flush_stdin()
 
 		# Culture avoid
 		click.echo(
 			"\nCulture traits to avoid (comma-separated, e.g. micromanagement,crunch):"
 		)
 		avoid_raw = click.prompt("Avoid", default="", show_default=False)
-		culture_avoid = [v.strip() for v in avoid_raw.split(",") if v.strip()]
+		culture_avoid = _parse_freetext_list(avoid_raw)
+		_flush_stdin()
 
 		prefs = WorkPreferences(
 			remote_preference=remote_pref,
