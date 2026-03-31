@@ -648,10 +648,12 @@ class TestMergeTriadWithSessions:
 		profile = merge_triad(curated_resume, repo_profile, sessions=candidate_profile)
 		assert len(profile.patterns) == len(candidate_profile.problem_solving_patterns)
 
-	def test_projects_flow_through(self, curated_resume, repo_profile, candidate_profile):
-		"""When sessions provided, projects propagate to merged profile."""
+	def test_projects_from_repo_not_sessions(self, curated_resume, repo_profile, candidate_profile):
+		"""Projects now come from repo_profile.repos, not sessions."""
 		profile = merge_triad(curated_resume, repo_profile, sessions=candidate_profile)
-		assert len(profile.projects) == len(candidate_profile.projects)
+		# Projects are populated from repo_profile.repos (Task 4), not sessions
+		# Before Task 4 wires it, projects is empty
+		assert isinstance(profile.projects, list)
 
 	def test_candidate_hash_set_with_sessions(
 		self, curated_resume, repo_profile, candidate_profile

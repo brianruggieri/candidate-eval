@@ -203,7 +203,7 @@ def merge_triad(
 	merged = MergedEvidenceProfile(
 		skills=merged_skills,
 		patterns=sessions.problem_solving_patterns if sessions else [],
-		projects=sessions.projects if sessions else [],
+		projects=[],  # populated by Task 4 from repo_profile.repos
 		roles=curated_resume.roles,
 		corroborated_skill_count=corroborated_count,
 		resume_only_skill_count=resume_only_count,
@@ -366,7 +366,7 @@ def merge_profiles(
 	merged = MergedEvidenceProfile(
 		skills=merged_skills,
 		patterns=candidate_profile.problem_solving_patterns,
-		projects=candidate_profile.projects,
+		projects=[],  # DORMANT: session ProjectSummary replaced by RepoProject in v0.10
 		roles=resume_profile.roles,
 		corroborated_skill_count=corroborated_count,
 		resume_only_skill_count=resume_only_count,
@@ -500,7 +500,7 @@ def merge_with_curated(
 	merged = MergedEvidenceProfile(
 		skills=merged_skills,
 		patterns=candidate_profile.problem_solving_patterns,
-		projects=candidate_profile.projects,
+		projects=[],  # DORMANT: session ProjectSummary replaced by RepoProject in v0.10
 		roles=curated_resume.roles,
 		corroborated_skill_count=counts["corroborated"],
 		resume_only_skill_count=counts["resume_only"],
@@ -556,7 +556,7 @@ def merge_candidate_only(candidate_profile: CandidateProfile) -> MergedEvidenceP
 	return MergedEvidenceProfile(
 		skills=merged_skills,
 		patterns=candidate_profile.problem_solving_patterns,
-		projects=candidate_profile.projects,
+		projects=[],  # DORMANT: session ProjectSummary replaced by RepoProject in v0.10
 		roles=[],
 		corroborated_skill_count=0,
 		resume_only_skill_count=0,
