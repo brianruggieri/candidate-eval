@@ -665,7 +665,6 @@ def _today_iso() -> str:
 def export_fit_assessment(
 	assessment_data: dict[str, Any],
 	merged_profile_data: dict[str, Any],
-	candidate_profile_path: Path,
 	output_dir: Path,
 	*,
 	cal_link: str = _DEFAULT_CAL_LINK,
@@ -676,7 +675,6 @@ def export_fit_assessment(
 	    assessment_data: Assessment dict from storage. The 'data' field contains the
 	        full FitAssessment payload — already parsed as a dict by storage._decode_assessment().
 	    merged_profile_data: Merged profile as a dict (built on the fly, not read from disk).
-	    candidate_profile_path: Path to candidate_profile.json.
 	    output_dir: Directory to write the markdown file.
 	    cal_link: Cal.com booking link.
 
@@ -693,9 +691,8 @@ def export_fit_assessment(
 	else:
 		full_data = raw_data
 
-	# Use the pre-built merged profile dict directly; load candidate from disk
+	# Use the pre-built merged profile dict directly
 	merged_profile = merged_profile_data
-	candidate_profile = json.loads(candidate_profile_path.read_text(encoding="utf-8"))
 
 	# Extract fields
 	title = full_data.get("job_title", "Engineer")
@@ -753,12 +750,8 @@ def export_fit_assessment(
 			}
 		)
 
-	# Select other content
-	evidence = select_evidence_highlights(
-		skill_matches_raw,
-		candidate_profile.get("skills", []),
-		projects=merged_profile.get("projects", []),
-	)
+	# Session evidence is dormant (D6). Evidence highlights will be populated by commit evidence (D2).
+	evidence: list[dict[str, Any]] = []
 	patterns = select_patterns(merged_profile.get("patterns", []))
 
 	# Collect tech stack from job for project relevance

@@ -284,27 +284,6 @@ def test_export_fit_assessment_end_to_end(tmp_path):
 	merged_path = tmp_path / "merged_profile.json"  # kept for reference, not passed to function
 	merged_path.write_text(json.dumps(merged))
 
-	# Create mock candidate profile
-	candidate = {
-		"skills": [
-			{
-				"name": "python",
-				"evidence": [
-					{
-						"session_id": "test-session",
-						"session_date": "2026-03-01T00:00:00",
-						"project_context": "claude-candidate",
-						"evidence_snippet": "Built async pipeline with aiosqlite",
-						"evidence_type": "direct_usage",
-						"confidence": 0.95,
-					},
-				],
-			},
-		],
-	}
-	candidate_path = tmp_path / "candidate_profile.json"
-	candidate_path.write_text(json.dumps(candidate))
-
 	# Create mock assessment data matching what storage.get_assessment() returns.
 	# storage._decode_assessment() already JSON-parses the 'data' field,
 	# so 'data' is a dict here. Top-level 'should_apply' is coerced to bool.
@@ -367,7 +346,6 @@ def test_export_fit_assessment_end_to_end(tmp_path):
 	result = export_fit_assessment(
 		assessment,
 		merged_profile_data=merged,
-		candidate_profile_path=candidate_path,
 		output_dir=output_dir,
 	)
 
@@ -387,9 +365,8 @@ def test_export_fit_assessment_end_to_end(tmp_path):
 	assert parsed["skill_matches"][0]["sessions"] == 551
 	assert len(parsed["gaps"]) >= 1
 	assert parsed["gaps"][0]["requirement"] == "Kubernetes"
-	# Evidence highlights should now find python via matched_skill
-	assert len(parsed["evidence_highlights"]) >= 1
-	assert parsed["evidence_highlights"][0]["quote"] == "Built async pipeline with aiosqlite"
+	# Session evidence is dormant (D6) — evidence highlights are empty until commit evidence (D2)
+	assert parsed["evidence_highlights"] == []
 
 
 # ── Empty company / title edge cases ──
@@ -436,9 +413,6 @@ def test_export_fails_below_skill_threshold(tmp_path):
 		],
 	}
 
-	candidate = {"skills": []}
-	candidate_path = tmp_path / "candidate.json"
-	candidate_path.write_text(json.dumps(candidate))
 
 	assessment = {
 		"data": {
@@ -469,7 +443,6 @@ def test_export_fails_below_skill_threshold(tmp_path):
 		export_fit_assessment(
 			assessment,
 			merged_profile_data=merged,
-			candidate_profile_path=candidate_path,
 			output_dir=output_dir,
 		)
 
@@ -889,9 +862,6 @@ def test_export_includes_company_research_sample(tmp_path):
 			}
 		],
 	}
-	candidate = {"skills": []}
-	candidate_path = tmp_path / "candidate.json"
-	candidate_path.write_text(json.dumps(candidate))
 
 	assessment = {
 		"data": {
@@ -919,7 +889,6 @@ def test_export_includes_company_research_sample(tmp_path):
 	result = export_fit_assessment(
 		assessment,
 		merged_profile_data=merged,
-		candidate_profile_path=candidate_path,
 		output_dir=output_dir,
 	)
 	parsed = yaml.safe_load(result.read_text().split("---\n", 2)[1])
@@ -952,9 +921,6 @@ def test_narrative_verdict_never_exported(tmp_path):
 			}
 		],
 	}
-	candidate = {"skills": []}
-	candidate_path = tmp_path / "candidate.json"
-	candidate_path.write_text(json.dumps(candidate))
 
 	assessment = {
 		"data": {
@@ -982,7 +948,6 @@ def test_narrative_verdict_never_exported(tmp_path):
 	result = export_fit_assessment(
 		assessment,
 		merged_profile_data=merged,
-		candidate_profile_path=candidate_path,
 		output_dir=output_dir,
 	)
 	parsed = yaml.safe_load(result.read_text().split("---\n", 2)[1])
@@ -1047,9 +1012,6 @@ def test_company_research_sample_scrubs_pii(tmp_path):
 			}
 		],
 	}
-	candidate = {"skills": []}
-	candidate_path = tmp_path / "candidate.json"
-	candidate_path.write_text(json.dumps(candidate))
 
 	assessment = {
 		"data": {
@@ -1077,7 +1039,6 @@ def test_company_research_sample_scrubs_pii(tmp_path):
 	result = export_fit_assessment(
 		assessment,
 		merged_profile_data=merged,
-		candidate_profile_path=candidate_path,
 		output_dir=output_dir,
 	)
 	parsed = yaml.safe_load(result.read_text().split("---\n", 2)[1])
@@ -1115,9 +1076,6 @@ def test_integration_tier_field_present(tmp_path):
 			}
 		],
 	}
-	candidate = {"skills": []}
-	candidate_path = tmp_path / "candidate.json"
-	candidate_path.write_text(json.dumps(candidate))
 
 	assessment = {
 		"data": {
@@ -1147,7 +1105,6 @@ def test_integration_tier_field_present(tmp_path):
 	result = export_fit_assessment(
 		assessment,
 		merged_profile_data=merged,
-		candidate_profile_path=candidate_path,
 		output_dir=output_dir,
 	)
 	parsed = yaml.safe_load(result.read_text().split("---\n", 2)[1])
@@ -1183,9 +1140,6 @@ def test_integration_no_legacy_source_values(tmp_path):
 			}
 		],
 	}
-	candidate = {"skills": []}
-	candidate_path = tmp_path / "candidate.json"
-	candidate_path.write_text(json.dumps(candidate))
 
 	assessment = {
 		"data": {
@@ -1215,7 +1169,6 @@ def test_integration_no_legacy_source_values(tmp_path):
 	result = export_fit_assessment(
 		assessment,
 		merged_profile_data=merged,
-		candidate_profile_path=candidate_path,
 		output_dir=output_dir,
 	)
 	parsed = yaml.safe_load(result.read_text().split("---\n", 2)[1])
@@ -1250,9 +1203,6 @@ def test_integration_benchmark_fields_present(tmp_path):
 			}
 		],
 	}
-	candidate = {"skills": []}
-	candidate_path = tmp_path / "candidate.json"
-	candidate_path.write_text(json.dumps(candidate))
 
 	assessment = {
 		"data": {
@@ -1279,7 +1229,6 @@ def test_integration_benchmark_fields_present(tmp_path):
 	result = export_fit_assessment(
 		assessment,
 		merged_profile_data=merged,
-		candidate_profile_path=candidate_path,
 		output_dir=output_dir,
 	)
 	parsed = yaml.safe_load(result.read_text().split("---\n", 2)[1])
@@ -1313,9 +1262,6 @@ def test_integration_narrative_verdict_absent(tmp_path):
 			}
 		],
 	}
-	candidate = {"skills": []}
-	candidate_path = tmp_path / "candidate.json"
-	candidate_path.write_text(json.dumps(candidate))
 
 	assessment = {
 		"data": {
@@ -1343,7 +1289,6 @@ def test_integration_narrative_verdict_absent(tmp_path):
 	result = export_fit_assessment(
 		assessment,
 		merged_profile_data=merged,
-		candidate_profile_path=candidate_path,
 		output_dir=output_dir,
 	)
 	parsed = yaml.safe_load(result.read_text().split("---\n", 2)[1])
@@ -1376,9 +1321,6 @@ def test_integration_public_repo_url_on_projects(tmp_path):
 			}
 		],
 	}
-	candidate = {"skills": []}
-	candidate_path = tmp_path / "candidate.json"
-	candidate_path.write_text(json.dumps(candidate))
 
 	assessment = {
 		"data": {
@@ -1405,7 +1347,6 @@ def test_integration_public_repo_url_on_projects(tmp_path):
 	result = export_fit_assessment(
 		assessment,
 		merged_profile_data=merged,
-		candidate_profile_path=candidate_path,
 		output_dir=output_dir,
 	)
 	parsed = yaml.safe_load(result.read_text().split("---\n", 2)[1])
@@ -1440,9 +1381,6 @@ def test_integration_company_research_sample_present(tmp_path):
 			}
 		],
 	}
-	candidate = {"skills": []}
-	candidate_path = tmp_path / "candidate.json"
-	candidate_path.write_text(json.dumps(candidate))
 
 	assessment = {
 		"data": {
@@ -1470,8 +1408,86 @@ def test_integration_company_research_sample_present(tmp_path):
 	result = export_fit_assessment(
 		assessment,
 		merged_profile_data=merged,
-		candidate_profile_path=candidate_path,
 		output_dir=output_dir,
 	)
 	parsed = yaml.safe_load(result.read_text().split("---\n", 2)[1])
 	assert "company_research_sample" in parsed
+
+
+# ── Session Dormancy (D6) ──
+
+
+def test_export_fit_assessment_no_candidate_profile_path(tmp_path):
+	"""export_fit_assessment should succeed without candidate_profile_path (D6)."""
+	merged = {
+		"skills": [
+			{"name": "python", "source": "resume_only", "effective_depth": "EXPERT",
+			 "session_evidence_count": 100, "discovery_flag": False, "confidence": 0.9},
+			{"name": "react", "source": "resume_only", "effective_depth": "APPLIED",
+			 "session_evidence_count": 50, "discovery_flag": False, "confidence": 0.8},
+			{"name": "fastapi", "source": "resume_only", "effective_depth": "APPLIED",
+			 "session_evidence_count": 30, "discovery_flag": False, "confidence": 0.75},
+		],
+		"patterns": [],
+		"projects": [
+			{
+				"project_name": "test-proj",
+				"description": "Test",
+				"complexity": "simple",
+				"technologies": ["Python"],
+				"session_count": 5,
+				"date_range_start": "2025-01-01",
+				"date_range_end": "2025-06-01",
+				"key_decisions": ["Used FastAPI"],
+			}
+		],
+	}
+
+	assessment = {
+		"data": {
+			"job_title": "Engineer",
+			"company_name": "TestCo",
+			"overall_grade": "B",
+			"overall_score": 0.75,
+			"should_apply": "yes",
+			"overall_summary": "Good fit.",
+			"skill_matches": [
+				{"requirement": "python", "priority": "must_have", "match_status": "strong_match",
+				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.9},
+				{"requirement": "react", "priority": "must_have", "match_status": "strong_match",
+				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.8},
+				{"requirement": "fastapi", "priority": "strong_preference", "match_status": "strong_match",
+				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.75},
+			],
+			"action_items": [],
+		},
+	}
+
+	output_dir = tmp_path / "out"
+	output_dir.mkdir()
+
+	# Call WITHOUT candidate_profile_path — should succeed
+	result = export_fit_assessment(
+		assessment,
+		merged_profile_data=merged,
+		output_dir=output_dir,
+	)
+
+	assert result.exists()
+	parsed = yaml.safe_load(result.read_text().split("---\n", 2)[1])
+	assert parsed["overall_grade"] == "B"
+	assert parsed["evidence_highlights"] == []
+
+
+def test_select_evidence_highlights_noop_with_empty_candidate_skills():
+	"""select_evidence_highlights returns [] when candidate_skills is empty (D6)."""
+	skill_matches = [
+		{
+			"requirement": "python",
+			"match_status": "strong_match",
+			"evidence_source": "corroborated",
+			"confidence": 0.95,
+		},
+	]
+	result = select_evidence_highlights(skill_matches, [])
+	assert result == []
