@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-import pytest
-
 from claude_candidate.schemas.repo_profile import RepoEvidence, RepoProject
 
 

@@ -482,7 +482,7 @@ def select_projects(
 			{
 				"name": proj.get("project_name", proj.get("name", "Unknown")),
 				"url": proj.get("url", proj.get("public_repo_url")),
-				"repo_url": proj.get("url"),
+				"repo_url": proj.get("url") or proj.get("public_repo_url"),
 				"description": proj.get("description", ""),
 				"complexity": proj.get("complexity", "moderate").capitalize(),
 				"technologies": proj.get("technologies", proj.get("languages", [])),

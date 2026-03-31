@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-import pytest
-
 from claude_candidate.commit_filter import (
 	CommitTier,
 	RawCommit,

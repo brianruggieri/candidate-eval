@@ -52,8 +52,13 @@ def extract_commit_highlights(
 		if highlights:
 			return highlights[:max_highlights]
 		logger.warning("Claude returned no parseable highlights, falling back to heuristic")
-	except Exception as exc:
+	except ClaudeCLIError as exc:
 		logger.warning("Claude highlight extraction failed (%s), using heuristic fallback", exc)
+	except Exception as exc:
+		logger.warning(
+			"Unexpected error during Claude highlight extraction (%s), using heuristic fallback",
+			exc,
+		)
 
 	return _heuristic_highlights(commits, repo_url=repo_url, max_highlights=max_highlights)
 
