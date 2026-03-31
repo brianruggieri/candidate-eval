@@ -991,6 +991,20 @@ def export_fit_assessment(
 	taxonomy = _get_taxonomy()
 	merged_skills = {s["name"].lower(): s for s in merged_profile.get("skills", [])}
 
+	# Resolve abstract skills (Decision 4, three-tier resolution).
+	# Build a repo-profile-like dict from the merged profile's projects for signal rules.
+	job_skill_names = [m.get("requirement", "").lower() for m in skill_matches_raw]
+	repo_like = {
+		"skill_evidence": {k: {} for k in merged_skills},
+		"projects": merged_profile.get("projects", []),
+	}
+	inferred_abstracts = resolve_abstract_skills(
+		repo_like, job_skill_names, use_claude=False
+	)
+	for skill_name, synth_entry in inferred_abstracts.items():
+		if skill_name not in merged_skills:
+			merged_skills[skill_name] = synth_entry
+
 	# Select and enrich skill matches
 	selected_matches = select_skill_matches(skill_matches_raw)
 	enriched_matches = []
