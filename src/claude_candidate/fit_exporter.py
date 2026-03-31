@@ -567,13 +567,18 @@ def select_evidence_highlights(
 	*,
 	limit: int = 3,
 	projects: list[dict[str, Any]] | None = None,
+	repo_skill_evidence: dict[str, SkillRepoEvidence] | None = None,
 ) -> list[dict[str, Any]]:
 	"""Select top evidence highlights from strong matches with session references.
+
+	When a strong match has no session evidence but has repo evidence,
+	falls back to format_skill_repo_fallback() for a quantitative highlight.
 
 	Args:
 	    skill_matches: SkillMatchDetail dicts from FitAssessment.
 	    candidate_skills: SkillEntry dicts from CandidateProfile (with evidence[]).
 	    projects: ProjectSummary dicts for technology tag lookup by project name.
+	    repo_skill_evidence: Aggregated repo evidence per skill (lowercased keys).
 	"""
 	taxonomy = _get_taxonomy()
 
@@ -600,6 +605,8 @@ def select_evidence_highlights(
 		),
 	)
 
+	repo_evidence = repo_skill_evidence or {}
+
 	result = []
 	for match in strong:
 		if len(result) >= limit:
@@ -609,6 +616,26 @@ def select_evidence_highlights(
 		resolved = _resolve_skill_key(lookup_key, skill_evidence, taxonomy)
 		evidence_list = skill_evidence.get(resolved, []) if resolved else []
 		if not evidence_list:
+			# Fallback: try repo quantitative evidence
+			repo_key = _resolve_skill_key(lookup_key, repo_evidence, taxonomy) if repo_evidence else None
+			repo_ev = repo_evidence.get(repo_key) if repo_key else None
+			if repo_ev is None:
+				# Also try direct lookup with the lowercase lookup_key
+				repo_ev = repo_evidence.get(lookup_key)
+			if repo_ev is not None:
+				display_name = match["requirement"].title()
+				fallback_text = format_skill_repo_fallback(display_name, repo_ev)
+				result.append(
+					{
+						"heading": display_name,
+						"quote": fallback_text,
+						"project": "",
+						"date": "",
+						"tags": [match["requirement"]],
+						"source": "repo_quantitative",
+						"commit_url": None,
+					}
+				)
 			continue
 
 		# Pick highest-confidence session reference
