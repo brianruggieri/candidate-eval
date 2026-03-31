@@ -1491,3 +1491,42 @@ def test_select_evidence_highlights_noop_with_empty_candidate_skills():
 	]
 	result = select_evidence_highlights(skill_matches, [])
 	assert result == []
+
+
+# ── Task: repo_url wiring ──
+
+
+def test_select_projects_includes_repo_url():
+	"""repo_url from RepoProject.url flows through to output dict."""
+	projects = [
+		{
+			"name": "candidate-eval",
+			"url": "https://github.com/brianruggieri/candidate-eval",
+			"description": "Job fit engine",
+			"languages": ["Python"],
+			"dependencies": ["fastapi"],
+			"commit_span_days": 88,
+			"created_at": "2026-01-01T00:00:00",
+			"last_pushed": "2026-03-30T00:00:00",
+		}
+	]
+	result = select_projects(projects)
+	assert len(result) == 1
+	assert result[0]["repo_url"] == "https://github.com/brianruggieri/candidate-eval"
+
+
+def test_select_projects_repo_url_none_for_local():
+	"""Local-only repos (url=None) produce repo_url=None, not a KeyError."""
+	projects = [
+		{
+			"name": "local-only",
+			"url": None,
+			"description": "Local project",
+			"languages": [],
+			"created_at": "2026-01-01T00:00:00",
+			"last_pushed": "2026-03-01T00:00:00",
+			"commit_span_days": 59,
+		}
+	]
+	result = select_projects(projects)
+	assert result[0]["repo_url"] is None
