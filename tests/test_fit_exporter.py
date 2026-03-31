@@ -738,6 +738,92 @@ def test_select_projects_includes_public_repo_url():
 	assert names["private-project"]["public_repo_url"] is None
 
 
+# ── RepoProject-shaped project tests ──
+
+
+def test_select_projects_from_repo_project_shape():
+	"""select_projects should work with RepoProject-shaped dicts (name, languages, dependencies)."""
+	projects = [
+		{
+			"name": "candidate-eval",
+			"url": "https://github.com/user/candidate-eval",
+			"description": "Evidence-backed job fit engine",
+			"languages": ["Python", "TypeScript", "Shell"],
+			"dependencies": ["fastapi", "pydantic", "click"],
+			"commit_span_days": 84,
+			"created_at": "2026-01-01T00:00:00Z",
+			"last_pushed": "2026-03-25T00:00:00Z",
+			"has_tests": True,
+			"test_framework": "pytest",
+			"has_ci": True,
+			"releases": 3,
+			"ai_maturity_level": "advanced",
+			"evidence_highlights": [],
+		},
+	]
+	result = select_projects(projects)
+	assert len(result) == 1
+	assert result[0]["name"] == "candidate-eval"
+	assert result[0]["url"] == "https://github.com/user/candidate-eval"
+	assert result[0]["description"] == "Evidence-backed job fit engine"
+
+
+def test_select_projects_relevance_uses_languages_and_deps():
+	"""Relevance scoring should consider both languages and dependencies for RepoProject dicts."""
+	projects = [
+		{
+			"name": "go-service",
+			"description": "A Go microservice",
+			"languages": ["Go"],
+			"dependencies": ["gin"],
+			"commit_span_days": 30,
+			"created_at": "2026-01-01T00:00:00Z",
+			"last_pushed": "2026-02-01T00:00:00Z",
+			"has_tests": True,
+			"has_ci": False,
+			"releases": 0,
+			"ai_maturity_level": "basic",
+		},
+		{
+			"name": "python-api",
+			"description": "A Python API",
+			"languages": ["Python"],
+			"dependencies": ["fastapi", "pydantic"],
+			"commit_span_days": 60,
+			"created_at": "2026-01-01T00:00:00Z",
+			"last_pushed": "2026-03-01T00:00:00Z",
+			"has_tests": True,
+			"has_ci": True,
+			"releases": 2,
+			"ai_maturity_level": "intermediate",
+		},
+	]
+	# Job requires Python and FastAPI — python-api should rank first
+	result = select_projects(projects, job_technologies=["Python", "FastAPI"])
+	assert result[0]["name"] == "python-api"
+
+
+def test_select_projects_date_range_from_repo_timestamps():
+	"""Date range should be derived from created_at/last_pushed for RepoProject dicts."""
+	projects = [
+		{
+			"name": "multi-year",
+			"description": "Long-running project",
+			"languages": ["Python"],
+			"dependencies": [],
+			"commit_span_days": 365,
+			"created_at": "2025-01-15T00:00:00Z",
+			"last_pushed": "2026-03-20T00:00:00Z",
+			"has_tests": False,
+			"has_ci": False,
+			"releases": 0,
+			"ai_maturity_level": "basic",
+		},
+	]
+	result = select_projects(projects)
+	assert result[0]["date_range"] == "2025 — 2026"
+
+
 # ── Task 3: Benchmark Metadata Fields ──
 
 

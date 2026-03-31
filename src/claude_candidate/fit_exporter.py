@@ -378,19 +378,41 @@ def select_projects(
 	*,
 	limit: int = 4,
 ) -> list[dict[str, Any]]:
-	"""Select top projects, preferring technology overlap with job requirements."""
+	"""Select top projects, preferring technology overlap with job requirements.
+
+	Supports both RepoProject-shaped dicts (name, languages, dependencies,
+	created_at, last_pushed) and legacy ProjectSummary-shaped dicts
+	(project_name, technologies, session_count, date_range_start/end).
+	"""
 	job_techs = {t.lower() for t in (job_technologies or [])}
 
+	def _is_repo_project(proj: dict) -> bool:
+		"""Detect RepoProject shape by presence of 'languages' list field."""
+		return "languages" in proj and isinstance(proj.get("languages"), list)
+
 	def relevance(proj: dict) -> int:
-		proj_techs = {t.lower() for t in proj.get("technologies", [])}
+		if _is_repo_project(proj):
+			# RepoProject: combine languages + dependencies for tech matching
+			proj_techs = {t.lower() for t in proj.get("languages", [])}
+			proj_techs |= {d.lower() for d in proj.get("dependencies", [])}
+		else:
+			# Legacy ProjectSummary: use technologies list
+			proj_techs = {t.lower() for t in proj.get("technologies", [])}
 		return len(proj_techs & job_techs)
 
 	sorted_projects = sorted(projects, key=relevance, reverse=True)
 
 	result = []
 	for proj in sorted_projects[:limit]:
-		start = proj.get("date_range_start")
-		end = proj.get("date_range_end")
+		if _is_repo_project(proj):
+			# RepoProject shape: derive date range from created_at / last_pushed
+			start = proj.get("created_at")
+			end = proj.get("last_pushed")
+		else:
+			# Legacy ProjectSummary shape
+			start = proj.get("date_range_start")
+			end = proj.get("date_range_end")
+
 		if start and end:
 			start_year = str(start)[:4]
 			end_year = str(end)[:4]
@@ -403,13 +425,14 @@ def select_projects(
 		result.append(
 			{
 				"name": proj.get("project_name", proj.get("name", "Unknown")),
+				"url": proj.get("url", proj.get("public_repo_url")),
 				"description": proj.get("description", ""),
 				"complexity": proj.get("complexity", "moderate").capitalize(),
-				"technologies": proj.get("technologies", []),
+				"technologies": proj.get("technologies", proj.get("languages", [])),
 				"sessions": proj.get("session_count", 0),
 				"date_range": date_range,
 				"callout": (proj.get("key_decisions") or [""])[0],
-				"public_repo_url": proj.get("public_repo_url"),
+				"public_repo_url": proj.get("public_repo_url", proj.get("url")),
 			}
 		)
 	return result
