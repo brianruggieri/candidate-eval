@@ -19,7 +19,7 @@ from claude_candidate.schemas.merged_profile import (
 	MergedSkillEvidence,
 )
 from claude_candidate.schemas.curated_resume import CuratedResume, CuratedSkill
-from claude_candidate.schemas.repo_profile import RepoProfile, SkillRepoEvidence
+from claude_candidate.schemas.repo_profile import RepoProfile, RepoProject, SkillRepoEvidence
 from claude_candidate.schemas.resume_profile import ResumeProfile
 from claude_candidate.skill_taxonomy import SkillTaxonomy
 
@@ -203,7 +203,7 @@ def merge_triad(
 	merged = MergedEvidenceProfile(
 		skills=merged_skills,
 		patterns=sessions.problem_solving_patterns if sessions else [],
-		projects=[],  # populated by Task 4 from repo_profile.repos
+		projects=[RepoProject.from_repo_evidence(r) for r in repo_profile.repos],
 		roles=curated_resume.roles,
 		corroborated_skill_count=corroborated_count,
 		resume_only_skill_count=resume_only_count,
