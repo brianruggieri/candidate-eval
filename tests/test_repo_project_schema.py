@@ -54,6 +54,13 @@ def _make_repo_evidence(**overrides) -> RepoEvidence:
 	return RepoEvidence(**defaults)
 
 
+def test_repo_project_importable_from_schemas():
+	"""RepoProject should be importable from the schemas package."""
+	from claude_candidate.schemas import RepoProject as RP
+
+	assert RP is RepoProject
+
+
 class TestRepoProjectFromRepoEvidence:
 	def test_from_repo_evidence_populates_name(self):
 		evidence = _make_repo_evidence(name="my-project")

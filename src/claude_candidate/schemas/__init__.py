@@ -50,6 +50,7 @@ from claude_candidate.schemas.company_profile import CompanyProfile
 from claude_candidate.schemas.repo_profile import (
 	RepoEvidence,
 	RepoProfile,
+	RepoProject,
 	SkillRepoEvidence,
 )
 from claude_candidate.schemas.work_preferences import (
@@ -103,6 +104,7 @@ __all__ = [
 	# repo_profile
 	"RepoEvidence",
 	"RepoProfile",
+	"RepoProject",
 	"SkillRepoEvidence",
 	# fit_assessment
 	"DimensionScore",
