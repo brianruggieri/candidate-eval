@@ -16,7 +16,6 @@ from claude_candidate.schemas.candidate_profile import (
 	DepthLevel,
 	DEPTH_RANK,
 	ProblemSolvingPattern,
-	ProjectSummary,
 )
 from claude_candidate.schemas.repo_profile import RepoProject
 from claude_candidate.schemas.resume_profile import ResumeRole
