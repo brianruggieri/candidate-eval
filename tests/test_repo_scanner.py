@@ -226,6 +226,30 @@ class TestSkillCraftingDetection:
 			assert len(ev.frameworks) > 0
 
 
+class TestScanLocalRepoWithHighlights:
+	def test_highlights_empty_by_default(self) -> None:
+		"""Without extract_highlights, commit_highlights is empty."""
+		repo_path = Path(__file__).parent.parent
+		evidence = scan_local_repo(repo_path)
+		assert evidence.commit_highlights == []
+
+	def test_highlights_populated_with_heuristic_fallback(self) -> None:
+		"""With extract_highlights=True and Claude mocked to fail, heuristic fallback works."""
+		from unittest.mock import patch
+
+		repo_path = Path(__file__).parent.parent
+		with patch(
+			"claude_candidate.claude_cli.call_claude",
+			side_effect=Exception("Claude unavailable"),
+		):
+			evidence = scan_local_repo(repo_path, extract_highlights=True)
+			assert len(evidence.commit_highlights) > 0
+			# Heuristic highlights have empty skills
+			for h in evidence.commit_highlights:
+				assert h.skills == []
+				assert h.commit_hash is not None
+
+
 class TestScanGitHubRepo:
 	@pytest.mark.slow
 	def test_scan_public_repo(self) -> None:

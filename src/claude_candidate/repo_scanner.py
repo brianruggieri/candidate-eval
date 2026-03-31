@@ -126,8 +126,37 @@ def _get_repo_name(path: Path) -> str:
 	return path.name
 
 
-def scan_local_repo(path: Path) -> RepoEvidence:
-	"""Full filesystem scan orchestrator — returns RepoEvidence for a local repo."""
+def _get_remote_url(path: Path) -> str | None:
+	"""Get the HTTPS remote URL for a git repo, normalizing git@ to https://."""
+	try:
+		result = subprocess.run(
+			["git", "-C", str(path), "remote", "get-url", "origin"],
+			capture_output=True,
+			text=True,
+			timeout=10,
+		)
+		url = result.stdout.strip()
+		if not url:
+			return None
+		# Normalize git@github.com:user/repo.git to https://github.com/user/repo
+		if url.startswith("git@"):
+			# git@github.com:user/repo.git -> https://github.com/user/repo
+			url = url.replace(":", "/", 1).replace("git@", "https://", 1)
+		if url.endswith(".git"):
+			url = url[:-4]
+		return url
+	except Exception:
+		return None
+
+
+def scan_local_repo(path: Path, *, extract_highlights: bool = False) -> RepoEvidence:
+	"""Full filesystem scan orchestrator — returns RepoEvidence for a local repo.
+
+	Args:
+		path: Path to the local git repository.
+		extract_highlights: When True, fetch commit log, filter, and extract
+			highlight quotes via Claude (with heuristic fallback).
+	"""
 	languages = _detect_languages(path)
 	deps, dev_deps = _parse_dependencies(path)
 	has_tests, test_framework, test_file_count = _detect_tests(path)
@@ -145,6 +174,21 @@ def scan_local_repo(path: Path) -> RepoEvidence:
 		or (path / "CHANGES.md").exists()
 		or (path / "HISTORY.md").exists()
 	)
+
+	# Commit highlight extraction (opt-in)
+	commit_highlights = []
+	if extract_highlights:
+		from claude_candidate.commit_filter import filter_commits
+		from claude_candidate.commit_highlighter import extract_commit_highlights
+
+		repo_url = _get_remote_url(path)
+		raw_commits = _fetch_raw_commits(path)
+		filtered = filter_commits(raw_commits)
+		commit_highlights = extract_commit_highlights(
+			filtered,
+			repo_name=_get_repo_name(path),
+			repo_url=repo_url,
+		)
 
 	return RepoEvidence(
 		name=_get_repo_name(path),
@@ -183,6 +227,8 @@ def scan_local_repo(path: Path) -> RepoEvidence:
 		ai_maturity_level=ai_maturity,
 		# Skill-crafting loop signals
 		skill_crafting_signals=skill_crafting,
+		# Commit highlights
+		commit_highlights=commit_highlights,
 		# Scale
 		file_count=file_count,
 		directory_depth=directory_depth,
