@@ -583,6 +583,7 @@ def select_evidence_highlights(
 				"project": project_name,
 				"date": formatted_date,
 				"tags": tags,
+				"commit_url": best.get("commit_url"),  # populated by D2 commit extraction
 			}
 		)
 

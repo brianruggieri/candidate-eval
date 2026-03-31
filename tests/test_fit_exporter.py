@@ -1530,3 +1530,67 @@ def test_select_projects_repo_url_none_for_local():
 	]
 	result = select_projects(projects)
 	assert result[0]["repo_url"] is None
+
+
+# ── Task: commit_url wiring ──
+
+
+def test_select_evidence_highlights_includes_commit_url():
+	"""commit_url from evidence entry flows through to highlight dict."""
+	skill_matches = [
+		{
+			"requirement": "python",
+			"match_status": "strong_match",
+			"evidence_source": "corroborated",
+			"confidence": 0.95,
+		},
+	]
+	candidate_skills = [
+		{
+			"name": "python",
+			"evidence": [
+				{
+					"session_id": "s1",
+					"session_date": "2026-03-01T00:00:00",
+					"project_context": "test-project",
+					"evidence_snippet": "Built async pipeline",
+					"confidence": 0.9,
+					"commit_url": "https://github.com/user/repo/commit/abc1234",
+				},
+			],
+		},
+	]
+
+	result = select_evidence_highlights(skill_matches, candidate_skills)
+	assert len(result) == 1
+	assert result[0]["commit_url"] == "https://github.com/user/repo/commit/abc1234"
+
+
+def test_select_evidence_highlights_commit_url_none_when_absent():
+	"""Highlight commit_url is None when evidence entry has no commit_url."""
+	skill_matches = [
+		{
+			"requirement": "python",
+			"match_status": "strong_match",
+			"evidence_source": "corroborated",
+			"confidence": 0.95,
+		},
+	]
+	candidate_skills = [
+		{
+			"name": "python",
+			"evidence": [
+				{
+					"session_id": "s1",
+					"session_date": "2026-03-01T00:00:00",
+					"project_context": "test-project",
+					"evidence_snippet": "Built async pipeline",
+					"confidence": 0.9,
+				},
+			],
+		},
+	]
+
+	result = select_evidence_highlights(skill_matches, candidate_skills)
+	assert len(result) == 1
+	assert result[0]["commit_url"] is None
