@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from datetime import date, datetime
@@ -191,8 +192,8 @@ _GITHUB_COMMIT_RE = re.compile(
 	r"https?://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/commit/[0-9a-fA-F]{7,40}"
 )
 
-# Live URL pattern: http(s):// that is NOT a github.com link
-_LIVE_URL_RE = re.compile(r"https?://(?!github\.com)[A-Za-z0-9_.-]+\.[A-Za-z]{2,}[^\s]*")
+# Live URL pattern: http(s):// that is NOT a github.com link (including subdomains)
+_LIVE_URL_RE = re.compile(r"https?://(?!([a-z0-9-]+\.)*github\.com)[A-Za-z0-9_.-]+\.[A-Za-z]{2,}[^\s]*")
 
 
 def compute_evidence_tier(
@@ -235,12 +236,17 @@ def compute_evidence_tier(
 
 # ── Benchmark Metadata ──
 
-# Default path relative to the project root (resolved at call time)
+# Default path — works in dev (relative to src/) but not in installed environments.
+# Callers can override via the path parameter or BENCHMARK_HISTORY_PATH env var.
 _BENCHMARK_HISTORY_PATH = Path(__file__).parent.parent.parent / "tests" / "golden_set" / "benchmark_history.jsonl"
 
 
-def load_benchmark_metadata() -> dict[str, Any]:
+def load_benchmark_metadata(path: Path | None = None) -> dict[str, Any]:
 	"""Read the last benchmark run from benchmark_history.jsonl.
+
+	Args:
+	    path: Optional explicit path to benchmark_history.jsonl.
+	          Falls back to BENCHMARK_HISTORY_PATH env var, then dev default.
 
 	Returns a dict with:
 	  - benchmark_postings_count: int | None
@@ -249,7 +255,11 @@ def load_benchmark_metadata() -> dict[str, Any]:
 	Handles file-not-found gracefully — returns None values in that case.
 	"""
 	try:
-		history_path = _BENCHMARK_HISTORY_PATH
+		if path is not None:
+			history_path = path
+		else:
+			env_path = os.environ.get("BENCHMARK_HISTORY_PATH")
+			history_path = Path(env_path) if env_path else _BENCHMARK_HISTORY_PATH
 		if not history_path.exists():
 			return {"benchmark_postings_count": None, "benchmark_calibration_date": None}
 
@@ -688,8 +698,25 @@ def export_fit_assessment(
 		merged = merged_skills.get(resolved_key, {}) if resolved_key else {}
 		# Normalize evidence_source to v0.9 canonical values
 		normalized_source = _normalize_evidence_source(str(match.get("evidence_source", "resume_only")))
+		# Extract per-match evidence snippet and filter projects to those referenced
+		# by this skill's evidence entries (avoids global project list misclassifying tiers)
+		skill_evidence = merged.get("evidence", [])
+		evidence_snippet = ""
+		skill_project_names: set[str] = set()
+		for ev in skill_evidence:
+			if not evidence_snippet and ev.get("evidence_snippet"):
+				evidence_snippet = ev["evidence_snippet"]
+			pc = ev.get("project_context", "")
+			if pc:
+				skill_project_names.add(pc.lower())
+		all_projects = merged_profile.get("projects", [])
+		matched_projects = (
+			[p for p in all_projects if p.get("project_name", "").lower() in skill_project_names]
+			if skill_project_names
+			else []
+		)
 		# Compute evidence tier for visual color coding
-		tier = compute_evidence_tier(match, "", merged_profile.get("projects", []))
+		tier = compute_evidence_tier(match, evidence_snippet, matched_projects)
 		enriched_matches.append(
 			{
 				"skill": req,

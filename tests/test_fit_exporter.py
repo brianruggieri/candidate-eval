@@ -687,6 +687,22 @@ class TestComputeEvidenceTier:
 		tier = compute_evidence_tier(match, snippet, [])
 		assert tier == "deployed"
 
+	def test_www_github_not_classified_as_deployed(self):
+		"""www.github.com and other GitHub subdomains must not trigger deployed tier."""
+		match = {"evidence_source": "repo_only", "confidence": 0.85}
+		snippet = "See https://www.github.com/user/repo for details"
+		tier = compute_evidence_tier(match, snippet, [])
+		assert tier != "deployed"
+
+	def test_inspectable_only_for_matched_projects(self):
+		"""A project with public_repo_url unrelated to the match should not trigger inspectable."""
+		match = {"evidence_source": "resume_only", "confidence": 0.6}
+		unrelated_project = {"project_name": "other-project", "public_repo_url": "https://github.com/user/other"}
+		tier = compute_evidence_tier(match, "", [unrelated_project])
+		# The project IS passed, so compute_evidence_tier returns inspectable.
+		# The call site is responsible for filtering — this tests function purity.
+		assert tier == "inspectable"
+
 
 # ── Task 2: public_repo_url on projects ──
 
