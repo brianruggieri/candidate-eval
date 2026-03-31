@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timezone
 
 import pytest
 import yaml
@@ -15,7 +16,9 @@ from claude_candidate.fit_exporter import (
 	_normalize_evidence_source,
 	compute_evidence_tier,
 	load_benchmark_metadata,
+	format_skill_repo_fallback,
 )
+from claude_candidate.schemas.repo_profile import SkillRepoEvidence
 
 
 def test_basic_slug():
@@ -1594,3 +1597,130 @@ def test_select_evidence_highlights_commit_url_none_when_absent():
 	result = select_evidence_highlights(skill_matches, candidate_skills)
 	assert len(result) == 1
 	assert result[0]["commit_url"] is None
+
+
+# ── Phase 2c: Quantitative Fallback Text (D5) ──
+
+
+class TestFormatSkillRepoFallback:
+	def test_full_signal_set(self):
+		"""Full signal set: repos=8, 45-day span, test_coverage, frameworks."""
+		evidence = SkillRepoEvidence(
+			repos=8,
+			total_bytes=500_000,
+			first_seen=datetime(2026, 1, 1, tzinfo=timezone.utc),
+			last_seen=datetime(2026, 2, 14, tzinfo=timezone.utc),
+			frameworks=["fastapi", "pydantic"],
+			test_coverage=True,
+		)
+		result = format_skill_repo_fallback("Python", evidence)
+		assert result == "Python — 8 repositories, 45-day active timeline. Test coverage present. Frameworks: Fastapi, Pydantic."
+
+	def test_single_repo_no_test_no_frameworks(self):
+		"""Single repo, no test coverage, no frameworks."""
+		evidence = SkillRepoEvidence(
+			repos=1,
+			total_bytes=10_000,
+			first_seen=datetime(2026, 1, 1, tzinfo=timezone.utc),
+			last_seen=datetime(2026, 1, 10, tzinfo=timezone.utc),
+			frameworks=[],
+			test_coverage=False,
+		)
+		result = format_skill_repo_fallback("Go", evidence)
+		assert result == "Go — 1 repository, 10-day active timeline."
+
+	def test_framework_deduplication_strips_skill_name(self):
+		"""Frameworks containing the skill name itself should be stripped."""
+		evidence = SkillRepoEvidence(
+			repos=2,
+			total_bytes=20_000,
+			first_seen=datetime(2026, 1, 1, tzinfo=timezone.utc),
+			last_seen=datetime(2026, 1, 5, tzinfo=timezone.utc),
+			frameworks=["python", "python"],
+			test_coverage=False,
+		)
+		result = format_skill_repo_fallback("Python", evidence)
+		# No frameworks clause — nothing remains after stripping the skill name
+		assert "Frameworks" not in result
+		assert result == "Python — 2 repositories, 5-day active timeline."
+
+	def test_single_framework(self):
+		"""Single framework for a different skill."""
+		evidence = SkillRepoEvidence(
+			repos=3,
+			total_bytes=30_000,
+			first_seen=datetime(2026, 1, 1, tzinfo=timezone.utc),
+			last_seen=datetime(2026, 1, 15, tzinfo=timezone.utc),
+			frameworks=["react"],
+			test_coverage=False,
+		)
+		result = format_skill_repo_fallback("JavaScript", evidence)
+		assert "Frameworks: React." in result
+
+	def test_test_framework_hint(self):
+		"""Caller passes test_framework hint."""
+		evidence = SkillRepoEvidence(
+			repos=4,
+			total_bytes=40_000,
+			first_seen=datetime(2026, 1, 1, tzinfo=timezone.utc),
+			last_seen=datetime(2026, 1, 20, tzinfo=timezone.utc),
+			frameworks=[],
+			test_coverage=True,
+		)
+		result = format_skill_repo_fallback("Python", evidence, test_framework="pytest")
+		assert "Test coverage with pytest." in result
+
+	def test_ci_configured_hint(self):
+		"""Caller passes ci_configured=True."""
+		evidence = SkillRepoEvidence(
+			repos=2,
+			total_bytes=20_000,
+			first_seen=datetime(2026, 1, 1, tzinfo=timezone.utc),
+			last_seen=datetime(2026, 1, 10, tzinfo=timezone.utc),
+			frameworks=[],
+			test_coverage=False,
+		)
+		result = format_skill_repo_fallback("Python", evidence, ci_configured=True)
+		assert result.endswith("CI configured.")
+
+	def test_zero_day_timeline(self):
+		"""first_seen == last_seen should render '1-day active timeline'."""
+		evidence = SkillRepoEvidence(
+			repos=1,
+			total_bytes=5_000,
+			first_seen=datetime(2026, 3, 15, tzinfo=timezone.utc),
+			last_seen=datetime(2026, 3, 15, tzinfo=timezone.utc),
+			frameworks=[],
+			test_coverage=False,
+		)
+		result = format_skill_repo_fallback("Rust", evidence)
+		assert "1-day active timeline" in result
+
+
+class TestEvidenceHighlightsRepoFallback:
+	def test_falls_back_to_repo_quantitative(self):
+		"""Strong match with no session evidence but with repo evidence uses fallback."""
+		matches = [
+			{
+				"requirement": "Python",
+				"match_status": "strong_match",
+				"evidence_source": "corroborated",
+				"confidence": 0.9,
+			}
+		]
+		repo_evidence = {
+			"python": SkillRepoEvidence(
+				repos=5,
+				total_bytes=0,
+				first_seen=datetime(2026, 1, 1, tzinfo=timezone.utc),
+				last_seen=datetime(2026, 3, 1, tzinfo=timezone.utc),
+				frameworks=["fastapi"],
+				test_coverage=True,
+			)
+		}
+		result = select_evidence_highlights(
+			matches, candidate_skills=[], repo_skill_evidence=repo_evidence
+		)
+		assert len(result) == 1
+		assert result[0]["source"] == "repo_quantitative"
+		assert "repositories" in result[0]["quote"]

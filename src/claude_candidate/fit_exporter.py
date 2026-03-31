@@ -13,6 +13,7 @@ from typing import Any
 import yaml
 
 from claude_candidate.pii_gate import scrub_deliverable
+from claude_candidate.schemas.repo_profile import SkillRepoEvidence
 from claude_candidate.skill_taxonomy import SkillTaxonomy
 
 _taxonomy: SkillTaxonomy | None = None
@@ -232,6 +233,55 @@ def compute_evidence_tier(
 
 	# 4. Resume-only source or no artifact → claimed
 	return "claimed"
+
+
+# ── Quantitative Fallback Text ──
+
+
+def format_skill_repo_fallback(
+	skill_display_name: str,
+	evidence: SkillRepoEvidence,
+	*,
+	test_framework: str | None = None,
+	ci_configured: bool = False,
+) -> str:
+	"""Generate hiring-manager-aligned fallback text from repo quantitative data.
+
+	Used when no commit-level highlights are available for a skill.
+	Pure function — no I/O, no taxonomy. Display name passed by caller.
+	"""
+	clauses: list[str] = []
+
+	# Repo count clause
+	repo_word = "repository" if evidence.repos == 1 else "repositories"
+	timeline_days = max((evidence.last_seen - evidence.first_seen).days + 1, 1)
+	clauses.append(f"{skill_display_name} — {evidence.repos} {repo_word}, {timeline_days}-day active timeline.")
+
+	# Test clause
+	if test_framework:
+		clauses.append(f"Test coverage with {test_framework}.")
+	elif evidence.test_coverage:
+		clauses.append("Test coverage present.")
+
+	# Frameworks clause — deduplicate, strip the skill name, title-case survivors
+	skill_lower = skill_display_name.lower()
+	seen: set[str] = set()
+	unique_frameworks: list[str] = []
+	for fw in evidence.frameworks:
+		fw_lower = fw.lower()
+		if fw_lower == skill_lower:
+			continue
+		if fw_lower not in seen:
+			seen.add(fw_lower)
+			unique_frameworks.append(fw_lower.title())
+	if unique_frameworks:
+		clauses.append(f"Frameworks: {', '.join(unique_frameworks)}.")
+
+	# CI clause
+	if ci_configured:
+		clauses.append("CI configured.")
+
+	return " ".join(clauses)
 
 
 # ── Benchmark Metadata ──
