@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -555,6 +556,128 @@ class TestMergeTriad:
 		assert rust.effective_depth == DepthLevel.EXPERT
 
 
+class TestMergeTriadProjectsFromRepos:
+	"""Tests that merge_triad populates projects from repo_profile.repos."""
+
+	def _make_resume(self):
+		from datetime import datetime, timezone
+		from claude_candidate.schemas.curated_resume import CuratedResume, CuratedSkill
+
+		return CuratedResume(
+			profile_version="1.0",
+			parsed_at=datetime.now(timezone.utc),
+			source_file_hash="test",
+			source_format="pdf",
+			name="Test User",
+			roles=[],
+			total_years_experience=13,
+			skills=[],
+			education=["B.S. Computer Science"],
+			curated_skills=[
+				CuratedSkill(name="python", depth=DepthLevel.DEEP, duration="2 years"),
+			],
+			curated=True,
+		)
+
+	def _make_repo_evidence(self, name="my-repo", url="https://github.com/user/my-repo"):
+		from claude_candidate.schemas.repo_profile import RepoEvidence
+
+		return RepoEvidence(
+			name=name,
+			url=url,
+			description="Test repo",
+			created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+			last_pushed=datetime(2026, 3, 25, tzinfo=timezone.utc),
+			commit_span_days=84,
+			languages={"Python": 500_000},
+			dependencies=["fastapi"],
+			dev_dependencies=["pytest"],
+			has_tests=True,
+			test_framework="pytest",
+			test_file_count=10,
+			has_ci=True,
+			ci_complexity="standard",
+			releases=2,
+			has_changelog=True,
+			has_claude_md=True,
+			has_agents_md=False,
+			has_copilot_instructions=False,
+			llm_imports=[],
+			has_eval_framework=False,
+			has_prompt_templates=False,
+			claude_dir_exists=True,
+			claude_plans_count=0,
+			claude_specs_count=0,
+			claude_handoffs_count=0,
+			claude_grill_sessions=0,
+			claude_memory_files=0,
+			has_settings_local=False,
+			has_ralph_loops=False,
+			has_superpowers_brainstorms=False,
+			has_worktree_discipline=False,
+			ai_maturity_level="intermediate",
+			skill_crafting_signals={},
+			file_count=50,
+			directory_depth=3,
+			source_modules=10,
+		)
+
+	def _make_repo_profile(self, repos=None):
+		from claude_candidate.schemas.repo_profile import RepoProfile
+
+		if repos is None:
+			repos = [self._make_repo_evidence()]
+		now = datetime(2026, 3, 25, tzinfo=timezone.utc)
+		return RepoProfile(
+			repos=repos,
+			scan_date=now,
+			repo_timeline_start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+			repo_timeline_end=now,
+			repo_timeline_days=84,
+			skill_evidence={},
+			repos_with_tests=len(repos),
+			repos_with_ci=len(repos),
+			repos_with_releases=0,
+			repos_with_ai_signals=0,
+		)
+
+	def test_projects_come_from_repo_profile(self):
+		repo = self._make_repo_profile()
+		profile = merge_triad(self._make_resume(), repo)
+		assert len(profile.projects) == 1
+
+	def test_project_names_match_repo_names(self):
+		repos = [
+			self._make_repo_evidence(name="repo-a"),
+			self._make_repo_evidence(name="repo-b"),
+		]
+		repo = self._make_repo_profile(repos)
+		profile = merge_triad(self._make_resume(), repo)
+		project_names = [p.name for p in profile.projects]
+		assert "repo-a" in project_names
+		assert "repo-b" in project_names
+
+	def test_project_urls_preserved(self):
+		repos = [self._make_repo_evidence(url="https://github.com/user/test")]
+		repo = self._make_repo_profile(repos)
+		profile = merge_triad(self._make_resume(), repo)
+		assert profile.projects[0].url == "https://github.com/user/test"
+
+	def test_empty_repos_produces_empty_projects(self):
+		repo = self._make_repo_profile(repos=[])
+		profile = merge_triad(self._make_resume(), repo)
+		assert profile.projects == []
+
+	def test_sessions_arg_does_not_affect_projects(self):
+		"""Sessions parameter should not affect projects — they come from repos only."""
+		repos = [self._make_repo_evidence(name="from-repo")]
+		repo = self._make_repo_profile(repos)
+		# With sessions=None
+		profile_no_sessions = merge_triad(self._make_resume(), repo)
+		assert len(profile_no_sessions.projects) == 1
+		assert profile_no_sessions.projects[0].name == "from-repo"
+
+
 def test_corroboration_with_name_variants(candidate_profile):
 	"""Skills with different names (React.js vs react) should still corroborate."""
 	import json
@@ -648,10 +771,11 @@ class TestMergeTriadWithSessions:
 		profile = merge_triad(curated_resume, repo_profile, sessions=candidate_profile)
 		assert len(profile.patterns) == len(candidate_profile.problem_solving_patterns)
 
-	def test_projects_flow_through(self, curated_resume, repo_profile, candidate_profile):
-		"""When sessions provided, projects propagate to merged profile."""
+	def test_projects_from_repo_not_sessions(self, curated_resume, repo_profile, candidate_profile):
+		"""Projects now come from repo_profile.repos, not sessions."""
 		profile = merge_triad(curated_resume, repo_profile, sessions=candidate_profile)
-		assert len(profile.projects) == len(candidate_profile.projects)
+		# Projects come from repo_profile.repos, not from sessions
+		assert len(profile.projects) == len(repo_profile.repos)
 
 	def test_candidate_hash_set_with_sessions(
 		self, curated_resume, repo_profile, candidate_profile

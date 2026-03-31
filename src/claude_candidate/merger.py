@@ -19,7 +19,7 @@ from claude_candidate.schemas.merged_profile import (
 	MergedSkillEvidence,
 )
 from claude_candidate.schemas.curated_resume import CuratedResume, CuratedSkill
-from claude_candidate.schemas.repo_profile import RepoProfile, SkillRepoEvidence
+from claude_candidate.schemas.repo_profile import RepoProfile, RepoProject, SkillRepoEvidence
 from claude_candidate.schemas.resume_profile import ResumeProfile
 from claude_candidate.skill_taxonomy import SkillTaxonomy
 
@@ -203,7 +203,7 @@ def merge_triad(
 	merged = MergedEvidenceProfile(
 		skills=merged_skills,
 		patterns=sessions.problem_solving_patterns if sessions else [],
-		projects=sessions.projects if sessions else [],
+		projects=[RepoProject.from_repo_evidence(r) for r in repo_profile.repos],
 		roles=curated_resume.roles,
 		corroborated_skill_count=corroborated_count,
 		resume_only_skill_count=resume_only_count,
@@ -366,7 +366,7 @@ def merge_profiles(
 	merged = MergedEvidenceProfile(
 		skills=merged_skills,
 		patterns=candidate_profile.problem_solving_patterns,
-		projects=candidate_profile.projects,
+		projects=[],  # DORMANT: session ProjectSummary replaced by RepoProject in v0.10
 		roles=resume_profile.roles,
 		corroborated_skill_count=corroborated_count,
 		resume_only_skill_count=resume_only_count,
@@ -500,7 +500,7 @@ def merge_with_curated(
 	merged = MergedEvidenceProfile(
 		skills=merged_skills,
 		patterns=candidate_profile.problem_solving_patterns,
-		projects=candidate_profile.projects,
+		projects=[],  # DORMANT: session ProjectSummary replaced by RepoProject in v0.10
 		roles=curated_resume.roles,
 		corroborated_skill_count=counts["corroborated"],
 		resume_only_skill_count=counts["resume_only"],
@@ -556,7 +556,7 @@ def merge_candidate_only(candidate_profile: CandidateProfile) -> MergedEvidenceP
 	return MergedEvidenceProfile(
 		skills=merged_skills,
 		patterns=candidate_profile.problem_solving_patterns,
-		projects=candidate_profile.projects,
+		projects=[],  # DORMANT: session ProjectSummary replaced by RepoProject in v0.10
 		roles=[],
 		corroborated_skill_count=0,
 		resume_only_skill_count=0,

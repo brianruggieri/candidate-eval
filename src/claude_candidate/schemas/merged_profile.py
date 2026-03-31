@@ -16,8 +16,8 @@ from claude_candidate.schemas.candidate_profile import (
 	DepthLevel,
 	DEPTH_RANK,
 	ProblemSolvingPattern,
-	ProjectSummary,
 )
+from claude_candidate.schemas.repo_profile import RepoProject
 from claude_candidate.schemas.resume_profile import ResumeRole
 
 RANK_TO_DEPTH: dict[int, "DepthLevel"] = {v: k for k, v in DEPTH_RANK.items()}
@@ -134,7 +134,7 @@ class MergedEvidenceProfile(BaseModel):
 
 	skills: list[MergedSkillEvidence]
 	patterns: list[ProblemSolvingPattern]  # From sessions only
-	projects: list[ProjectSummary]  # From sessions only
+	projects: list[RepoProject]  # From repo evidence (was ProjectSummary pre-v0.10)
 	roles: list[ResumeRole]  # From resume only
 
 	# Resume-level fields (propagated for scoring dimensions)

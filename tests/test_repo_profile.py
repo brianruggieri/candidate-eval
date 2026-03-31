@@ -8,6 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from claude_candidate.schemas.repo_profile import (
+	CommitHighlight,
 	RepoEvidence,
 	RepoProfile,
 	SkillRepoEvidence,
@@ -56,6 +57,53 @@ def _make_repo_evidence(**overrides) -> RepoEvidence:
 	)
 	defaults.update(overrides)
 	return RepoEvidence(**defaults)
+
+
+class TestCommitHighlight:
+	def test_commit_highlight_round_trips(self):
+		"""CommitHighlight can be serialized and restored."""
+		h = CommitHighlight(
+			quote="Refactored scoring engine to use gradient years",
+			commit_hash="abc1234",
+			timestamp=datetime(2026, 3, 15, tzinfo=timezone.utc),
+			github_url="https://github.com/user/repo/commit/abc1234",
+			skills=["python", "architecture"],
+			source="commit",
+		)
+		data = h.model_dump(mode="json")
+		restored = CommitHighlight.model_validate(data)
+		assert restored == h
+		assert restored.quote == "Refactored scoring engine to use gradient years"
+		assert restored.commit_hash == "abc1234"
+		assert restored.skills == ["python", "architecture"]
+
+	def test_pr_highlight_source(self):
+		"""CommitHighlight supports source='pr' with pr_number."""
+		h = CommitHighlight(
+			quote="Added culture scoring pipeline with company research",
+			pr_number=42,
+			timestamp=datetime(2026, 3, 20, tzinfo=timezone.utc),
+			github_url="https://github.com/user/repo/pull/42",
+			skills=["fastapi"],
+			source="pr",
+		)
+		assert h.source == "pr"
+		assert h.pr_number == 42
+		assert h.commit_hash is None
+
+	def test_repo_evidence_accepts_commit_highlights(self):
+		"""RepoEvidence defaults commit_highlights to empty list."""
+		repo = _make_repo_evidence()
+		assert repo.commit_highlights == []
+
+		# Can also supply highlights
+		h = CommitHighlight(
+			quote="Added test suite",
+			timestamp=datetime(2026, 3, 10, tzinfo=timezone.utc),
+		)
+		repo2 = _make_repo_evidence(commit_highlights=[h])
+		assert len(repo2.commit_highlights) == 1
+		assert repo2.commit_highlights[0].quote == "Added test suite"
 
 
 class TestRepoEvidence:

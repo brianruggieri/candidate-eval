@@ -407,7 +407,12 @@ class SignalMerger:
 	# -------------------------------------------------------------------
 
 	def _build_projects(self, results: list[SignalResult]) -> list[ProjectSummary]:
-		"""Group results by project_context and build enriched ProjectSummaries."""
+		"""Group results by project_context and build enriched ProjectSummaries.
+
+		DORMANT (Decision 1, 2026-03-30): project pipeline now uses RepoProject from repo_profile.
+		Projects in MergedEvidenceProfile come from merge_triad(), not session extraction.
+		Do not delete — session infrastructure may be reactivated for behavioral metrics.
+		"""
 		project_results: dict[str, list[SignalResult]] = defaultdict(list)
 		for r in results:
 			project_results[r.project_context].append(r)
@@ -422,7 +427,12 @@ class SignalMerger:
 		project_name: str,
 		results: list[SignalResult],
 	) -> ProjectSummary:
-		"""Build a single ProjectSummary from results for one project."""
+		"""Build a single ProjectSummary from results for one project.
+
+		DORMANT (Decision 1, 2026-03-30): project pipeline now uses RepoProject from repo_profile.
+		Projects in MergedEvidenceProfile come from merge_triad(), not session extraction.
+		Do not delete — session infrastructure may be reactivated for behavioral metrics.
+		"""
 		# Merge project signals
 		description_fragments: list[str] = []
 		key_decisions: list[str] = []

@@ -318,9 +318,6 @@ def export_fit(assessment_id: str, output_dir: str, db: str | None, cal_link: st
 	if not db_path.exists():
 		click.echo(f"Error: Database not found at {db_path}", err=True)
 		raise SystemExit(1)
-	if not candidate_path.exists():
-		click.echo(f"Error: Candidate profile not found at {candidate_path}", err=True)
-		raise SystemExit(1)
 
 	# Load assessment from DB
 	async def _load():
@@ -344,7 +341,6 @@ def export_fit(assessment_id: str, output_dir: str, db: str | None, cal_link: st
 	result_path = export_fit_assessment(
 		assessment,
 		merged_profile_data=merged.model_dump(),
-		candidate_profile_path=candidate_path,
 		output_dir=Path(output_dir),
 		cal_link=cal_link or _DEFAULT_CAL_LINK,
 	)

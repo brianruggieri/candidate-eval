@@ -14,6 +14,72 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
+class RepoProject(BaseModel):
+	"""Canonical project representation derived from repo evidence.
+
+	Replaces ProjectSummary as the project source in MergedEvidenceProfile.projects.
+	Constructed from RepoEvidence via the from_repo_evidence() classmethod.
+	"""
+
+	name: str
+	url: str | None = None
+	description: str | None = None
+	languages: list[str] = Field(
+		default_factory=list,
+		description="Language names sorted by bytes descending",
+	)
+	dependencies: list[str] = Field(default_factory=list)
+	commit_span_days: int = Field(ge=0)
+	created_at: datetime
+	last_pushed: datetime
+	has_tests: bool
+	test_framework: str | None = None
+	has_ci: bool
+	releases: int = Field(ge=0)
+	ai_maturity_level: Literal["basic", "intermediate", "advanced", "expert"]
+	evidence_highlights: list[str] = Field(default_factory=list)
+
+	@classmethod
+	def from_repo_evidence(cls, evidence: "RepoEvidence") -> "RepoProject":
+		"""Construct a RepoProject from a RepoEvidence instance."""
+		# Sort languages by bytes descending, keep names only
+		sorted_langs = sorted(
+			evidence.languages.items(),
+			key=lambda kv: kv[1],
+			reverse=True,
+		)
+		language_names = [name for name, _bytes in sorted_langs]
+
+		return cls(
+			name=evidence.name,
+			url=evidence.url,
+			description=evidence.description,
+			languages=language_names,
+			dependencies=list(evidence.dependencies),
+			commit_span_days=evidence.commit_span_days,
+			created_at=evidence.created_at,
+			last_pushed=evidence.last_pushed,
+			has_tests=evidence.has_tests,
+			test_framework=evidence.test_framework,
+			has_ci=evidence.has_ci,
+			releases=evidence.releases,
+			ai_maturity_level=evidence.ai_maturity_level,
+			evidence_highlights=[],
+		)
+
+
+class CommitHighlight(BaseModel):
+	"""A pithy evidence quote extracted from a commit or PR."""
+
+	quote: str = Field(description="The highlight text extracted by Claude")
+	commit_hash: str | None = Field(default=None, description="Full or short git hash")
+	pr_number: int | None = Field(default=None, description="GitHub PR number if source=pr")
+	timestamp: datetime
+	github_url: str | None = Field(default=None, description="Direct link to commit or PR")
+	skills: list[str] = Field(default_factory=list, description="Skill names demonstrated")
+	source: Literal["commit", "pr"] = "commit"
+
+
 class RepoEvidence(BaseModel):
 	"""Evidence extracted from a single GitHub repository."""
 
@@ -68,6 +134,9 @@ class RepoEvidence(BaseModel):
 		default_factory=dict,
 		description="Skill-crafting loop evidence counts: skills_authored, eval_harnesses, etc.",
 	)
+
+	# Commit highlights
+	commit_highlights: list[CommitHighlight] = Field(default_factory=list)
 
 	# Repo scale
 	file_count: int = Field(ge=0)

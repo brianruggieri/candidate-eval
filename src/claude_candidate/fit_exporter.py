@@ -13,6 +13,7 @@ from typing import Any
 import yaml
 
 from claude_candidate.pii_gate import scrub_deliverable
+from claude_candidate.schemas.repo_profile import SkillRepoEvidence
 from claude_candidate.skill_taxonomy import SkillTaxonomy
 
 _taxonomy: SkillTaxonomy | None = None
@@ -193,7 +194,9 @@ _GITHUB_COMMIT_RE = re.compile(
 )
 
 # Live URL pattern: http(s):// that is NOT a github.com link (including subdomains)
-_LIVE_URL_RE = re.compile(r"https?://(?!([a-z0-9-]+\.)*github\.com)[A-Za-z0-9_.-]+\.[A-Za-z]{2,}[^\s]*")
+_LIVE_URL_RE = re.compile(
+	r"https?://(?!([a-z0-9-]+\.)*github\.com)[A-Za-z0-9_.-]+\.[A-Za-z]{2,}[^\s]*"
+)
 
 
 def compute_evidence_tier(
@@ -234,11 +237,64 @@ def compute_evidence_tier(
 	return "claimed"
 
 
+# ── Quantitative Fallback Text ──
+
+
+def format_skill_repo_fallback(
+	skill_display_name: str,
+	evidence: SkillRepoEvidence,
+	*,
+	test_framework: str | None = None,
+	ci_configured: bool = False,
+) -> str:
+	"""Generate hiring-manager-aligned fallback text from repo quantitative data.
+
+	Used when no commit-level highlights are available for a skill.
+	Pure function — no I/O, no taxonomy. Display name passed by caller.
+	"""
+	clauses: list[str] = []
+
+	# Repo count clause
+	repo_word = "repository" if evidence.repos == 1 else "repositories"
+	timeline_days = max((evidence.last_seen - evidence.first_seen).days + 1, 1)
+	clauses.append(
+		f"{skill_display_name} — {evidence.repos} {repo_word}, {timeline_days}-day active timeline."
+	)
+
+	# Test clause
+	if test_framework:
+		clauses.append(f"Test coverage with {test_framework}.")
+	elif evidence.test_coverage:
+		clauses.append("Test coverage present.")
+
+	# Frameworks clause — deduplicate, strip the skill name, title-case survivors
+	skill_lower = skill_display_name.lower()
+	seen: set[str] = set()
+	unique_frameworks: list[str] = []
+	for fw in evidence.frameworks:
+		fw_lower = fw.lower()
+		if fw_lower == skill_lower:
+			continue
+		if fw_lower not in seen:
+			seen.add(fw_lower)
+			unique_frameworks.append(fw_lower.title())
+	if unique_frameworks:
+		clauses.append(f"Frameworks: {', '.join(unique_frameworks)}.")
+
+	# CI clause
+	if ci_configured:
+		clauses.append("CI configured.")
+
+	return " ".join(clauses)
+
+
 # ── Benchmark Metadata ──
 
 # Default path — works in dev (relative to src/) but not in installed environments.
 # Callers can override via the path parameter or BENCHMARK_HISTORY_PATH env var.
-_BENCHMARK_HISTORY_PATH = Path(__file__).parent.parent.parent / "tests" / "golden_set" / "benchmark_history.jsonl"
+_BENCHMARK_HISTORY_PATH = (
+	Path(__file__).parent.parent.parent / "tests" / "golden_set" / "benchmark_history.jsonl"
+)
 
 
 def load_benchmark_metadata(path: Path | None = None) -> dict[str, Any]:
@@ -378,19 +434,41 @@ def select_projects(
 	*,
 	limit: int = 4,
 ) -> list[dict[str, Any]]:
-	"""Select top projects, preferring technology overlap with job requirements."""
+	"""Select top projects, preferring technology overlap with job requirements.
+
+	Supports both RepoProject-shaped dicts (name, languages, dependencies,
+	created_at, last_pushed) and legacy ProjectSummary-shaped dicts
+	(project_name, technologies, session_count, date_range_start/end).
+	"""
 	job_techs = {t.lower() for t in (job_technologies or [])}
 
+	def _is_repo_project(proj: dict) -> bool:
+		"""Detect RepoProject shape by presence of 'languages' list field."""
+		return "languages" in proj and isinstance(proj.get("languages"), list)
+
 	def relevance(proj: dict) -> int:
-		proj_techs = {t.lower() for t in proj.get("technologies", [])}
+		if _is_repo_project(proj):
+			# RepoProject: combine languages + dependencies for tech matching
+			proj_techs = {t.lower() for t in proj.get("languages", [])}
+			proj_techs |= {d.lower() for d in proj.get("dependencies", [])}
+		else:
+			# Legacy ProjectSummary: use technologies list
+			proj_techs = {t.lower() for t in proj.get("technologies", [])}
 		return len(proj_techs & job_techs)
 
 	sorted_projects = sorted(projects, key=relevance, reverse=True)
 
 	result = []
 	for proj in sorted_projects[:limit]:
-		start = proj.get("date_range_start")
-		end = proj.get("date_range_end")
+		if _is_repo_project(proj):
+			# RepoProject shape: derive date range from created_at / last_pushed
+			start = proj.get("created_at")
+			end = proj.get("last_pushed")
+		else:
+			# Legacy ProjectSummary shape
+			start = proj.get("date_range_start")
+			end = proj.get("date_range_end")
+
 		if start and end:
 			start_year = str(start)[:4]
 			end_year = str(end)[:4]
@@ -403,13 +481,15 @@ def select_projects(
 		result.append(
 			{
 				"name": proj.get("project_name", proj.get("name", "Unknown")),
+				"url": proj.get("url", proj.get("public_repo_url")),
+				"repo_url": proj.get("url") or proj.get("public_repo_url"),
 				"description": proj.get("description", ""),
 				"complexity": proj.get("complexity", "moderate").capitalize(),
-				"technologies": proj.get("technologies", []),
+				"technologies": proj.get("technologies", proj.get("languages", [])),
 				"sessions": proj.get("session_count", 0),
 				"date_range": date_range,
 				"callout": (proj.get("key_decisions") or [""])[0],
-				"public_repo_url": proj.get("public_repo_url"),
+				"public_repo_url": proj.get("public_repo_url", proj.get("url")),
 			}
 		)
 	return result
@@ -446,6 +526,234 @@ _RESOLVE_STOPWORDS = frozenset(
 	}
 )
 
+# ── Abstract Skill Resolution (Decision 4) ──
+
+ABSTRACT_SKILLS: frozenset[str] = frozenset(
+	{
+		"agentic-workflows",
+		"developer-tools",
+		"system-design",
+		"full-stack",
+		"software-engineering",
+		"computer-science",
+		"frontend-development",
+		"backend-development",
+		"api-design",
+		"llm",
+		"prompt-engineering",
+		"generative-ai",
+		"ai-evaluation",
+		"ai-process-engineering",
+		"production-systems",
+		"ci-cd",
+		"devops",
+		"testing",
+	}
+)
+
+_ABSTRACT_SIGNAL_RULES: list[tuple[str, Any, str]] = [
+	("ai_maturity_level", lambda v: v == "expert", "agentic-workflows"),
+	("ai_maturity_level", lambda v: v in ("advanced", "expert"), "agentic-workflows"),
+	("llm_imports", lambda v: bool(v), "llm"),
+	("has_prompt_templates", lambda v: v, "prompt-engineering"),
+	("has_eval_framework", lambda v: v, "ai-evaluation"),
+	("has_claude_md", lambda v: v, "developer-tools"),
+	("has_ci", lambda v: v, "ci-cd"),
+	("ci_complexity", lambda v: v in ("standard", "advanced"), "devops"),
+	("has_tests", lambda v: v, "testing"),
+	("directory_depth", lambda v: v >= 4, "system-design"),
+	("source_modules", lambda v: v >= 10, "system-design"),
+	("releases", lambda v: v > 0, "production-systems"),
+	("source_modules", lambda v: v >= 5, "api-design"),
+]
+
+
+def _apply_signal_rules(repos: list[dict[str, Any]]) -> set[str]:
+	"""Return abstract skills inferred from per-repo structural signals using static rules."""
+	granted: set[str] = set()
+	for repo in repos:
+		for field, test_fn, skill in _ABSTRACT_SIGNAL_RULES:
+			if skill in granted:
+				continue
+			value = repo.get(field) if isinstance(repo, dict) else getattr(repo, field, None)
+			try:
+				if test_fn(value):
+					granted.add(skill)
+			except Exception:
+				pass
+	# Tighten agentic-workflows: require expert OR (advanced + ralph_loops)
+	if "agentic-workflows" in granted:
+		has_expert = any(
+			(
+				r.get("ai_maturity_level")
+				if isinstance(r, dict)
+				else getattr(r, "ai_maturity_level", None)
+			)
+			== "expert"
+			for r in repos
+		)
+		has_advanced_with_ralph = any(
+			(
+				r.get("ai_maturity_level")
+				if isinstance(r, dict)
+				else getattr(r, "ai_maturity_level", None)
+			)
+			in ("advanced", "expert")
+			and (
+				r.get("has_ralph_loops")
+				if isinstance(r, dict)
+				else getattr(r, "has_ralph_loops", False)
+			)
+			for r in repos
+		)
+		if not (has_expert or has_advanced_with_ralph):
+			granted.discard("agentic-workflows")
+	return granted
+
+
+def _build_abstract_skill_prompt(
+	repos: list[dict[str, Any]],
+	job_skills: list[str],
+	candidate_skills: list[str],
+) -> str | None:
+	"""Build a Claude prompt for inferring abstract skills from repo signals.
+
+	Returns None if there are no target abstract skills to infer.
+	Target skills = job skills that ARE abstract AND NOT already in candidate evidence.
+	"""
+	target_skills = sorted((set(job_skills) & ABSTRACT_SKILLS) - set(candidate_skills))
+	if not target_skills:
+		return None
+
+	# Summarize repo signals for context
+	repo_summaries = []
+	for repo in repos:
+		name = repo.get("name", "unknown")
+		signals = {k: v for k, v in repo.items() if k != "name" and v}
+		repo_summaries.append(f"- {name}: {json.dumps(signals, default=str)}")
+
+	repo_text = "\n".join(repo_summaries) if repo_summaries else "(no repo data)"
+
+	return (
+		"Given these repository structural signals:\n"
+		f"{repo_text}\n\n"
+		"Which of the following abstract skills are demonstrated by this evidence?\n"
+		f"Target skills: {', '.join(target_skills)}\n\n"
+		"Respond with a JSON array of skill names that are clearly demonstrated. "
+		'Only include skills with strong evidence. Example: ["system-design", "testing"]\n'
+		"If none are demonstrated, respond with an empty array: []"
+	)
+
+
+def _claude_infer_abstract_skills(
+	repos: list[dict[str, Any]],
+	job_skills: list[str],
+	candidate_skills: list[str],
+) -> set[str]:
+	"""Call Claude to infer abstract skills from repo signals.
+
+	Falls back to empty set on any error (Claude unavailable, parse failure, etc.).
+	Filters results to only return skills that are in ABSTRACT_SKILLS.
+	"""
+	from claude_candidate.claude_cli import call_claude, ClaudeCLIError
+
+	prompt = _build_abstract_skill_prompt(repos, job_skills, candidate_skills)
+	if prompt is None:
+		return set()
+
+	try:
+		response = call_claude(prompt, timeout=30)
+		# Extract JSON array from response (may be wrapped in markdown code block)
+		cleaned = response.strip()
+		if cleaned.startswith("```"):
+			# Strip markdown code fence
+			lines = cleaned.split("\n")
+			cleaned = "\n".join(line for line in lines if not line.strip().startswith("```"))
+		inferred = json.loads(cleaned)
+		if not isinstance(inferred, list):
+			return set()
+		# Filter to only abstract skills (prevent hallucinated concrete skills)
+		return {s for s in inferred if isinstance(s, str) and s in ABSTRACT_SKILLS}
+	except (ClaudeCLIError, json.JSONDecodeError, Exception):
+		return set()
+
+
+def _build_commit_tagged_skills(repo_profile: dict[str, Any]) -> set[str]:
+	"""Return abstract skills tagged in commit evidence highlights (Decision 2 tier).
+
+	Stub: returns empty set until commit highlights are consumed by the resolver.
+	"""
+	return set()
+
+
+def resolve_abstract_skills(
+	repo_profile: dict[str, Any],
+	job_skills: list[str],
+	*,
+	use_claude: bool = True,
+) -> dict[str, dict[str, Any]]:
+	"""Three-tier abstract skill resolution orchestrator.
+
+	Resolves abstract skills (e.g. system-design, agentic-workflows) that don't
+	have direct entries in skill_evidence. Produces synthetic evidence entries
+	for skills that can be inferred from repo signals.
+
+	Tiers:
+	  1. Mechanical — handled by _resolve_skill_key() (existing, not called here)
+	  2. Commit tags — _build_commit_tagged_skills() (stub for D2 integration)
+	  3a. Claude inference — _claude_infer_abstract_skills() (if use_claude=True)
+	  3b. Signal rules — _apply_signal_rules() (static fallback)
+
+	Args:
+	    repo_profile: Dict with 'skill_evidence' and 'repos'/'projects' keys.
+	    job_skills: List of skill names from the job requirements.
+	    use_claude: Whether to attempt Claude inference (tier 3a).
+
+	Returns:
+	    Dict mapping abstract skill name → synthetic evidence dict with '_inferred: True'.
+	"""
+	skill_evidence = repo_profile.get("skill_evidence", {})
+	repos = repo_profile.get("repos", repo_profile.get("projects", []))
+
+	# Find target abstract skills: in job_skills, in ABSTRACT_SKILLS, not already in evidence
+	existing_skills = set(skill_evidence.keys())
+	candidate_skills = list(existing_skills)
+	target_abstract = (set(job_skills) & ABSTRACT_SKILLS) - existing_skills
+	if not target_abstract:
+		return {}
+
+	resolved: set[str] = set()
+
+	# Tier 2: commit-tagged skills
+	commit_tagged = _build_commit_tagged_skills(repo_profile)
+	resolved |= commit_tagged & target_abstract
+
+	# Tier 3a: Claude inference (if enabled)
+	remaining = target_abstract - resolved
+	if remaining and use_claude:
+		claude_inferred = _claude_infer_abstract_skills(repos, list(remaining), candidate_skills)
+		resolved |= claude_inferred & target_abstract
+
+	# Tier 3b: signal rules for anything still unresolved
+	remaining = target_abstract - resolved
+	if remaining:
+		signal_granted = _apply_signal_rules(repos)
+		resolved |= signal_granted & remaining
+
+	# Build synthetic evidence entries
+	result: dict[str, dict[str, Any]] = {}
+	for skill in resolved:
+		result[skill] = {
+			"name": skill,
+			"source": "inferred",
+			"effective_depth": "APPLIED",
+			"session_evidence_count": 0,
+			"discovery_flag": False,
+			"confidence": 0.5,
+			"_inferred": True,
+		}
+	return result
+
 
 def _resolve_skill_key(
 	raw_key: str,
@@ -453,6 +761,20 @@ def _resolve_skill_key(
 	taxonomy: SkillTaxonomy,
 ) -> str | None:
 	"""Try to resolve a requirement phrase to a key in evidence_dict.
+
+	Part of the three-tier skill resolution system (Decision 4):
+
+	  Tier 1 (Mechanical) — this function. Handles direct, alias, and word-level
+	    lookups against whatever evidence_dict is provided. Works for concrete
+	    skills and for abstract skills once resolve_abstract_skills() has injected
+	    synthetic entries into the dict.
+
+	  Tier 2 (Commit tags) — _build_commit_tagged_skills() stub. Will consume
+	    commit-level skill highlights from Decision 2 when that integration lands.
+
+	  Tier 3 (Repo-level inference) — resolve_abstract_skills() orchestrator.
+	    3a: Claude inference from repo structural signals.
+	    3b: Static signal rules via _apply_signal_rules().
 
 	Attempts, in order:
 	1. Direct lookup (already lowered by caller)
@@ -493,13 +815,18 @@ def select_evidence_highlights(
 	*,
 	limit: int = 3,
 	projects: list[dict[str, Any]] | None = None,
+	repo_skill_evidence: dict[str, SkillRepoEvidence] | None = None,
 ) -> list[dict[str, Any]]:
 	"""Select top evidence highlights from strong matches with session references.
+
+	When a strong match has no session evidence but has repo evidence,
+	falls back to format_skill_repo_fallback() for a quantitative highlight.
 
 	Args:
 	    skill_matches: SkillMatchDetail dicts from FitAssessment.
 	    candidate_skills: SkillEntry dicts from CandidateProfile (with evidence[]).
 	    projects: ProjectSummary dicts for technology tag lookup by project name.
+	    repo_skill_evidence: Aggregated repo evidence per skill (lowercased keys).
 	"""
 	taxonomy = _get_taxonomy()
 
@@ -526,6 +853,8 @@ def select_evidence_highlights(
 		),
 	)
 
+	repo_evidence = repo_skill_evidence or {}
+
 	result = []
 	for match in strong:
 		if len(result) >= limit:
@@ -535,6 +864,28 @@ def select_evidence_highlights(
 		resolved = _resolve_skill_key(lookup_key, skill_evidence, taxonomy)
 		evidence_list = skill_evidence.get(resolved, []) if resolved else []
 		if not evidence_list:
+			# Fallback: try repo quantitative evidence
+			repo_key = (
+				_resolve_skill_key(lookup_key, repo_evidence, taxonomy) if repo_evidence else None
+			)
+			repo_ev = repo_evidence.get(repo_key) if repo_key else None
+			if repo_ev is None:
+				# Also try direct lookup with the lowercase lookup_key
+				repo_ev = repo_evidence.get(lookup_key)
+			if repo_ev is not None:
+				display_name = match["requirement"].title()
+				fallback_text = format_skill_repo_fallback(display_name, repo_ev)
+				result.append(
+					{
+						"heading": display_name,
+						"quote": fallback_text,
+						"project": "",
+						"date": "",
+						"tags": [match["requirement"]],
+						"source": "repo_quantitative",
+						"commit_url": None,
+					}
+				)
 			continue
 
 		# Pick highest-confidence session reference
@@ -559,6 +910,7 @@ def select_evidence_highlights(
 				"project": project_name,
 				"date": formatted_date,
 				"tags": tags,
+				"commit_url": best.get("commit_url"),  # populated by D2 commit extraction
 			}
 		)
 
@@ -642,7 +994,6 @@ def _today_iso() -> str:
 def export_fit_assessment(
 	assessment_data: dict[str, Any],
 	merged_profile_data: dict[str, Any],
-	candidate_profile_path: Path,
 	output_dir: Path,
 	*,
 	cal_link: str = _DEFAULT_CAL_LINK,
@@ -653,7 +1004,6 @@ def export_fit_assessment(
 	    assessment_data: Assessment dict from storage. The 'data' field contains the
 	        full FitAssessment payload — already parsed as a dict by storage._decode_assessment().
 	    merged_profile_data: Merged profile as a dict (built on the fly, not read from disk).
-	    candidate_profile_path: Path to candidate_profile.json.
 	    output_dir: Directory to write the markdown file.
 	    cal_link: Cal.com booking link.
 
@@ -670,9 +1020,8 @@ def export_fit_assessment(
 	else:
 		full_data = raw_data
 
-	# Use the pre-built merged profile dict directly; load candidate from disk
+	# Use the pre-built merged profile dict directly
 	merged_profile = merged_profile_data
-	candidate_profile = json.loads(candidate_profile_path.read_text(encoding="utf-8"))
 
 	# Extract fields
 	title = full_data.get("job_title", "Engineer")
@@ -686,6 +1035,18 @@ def export_fit_assessment(
 	taxonomy = _get_taxonomy()
 	merged_skills = {s["name"].lower(): s for s in merged_profile.get("skills", [])}
 
+	# Resolve abstract skills (Decision 4, three-tier resolution).
+	# Build a repo-profile-like dict from the merged profile's projects for signal rules.
+	job_skill_names = [m.get("requirement", "").lower() for m in skill_matches_raw]
+	repo_like = {
+		"skill_evidence": {k: {} for k in merged_skills},
+		"projects": merged_profile.get("projects", []),
+	}
+	inferred_abstracts = resolve_abstract_skills(repo_like, job_skill_names, use_claude=False)
+	for skill_name, synth_entry in inferred_abstracts.items():
+		if skill_name not in merged_skills:
+			merged_skills[skill_name] = synth_entry
+
 	# Select and enrich skill matches
 	selected_matches = select_skill_matches(skill_matches_raw)
 	enriched_matches = []
@@ -697,7 +1058,9 @@ def export_fit_assessment(
 		resolved_key = _resolve_skill_key(join_key, merged_skills, taxonomy)
 		merged = merged_skills.get(resolved_key, {}) if resolved_key else {}
 		# Normalize evidence_source to v0.9 canonical values
-		normalized_source = _normalize_evidence_source(str(match.get("evidence_source", "resume_only")))
+		normalized_source = _normalize_evidence_source(
+			str(match.get("evidence_source", "resume_only"))
+		)
 		# Extract per-match evidence snippet and filter projects to those referenced
 		# by this skill's evidence entries (avoids global project list misclassifying tiers)
 		skill_evidence = merged.get("evidence", [])
@@ -730,12 +1093,8 @@ def export_fit_assessment(
 			}
 		)
 
-	# Select other content
-	evidence = select_evidence_highlights(
-		skill_matches_raw,
-		candidate_profile.get("skills", []),
-		projects=merged_profile.get("projects", []),
-	)
+	# Session evidence is dormant (D6). Evidence highlights will be populated by commit evidence (D2).
+	evidence: list[dict[str, Any]] = []
 	patterns = select_patterns(merged_profile.get("patterns", []))
 
 	# Collect tech stack from job for project relevance
@@ -776,7 +1135,9 @@ def export_fit_assessment(
 	raw_company_research = full_data.get("company_research_sample") or full_data.get(
 		"company_profile_summary"
 	)
-	company_research_sample = scrub_deliverable(raw_company_research) if raw_company_research else None
+	company_research_sample = (
+		scrub_deliverable(raw_company_research) if raw_company_research else None
+	)
 
 	# Assemble front matter data
 	# NOTE: narrative_verdict intentionally excluded (Decision 5, Do Not Retry).
