@@ -423,7 +423,6 @@ def test_export_fails_below_skill_threshold(tmp_path):
 		],
 	}
 
-
 	assessment = {
 		"data": {
 			"job_title": "Engineer",
@@ -650,7 +649,9 @@ class TestNormalizeEvidenceSource:
 class TestComputeEvidenceTier:
 	def test_inspectable_when_public_repo_url(self):
 		match = {"evidence_source": "repo_only", "confidence": 0.9}
-		projects = [{"project_name": "my-project", "public_repo_url": "https://github.com/user/my-project"}]
+		projects = [
+			{"project_name": "my-project", "public_repo_url": "https://github.com/user/my-project"}
+		]
 		# evidence_snippet referencing a project with public_repo_url
 		snippet = "Built the pipeline for my-project"
 		tier = compute_evidence_tier(match, snippet, projects)
@@ -658,7 +659,9 @@ class TestComputeEvidenceTier:
 
 	def test_inspectable_when_github_commit_in_evidence(self):
 		match = {"evidence_source": "repo_only", "confidence": 0.9}
-		snippet = "Implemented feature https://github.com/user/repo/commit/abc123def456 in production"
+		snippet = (
+			"Implemented feature https://github.com/user/repo/commit/abc123def456 in production"
+		)
 		tier = compute_evidence_tier(match, snippet, [])
 		assert tier == "inspectable"
 
@@ -689,7 +692,10 @@ class TestComputeEvidenceTier:
 	def test_inspectable_only_for_matched_projects(self):
 		"""A project with public_repo_url unrelated to the match should not trigger inspectable."""
 		match = {"evidence_source": "resume_only", "confidence": 0.6}
-		unrelated_project = {"project_name": "other-project", "public_repo_url": "https://github.com/user/other"}
+		unrelated_project = {
+			"project_name": "other-project",
+			"public_repo_url": "https://github.com/user/other",
+		}
 		tier = compute_evidence_tier(match, "", [unrelated_project])
 		# The project IS passed, so compute_evidence_tier returns inspectable.
 		# The call site is responsible for filtering — this tests function purity.
@@ -851,12 +857,30 @@ def test_export_includes_company_research_sample(tmp_path):
 	"""company_research_sample should appear in the YAML output."""
 	merged = {
 		"skills": [
-			{"name": "python", "source": "resume_only", "effective_depth": "EXPERT",
-			 "session_evidence_count": 100, "discovery_flag": False, "confidence": 0.9},
-			{"name": "react", "source": "resume_only", "effective_depth": "APPLIED",
-			 "session_evidence_count": 50, "discovery_flag": False, "confidence": 0.8},
-			{"name": "fastapi", "source": "resume_only", "effective_depth": "APPLIED",
-			 "session_evidence_count": 30, "discovery_flag": False, "confidence": 0.75},
+			{
+				"name": "python",
+				"source": "resume_only",
+				"effective_depth": "EXPERT",
+				"session_evidence_count": 100,
+				"discovery_flag": False,
+				"confidence": 0.9,
+			},
+			{
+				"name": "react",
+				"source": "resume_only",
+				"effective_depth": "APPLIED",
+				"session_evidence_count": 50,
+				"discovery_flag": False,
+				"confidence": 0.8,
+			},
+			{
+				"name": "fastapi",
+				"source": "resume_only",
+				"effective_depth": "APPLIED",
+				"session_evidence_count": 30,
+				"discovery_flag": False,
+				"confidence": 0.75,
+			},
 		],
 		"patterns": [],
 		"projects": [
@@ -882,12 +906,30 @@ def test_export_includes_company_research_sample(tmp_path):
 			"should_apply": "yes",
 			"overall_summary": "Good fit.",
 			"skill_matches": [
-				{"requirement": "python", "priority": "must_have", "match_status": "strong_match",
-				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.9},
-				{"requirement": "react", "priority": "must_have", "match_status": "strong_match",
-				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.8},
-				{"requirement": "fastapi", "priority": "strong_preference", "match_status": "strong_match",
-				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.75},
+				{
+					"requirement": "python",
+					"priority": "must_have",
+					"match_status": "strong_match",
+					"candidate_evidence": "Yes",
+					"evidence_source": "resume_only",
+					"confidence": 0.9,
+				},
+				{
+					"requirement": "react",
+					"priority": "must_have",
+					"match_status": "strong_match",
+					"candidate_evidence": "Yes",
+					"evidence_source": "resume_only",
+					"confidence": 0.8,
+				},
+				{
+					"requirement": "fastapi",
+					"priority": "strong_preference",
+					"match_status": "strong_match",
+					"candidate_evidence": "Yes",
+					"evidence_source": "resume_only",
+					"confidence": 0.75,
+				},
 			],
 			"action_items": [],
 			"company_research_sample": "TestCo is a fast-growing startup in SF.",
@@ -910,12 +952,30 @@ def test_narrative_verdict_never_exported(tmp_path):
 	"""narrative_verdict must never appear in YAML output — Decision 5."""
 	merged = {
 		"skills": [
-			{"name": "python", "source": "resume_only", "effective_depth": "EXPERT",
-			 "session_evidence_count": 100, "discovery_flag": False, "confidence": 0.9},
-			{"name": "react", "source": "resume_only", "effective_depth": "APPLIED",
-			 "session_evidence_count": 50, "discovery_flag": False, "confidence": 0.8},
-			{"name": "fastapi", "source": "resume_only", "effective_depth": "APPLIED",
-			 "session_evidence_count": 30, "discovery_flag": False, "confidence": 0.75},
+			{
+				"name": "python",
+				"source": "resume_only",
+				"effective_depth": "EXPERT",
+				"session_evidence_count": 100,
+				"discovery_flag": False,
+				"confidence": 0.9,
+			},
+			{
+				"name": "react",
+				"source": "resume_only",
+				"effective_depth": "APPLIED",
+				"session_evidence_count": 50,
+				"discovery_flag": False,
+				"confidence": 0.8,
+			},
+			{
+				"name": "fastapi",
+				"source": "resume_only",
+				"effective_depth": "APPLIED",
+				"session_evidence_count": 30,
+				"discovery_flag": False,
+				"confidence": 0.75,
+			},
 		],
 		"patterns": [],
 		"projects": [
@@ -942,12 +1002,30 @@ def test_narrative_verdict_never_exported(tmp_path):
 			"overall_summary": "Good fit.",
 			"narrative_verdict": "This candidate is perfect for the role.",
 			"skill_matches": [
-				{"requirement": "python", "priority": "must_have", "match_status": "strong_match",
-				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.9},
-				{"requirement": "react", "priority": "must_have", "match_status": "strong_match",
-				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.8},
-				{"requirement": "fastapi", "priority": "strong_preference", "match_status": "strong_match",
-				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.75},
+				{
+					"requirement": "python",
+					"priority": "must_have",
+					"match_status": "strong_match",
+					"candidate_evidence": "Yes",
+					"evidence_source": "resume_only",
+					"confidence": 0.9,
+				},
+				{
+					"requirement": "react",
+					"priority": "must_have",
+					"match_status": "strong_match",
+					"candidate_evidence": "Yes",
+					"evidence_source": "resume_only",
+					"confidence": 0.8,
+				},
+				{
+					"requirement": "fastapi",
+					"priority": "strong_preference",
+					"match_status": "strong_match",
+					"candidate_evidence": "Yes",
+					"evidence_source": "resume_only",
+					"confidence": 0.75,
+				},
 			],
 			"action_items": [],
 		},
@@ -1001,12 +1079,30 @@ def test_company_research_sample_scrubs_pii(tmp_path):
 	"""company_research_sample with PII should have it scrubbed in output."""
 	merged = {
 		"skills": [
-			{"name": "python", "source": "resume_only", "effective_depth": "EXPERT",
-			 "session_evidence_count": 100, "discovery_flag": False, "confidence": 0.9},
-			{"name": "react", "source": "resume_only", "effective_depth": "APPLIED",
-			 "session_evidence_count": 50, "discovery_flag": False, "confidence": 0.8},
-			{"name": "fastapi", "source": "resume_only", "effective_depth": "APPLIED",
-			 "session_evidence_count": 30, "discovery_flag": False, "confidence": 0.75},
+			{
+				"name": "python",
+				"source": "resume_only",
+				"effective_depth": "EXPERT",
+				"session_evidence_count": 100,
+				"discovery_flag": False,
+				"confidence": 0.9,
+			},
+			{
+				"name": "react",
+				"source": "resume_only",
+				"effective_depth": "APPLIED",
+				"session_evidence_count": 50,
+				"discovery_flag": False,
+				"confidence": 0.8,
+			},
+			{
+				"name": "fastapi",
+				"source": "resume_only",
+				"effective_depth": "APPLIED",
+				"session_evidence_count": 30,
+				"discovery_flag": False,
+				"confidence": 0.75,
+			},
 		],
 		"patterns": [],
 		"projects": [
@@ -1032,12 +1128,30 @@ def test_company_research_sample_scrubs_pii(tmp_path):
 			"should_apply": "yes",
 			"overall_summary": "Good fit.",
 			"skill_matches": [
-				{"requirement": "python", "priority": "must_have", "match_status": "strong_match",
-				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.9},
-				{"requirement": "react", "priority": "must_have", "match_status": "strong_match",
-				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.8},
-				{"requirement": "fastapi", "priority": "strong_preference", "match_status": "strong_match",
-				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.75},
+				{
+					"requirement": "python",
+					"priority": "must_have",
+					"match_status": "strong_match",
+					"candidate_evidence": "Yes",
+					"evidence_source": "resume_only",
+					"confidence": 0.9,
+				},
+				{
+					"requirement": "react",
+					"priority": "must_have",
+					"match_status": "strong_match",
+					"candidate_evidence": "Yes",
+					"evidence_source": "resume_only",
+					"confidence": 0.8,
+				},
+				{
+					"requirement": "fastapi",
+					"priority": "strong_preference",
+					"match_status": "strong_match",
+					"candidate_evidence": "Yes",
+					"evidence_source": "resume_only",
+					"confidence": 0.75,
+				},
 			],
 			"action_items": [],
 			"company_research_sample": "Contact HR at 555-123-4567 for more info about TestCo.",
@@ -1064,12 +1178,30 @@ def test_integration_tier_field_present(tmp_path):
 	"""tier field must be on every skill match, with valid value."""
 	merged = {
 		"skills": [
-			{"name": "python", "source": "resume_and_repo", "effective_depth": "EXPERT",
-			 "session_evidence_count": 551, "discovery_flag": False, "confidence": 0.95},
-			{"name": "react", "source": "repo_only", "effective_depth": "APPLIED",
-			 "session_evidence_count": 229, "discovery_flag": True, "confidence": 0.8},
-			{"name": "fastapi", "source": "resume_only", "effective_depth": "APPLIED",
-			 "session_evidence_count": 0, "discovery_flag": False, "confidence": 0.75},
+			{
+				"name": "python",
+				"source": "resume_and_repo",
+				"effective_depth": "EXPERT",
+				"session_evidence_count": 551,
+				"discovery_flag": False,
+				"confidence": 0.95,
+			},
+			{
+				"name": "react",
+				"source": "repo_only",
+				"effective_depth": "APPLIED",
+				"session_evidence_count": 229,
+				"discovery_flag": True,
+				"confidence": 0.8,
+			},
+			{
+				"name": "fastapi",
+				"source": "resume_only",
+				"effective_depth": "APPLIED",
+				"session_evidence_count": 0,
+				"discovery_flag": False,
+				"confidence": 0.75,
+			},
 		],
 		"patterns": [],
 		"projects": [
@@ -1096,15 +1228,33 @@ def test_integration_tier_field_present(tmp_path):
 			"should_apply": "strong_yes",
 			"overall_summary": "Exceptional fit.",
 			"skill_matches": [
-				{"requirement": "python", "priority": "must_have", "match_status": "strong_match",
-				 "candidate_evidence": "Yes", "evidence_source": "resume_and_repo", "confidence": 0.95,
-				 "matched_skill": "python"},
-				{"requirement": "react", "priority": "must_have", "match_status": "strong_match",
-				 "candidate_evidence": "Yes", "evidence_source": "repo_only", "confidence": 0.8,
-				 "matched_skill": "react"},
-				{"requirement": "fastapi", "priority": "strong_preference", "match_status": "strong_match",
-				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.75,
-				 "matched_skill": "fastapi"},
+				{
+					"requirement": "python",
+					"priority": "must_have",
+					"match_status": "strong_match",
+					"candidate_evidence": "Yes",
+					"evidence_source": "resume_and_repo",
+					"confidence": 0.95,
+					"matched_skill": "python",
+				},
+				{
+					"requirement": "react",
+					"priority": "must_have",
+					"match_status": "strong_match",
+					"candidate_evidence": "Yes",
+					"evidence_source": "repo_only",
+					"confidence": 0.8,
+					"matched_skill": "react",
+				},
+				{
+					"requirement": "fastapi",
+					"priority": "strong_preference",
+					"match_status": "strong_match",
+					"candidate_evidence": "Yes",
+					"evidence_source": "resume_only",
+					"confidence": 0.75,
+					"matched_skill": "fastapi",
+				},
 			],
 			"action_items": [],
 		},
@@ -1129,12 +1279,30 @@ def test_integration_no_legacy_source_values(tmp_path):
 	"""No corroborated or sessions_only values should survive to the output."""
 	merged = {
 		"skills": [
-			{"name": "python", "source": "resume_and_repo", "effective_depth": "EXPERT",
-			 "session_evidence_count": 551, "discovery_flag": False, "confidence": 0.95},
-			{"name": "react", "source": "repo_only", "effective_depth": "APPLIED",
-			 "session_evidence_count": 229, "discovery_flag": True, "confidence": 0.8},
-			{"name": "fastapi", "source": "resume_only", "effective_depth": "APPLIED",
-			 "session_evidence_count": 0, "discovery_flag": False, "confidence": 0.75},
+			{
+				"name": "python",
+				"source": "resume_and_repo",
+				"effective_depth": "EXPERT",
+				"session_evidence_count": 551,
+				"discovery_flag": False,
+				"confidence": 0.95,
+			},
+			{
+				"name": "react",
+				"source": "repo_only",
+				"effective_depth": "APPLIED",
+				"session_evidence_count": 229,
+				"discovery_flag": True,
+				"confidence": 0.8,
+			},
+			{
+				"name": "fastapi",
+				"source": "resume_only",
+				"effective_depth": "APPLIED",
+				"session_evidence_count": 0,
+				"discovery_flag": False,
+				"confidence": 0.75,
+			},
 		],
 		"patterns": [],
 		"projects": [
@@ -1160,15 +1328,33 @@ def test_integration_no_legacy_source_values(tmp_path):
 			"should_apply": "strong_yes",
 			"overall_summary": "Exceptional fit.",
 			"skill_matches": [
-				{"requirement": "python", "priority": "must_have", "match_status": "strong_match",
-				 "candidate_evidence": "Yes", "evidence_source": "corroborated", "confidence": 0.95,
-				 "matched_skill": "python"},
-				{"requirement": "react", "priority": "must_have", "match_status": "strong_match",
-				 "candidate_evidence": "Yes", "evidence_source": "sessions_only", "confidence": 0.8,
-				 "matched_skill": "react"},
-				{"requirement": "fastapi", "priority": "strong_preference", "match_status": "strong_match",
-				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.75,
-				 "matched_skill": "fastapi"},
+				{
+					"requirement": "python",
+					"priority": "must_have",
+					"match_status": "strong_match",
+					"candidate_evidence": "Yes",
+					"evidence_source": "corroborated",
+					"confidence": 0.95,
+					"matched_skill": "python",
+				},
+				{
+					"requirement": "react",
+					"priority": "must_have",
+					"match_status": "strong_match",
+					"candidate_evidence": "Yes",
+					"evidence_source": "sessions_only",
+					"confidence": 0.8,
+					"matched_skill": "react",
+				},
+				{
+					"requirement": "fastapi",
+					"priority": "strong_preference",
+					"match_status": "strong_match",
+					"candidate_evidence": "Yes",
+					"evidence_source": "resume_only",
+					"confidence": 0.75,
+					"matched_skill": "fastapi",
+				},
 			],
 			"action_items": [],
 		},
@@ -1185,19 +1371,39 @@ def test_integration_no_legacy_source_values(tmp_path):
 
 	legacy_values = {"corroborated", "sessions_only"}
 	for match in parsed["skill_matches"]:
-		assert match["source"] not in legacy_values, f"Legacy source value in output: {match['source']}"
+		assert match["source"] not in legacy_values, (
+			f"Legacy source value in output: {match['source']}"
+		)
 
 
 def test_integration_benchmark_fields_present(tmp_path):
 	"""benchmark_postings_count and benchmark_calibration_date must be present."""
 	merged = {
 		"skills": [
-			{"name": "python", "source": "resume_only", "effective_depth": "EXPERT",
-			 "session_evidence_count": 100, "discovery_flag": False, "confidence": 0.9},
-			{"name": "react", "source": "resume_only", "effective_depth": "APPLIED",
-			 "session_evidence_count": 50, "discovery_flag": False, "confidence": 0.8},
-			{"name": "fastapi", "source": "resume_only", "effective_depth": "APPLIED",
-			 "session_evidence_count": 30, "discovery_flag": False, "confidence": 0.75},
+			{
+				"name": "python",
+				"source": "resume_only",
+				"effective_depth": "EXPERT",
+				"session_evidence_count": 100,
+				"discovery_flag": False,
+				"confidence": 0.9,
+			},
+			{
+				"name": "react",
+				"source": "resume_only",
+				"effective_depth": "APPLIED",
+				"session_evidence_count": 50,
+				"discovery_flag": False,
+				"confidence": 0.8,
+			},
+			{
+				"name": "fastapi",
+				"source": "resume_only",
+				"effective_depth": "APPLIED",
+				"session_evidence_count": 30,
+				"discovery_flag": False,
+				"confidence": 0.75,
+			},
 		],
 		"patterns": [],
 		"projects": [
@@ -1223,12 +1429,30 @@ def test_integration_benchmark_fields_present(tmp_path):
 			"should_apply": "yes",
 			"overall_summary": "Good fit.",
 			"skill_matches": [
-				{"requirement": "python", "priority": "must_have", "match_status": "strong_match",
-				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.9},
-				{"requirement": "react", "priority": "must_have", "match_status": "strong_match",
-				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.8},
-				{"requirement": "fastapi", "priority": "strong_preference", "match_status": "strong_match",
-				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.75},
+				{
+					"requirement": "python",
+					"priority": "must_have",
+					"match_status": "strong_match",
+					"candidate_evidence": "Yes",
+					"evidence_source": "resume_only",
+					"confidence": 0.9,
+				},
+				{
+					"requirement": "react",
+					"priority": "must_have",
+					"match_status": "strong_match",
+					"candidate_evidence": "Yes",
+					"evidence_source": "resume_only",
+					"confidence": 0.8,
+				},
+				{
+					"requirement": "fastapi",
+					"priority": "strong_preference",
+					"match_status": "strong_match",
+					"candidate_evidence": "Yes",
+					"evidence_source": "resume_only",
+					"confidence": 0.75,
+				},
 			],
 			"action_items": [],
 		},
@@ -1251,12 +1475,30 @@ def test_integration_narrative_verdict_absent(tmp_path):
 	"""narrative_verdict must never appear in output."""
 	merged = {
 		"skills": [
-			{"name": "python", "source": "resume_only", "effective_depth": "EXPERT",
-			 "session_evidence_count": 100, "discovery_flag": False, "confidence": 0.9},
-			{"name": "react", "source": "resume_only", "effective_depth": "APPLIED",
-			 "session_evidence_count": 50, "discovery_flag": False, "confidence": 0.8},
-			{"name": "fastapi", "source": "resume_only", "effective_depth": "APPLIED",
-			 "session_evidence_count": 30, "discovery_flag": False, "confidence": 0.75},
+			{
+				"name": "python",
+				"source": "resume_only",
+				"effective_depth": "EXPERT",
+				"session_evidence_count": 100,
+				"discovery_flag": False,
+				"confidence": 0.9,
+			},
+			{
+				"name": "react",
+				"source": "resume_only",
+				"effective_depth": "APPLIED",
+				"session_evidence_count": 50,
+				"discovery_flag": False,
+				"confidence": 0.8,
+			},
+			{
+				"name": "fastapi",
+				"source": "resume_only",
+				"effective_depth": "APPLIED",
+				"session_evidence_count": 30,
+				"discovery_flag": False,
+				"confidence": 0.75,
+			},
 		],
 		"patterns": [],
 		"projects": [
@@ -1283,12 +1525,30 @@ def test_integration_narrative_verdict_absent(tmp_path):
 			"overall_summary": "Good fit.",
 			"narrative_verdict": "This candidate is exceptional.",
 			"skill_matches": [
-				{"requirement": "python", "priority": "must_have", "match_status": "strong_match",
-				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.9},
-				{"requirement": "react", "priority": "must_have", "match_status": "strong_match",
-				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.8},
-				{"requirement": "fastapi", "priority": "strong_preference", "match_status": "strong_match",
-				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.75},
+				{
+					"requirement": "python",
+					"priority": "must_have",
+					"match_status": "strong_match",
+					"candidate_evidence": "Yes",
+					"evidence_source": "resume_only",
+					"confidence": 0.9,
+				},
+				{
+					"requirement": "react",
+					"priority": "must_have",
+					"match_status": "strong_match",
+					"candidate_evidence": "Yes",
+					"evidence_source": "resume_only",
+					"confidence": 0.8,
+				},
+				{
+					"requirement": "fastapi",
+					"priority": "strong_preference",
+					"match_status": "strong_match",
+					"candidate_evidence": "Yes",
+					"evidence_source": "resume_only",
+					"confidence": 0.75,
+				},
 			],
 			"action_items": [],
 		},
@@ -1309,12 +1569,30 @@ def test_integration_public_repo_url_on_projects(tmp_path):
 	"""public_repo_url should pass through on projects that have it."""
 	merged = {
 		"skills": [
-			{"name": "python", "source": "resume_only", "effective_depth": "EXPERT",
-			 "session_evidence_count": 100, "discovery_flag": False, "confidence": 0.9},
-			{"name": "react", "source": "resume_only", "effective_depth": "APPLIED",
-			 "session_evidence_count": 50, "discovery_flag": False, "confidence": 0.8},
-			{"name": "fastapi", "source": "resume_only", "effective_depth": "APPLIED",
-			 "session_evidence_count": 30, "discovery_flag": False, "confidence": 0.75},
+			{
+				"name": "python",
+				"source": "resume_only",
+				"effective_depth": "EXPERT",
+				"session_evidence_count": 100,
+				"discovery_flag": False,
+				"confidence": 0.9,
+			},
+			{
+				"name": "react",
+				"source": "resume_only",
+				"effective_depth": "APPLIED",
+				"session_evidence_count": 50,
+				"discovery_flag": False,
+				"confidence": 0.8,
+			},
+			{
+				"name": "fastapi",
+				"source": "resume_only",
+				"effective_depth": "APPLIED",
+				"session_evidence_count": 30,
+				"discovery_flag": False,
+				"confidence": 0.75,
+			},
 		],
 		"patterns": [],
 		"projects": [
@@ -1341,12 +1619,30 @@ def test_integration_public_repo_url_on_projects(tmp_path):
 			"should_apply": "yes",
 			"overall_summary": "Good fit.",
 			"skill_matches": [
-				{"requirement": "python", "priority": "must_have", "match_status": "strong_match",
-				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.9},
-				{"requirement": "react", "priority": "must_have", "match_status": "strong_match",
-				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.8},
-				{"requirement": "fastapi", "priority": "strong_preference", "match_status": "strong_match",
-				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.75},
+				{
+					"requirement": "python",
+					"priority": "must_have",
+					"match_status": "strong_match",
+					"candidate_evidence": "Yes",
+					"evidence_source": "resume_only",
+					"confidence": 0.9,
+				},
+				{
+					"requirement": "react",
+					"priority": "must_have",
+					"match_status": "strong_match",
+					"candidate_evidence": "Yes",
+					"evidence_source": "resume_only",
+					"confidence": 0.8,
+				},
+				{
+					"requirement": "fastapi",
+					"priority": "strong_preference",
+					"match_status": "strong_match",
+					"candidate_evidence": "Yes",
+					"evidence_source": "resume_only",
+					"confidence": 0.75,
+				},
 			],
 			"action_items": [],
 		},
@@ -1370,12 +1666,30 @@ def test_integration_company_research_sample_present(tmp_path):
 	"""company_research_sample should be in output when provided."""
 	merged = {
 		"skills": [
-			{"name": "python", "source": "resume_only", "effective_depth": "EXPERT",
-			 "session_evidence_count": 100, "discovery_flag": False, "confidence": 0.9},
-			{"name": "react", "source": "resume_only", "effective_depth": "APPLIED",
-			 "session_evidence_count": 50, "discovery_flag": False, "confidence": 0.8},
-			{"name": "fastapi", "source": "resume_only", "effective_depth": "APPLIED",
-			 "session_evidence_count": 30, "discovery_flag": False, "confidence": 0.75},
+			{
+				"name": "python",
+				"source": "resume_only",
+				"effective_depth": "EXPERT",
+				"session_evidence_count": 100,
+				"discovery_flag": False,
+				"confidence": 0.9,
+			},
+			{
+				"name": "react",
+				"source": "resume_only",
+				"effective_depth": "APPLIED",
+				"session_evidence_count": 50,
+				"discovery_flag": False,
+				"confidence": 0.8,
+			},
+			{
+				"name": "fastapi",
+				"source": "resume_only",
+				"effective_depth": "APPLIED",
+				"session_evidence_count": 30,
+				"discovery_flag": False,
+				"confidence": 0.75,
+			},
 		],
 		"patterns": [],
 		"projects": [
@@ -1401,12 +1715,30 @@ def test_integration_company_research_sample_present(tmp_path):
 			"should_apply": "yes",
 			"overall_summary": "Good fit.",
 			"skill_matches": [
-				{"requirement": "python", "priority": "must_have", "match_status": "strong_match",
-				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.9},
-				{"requirement": "react", "priority": "must_have", "match_status": "strong_match",
-				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.8},
-				{"requirement": "fastapi", "priority": "strong_preference", "match_status": "strong_match",
-				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.75},
+				{
+					"requirement": "python",
+					"priority": "must_have",
+					"match_status": "strong_match",
+					"candidate_evidence": "Yes",
+					"evidence_source": "resume_only",
+					"confidence": 0.9,
+				},
+				{
+					"requirement": "react",
+					"priority": "must_have",
+					"match_status": "strong_match",
+					"candidate_evidence": "Yes",
+					"evidence_source": "resume_only",
+					"confidence": 0.8,
+				},
+				{
+					"requirement": "fastapi",
+					"priority": "strong_preference",
+					"match_status": "strong_match",
+					"candidate_evidence": "Yes",
+					"evidence_source": "resume_only",
+					"confidence": 0.75,
+				},
 			],
 			"action_items": [],
 			"company_research_sample": "TestCo is a great company.",
@@ -1431,12 +1763,30 @@ def test_export_fit_assessment_no_candidate_profile_path(tmp_path):
 	"""export_fit_assessment should succeed without candidate_profile_path (D6)."""
 	merged = {
 		"skills": [
-			{"name": "python", "source": "resume_only", "effective_depth": "EXPERT",
-			 "session_evidence_count": 100, "discovery_flag": False, "confidence": 0.9},
-			{"name": "react", "source": "resume_only", "effective_depth": "APPLIED",
-			 "session_evidence_count": 50, "discovery_flag": False, "confidence": 0.8},
-			{"name": "fastapi", "source": "resume_only", "effective_depth": "APPLIED",
-			 "session_evidence_count": 30, "discovery_flag": False, "confidence": 0.75},
+			{
+				"name": "python",
+				"source": "resume_only",
+				"effective_depth": "EXPERT",
+				"session_evidence_count": 100,
+				"discovery_flag": False,
+				"confidence": 0.9,
+			},
+			{
+				"name": "react",
+				"source": "resume_only",
+				"effective_depth": "APPLIED",
+				"session_evidence_count": 50,
+				"discovery_flag": False,
+				"confidence": 0.8,
+			},
+			{
+				"name": "fastapi",
+				"source": "resume_only",
+				"effective_depth": "APPLIED",
+				"session_evidence_count": 30,
+				"discovery_flag": False,
+				"confidence": 0.75,
+			},
 		],
 		"patterns": [],
 		"projects": [
@@ -1462,12 +1812,30 @@ def test_export_fit_assessment_no_candidate_profile_path(tmp_path):
 			"should_apply": "yes",
 			"overall_summary": "Good fit.",
 			"skill_matches": [
-				{"requirement": "python", "priority": "must_have", "match_status": "strong_match",
-				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.9},
-				{"requirement": "react", "priority": "must_have", "match_status": "strong_match",
-				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.8},
-				{"requirement": "fastapi", "priority": "strong_preference", "match_status": "strong_match",
-				 "candidate_evidence": "Yes", "evidence_source": "resume_only", "confidence": 0.75},
+				{
+					"requirement": "python",
+					"priority": "must_have",
+					"match_status": "strong_match",
+					"candidate_evidence": "Yes",
+					"evidence_source": "resume_only",
+					"confidence": 0.9,
+				},
+				{
+					"requirement": "react",
+					"priority": "must_have",
+					"match_status": "strong_match",
+					"candidate_evidence": "Yes",
+					"evidence_source": "resume_only",
+					"confidence": 0.8,
+				},
+				{
+					"requirement": "fastapi",
+					"priority": "strong_preference",
+					"match_status": "strong_match",
+					"candidate_evidence": "Yes",
+					"evidence_source": "resume_only",
+					"confidence": 0.75,
+				},
 			],
 			"action_items": [],
 		},
@@ -1621,7 +1989,10 @@ class TestFormatSkillRepoFallback:
 			test_coverage=True,
 		)
 		result = format_skill_repo_fallback("Python", evidence)
-		assert result == "Python — 8 repositories, 45-day active timeline. Test coverage present. Frameworks: Fastapi, Pydantic."
+		assert (
+			result
+			== "Python — 8 repositories, 45-day active timeline. Test coverage present. Frameworks: Fastapi, Pydantic."
+		)
 
 	def test_single_repo_no_test_no_frameworks(self):
 		"""Single repo, no test coverage, no frameworks."""
