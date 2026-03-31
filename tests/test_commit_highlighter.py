@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from claude_candidate.commit_filter import RawCommit
+from claude_candidate.commit_filter import filter_commits
 from claude_candidate.commit_highlighter import (
 	_build_highlight_prompt,
 	_heuristic_highlights,
@@ -208,3 +210,59 @@ class TestExtractCommitHighlights:
 			assert len(result) == 1
 			assert result[0].quote == "Claude-generated highlight"
 			assert result[0].skills == ["python"]
+
+
+# ---------------------------------------------------------------------------
+# Slow integration tests (real Claude CLI)
+# ---------------------------------------------------------------------------
+
+
+class TestCommitHighlighterIntegration:
+	@pytest.mark.slow
+	def test_highlights_from_this_repo(self):
+		"""Full pipeline on candidate-eval repo with real Claude CLI."""
+		from claude_candidate.repo_scanner import _fetch_raw_commits, _get_remote_url
+
+		repo_path = Path(__file__).parent.parent
+		raw = _fetch_raw_commits(repo_path, max_commits=50)
+		filtered = filter_commits(raw, max_candidates=20)
+		repo_url = _get_remote_url(repo_path)
+
+		highlights = extract_commit_highlights(
+			filtered,
+			repo_name="candidate-eval",
+			repo_url=repo_url,
+			max_highlights=5,
+		)
+
+		assert len(highlights) > 0
+		assert len(highlights) <= 5
+		for h in highlights:
+			assert h.quote  # non-empty
+			assert h.timestamp.year >= 2025
+
+	@pytest.mark.slow
+	def test_highlights_carry_github_links(self):
+		"""Highlights from a repo with a remote should have GitHub URLs."""
+		from claude_candidate.repo_scanner import _fetch_raw_commits, _get_remote_url
+
+		repo_path = Path(__file__).parent.parent
+		repo_url = _get_remote_url(repo_path)
+		if repo_url is None:
+			pytest.skip("No remote URL for this repo")
+
+		raw = _fetch_raw_commits(repo_path, max_commits=20)
+		filtered = filter_commits(raw, max_candidates=10)
+
+		highlights = extract_commit_highlights(
+			filtered,
+			repo_name="candidate-eval",
+			repo_url=repo_url,
+			max_highlights=3,
+		)
+
+		assert len(highlights) > 0
+		for h in highlights:
+			assert h.github_url is not None
+			assert h.github_url.startswith("https://")
+			assert "/commit/" in h.github_url
