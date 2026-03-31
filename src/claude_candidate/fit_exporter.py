@@ -520,6 +520,212 @@ _RESOLVE_STOPWORDS = frozenset(
 	}
 )
 
+# ── Abstract Skill Resolution (Decision 4) ──
+
+ABSTRACT_SKILLS: frozenset[str] = frozenset({
+	"agentic-workflows", "developer-tools", "system-design", "full-stack",
+	"software-engineering", "computer-science", "frontend-development",
+	"backend-development", "api-design", "llm", "prompt-engineering",
+	"generative-ai", "ai-evaluation", "ai-process-engineering",
+	"production-systems", "ci-cd", "devops", "testing",
+})
+
+_ABSTRACT_SIGNAL_RULES: list[tuple[str, Any, str]] = [
+	("ai_maturity_level", lambda v: v == "expert", "agentic-workflows"),
+	("ai_maturity_level", lambda v: v in ("advanced", "expert"), "agentic-workflows"),
+	("llm_imports", lambda v: bool(v), "llm"),
+	("has_prompt_templates", lambda v: v, "prompt-engineering"),
+	("has_eval_framework", lambda v: v, "ai-evaluation"),
+	("has_claude_md", lambda v: v, "developer-tools"),
+	("has_ci", lambda v: v, "ci-cd"),
+	("ci_complexity", lambda v: v in ("standard", "advanced"), "devops"),
+	("has_tests", lambda v: v, "testing"),
+	("directory_depth", lambda v: v >= 4, "system-design"),
+	("source_modules", lambda v: v >= 10, "system-design"),
+	("releases", lambda v: v > 0, "production-systems"),
+	("source_modules", lambda v: v >= 5, "api-design"),
+]
+
+
+def _apply_signal_rules(repos: list[dict[str, Any]]) -> set[str]:
+	"""Return abstract skills inferred from per-repo structural signals using static rules."""
+	granted: set[str] = set()
+	for repo in repos:
+		for field, test_fn, skill in _ABSTRACT_SIGNAL_RULES:
+			if skill in granted:
+				continue
+			value = repo.get(field) if isinstance(repo, dict) else getattr(repo, field, None)
+			try:
+				if test_fn(value):
+					granted.add(skill)
+			except Exception:
+				pass
+	# Tighten agentic-workflows: require expert OR (advanced + ralph_loops)
+	if "agentic-workflows" in granted:
+		has_expert = any(
+			(r.get("ai_maturity_level") if isinstance(r, dict) else getattr(r, "ai_maturity_level", None)) == "expert"
+			for r in repos
+		)
+		has_advanced_with_ralph = any(
+			(r.get("ai_maturity_level") if isinstance(r, dict) else getattr(r, "ai_maturity_level", None))
+			in ("advanced", "expert")
+			and (r.get("has_ralph_loops") if isinstance(r, dict) else getattr(r, "has_ralph_loops", False))
+			for r in repos
+		)
+		if not (has_expert or has_advanced_with_ralph):
+			granted.discard("agentic-workflows")
+	return granted
+
+
+def _build_abstract_skill_prompt(
+	repos: list[dict[str, Any]],
+	job_skills: list[str],
+	candidate_skills: list[str],
+) -> str | None:
+	"""Build a Claude prompt for inferring abstract skills from repo signals.
+
+	Returns None if there are no target abstract skills to infer.
+	Target skills = job skills that ARE abstract AND NOT already in candidate evidence.
+	"""
+	target_skills = sorted(
+		(set(job_skills) & ABSTRACT_SKILLS) - set(candidate_skills)
+	)
+	if not target_skills:
+		return None
+
+	# Summarize repo signals for context
+	repo_summaries = []
+	for repo in repos:
+		name = repo.get("name", "unknown")
+		signals = {k: v for k, v in repo.items() if k != "name" and v}
+		repo_summaries.append(f"- {name}: {json.dumps(signals, default=str)}")
+
+	repo_text = "\n".join(repo_summaries) if repo_summaries else "(no repo data)"
+
+	return (
+		"Given these repository structural signals:\n"
+		f"{repo_text}\n\n"
+		"Which of the following abstract skills are demonstrated by this evidence?\n"
+		f"Target skills: {', '.join(target_skills)}\n\n"
+		"Respond with a JSON array of skill names that are clearly demonstrated. "
+		"Only include skills with strong evidence. Example: [\"system-design\", \"testing\"]\n"
+		"If none are demonstrated, respond with an empty array: []"
+	)
+
+
+def _claude_infer_abstract_skills(
+	repos: list[dict[str, Any]],
+	job_skills: list[str],
+	candidate_skills: list[str],
+) -> set[str]:
+	"""Call Claude to infer abstract skills from repo signals.
+
+	Falls back to empty set on any error (Claude unavailable, parse failure, etc.).
+	Filters results to only return skills that are in ABSTRACT_SKILLS.
+	"""
+	from claude_candidate.claude_cli import call_claude, ClaudeCLIError
+
+	prompt = _build_abstract_skill_prompt(repos, job_skills, candidate_skills)
+	if prompt is None:
+		return set()
+
+	try:
+		response = call_claude(prompt, timeout=30)
+		# Extract JSON array from response (may be wrapped in markdown code block)
+		cleaned = response.strip()
+		if cleaned.startswith("```"):
+			# Strip markdown code fence
+			lines = cleaned.split("\n")
+			cleaned = "\n".join(
+				line for line in lines if not line.strip().startswith("```")
+			)
+		inferred = json.loads(cleaned)
+		if not isinstance(inferred, list):
+			return set()
+		# Filter to only abstract skills (prevent hallucinated concrete skills)
+		return {s for s in inferred if isinstance(s, str) and s in ABSTRACT_SKILLS}
+	except (ClaudeCLIError, json.JSONDecodeError, Exception):
+		return set()
+
+
+def _build_commit_tagged_skills(repo_profile: dict[str, Any]) -> set[str]:
+	"""Return abstract skills tagged in commit evidence highlights (Decision 2 tier).
+
+	Stub: returns empty set until commit highlights are consumed by the resolver.
+	"""
+	return set()
+
+
+def resolve_abstract_skills(
+	repo_profile: dict[str, Any],
+	job_skills: list[str],
+	*,
+	use_claude: bool = True,
+) -> dict[str, dict[str, Any]]:
+	"""Three-tier abstract skill resolution orchestrator.
+
+	Resolves abstract skills (e.g. system-design, agentic-workflows) that don't
+	have direct entries in skill_evidence. Produces synthetic evidence entries
+	for skills that can be inferred from repo signals.
+
+	Tiers:
+	  1. Mechanical — handled by _resolve_skill_key() (existing, not called here)
+	  2. Commit tags — _build_commit_tagged_skills() (stub for D2 integration)
+	  3a. Claude inference — _claude_infer_abstract_skills() (if use_claude=True)
+	  3b. Signal rules — _apply_signal_rules() (static fallback)
+
+	Args:
+	    repo_profile: Dict with 'skill_evidence' and 'repos'/'projects' keys.
+	    job_skills: List of skill names from the job requirements.
+	    use_claude: Whether to attempt Claude inference (tier 3a).
+
+	Returns:
+	    Dict mapping abstract skill name → synthetic evidence dict with '_inferred: True'.
+	"""
+	skill_evidence = repo_profile.get("skill_evidence", {})
+	repos = repo_profile.get("repos", repo_profile.get("projects", []))
+
+	# Find target abstract skills: in job_skills, in ABSTRACT_SKILLS, not already in evidence
+	existing_skills = set(skill_evidence.keys())
+	candidate_skills = list(existing_skills)
+	target_abstract = (set(job_skills) & ABSTRACT_SKILLS) - existing_skills
+	if not target_abstract:
+		return {}
+
+	resolved: set[str] = set()
+
+	# Tier 2: commit-tagged skills
+	commit_tagged = _build_commit_tagged_skills(repo_profile)
+	resolved |= (commit_tagged & target_abstract)
+
+	# Tier 3a: Claude inference (if enabled)
+	remaining = target_abstract - resolved
+	if remaining and use_claude:
+		claude_inferred = _claude_infer_abstract_skills(
+			repos, list(remaining), candidate_skills
+		)
+		resolved |= (claude_inferred & target_abstract)
+
+	# Tier 3b: signal rules for anything still unresolved
+	remaining = target_abstract - resolved
+	if remaining:
+		signal_granted = _apply_signal_rules(repos)
+		resolved |= (signal_granted & remaining)
+
+	# Build synthetic evidence entries
+	result: dict[str, dict[str, Any]] = {}
+	for skill in resolved:
+		result[skill] = {
+			"name": skill,
+			"source": "inferred",
+			"effective_depth": "APPLIED",
+			"session_evidence_count": 0,
+			"discovery_flag": False,
+			"confidence": 0.5,
+			"_inferred": True,
+		}
+	return result
+
 
 def _resolve_skill_key(
 	raw_key: str,

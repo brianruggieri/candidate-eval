@@ -17,6 +17,13 @@ from claude_candidate.fit_exporter import (
 	compute_evidence_tier,
 	load_benchmark_metadata,
 	format_skill_repo_fallback,
+	ABSTRACT_SKILLS,
+	_ABSTRACT_SIGNAL_RULES,
+	_apply_signal_rules,
+	_build_abstract_skill_prompt,
+	_claude_infer_abstract_skills,
+	_build_commit_tagged_skills,
+	resolve_abstract_skills,
 )
 from claude_candidate.schemas.repo_profile import SkillRepoEvidence
 
@@ -1724,3 +1731,258 @@ class TestEvidenceHighlightsRepoFallback:
 		assert len(result) == 1
 		assert result[0]["source"] == "repo_quantitative"
 		assert "repositories" in result[0]["quote"]
+
+
+# ── Abstract Skill Resolution (Decision 4) ──
+
+
+class TestAbstractSkillsConstant:
+	def test_is_frozenset(self):
+		assert isinstance(ABSTRACT_SKILLS, frozenset)
+
+	def test_contains_key_abstract_skills(self):
+		assert "agentic-workflows" in ABSTRACT_SKILLS
+		assert "developer-tools" in ABSTRACT_SKILLS
+		assert "system-design" in ABSTRACT_SKILLS
+
+	def test_does_not_contain_concrete_skills(self):
+		assert "python" not in ABSTRACT_SKILLS
+		assert "react" not in ABSTRACT_SKILLS
+		assert "fastapi" not in ABSTRACT_SKILLS
+
+	def test_signal_rules_is_list_of_tuples(self):
+		assert isinstance(_ABSTRACT_SIGNAL_RULES, list)
+		for rule in _ABSTRACT_SIGNAL_RULES:
+			assert len(rule) == 3
+			field, test_fn, skill = rule
+			assert isinstance(field, str)
+			assert callable(test_fn)
+			assert skill in ABSTRACT_SKILLS
+
+
+# ── Task 2: _apply_signal_rules ──
+
+
+class TestApplySignalRules:
+	def test_agentic_workflows_requires_expert_or_ralph(self):
+		"""Expert ai_maturity_level should grant agentic-workflows."""
+		repos = [{"ai_maturity_level": "expert"}]
+		result = _apply_signal_rules(repos)
+		assert "agentic-workflows" in result
+
+	def test_advanced_without_ralph_does_not_grant_agentic(self):
+		"""Advanced maturity without ralph_loops should NOT grant agentic-workflows."""
+		repos = [{"ai_maturity_level": "advanced", "has_ralph_loops": False}]
+		result = _apply_signal_rules(repos)
+		assert "agentic-workflows" not in result
+
+	def test_advanced_with_ralph_grants_agentic(self):
+		"""Advanced maturity WITH ralph_loops should grant agentic-workflows."""
+		repos = [{"ai_maturity_level": "advanced", "has_ralph_loops": True}]
+		result = _apply_signal_rules(repos)
+		assert "agentic-workflows" in result
+
+	def test_llm_imports_grants_llm(self):
+		"""Non-empty llm_imports should grant llm."""
+		repos = [{"llm_imports": ["anthropic"]}]
+		result = _apply_signal_rules(repos)
+		assert "llm" in result
+
+	def test_empty_repos_returns_empty(self):
+		"""Empty repos list should produce empty result."""
+		assert _apply_signal_rules([]) == set()
+
+	def test_has_ci_grants_ci_cd(self):
+		"""has_ci=True should grant ci-cd."""
+		repos = [{"has_ci": True}]
+		result = _apply_signal_rules(repos)
+		assert "ci-cd" in result
+
+	def test_has_tests_grants_testing(self):
+		"""has_tests=True should grant testing."""
+		repos = [{"has_tests": True}]
+		result = _apply_signal_rules(repos)
+		assert "testing" in result
+
+	def test_releases_grants_production_systems(self):
+		"""releases > 0 should grant production-systems."""
+		repos = [{"releases": 3}]
+		result = _apply_signal_rules(repos)
+		assert "production-systems" in result
+
+	def test_deep_directory_grants_system_design(self):
+		"""directory_depth >= 4 should grant system-design."""
+		repos = [{"directory_depth": 5}]
+		result = _apply_signal_rules(repos)
+		assert "system-design" in result
+
+
+# ── Task 3: Claude abstract skill inference ──
+
+
+class TestBuildAbstractSkillPrompt:
+	def test_empty_when_no_targets(self):
+		"""Prompt is None when no abstract skills are in the job requirements."""
+		result = _build_abstract_skill_prompt(
+			repos=[{"name": "test"}],
+			job_skills=["python", "react"],
+			candidate_skills=[],
+		)
+		assert result is None
+
+	def test_empty_when_all_already_granted(self):
+		"""Prompt is None when all abstract job skills are already in candidate evidence."""
+		result = _build_abstract_skill_prompt(
+			repos=[{"name": "test"}],
+			job_skills=["system-design"],
+			candidate_skills=["system-design"],
+		)
+		assert result is None
+
+	def test_includes_target_skills(self):
+		"""Prompt should include the abstract skill names to evaluate."""
+		result = _build_abstract_skill_prompt(
+			repos=[{"name": "my-repo", "has_ci": True}],
+			job_skills=["system-design", "testing", "python"],
+			candidate_skills=[],
+		)
+		assert result is not None
+		assert "system-design" in result
+		assert "testing" in result
+		# python is not abstract, should not be in prompt
+		assert "python" not in result.split("Target skills:")[1].split("\n")[0]
+
+
+class TestClaudeInferAbstractSkills:
+	def test_handles_claude_error(self, monkeypatch):
+		"""Claude CLI error should return empty set, not raise."""
+		from claude_candidate import claude_cli
+
+		def mock_call_claude(prompt, *, timeout=60):
+			raise claude_cli.ClaudeCLIError("mock error")
+
+		monkeypatch.setattr(claude_cli, "call_claude", mock_call_claude)
+		result = _claude_infer_abstract_skills(
+			repos=[{"name": "test"}],
+			job_skills=["system-design"],
+			candidate_skills=[],
+		)
+		assert result == set()
+
+	def test_parses_response(self, monkeypatch):
+		"""Valid JSON array response should return parsed skills."""
+		from claude_candidate import claude_cli
+
+		def mock_call_claude(prompt, *, timeout=60):
+			return '["system-design", "testing"]'
+
+		monkeypatch.setattr(claude_cli, "call_claude", mock_call_claude)
+		result = _claude_infer_abstract_skills(
+			repos=[{"name": "test"}],
+			job_skills=["system-design", "testing"],
+			candidate_skills=[],
+		)
+		assert result == {"system-design", "testing"}
+
+	def test_only_returns_abstract_skills(self, monkeypatch):
+		"""Concrete skill hallucinations should be filtered out."""
+		from claude_candidate import claude_cli
+
+		def mock_call_claude(prompt, *, timeout=60):
+			return '["system-design", "python", "react", "testing"]'
+
+		monkeypatch.setattr(claude_cli, "call_claude", mock_call_claude)
+		result = _claude_infer_abstract_skills(
+			repos=[{"name": "test"}],
+			job_skills=["system-design", "testing", "python"],
+			candidate_skills=[],
+		)
+		# python and react should be filtered out
+		assert "python" not in result
+		assert "react" not in result
+		assert "system-design" in result
+		assert "testing" in result
+
+	def test_returns_empty_when_no_targets(self):
+		"""No abstract skills in job_skills should return empty set without calling Claude."""
+		result = _claude_infer_abstract_skills(
+			repos=[{"name": "test"}],
+			job_skills=["python"],
+			candidate_skills=[],
+		)
+		assert result == set()
+
+
+# ── Task 4: Commit tagged skills stub ──
+
+
+class TestBuildCommitTaggedSkills:
+	def test_returns_empty_set_stub(self):
+		"""Stub should return empty set."""
+		assert _build_commit_tagged_skills({}) == set()
+		assert _build_commit_tagged_skills({"repos": [{"name": "test"}]}) == set()
+
+
+# ── Task 5: resolve_abstract_skills orchestrator ──
+
+
+class TestResolveAbstractSkills:
+	def test_returns_empty_when_no_target(self):
+		"""No abstract skills in job requirements → empty dict."""
+		result = resolve_abstract_skills(
+			repo_profile={"skill_evidence": {}, "repos": []},
+			job_skills=["python", "react"],
+			use_claude=False,
+		)
+		assert result == {}
+
+	def test_already_in_evidence_skipped(self):
+		"""Abstract skills already in skill_evidence should not be re-resolved."""
+		result = resolve_abstract_skills(
+			repo_profile={
+				"skill_evidence": {"system-design": {"repos": 3}},
+				"repos": [{"directory_depth": 5, "source_modules": 12}],
+			},
+			job_skills=["system-design"],
+			use_claude=False,
+		)
+		assert result == {}
+
+	def test_uses_signal_rules_when_claude_disabled(self):
+		"""With use_claude=False, signal rules should still resolve abstract skills."""
+		result = resolve_abstract_skills(
+			repo_profile={
+				"skill_evidence": {},
+				"repos": [{"has_ci": True, "has_tests": True}],
+			},
+			job_skills=["ci-cd", "testing"],
+			use_claude=False,
+		)
+		assert "ci-cd" in result
+		assert "testing" in result
+
+	def test_returns_inferred_flag(self):
+		"""Inferred entries should have _inferred=True marker."""
+		result = resolve_abstract_skills(
+			repo_profile={
+				"skill_evidence": {},
+				"repos": [{"has_tests": True}],
+			},
+			job_skills=["testing"],
+			use_claude=False,
+		)
+		assert "testing" in result
+		assert result["testing"]["_inferred"] is True
+		assert result["testing"]["source"] == "inferred"
+
+	def test_uses_projects_key_fallback(self):
+		"""When 'repos' is absent, should fall back to 'projects' key."""
+		result = resolve_abstract_skills(
+			repo_profile={
+				"skill_evidence": {},
+				"projects": [{"has_ci": True}],
+			},
+			job_skills=["ci-cd"],
+			use_claude=False,
+		)
+		assert "ci-cd" in result
