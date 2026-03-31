@@ -68,6 +68,18 @@ class RepoProject(BaseModel):
 		)
 
 
+class CommitHighlight(BaseModel):
+	"""A pithy evidence quote extracted from a commit or PR."""
+
+	quote: str = Field(description="The highlight text extracted by Claude")
+	commit_hash: str | None = Field(default=None, description="Full or short git hash")
+	pr_number: int | None = Field(default=None, description="GitHub PR number if source=pr")
+	timestamp: datetime
+	github_url: str | None = Field(default=None, description="Direct link to commit or PR")
+	skills: list[str] = Field(default_factory=list, description="Skill names demonstrated")
+	source: Literal["commit", "pr"] = "commit"
+
+
 class RepoEvidence(BaseModel):
 	"""Evidence extracted from a single GitHub repository."""
 
@@ -122,6 +134,9 @@ class RepoEvidence(BaseModel):
 		default_factory=dict,
 		description="Skill-crafting loop evidence counts: skills_authored, eval_harnesses, etc.",
 	)
+
+	# Commit highlights
+	commit_highlights: list[CommitHighlight] = Field(default_factory=list)
 
 	# Repo scale
 	file_count: int = Field(ge=0)
