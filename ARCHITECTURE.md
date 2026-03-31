@@ -16,7 +16,6 @@ Git repositories    ──→ repo_scanner ──→ RepoProfile ─────
 Job Posting ──→ requirement_parser ──→ QuickRequirement[] ──→ scoring/ ──→ FitAssessment
                                                                         ↓
                                             generator ──→ resume bullets / cover letter
-                                            site_renderer ──→ HTML assessment page
 ```
 
 **Sanitizer** (`sanitizer.py`) — Privacy trust boundary. Strips API keys, auth tokens, emails, absolute file paths, and other secrets from raw JSONL session content before any further processing. Every redaction is logged with type and reason.
@@ -86,7 +85,6 @@ Job Posting ──→ requirement_parser ──→ QuickRequirement[] ──→ 
 | `message_format.py` | Normalizes raw JSONL event types into a consistent message shape |
 | `ai_scoring.py` | Scores session messages across five AI engineering depth dimensions |
 | `fit_exporter.py` | Exports `FitAssessment` as Hugo-compatible markdown |
-| `site_renderer.py` | Renders `FitAssessment` as HTML using Jinja2 templates |
 | `proof_generator.py` | Generates proof package markdown with evidence-linked skill claims |
 | `cli_prompts.py` | Interactive CLI prompts shared across commands |
 
@@ -253,7 +251,6 @@ The `scoring/` subpackage scores across five dimensions. Weights adapt based on 
 | Hashing | hashlib SHA-256 (stdlib) |
 | Session parsing | orjson, ahocorasick |
 | Resume parsing | pdfplumber, python-docx |
-| Template rendering | Jinja2 |
 | Testing | pytest, pytest-asyncio, hypothesis |
 | Build | hatchling (pyproject.toml) |
 | Extension | Chrome Manifest V3 (plain JS) |

@@ -21,7 +21,6 @@ __all__ = [
 	"generate_cover_letter",
 	"generate_interview_prep",
 	"generate_narrative_verdict",
-	"generate_site_narrative",
 ]
 
 CLAUDE_TIMEOUTS: dict[str, int] = {
@@ -312,58 +311,3 @@ def generate_narrative_verdict(assessment_data: dict, company_research: dict) ->
 	return parsed
 
 
-# ---------------------------------------------------------------------------
-# Site narrative
-# ---------------------------------------------------------------------------
-
-
-def generate_site_narrative(assessment_data: dict, company_research: dict) -> str:
-	"""Generate a 150-250 word pitch narrative for the cover letter site page.
-
-	The output is first-person, confident, and evidence-grounded — not a
-	traditional cover letter tone.  Think "what I would bring to this role"
-	rather than "I would love the opportunity."
-
-	PII scrubbing is applied before returning.
-
-	Raises:
-	    ClaudeCLIError: If the Claude CLI is unavailable or returns an error.
-	"""
-	company = assessment_data.get("company_name", "Unknown")
-	title = assessment_data.get("job_title", "Unknown")
-	grade = assessment_data.get("overall_grade", "N/A")
-	strongest = assessment_data.get("strongest_match", "N/A")
-	biggest_gap = assessment_data.get("biggest_gap", "N/A")
-
-	skill_matches = assessment_data.get("skill_matches", [])
-	top_skills = skill_matches[:5]
-	skills_text = "\n".join(
-		f"- {m.get('requirement', 'N/A')} ({m.get('match_status', 'N/A')}): "
-		f"{m.get('candidate_evidence', 'N/A')}"
-		for m in top_skills
-	)
-
-	research_text = "\n".join(f"- {k}: {v}" for k, v in company_research.items() if v)
-
-	prompt = (
-		"Write a first-person pitch paragraph (150-250 words) explaining why "
-		"I am a strong fit for this role. This is for a personal application "
-		"page, not a formal cover letter.\n\n"
-		"Rules:\n"
-		"- Lead with the strongest match\n"
-		"- Be specific — reference actual skills and evidence\n"
-		"- Confident but not arrogant\n"
-		"- No fluff, no 'I would love the opportunity' language\n"
-		"- No 'Dear Hiring Manager' or letter formatting\n"
-		"- 150-250 words, plain prose\n\n"
-		f"Company: {company}\n"
-		f"Job title: {title}\n"
-		f"Overall grade: {grade}\n"
-		f"Strongest match: {strongest}\n"
-		f"Biggest gap: {biggest_gap}\n\n"
-		f"Top skill matches:\n{skills_text}\n\n"
-		f"Company research:\n{research_text}\n"
-	)
-
-	raw = _call_claude(prompt)
-	return scrub_deliverable(raw.strip())
