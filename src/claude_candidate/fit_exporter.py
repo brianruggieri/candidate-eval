@@ -734,6 +734,20 @@ def _resolve_skill_key(
 ) -> str | None:
 	"""Try to resolve a requirement phrase to a key in evidence_dict.
 
+	Part of the three-tier skill resolution system (Decision 4):
+
+	  Tier 1 (Mechanical) — this function. Handles direct, alias, and word-level
+	    lookups against whatever evidence_dict is provided. Works for concrete
+	    skills and for abstract skills once resolve_abstract_skills() has injected
+	    synthetic entries into the dict.
+
+	  Tier 2 (Commit tags) — _build_commit_tagged_skills() stub. Will consume
+	    commit-level skill highlights from Decision 2 when that integration lands.
+
+	  Tier 3 (Repo-level inference) — resolve_abstract_skills() orchestrator.
+	    3a: Claude inference from repo structural signals.
+	    3b: Static signal rules via _apply_signal_rules().
+
 	Attempts, in order:
 	1. Direct lookup (already lowered by caller)
 	2. Canonicalize via taxonomy alias table
