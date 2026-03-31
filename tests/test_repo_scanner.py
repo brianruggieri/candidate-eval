@@ -1,8 +1,42 @@
+import tempfile
 from pathlib import Path
 
 import pytest
 
-from claude_candidate.repo_scanner import scan_local_repo
+from claude_candidate.repo_scanner import _fetch_raw_commits, scan_local_repo
+
+
+class TestFetchRawCommits:
+	def test_returns_raw_commits_for_this_repo(self) -> None:
+		"""Fetching commits from candidate-eval itself returns results."""
+		repo_path = Path(__file__).parent.parent
+		commits = _fetch_raw_commits(repo_path)
+		assert len(commits) > 0
+		# Each commit should have a hash and message
+		for c in commits[:5]:
+			assert len(c.hash) == 40  # full SHA
+			assert len(c.message) > 0
+			assert c.timestamp.year >= 2025
+
+	def test_respects_max_commits(self) -> None:
+		"""max_commits caps the number of returned commits."""
+		repo_path = Path(__file__).parent.parent
+		commits = _fetch_raw_commits(repo_path, max_commits=5)
+		assert len(commits) <= 5
+
+	def test_commits_have_diff_stats(self) -> None:
+		"""Non-merge commits should have numeric diff stats."""
+		repo_path = Path(__file__).parent.parent
+		commits = _fetch_raw_commits(repo_path, max_commits=20)
+		# At least some commits should have additions/deletions
+		with_stats = [c for c in commits if c.additions > 0 or c.deletions > 0]
+		assert len(with_stats) > 0
+
+	def test_returns_empty_on_non_git_dir(self) -> None:
+		"""A non-git directory returns an empty list."""
+		with tempfile.TemporaryDirectory() as tmpdir:
+			commits = _fetch_raw_commits(Path(tmpdir))
+			assert commits == []
 
 
 class TestBuildRepoProfile:

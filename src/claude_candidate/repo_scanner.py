@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from claude_candidate.commit_filter import RawCommit
 from claude_candidate.schemas.repo_profile import RepoEvidence, RepoProfile, SkillRepoEvidence
 
 # ---------------------------------------------------------------------------
@@ -880,6 +881,106 @@ def _git_commit_span(path: Path) -> tuple[datetime, datetime, int]:
 
 	except Exception:
 		return _fallback, _fallback, 0
+
+
+# ---------------------------------------------------------------------------
+# Helper: raw commit fetching
+# ---------------------------------------------------------------------------
+
+_COMMIT_SEP = "\x1f"  # ASCII Unit Separator — used to delimit fields in git log
+
+
+def _parse_numstat_log(output: str) -> list[RawCommit]:
+	"""Parse the output of ``git log --format=COMMIT<US>%H<US>%s<US>%aI --numstat``.
+
+	Each commit block starts with a COMMIT line followed by zero or more numstat
+	lines (additions<TAB>deletions<TAB>path). Blocks are separated by blank lines.
+	"""
+	commits: list[RawCommit] = []
+	current: RawCommit | None = None
+
+	for line in output.splitlines():
+		line = line.rstrip()
+		if not line:
+			continue
+
+		if line.startswith(f"COMMIT{_COMMIT_SEP}"):
+			# Flush previous commit
+			if current is not None:
+				commits.append(current)
+
+			parts = line.split(_COMMIT_SEP)
+			if len(parts) < 4:
+				current = None
+				continue
+
+			_, hash_str, subject, date_str = parts[0], parts[1], parts[2], parts[3]
+			try:
+				ts = datetime.fromisoformat(date_str)
+				if ts.tzinfo is None:
+					ts = ts.replace(tzinfo=timezone.utc)
+			except (ValueError, IndexError):
+				ts = datetime(2000, 1, 1, tzinfo=timezone.utc)
+
+			current = RawCommit(
+				hash=hash_str,
+				message=subject,
+				timestamp=ts,
+			)
+			continue
+
+		# Numstat line: additions<TAB>deletions<TAB>path
+		if current is not None and "\t" in line:
+			cols = line.split("\t")
+			if len(cols) >= 3:
+				try:
+					add = int(cols[0]) if cols[0] != "-" else 0
+					delete = int(cols[1]) if cols[1] != "-" else 0
+					current.additions += add
+					current.deletions += delete
+					current.files_changed += 1
+				except ValueError:
+					pass
+
+	# Flush final commit
+	if current is not None:
+		commits.append(current)
+
+	return commits
+
+
+def _fetch_raw_commits(path: Path, max_commits: int = 200) -> list[RawCommit]:
+	"""Fetch raw commits from a local git repo using a single git log pass.
+
+	Uses ``git log -N --format=COMMIT<US>%H<US>%s<US>%aI --numstat --`` to get
+	commit metadata and diff stats in one call.
+
+	Args:
+		path: Path to the git repository.
+		max_commits: Maximum number of commits to fetch.
+
+	Returns:
+		List of RawCommit objects, most recent first.
+	"""
+	fmt = f"COMMIT{_COMMIT_SEP}%H{_COMMIT_SEP}%s{_COMMIT_SEP}%aI"
+	try:
+		result = subprocess.run(
+			[
+				"git", "-C", str(path),
+				"log", f"-{max_commits}",
+				f"--format={fmt}",
+				"--numstat",
+				"--",
+			],
+			capture_output=True,
+			text=True,
+			timeout=30,
+		)
+		if result.returncode != 0:
+			return []
+		return _parse_numstat_log(result.stdout)
+	except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+		return []
 
 
 # ---------------------------------------------------------------------------
